@@ -1,65 +1,138 @@
-import Image from "next/image";
+import type { Metadata } from "next";
+import Link from "next/link";
+import { ArrowRight, AudioWaveform, Music4, Zap } from "lucide-react";
 
-export default function Home() {
+const SITE_URL = "https://audioforges.com";
+
+export const metadata: Metadata = {
+  title: "AudioForges — Free Audio Tools for Music Producers & DJs",
+  description:
+    "Free, fast audio tools built for producers and DJs. Convert YouTube to WAV/MP3, detect key & BPM, and more — no sign-up required.",
+  alternates: {
+    canonical: SITE_URL,
+  },
+  openGraph: {
+    title: "AudioForges — Free Audio Tools for Music Producers & DJs",
+    description:
+      "Free, fast audio tools built for producers and DJs. No sign-up required.",
+    url: SITE_URL,
+    siteName: "AudioForges",
+    type: "website",
+  },
+};
+
+export default function HomePage() {
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+    <main className="mx-auto max-w-5xl px-4 py-16 sm:py-24 space-y-20">
+      <section className="text-center space-y-6">
+        <div className="inline-flex items-center gap-2 rounded-full border border-graphite-700 bg-graphite-900 px-4 py-1.5 text-sm text-amber-400">
+          <AudioWaveform className="h-4 w-4" />
+          <span>Built for producers and DJs</span>
+        </div>
+        <h1 className="text-4xl font-bold tracking-tight sm:text-6xl text-text-primary">
+          Free audio tools that
+          <br className="hidden sm:block" /> respect your workflow
+        </h1>
+        <p className="text-lg text-text-muted max-w-2xl mx-auto">
+          No sign-up, no watermark, no artificial limits. Just fast, high-quality
+          tools for extracting and analyzing audio.
+        </p>
+        <div>
+          <Link
+            href="/youtube-to-wav"
+            className="inline-flex items-center gap-2 rounded-lg bg-amber-500 text-graphite-950 font-medium px-6 py-3 hover:bg-amber-400 transition-colors shadow-[0_0_0_1px_rgba(232,162,61,0.3)] hover:shadow-[0_0_24px_-4px_rgba(232,162,61,0.5)]"
+          >
+            Try YouTube to WAV converter
+            <ArrowRight className="h-4 w-4" />
+          </Link>
+        </div>
+      </section>
+
+      <section className="grid gap-4 sm:grid-cols-3">
+        {[
+          {
+            icon: Zap,
+            title: "Fast",
+            desc: "Most conversions finish in 20–40 seconds, no queue.",
+          },
+          {
+            icon: Music4,
+            title: "High quality",
+            desc: "Lossless WAV or 320kbps MP3 — your choice, every time.",
+          },
+          {
+            icon: AudioWaveform,
+            title: "No sign-up",
+            desc: "No account, no email, no watermark on your files.",
+          },
+        ].map((f) => (
+          <div
+            key={f.title}
+            className="rounded-xl border border-graphite-800 bg-graphite-900 p-5 space-y-2"
+          >
+            <f.icon className="h-5 w-5 text-amber-500" />
+            <h3 className="font-semibold text-text-primary">{f.title}</h3>
+            <p className="text-sm text-text-muted">{f.desc}</p>
+          </div>
+        ))}
+      </section>
+
+<section className="space-y-4">
+        <h2 className="text-2xl font-bold text-text-primary">Available tools</h2>
+        <Link
+          href="/youtube-to-wav"
+          className="group block rounded-xl border border-graphite-800 bg-graphite-900 p-5 hover:border-amber-500/40 transition-colors"
+        >
+          <h3 className="font-semibold text-text-primary group-hover:text-amber-400 transition-colors">
+            YouTube to WAV &amp; MP3 Converter →
+          </h3>
+          <p className="text-sm text-text-muted mt-1">
+            Paste any YouTube link and download high-quality WAV or MP3 audio —
+            works with standard videos and Shorts.
+          </p>
+        </Link>
+
+        <Link
+          href="/key-finder"
+          className="group block rounded-xl border border-graphite-800 bg-graphite-900 p-5 hover:border-amber-500/40 transition-colors"
+        >
+          <h3 className="font-semibold text-text-primary group-hover:text-amber-400 transition-colors">
+            Song Key &amp; BPM Finder →
+          </h3>
+          <p className="text-sm text-text-muted mt-1">
+            Upload a track and instantly detect its musical key and tempo for
+            mixing and production.
+          </p>
+        </Link>
+
+<div className="rounded-xl border border-graphite-800 bg-graphite-900 p-5 hover:border-amber-500/40 transition-colors">
+          <Link href="/vocal-remover" className="group block">
+            <h3 className="font-semibold text-text-primary group-hover:text-amber-400 transition-colors">
+              Vocal Remover →
+            </h3>
+            <p className="text-sm text-text-muted mt-1">
+              Strip vocals from any track to get a clean instrumental — great for
+              karaoke, practice, or remixing.
+            </p>
+          </Link>
+        </div>
+      </section>
+
+      <section className="space-y-4">
+        <h2 className="text-2xl font-bold text-text-primary">Why AudioForges</h2>
+        <div className="space-y-3 text-text-muted leading-relaxed max-w-3xl">
+          <p>
+            AudioForges started as a set of tools built for a producer&apos;s own
+            workflow — pulling reference audio, checking key and tempo before a
+            session, and getting clean files without wading through ad-heavy
+            downloader sites or signing up for yet another account.
+          </p>
+          <p>
+            Every tool here is built to do one job well: convert, analyze, or
+            extract audio quickly and accurately, then get out of your way.
           </p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+      </section>
+    </main>
   );
 }
