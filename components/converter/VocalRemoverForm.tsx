@@ -17,6 +17,23 @@ import type { SeparationUiState, StemType } from "@/lib/types/converter";
 
 const POLL_INTERVAL_MS = 12_000;
 
+// Shared Ko-fi support block — shown after ANY outcome (success or failure),
+// since server cost is incurred either way and we want people to know this
+// stays free because of support, not just when things go right.
+function SupportBlock() {
+  return (
+    <a
+      href="https://ko-fi.com/audioforges"
+      target="_blank"
+      rel="noopener noreferrer"
+      className="flex items-center justify-center gap-2 rounded-lg border border-graphite-700 px-4 py-2.5 text-sm text-text-muted hover:text-amber-400 hover:border-amber-500/40 transition-colors"
+    >
+      <Heart className="h-3.5 w-3.5" />
+      Enjoying this? Support the servers on Ko-fi
+    </a>
+  );
+}
+
 export function VocalRemoverForm() {
   const [file, setFile] = useState<File | null>(null);
   const [status, setStatus] = useState<SeparationUiState>("idle");
@@ -127,6 +144,7 @@ export function VocalRemoverForm() {
 
   const isBusy = status === "uploading" || status === "processing";
   const canSubmit = file && status !== "uploading" && status !== "processing" && status !== "complete";
+  const isFailed = status === "failed" || status === "error";
 
   const formatCooldown = (seconds: number) => {
     if (seconds >= 3600) return `${Math.ceil(seconds / 3600)}h`;
@@ -215,15 +233,7 @@ export function VocalRemoverForm() {
             Download {activeStem}
           </a>
 
-          <a
-            href="https://ko-fi.com/audioforges"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center justify-center gap-2 rounded-lg border border-graphite-700 px-4 py-2.5 text-sm text-text-muted hover:text-amber-400 hover:border-amber-500/40 transition-colors"
-          >
-            <Heart className="h-3.5 w-3.5" />
-            Enjoying this? Support the servers on Ko-fi
-          </a>
+          <SupportBlock />
 
           <Button variant="outline" size="md" className="w-full" onClick={handleReset}>
             Separate another track
@@ -231,10 +241,16 @@ export function VocalRemoverForm() {
         </div>
       )}
 
-      {(status === "failed" || status === "error") && errorMessage && (
-        <div className="flex items-center gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3">
-          <AlertTriangle className="h-4 w-4 shrink-0 text-red-500" />
-          <span className="text-sm text-text-primary">{errorMessage}</span>
+      {isFailed && errorMessage && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3">
+            <AlertTriangle className="h-4 w-4 shrink-0 text-red-500" />
+            <span className="text-sm text-text-primary">{errorMessage}</span>
+          </div>
+
+          {/* Shown on failure too — the server still burned CPU time on the attempt,
+              and it keeps the ask consistent rather than only appearing on wins. */}
+          <SupportBlock />
         </div>
       )}
 
@@ -249,7 +265,7 @@ export function VocalRemoverForm() {
           <Mic2 className="h-5 w-5" />
           {cooldownSeconds > 0
             ? `Try again in ${formatCooldown(cooldownSeconds)}`
-            : status === "failed" || status === "error"
+            : isFailed
             ? "Try again"
             : "Remove vocals"}
         </Button>
