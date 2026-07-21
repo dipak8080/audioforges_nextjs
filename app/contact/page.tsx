@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import { Mail } from "lucide-react";
+import { SITE_URL } from "@/lib/constants";
 
 export const metadata: Metadata = {
   title: "Contact Us",
   description: "Get in touch with the AudioForges team.",
   alternates: {
-    canonical: "https://audioforges.com/contact",
+    canonical: `${SITE_URL}/contact`,
   },
 };
 

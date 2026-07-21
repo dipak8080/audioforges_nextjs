@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight, AudioWaveform, Music4, Zap } from "lucide-react";
-
-const SITE_URL = "https://audioforges.com";
+import { SITE_URL } from "@/lib/constants";
 
 export const metadata: Metadata = {
   title: "AudioForges — Free Audio Tools for Music Producers & DJs",
@@ -77,7 +76,7 @@ export default function HomePage() {
         ))}
       </section>
 
-<section className="space-y-4">
+      <section className="space-y-4">
         <h2 className="text-2xl font-bold text-text-primary">Available tools</h2>
         <Link
           href="/youtube-to-wav"
@@ -105,7 +104,7 @@ export default function HomePage() {
           </p>
         </Link>
 
-<div className="rounded-xl border border-graphite-800 bg-graphite-900 p-5 hover:border-amber-500/40 transition-colors">
+        <div className="rounded-xl border border-graphite-800 bg-graphite-900 p-5 hover:border-amber-500/40 transition-colors">
           <Link href="/vocal-remover" className="group block">
             <h3 className="font-semibold text-text-primary group-hover:text-amber-400 transition-colors">
               Vocal Remover →

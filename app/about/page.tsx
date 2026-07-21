@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { SITE_URL } from "@/lib/constants";
 
 export const metadata: Metadata = {
   title: "About AudioForges",
   description:
     "Why AudioForges exists, who builds it, and how each tool works under the hood.",
-  alternates: { canonical: "https://audioforges.com/about" },
+  alternates: { canonical: `${SITE_URL}/about` },
 };
 
 export default function AboutPage() {

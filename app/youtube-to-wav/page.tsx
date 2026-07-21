@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { YouTubeConverterForm } from "@/components/converter/YouTubeConverterForm";
-
-const SITE_URL = "https://audioforges.com";
+import { SITE_URL } from "@/lib/constants";
 
 export const metadata: Metadata = {
   title: "YouTube to WAV Converter & Downloader (Free) | AudioForges",

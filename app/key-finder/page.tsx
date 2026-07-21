@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { KeyFinderForm } from "@/components/converter/KeyFinderForm";
-
-const SITE_URL = "https://audioforges.com";
+import { SITE_URL } from "@/lib/constants";
 
 export const metadata: Metadata = {
   title: "Song Key Finder & BPM Detector | AudioForges",

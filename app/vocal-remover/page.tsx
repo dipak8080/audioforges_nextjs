@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { VocalRemoverForm } from "@/components/converter/VocalRemoverForm";
-
-const SITE_URL = "https://audioforges.com";
+import { SITE_URL } from "@/lib/constants";
 
 export const metadata: Metadata = {
   title: "Free Vocal Remover — Extract Instrumentals Online | AudioForges",
