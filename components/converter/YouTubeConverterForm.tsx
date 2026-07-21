@@ -18,6 +18,7 @@ import {
   ApiError,
 } from "@/lib/api/railway";
 import { FORMAT_OPTIONS, type OutputFormat, type ProcessingState } from "@/lib/types/converter";
+import { SupportBlock } from "@/components/ui/SupportBlock";
 
 export function YouTubeConverterForm() {
   const [url, setUrl] = useState("");
@@ -175,21 +176,29 @@ export function YouTubeConverterForm() {
       )}
 
       {status === "complete" && (
-        <div className="flex items-start gap-2.5 rounded-lg border border-teal-400/30 bg-teal-400/10 px-4 py-3">
-          <CheckCircle2 className="h-5 w-5 shrink-0 text-teal-400 mt-0.5" />
-          <div>
-            <p className="text-sm font-medium text-text-primary">
-              Downloaded {completedTitle || "your audio"} as {format.toUpperCase()}
-            </p>
-            <p className="text-xs text-text-muted mt-0.5">Check your Downloads folder.</p>
+        <div className="space-y-4">
+          <div className="flex items-start gap-2.5 rounded-lg border border-teal-400/30 bg-teal-400/10 px-4 py-3">
+            <CheckCircle2 className="h-5 w-5 shrink-0 text-teal-400 mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-text-primary">
+                Downloaded {completedTitle || "your audio"} as {format.toUpperCase()}
+              </p>
+              <p className="text-xs text-text-muted mt-0.5">Check your Downloads folder.</p>
+            </div>
           </div>
+
+          <SupportBlock />
         </div>
       )}
 
       {status === "error" && errorMessage && (
-        <div className="flex items-center gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3">
-          <AlertTriangle className="h-4 w-4 shrink-0 text-red-500" />
-          <span className="text-sm text-text-primary">{errorMessage}</span>
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3">
+            <AlertTriangle className="h-4 w-4 shrink-0 text-red-500" />
+            <span className="text-sm text-text-primary">{errorMessage}</span>
+          </div>
+
+          <SupportBlock />
         </div>
       )}
 

@@ -8,6 +8,7 @@ import { Waveform } from "@/components/ui/Waveform";
 import { validateAudioFile, checkRateLimit } from "@/lib/utils/validation";
 import { analyzeAudioFile, ApiError } from "@/lib/api/railway";
 import type { AnalysisResult, ProcessingState } from "@/lib/types/converter";
+import { SupportBlock } from "@/components/ui/SupportBlock";
 
 export function KeyFinderForm() {
   const [file, setFile] = useState<File | null>(null);
@@ -104,40 +105,48 @@ export function KeyFinderForm() {
       )}
 
       {result && status === "complete" && (
-        <div className="grid grid-cols-2 gap-3">
-          <div className="rounded-lg border border-graphite-800 bg-graphite-850 p-4 text-center">
-            <p className="text-xs text-text-muted">Musical Key</p>
-            <p className="text-2xl font-mono font-bold text-amber-400 mt-1">{result.key}</p>
-            {result.keyAgrees === false && (
-              <span className="mt-2 inline-flex items-center gap-1 rounded-full bg-amber-500/15 text-amber-400 text-[10px] font-medium px-2 py-0.5">
-                <Info className="h-3 w-3" /> Lower confidence
-              </span>
-            )}
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-lg border border-graphite-800 bg-graphite-850 p-4 text-center">
+              <p className="text-xs text-text-muted">Musical Key</p>
+              <p className="text-2xl font-mono font-bold text-amber-400 mt-1">{result.key}</p>
+              {result.keyAgrees === false && (
+                <span className="mt-2 inline-flex items-center gap-1 rounded-full bg-amber-500/15 text-amber-400 text-[10px] font-medium px-2 py-0.5">
+                  <Info className="h-3 w-3" /> Lower confidence
+                </span>
+              )}
+            </div>
+            <div className="rounded-lg border border-graphite-800 bg-graphite-850 p-4 text-center">
+              <p className="text-xs text-text-muted">Camelot</p>
+              <p className="text-2xl font-mono font-bold text-teal-400 mt-1">{result.camelot}</p>
+            </div>
+            <div className="rounded-lg border border-graphite-800 bg-graphite-850 p-4 text-center">
+              <p className="text-xs text-text-muted">BPM</p>
+              <p className="text-2xl font-mono font-bold text-text-primary mt-1">{result.bpm}</p>
+              {result.bpmAgrees === false && (
+                <span className="mt-2 inline-flex items-center gap-1 rounded-full bg-amber-500/15 text-amber-400 text-[10px] font-medium px-2 py-0.5">
+                  <Info className="h-3 w-3" /> Lower confidence
+                </span>
+              )}
+            </div>
+            <div className="rounded-lg border border-graphite-800 bg-graphite-850 p-4 text-center">
+              <p className="text-xs text-text-muted">Confidence</p>
+              <p className="text-2xl font-mono font-bold text-teal-400 mt-1">{result.confidence}%</p>
+            </div>
           </div>
-          <div className="rounded-lg border border-graphite-800 bg-graphite-850 p-4 text-center">
-            <p className="text-xs text-text-muted">Camelot</p>
-            <p className="text-2xl font-mono font-bold text-teal-400 mt-1">{result.camelot}</p>
-          </div>
-          <div className="rounded-lg border border-graphite-800 bg-graphite-850 p-4 text-center">
-            <p className="text-xs text-text-muted">BPM</p>
-            <p className="text-2xl font-mono font-bold text-text-primary mt-1">{result.bpm}</p>
-            {result.bpmAgrees === false && (
-              <span className="mt-2 inline-flex items-center gap-1 rounded-full bg-amber-500/15 text-amber-400 text-[10px] font-medium px-2 py-0.5">
-                <Info className="h-3 w-3" /> Lower confidence
-              </span>
-            )}
-          </div>
-          <div className="rounded-lg border border-graphite-800 bg-graphite-850 p-4 text-center">
-            <p className="text-xs text-text-muted">Confidence</p>
-            <p className="text-2xl font-mono font-bold text-teal-400 mt-1">{result.confidence}%</p>
-          </div>
+
+          <SupportBlock />
         </div>
       )}
 
       {status === "error" && errorMessage && (
-        <div className="flex items-center gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3">
-          <AlertTriangle className="h-4 w-4 shrink-0 text-red-500" />
-          <span className="text-sm text-text-primary">{errorMessage}</span>
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3">
+            <AlertTriangle className="h-4 w-4 shrink-0 text-red-500" />
+            <span className="text-sm text-text-primary">{errorMessage}</span>
+          </div>
+
+          <SupportBlock />
         </div>
       )}
 
