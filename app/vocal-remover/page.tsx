@@ -4,7 +4,7 @@ import { VocalRemoverForm } from "@/components/converter/VocalRemoverForm";
 import { SITE_URL } from "@/lib/constants";
 
 export const metadata: Metadata = {
-  title: "Free AI Vocal Remover — Extract Instrumentals Online | AudioForges",
+  title: "Free AI Vocal Remover Online",
   description:
     "Remove vocals from any song free with AI — no sign-up, no download required. Get a clean instrumental or karaoke track in minutes.",
   keywords: [
@@ -21,8 +21,9 @@ export const metadata: Metadata = {
   ],
   alternates: { canonical: `${SITE_URL}/vocal-remover` },
   openGraph: {
-    title: "Free AI Vocal Remover — Extract Instrumentals Online | AudioForges",
-    description: "Remove vocals from any song free with AI — no sign-up, no download required.",
+    title: "Free AI Vocal Remover Online",
+    description:
+      "Remove vocals from any song free with AI — no sign-up, no download required.",
     url: `${SITE_URL}/vocal-remover`,
     siteName: "AudioForges",
     type: "website",

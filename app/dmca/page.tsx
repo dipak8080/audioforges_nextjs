@@ -3,7 +3,8 @@ import { SITE_URL } from "@/lib/constants";
 
 export const metadata: Metadata = {
   title: "DMCA Policy",
-  description: "AudioForges' DMCA takedown policy and copyright compliance process.",
+  description:
+    "Read the AudioForges DMCA Policy to learn how to report copyright infringement, submit takedown notices, file counter-notifications, and our copyright compliance process.",
   alternates: { canonical: `${SITE_URL}/dmca` },
 };
 

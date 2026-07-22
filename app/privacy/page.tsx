@@ -3,7 +3,8 @@ import { SITE_URL } from "@/lib/constants";
 
 export const metadata: Metadata = {
   title: "Privacy Policy",
-  description: "How AudioForges collects, uses, and protects your data.",
+  description:
+    "Read the AudioForges Privacy Policy to learn how we collect, use, store, and protect your data, including cookies, analytics, and your privacy rights.",
   alternates: { canonical: `${SITE_URL}/privacy` },
 };
 

@@ -5,7 +5,7 @@ import { SITE_URL } from "@/lib/constants";
 export const metadata: Metadata = {
   title: "About AudioForges",
   description:
-    "Why AudioForges exists, who builds it, and how each tool works under the hood.",
+    "Learn about AudioForges, our mission to build free audio tools for music producers and DJs, and how our YouTube to WAV converter, AI vocal remover, and key & BPM finder work.",
   alternates: { canonical: `${SITE_URL}/about` },
 };
 

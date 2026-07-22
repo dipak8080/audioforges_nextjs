@@ -4,7 +4,7 @@ import { KeyFinderForm } from "@/components/converter/KeyFinderForm";
 import { SITE_URL } from "@/lib/constants";
 
 export const metadata: Metadata = {
-  title: "Free Song Key & BPM Finder — Instant Results | AudioForges",
+  title: "Free Song Key & BPM Finder",
   description:
     "Find any song's key, BPM, and Camelot notation free, instantly — no sign-up, 100% web-based. Upload a track and get accurate results for DJ mixing and production.",
   keywords: [
@@ -20,8 +20,9 @@ export const metadata: Metadata = {
   ],
   alternates: { canonical: `${SITE_URL}/key-finder` },
   openGraph: {
-    title: "Free Song Key & BPM Finder — Instant Results | AudioForges",
-    description: "Find any song's key, BPM, and Camelot notation free, instantly — no sign-up.",
+    title: "Free Song Key & BPM Finder",
+    description:
+      "Find any song's key, BPM, and Camelot notation free, instantly — no sign-up.",
     url: `${SITE_URL}/key-finder`,
     siteName: "AudioForges",
     type: "website",

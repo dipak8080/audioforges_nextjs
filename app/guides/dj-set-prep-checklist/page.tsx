@@ -7,7 +7,7 @@ import { getGuideBySlug } from "@/lib/guides";
 const guide = getGuideBySlug("dj-set-prep-checklist")!;
 
 export const metadata: Metadata = {
-  title: `${guide.title} | AudioForges`,
+  title: "DJ Set Prep Checklist",
   description: guide.description,
   alternates: { canonical: `${SITE_URL}/guides/${guide.slug}` },
   openGraph: {

@@ -7,7 +7,7 @@ import { getGuideBySlug } from "@/lib/guides";
 const guide = getGuideBySlug("wav-vs-mp3-for-sampling")!;
 
 export const metadata: Metadata = {
-  title: `${guide.title} | AudioForges`,
+  title: "WAV vs MP3 for Sampling",
   description: guide.description,
   alternates: { canonical: `${SITE_URL}/guides/${guide.slug}` },
   openGraph: {

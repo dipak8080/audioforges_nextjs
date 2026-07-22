@@ -7,7 +7,7 @@ import { getGuideBySlug } from "@/lib/guides";
 const guide = getGuideBySlug("camelot-wheel-harmonic-mixing")!;
 
 export const metadata: Metadata = {
-  title: `${guide.title} | AudioForges`,
+  title: "Camelot Wheel Explained for DJs",
   description: guide.description,
   alternates: { canonical: `${SITE_URL}/guides/${guide.slug}` },
   openGraph: {

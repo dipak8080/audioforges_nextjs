@@ -3,7 +3,8 @@ import { SITE_URL } from "@/lib/constants";
 
 export const metadata: Metadata = {
   title: "Terms of Service",
-  description: "Terms and conditions for using AudioForges.",
+  description:
+    "Read the AudioForges Terms of Service, including acceptable use, copyright responsibilities, service limitations, liability, and user obligations.",
   alternates: { canonical: `${SITE_URL}/terms` },
 };
 

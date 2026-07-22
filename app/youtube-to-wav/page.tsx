@@ -4,7 +4,7 @@ import { YouTubeConverterForm } from "@/components/converter/YouTubeConverterFor
 import { SITE_URL } from "@/lib/constants";
 
 export const metadata: Metadata = {
-  title: "Free YouTube to WAV Converter (& MP3) — No Sign-up | AudioForges",
+  title: "Free YouTube to WAV & MP3 Converter",
   description:
     "Free YouTube to WAV converter — no sign-up, no watermark, no limits. Paste a link, get lossless WAV or 320kbps MP3 in seconds. Works with any video or Shorts.",
   keywords: [
@@ -22,7 +22,7 @@ export const metadata: Metadata = {
     canonical: `${SITE_URL}/youtube-to-wav`,
   },
   openGraph: {
-    title: "Free YouTube to WAV Converter (& MP3) — No Sign-up | AudioForges",
+    title: "Free YouTube to WAV & MP3 Converter",
     description:
       "Free YouTube to WAV converter — no sign-up, no watermark, no limits. Paste a link and download high-quality audio in seconds.",
     url: `${SITE_URL}/youtube-to-wav`,
@@ -30,7 +30,6 @@ export const metadata: Metadata = {
     type: "website",
   },
 };
-
 const faqJsonLd = {
   "@context": "https://schema.org",
   "@type": "FAQPage",

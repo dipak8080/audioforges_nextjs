@@ -4,12 +4,12 @@ import { SITE_URL } from "@/lib/constants";
 
 export const metadata: Metadata = {
   title: "Contact Us",
-  description: "Get in touch with the AudioForges team.",
+  description:
+    "Contact the AudioForges team for support, bug reports, feature requests, copyright inquiries, or general questions about our free audio tools.",
   alternates: {
     canonical: `${SITE_URL}/contact`,
   },
 };
-
 export default function ContactPage() {
   return (
     <main className="mx-auto max-w-2xl px-4 py-12 sm:py-16 text-center space-y-6">
