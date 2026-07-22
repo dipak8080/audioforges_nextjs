@@ -6,7 +6,7 @@ import { SITE_URL } from "@/lib/constants";
 export const metadata: Metadata = {
   title: "Free Song Key & BPM Finder",
   description:
-    "Find any song's key, BPM, and Camelot notation free, instantly — no sign-up, 100% web-based. Upload a track and get accurate results for DJ mixing and production.",
+    "Find any song's key, BPM, and Camelot notation instantly. Free, web-based, no sign-up required for DJs and music producers.",
   keywords: [
     "key finder",
     "bpm finder",
