@@ -54,11 +54,7 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html
       lang="en"
@@ -68,15 +64,16 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         {/* Google tag (gtag.js) */}
         <Script
-          src="https://www.googletagmanager.com/gtag/js?id=G-Z2LVK3KFLT"
+          src="https://www.googletagmanager.com/gtag/js?id=G-0TZJRY4JYW"
           strategy="afterInteractive"
         />
-        <Script id="gtag-init" strategy="afterInteractive">
+        
+        <Script id="google-analytics" strategy="afterInteractive">
           {`
             window.dataLayer = window.dataLayer || [];
             function gtag(){dataLayer.push(arguments);}
             gtag('js', new Date());
-            gtag('config', 'G-Z2LVK3KFLT');
+            gtag('config', 'G-0TZJRY4JYW');
           `}
         </Script>
 
