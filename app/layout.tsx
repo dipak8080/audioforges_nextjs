@@ -25,6 +25,10 @@ export const metadata: Metadata = {
   },
   description:
     "Free audio tools for music producers and DJs — YouTube to WAV/MP3 conversion, key & BPM detection, and more.",
+  other: {
+    "ahrefs-site-verification":
+      "c1354acdd4f3553f046ae70968ed850f6cd1ce5052618ccdd4a8b660096cd308",
+  },
 };
 
 export default function RootLayout({
