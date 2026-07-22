@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { FileDropZone } from "@/components/ui/FileDropZone";
 import { Waveform } from "@/components/ui/Waveform";
 import { validateAudioFile } from "@/lib/utils/validation";
+import { AudioPlayer } from "@/components/ui/AudioPlayer";
 import {
   submitSeparation,
   getSeparationStatus,
@@ -18,6 +19,12 @@ import { SupportBlock } from "@/components/ui/SupportBlock";
 
 const POLL_INTERVAL_MS = 12_000;
 
+function formatElapsed(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
 export function VocalRemoverForm() {
   const [file, setFile] = useState<File | null>(null);
   const [status, setStatus] = useState<SeparationUiState>("idle");
@@ -27,10 +34,10 @@ export function VocalRemoverForm() {
   const [resultTitle, setResultTitle] = useState<string | null>(null);
   const [activeStem, setActiveStem] = useState<StemType>("vocals");
   const [cooldownSeconds, setCooldownSeconds] = useState(0);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Clean up polling on unmount so it never fires against a stale job after navigation.
   useEffect(() => {
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
@@ -42,6 +49,15 @@ export function VocalRemoverForm() {
     const id = setTimeout(() => setCooldownSeconds((s) => Math.max(0, s - 1)), 1000);
     return () => clearTimeout(id);
   }, [cooldownSeconds]);
+
+  // Elapsed timer covers both "uploading" and "processing" so the count
+  // reflects total wait time from submit, not just the processing phase.
+  useEffect(() => {
+    if (status !== "uploading" && status !== "processing") return;
+    if (status === "uploading") setElapsedSeconds(0);
+    const id = setInterval(() => setElapsedSeconds((s) => s + 1), 1000);
+    return () => clearInterval(id);
+  }, [status]);
 
   const stopPolling = () => {
     if (pollRef.current) {
@@ -61,13 +77,10 @@ export function VocalRemoverForm() {
           setStatus("complete");
         } else if (result.status === "failed") {
           stopPolling();
-          setErrorMessage(result.error || "Separation failed. Please try a different file.");
+          setErrorMessage(result.error || "Separation failed.");
           setStatus("failed");
         }
-        // status === "processing" → keep polling silently
       } catch (error) {
-        // A single missed poll (e.g. transient network blip) shouldn't kill the flow —
-        // only stop on a 404 (job genuinely expired/gone).
         if (error instanceof ApiError && error.status === 404) {
           stopPolling();
           setErrorMessage("This job expired. Please upload your file again.");
@@ -104,14 +117,20 @@ export function VocalRemoverForm() {
       startPolling(job_id);
     } catch (error) {
       console.error("Separation submit error:", error);
-      const message = error instanceof ApiError ? error.message : "Something went wrong. Please try again.";
-      setErrorMessage(message);
-      setStatus("error");
-      if (error instanceof ApiError && error.isRateLimit) {
-        // Backend limit is 1/hour — respect the real Retry-After if given,
-        // otherwise fall back to a full hour rather than pretending it's short.
-        setCooldownSeconds(error.retryAfterSeconds ?? 3600);
+
+      let userMessage = "Something went wrong. Please try again.";
+
+      if (error instanceof ApiError) {
+        if (error.isRateLimit) {
+          userMessage = "You've reached the free limit (1 separation per hour). Please try again later.";
+          setCooldownSeconds(error.retryAfterSeconds ?? 3600);
+        } else {
+          userMessage = error.message;
+        }
       }
+
+      setErrorMessage(userMessage);
+      setStatus("error");
     }
   };
 
@@ -159,6 +178,12 @@ export function VocalRemoverForm() {
         <div className="flex flex-col items-center gap-3 py-4">
           <Waveform />
           <p className="text-sm text-text-muted">Uploading your file…</p>
+          <div className="w-full max-w-xs h-1.5 rounded-full bg-graphite-800 overflow-hidden">
+            <div className="h-full w-1/3 rounded-full bg-amber-500 animate-indeterminate" />
+          </div>
+          <p className="text-xs font-mono text-text-subtle tabular-nums">
+            {formatElapsed(elapsedSeconds)} elapsed
+          </p>
         </div>
       )}
 
@@ -166,9 +191,11 @@ export function VocalRemoverForm() {
         <div className="flex flex-col items-center gap-3 py-6">
           <Waveform />
           <p className="text-sm text-text-muted">Separating vocals from instrumental…</p>
-          <p className="text-xs text-text-subtle">
-            This runs on CPU and usually takes 1–5 minutes. You can leave this tab open —
-            it&apos;ll update automatically.
+          <div className="w-full max-w-xs h-1.5 rounded-full bg-graphite-800 overflow-hidden">
+            <div className="h-full w-1/3 rounded-full bg-amber-500 animate-indeterminate" />
+          </div>
+          <p className="text-xs font-mono text-text-subtle tabular-nums">
+            {formatElapsed(elapsedSeconds)} elapsed — usually 1–5 minutes
           </p>
         </div>
       )}
@@ -198,15 +225,7 @@ export function VocalRemoverForm() {
             ))}
           </div>
 
-          {/* key= forces the <audio> element to remount and load the new src when the tab changes */}
-          <audio
-            key={activeStem}
-            controls
-            className="w-full"
-            src={getSeparationPreviewUrl(jobId, activeStem)}
-          >
-            Your browser doesn&apos;t support inline audio playback.
-          </audio>
+          <AudioPlayer key={activeStem} src={getSeparationPreviewUrl(jobId, activeStem)} />
 
           <a
             href={getSeparationDownloadUrl(jobId, activeStem)}
@@ -232,8 +251,6 @@ export function VocalRemoverForm() {
             <span className="text-sm text-text-primary">{errorMessage}</span>
           </div>
 
-          {/* Shown on failure too — the server still burned CPU time on the attempt,
-              and it keeps the ask consistent rather than only appearing on wins. */}
           <SupportBlock />
         </div>
       )}
@@ -257,8 +274,7 @@ export function VocalRemoverForm() {
 
       {status !== "complete" && (
         <p className="text-xs text-text-subtle text-center">
-          Limited to 1 separation per hour per person — this process is CPU-intensive
-          to run for free.
+          Limited to 2 separation per hour per person.
         </p>
       )}
     </div>

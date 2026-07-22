@@ -20,6 +20,12 @@ import {
 import { FORMAT_OPTIONS, type OutputFormat, type ProcessingState } from "@/lib/types/converter";
 import { SupportBlock } from "@/components/ui/SupportBlock";
 
+function formatElapsed(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
 export function YouTubeConverterForm() {
   const [url, setUrl] = useState("");
   const [format, setFormat] = useState<OutputFormat>("wav");
@@ -29,12 +35,20 @@ export function YouTubeConverterForm() {
   const [urlTouched, setUrlTouched] = useState(false);
   const [completedTitle, setCompletedTitle] = useState<string | null>(null);
   const [cooldownSeconds, setCooldownSeconds] = useState(0);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
   useEffect(() => {
     if (cooldownSeconds <= 0) return;
     const id = setTimeout(() => setCooldownSeconds((s) => Math.max(0, s - 1)), 1000);
     return () => clearTimeout(id);
   }, [cooldownSeconds]);
+
+  useEffect(() => {
+    if (status !== "processing") return;
+    setElapsedSeconds(0);
+    const id = setInterval(() => setElapsedSeconds((s) => s + 1), 1000);
+    return () => clearInterval(id);
+  }, [status]);
 
   const handleUrlBlur = useCallback(() => {
     setUrlTouched(true);
@@ -171,7 +185,12 @@ export function YouTubeConverterForm() {
         <div className="flex flex-col items-center gap-3 py-4">
           <Waveform />
           <p className="text-sm text-text-muted">Extracting {format.toUpperCase()} audio…</p>
-          <p className="text-xs text-text-subtle">Usually takes 20–40 seconds</p>
+          <div className="w-full max-w-xs h-1.5 rounded-full bg-graphite-800 overflow-hidden">
+            <div className="h-full w-1/3 rounded-full bg-amber-500 animate-indeterminate" />
+          </div>
+          <p className="text-xs font-mono text-text-subtle tabular-nums">
+            {formatElapsed(elapsedSeconds)} elapsed — usually 20–40 seconds
+          </p>
         </div>
       )}
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Music, AlertTriangle, Info } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { FileDropZone } from "@/components/ui/FileDropZone";
@@ -10,12 +10,26 @@ import { analyzeAudioFile, ApiError } from "@/lib/api/railway";
 import type { AnalysisResult, ProcessingState } from "@/lib/types/converter";
 import { SupportBlock } from "@/components/ui/SupportBlock";
 
+function formatElapsed(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
 export function KeyFinderForm() {
   const [file, setFile] = useState<File | null>(null);
   const [status, setStatus] = useState<ProcessingState>("idle");
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+
+  useEffect(() => {
+    if (status !== "processing") return;
+    setElapsedSeconds(0);
+    const id = setInterval(() => setElapsedSeconds((s) => s + 1), 1000);
+    return () => clearInterval(id);
+  }, [status]);
 
   const handleFileSelect = (selectedFile: File) => {
     setValidationError(null);
@@ -100,7 +114,12 @@ export function KeyFinderForm() {
         <div className="flex flex-col items-center gap-3 py-4">
           <Waveform />
           <p className="text-sm text-text-muted">Analyzing audio…</p>
-          <p className="text-xs text-text-subtle">This may take 30–60 seconds</p>
+          <div className="w-full max-w-xs h-1.5 rounded-full bg-graphite-800 overflow-hidden">
+            <div className="h-full w-1/3 rounded-full bg-amber-500 animate-indeterminate" />
+          </div>
+          <p className="text-xs font-mono text-text-subtle tabular-nums">
+            {formatElapsed(elapsedSeconds)} elapsed — usually 30–60 seconds
+          </p>
         </div>
       )}
 
