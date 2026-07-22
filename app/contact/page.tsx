@@ -9,6 +9,29 @@ export const metadata: Metadata = {
   alternates: {
     canonical: `${SITE_URL}/contact`,
   },
+  openGraph: {
+    title: "Contact Us",
+    description:
+      "Contact the AudioForges team for support, bug reports, feature requests, copyright inquiries, or general questions about our free audio tools.",
+    url: `${SITE_URL}/contact`,
+    siteName: "AudioForges",
+    type: "website",
+    images: [
+      {
+        url: "/images/og-default.png",
+        width: 1200,
+        height: 630,
+        alt: "AudioForges",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Contact Us",
+    description:
+      "Contact the AudioForges team for support, bug reports, feature requests, copyright inquiries, or general questions about our free audio tools.",
+    images: ["/images/og-default.png"],
+  },
 };
 export default function ContactPage() {
   return (

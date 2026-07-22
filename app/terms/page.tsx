@@ -6,6 +6,29 @@ export const metadata: Metadata = {
   description:
     "Read the AudioForges Terms of Service, including acceptable use, copyright responsibilities, service limitations, liability, and user obligations.",
   alternates: { canonical: `${SITE_URL}/terms` },
+  openGraph: {
+    title: "Terms of Service",
+    description:
+      "Read the AudioForges Terms of Service, including acceptable use, copyright responsibilities, service limitations, liability, and user obligations.",
+    url: `${SITE_URL}/terms`,
+    siteName: "AudioForges",
+    type: "website",
+    images: [
+      {
+        url: "/images/og-default.png",
+        width: 1200,
+        height: 630,
+        alt: "AudioForges",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Terms of Service",
+    description:
+      "Read the AudioForges Terms of Service, including acceptable use, copyright responsibilities, service limitations, liability, and user obligations.",
+    images: ["/images/og-default.png"],
+  },
 };
 
 export default function TermsPage() {

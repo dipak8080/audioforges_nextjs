@@ -6,6 +6,29 @@ export const metadata: Metadata = {
   description:
     "Read the AudioForges DMCA Policy to report copyright infringement, submit takedown notices, and learn our compliance process.",
   alternates: { canonical: `${SITE_URL}/dmca` },
+  openGraph: {
+    title: "DMCA Policy",
+    description:
+      "Read the AudioForges DMCA Policy to report copyright infringement, submit takedown notices, and learn our compliance process.",
+    url: `${SITE_URL}/dmca`,
+    siteName: "AudioForges",
+    type: "website",
+    images: [
+      {
+        url: "/images/og-default.png",
+        width: 1200,
+        height: 630,
+        alt: "AudioForges",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "DMCA Policy",
+    description:
+      "Read the AudioForges DMCA Policy to report copyright infringement, submit takedown notices, and learn our compliance process.",
+    images: ["/images/og-default.png"],
+  },
 };
 
 export default function DmcaPage() {

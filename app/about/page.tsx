@@ -7,6 +7,29 @@ export const metadata: Metadata = {
   description:
     "Learn about AudioForges, our mission to build free audio tools for music producers and DJs, and how our audio tools work.",
   alternates: { canonical: `${SITE_URL}/about` },
+  openGraph: {
+    title: "About AudioForges",
+    description:
+      "Learn about AudioForges, our mission to build free audio tools for music producers and DJs, and how our audio tools work.",
+    url: `${SITE_URL}/about`,
+    siteName: "AudioForges",
+    type: "website",
+    images: [
+      {
+        url: "/images/og-default.png",
+        width: 1200,
+        height: 630,
+        alt: "AudioForges",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "About AudioForges",
+    description:
+      "Learn about AudioForges, our mission to build free audio tools for music producers and DJs, and how our audio tools work.",
+    images: ["/images/og-default.png"],
+  },
 };
 
 export default function AboutPage() {
