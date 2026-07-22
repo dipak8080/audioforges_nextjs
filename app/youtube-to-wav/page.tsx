@@ -28,6 +28,21 @@ export const metadata: Metadata = {
     url: `${SITE_URL}/youtube-to-wav`,
     siteName: "AudioForges",
     type: "website",
+    images: [
+      {
+        url: "/images/og-default.png",
+        width: 1200,
+        height: 630,
+        alt: "AudioForges",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Free YouTube to WAV & MP3 Converter",
+    description:
+      "Free YouTube to WAV converter — no sign-up, no watermark, no limits. Paste a link and download high-quality audio in seconds.",
+    images: ["/images/og-default.png"],
   },
 };
 const faqJsonLd = {

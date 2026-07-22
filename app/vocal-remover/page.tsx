@@ -27,6 +27,21 @@ export const metadata: Metadata = {
     url: `${SITE_URL}/vocal-remover`,
     siteName: "AudioForges",
     type: "website",
+    images: [
+      {
+        url: "/images/og-default.png",
+        width: 1200,
+        height: 630,
+        alt: "AudioForges",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Free AI Vocal Remover Online",
+    description:
+      "Remove vocals from any song free with AI — no sign-up, no download required.",
+    images: ["/images/og-default.png"],
   },
 };
 

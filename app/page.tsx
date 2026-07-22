@@ -17,6 +17,21 @@ export const metadata: Metadata = {
     url: SITE_URL,
     siteName: "AudioForges",
     type: "website",
+    images: [
+      {
+        url: "/images/og-default.png",
+        width: 1200,
+        height: 630,
+        alt: "AudioForges",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "AudioForges — Free Audio Tools for Music Producers & DJs",
+    description:
+      "Free, fast audio tools built for producers and DJs. No sign-up required.",
+    images: ["/images/og-default.png"],
   },
 };
 
