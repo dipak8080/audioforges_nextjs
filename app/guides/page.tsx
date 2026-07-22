@@ -16,6 +16,21 @@ export const metadata: Metadata = {
     url: `${SITE_URL}/guides`,
     siteName: "AudioForges",
     type: "website",
+    images: [
+      {
+        url: "/images/og-default.png",
+        width: 1200,
+        height: 630,
+        alt: "AudioForges",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Guides for Producers & DJs | AudioForges",
+    description:
+      "Practical guides on harmonic mixing, sampling, set prep, and production workflow.",
+    images: ["/images/og-default.png"],
   },
 };
 
