@@ -67,14 +67,14 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           src="https://www.googletagmanager.com/gtag/js?id=G-0TZJRY4JYW"
           strategy="afterInteractive"
         />
-        
+
         <Script id="google-analytics" strategy="afterInteractive">
           {`
-            window.dataLayer = window.dataLayer || [];
-            function gtag(){dataLayer.push(arguments);}
-            gtag('js', new Date());
-            gtag('config', 'G-0TZJRY4JYW');
-          `}
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-0TZJRY4JYW');
+  `}
         </Script>
 
         {/* Ahrefs Analytics */}
