@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { FileVideo, Download, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { FormatSelector } from "@/components/ui/FormatSelector";
@@ -36,6 +36,8 @@ export function YouTubeConverterForm() {
   const [completedTitle, setCompletedTitle] = useState<string | null>(null);
   const [cooldownSeconds, setCooldownSeconds] = useState(0);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+
+  const cancelledRef = useRef(false);
 
   useEffect(() => {
     if (cooldownSeconds <= 0) return;
@@ -83,9 +85,12 @@ export function YouTubeConverterForm() {
     setStatus("processing");
     setErrorMessage(null);
     setCompletedTitle(null);
+    cancelledRef.current = false;
 
     try {
       const payload = await downloadYouTubeAudio(urlValidation.normalizedUrl || trimmedUrl, format);
+      if (cancelledRef.current) return;
+
       const base64 = extractBase64Audio(payload);
       if (!base64) throw new Error("Server did not return audio data.");
 
@@ -115,6 +120,7 @@ export function YouTubeConverterForm() {
       setCompletedTitle(rawTitle);
       setStatus("complete");
     } catch (error) {
+      if (cancelledRef.current) return;
       console.error("Conversion error:", error);
       const message = error instanceof ApiError ? error.message : "Something went wrong. Please try again.";
       setErrorMessage(message);
@@ -133,6 +139,12 @@ export function YouTubeConverterForm() {
     setUrlTouched(false);
     setCompletedTitle(null);
     setCooldownSeconds(0);
+  };
+
+  const handleCancel = () => {
+    cancelledRef.current = true;
+    setStatus("idle");
+    setErrorMessage(null);
   };
 
   const isProcessing = status === "processing";
@@ -191,6 +203,13 @@ export function YouTubeConverterForm() {
           <p className="text-xs font-mono text-text-subtle tabular-nums">
             {formatElapsed(elapsedSeconds)} elapsed — usually 20–40 seconds
           </p>
+          <button
+            type="button"
+            onClick={handleCancel}
+            className="text-xs text-text-subtle hover:text-red-500 underline transition-colors"
+          >
+            Cancel
+          </button>
         </div>
       )}
 

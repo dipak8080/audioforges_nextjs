@@ -98,7 +98,7 @@ function readRetryAfter(res: Response): number | undefined {
 
 async function toApiError(
   res: Response,
-  context: "download" | "analyze" | "separate"
+  context: "download" | "analyze" | "separate" | "job"
 ): Promise<ApiError> {
   const detail = await parseDetail(res);
   const retryAfter = readRetryAfter(res);
@@ -150,7 +150,7 @@ async function toApiError(
           ? "Something went wrong while preparing your download. Please try again."
           : context === "analyze"
           ? "Something went wrong while analyzing your file. Please try again."
-          : "Something went wrong during separation. Please try again.",
+          : "Something went wrong. Please try again.",
         500
       );
     case 502:
@@ -253,4 +253,84 @@ export function base64ToBlob(base64: string, mimeType: string): Blob {
   const bytes = new Uint8Array(len);
   for (let i = 0; i < len; i++) bytes[i] = binary.charCodeAt(i);
   return new Blob([bytes], { type: mimeType });
+}
+
+// ============ GENERIC JOB-BASED TOOLS ============
+// Shared by /convert, /trim, /volume, /pitch, /tempo, /reverse, /noise-remove,
+// /voice-clean, /echo-remove, /silence-remove — they all follow the identical
+// submit -> poll status -> preview/download shape. One generic client instead
+// of ten near-duplicate ones.
+
+export type JobStatus = "processing" | "complete" | "failed";
+
+export interface JobSubmitResponse {
+  job_id: string;
+  status: JobStatus;
+}
+
+export interface JobStatusResult {
+  job_id: string;
+  status: JobStatus;
+  title: string | null;
+  error: string | null;
+}
+
+export async function submitJob(
+  endpoint: string,
+  formData: FormData,
+  timeoutMs = 30_000
+): Promise<JobSubmitResponse> {
+  const res = await fetchWithTimeout(
+    `${RAILWAY_API_BASE}/${endpoint}`,
+    { method: "POST", body: formData },
+    timeoutMs
+  );
+  if (!res.ok) throw await toApiError(res, "job");
+  return (await res.json()) as JobSubmitResponse;
+}
+
+export async function getJobStatus(endpoint: string, jobId: string): Promise<JobStatusResult> {
+  const res = await fetchWithTimeout(
+    `${RAILWAY_API_BASE}/${endpoint}/status/${jobId}`,
+    { method: "GET" },
+    15_000
+  );
+  if (!res.ok) throw await toApiError(res, "job");
+  return (await res.json()) as JobStatusResult;
+}
+
+export function getJobPreviewUrl(endpoint: string, jobId: string): string {
+  return `${RAILWAY_API_BASE}/${endpoint}/preview/${jobId}`;
+}
+
+export function getJobDownloadUrl(endpoint: string, jobId: string): string {
+  return `${RAILWAY_API_BASE}/${endpoint}/download/${jobId}`;
+}
+
+// ============ SPEECH TO TEXT ============
+// Uses the same submitJob/getJobStatus as every other tool (identical job shape),
+// but has no /preview or /download route — output is a transcript, not audio.
+// Only this one extra function is needed for its unique /result endpoint.
+
+export interface TranscriptSegment {
+  start: number;
+  end: number;
+  text: string;
+}
+
+export interface TranscriptResult {
+  text: string;
+  language: string;
+  language_probability: number;
+  segments: TranscriptSegment[];
+}
+
+export async function getTranscriptResult(jobId: string): Promise<TranscriptResult> {
+  const res = await fetchWithTimeout(
+    `${RAILWAY_API_BASE}/speech-to-text/result/${jobId}`,
+    { method: "GET" },
+    15_000
+  );
+  if (!res.ok) throw await toApiError(res, "job");
+  return (await res.json()) as TranscriptResult;
 }

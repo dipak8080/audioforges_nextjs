@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { KeyFinderForm } from "@/components/converter/KeyFinderForm";
 import { SITE_URL } from "@/lib/constants";
+import { getRelatedTools } from "@/lib/data/tools";
 
 export const metadata: Metadata = {
   title: "Free Song Key & BPM Finder",
@@ -122,6 +123,8 @@ const breadcrumbJsonLd = {
 };
 
 export default function KeyFinderPage() {
+  const relatedTools = getRelatedTools("key-finder", 2);
+
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />
@@ -184,29 +187,23 @@ export default function KeyFinderPage() {
           </div>
         </section>
 
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">More free tools</h2>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Link
-              href="/youtube-to-wav"
-              className="rounded-xl border border-graphite-800 bg-graphite-900 p-4 hover:border-amber-500/40 transition-colors"
-            >
-              <h3 className="font-semibold text-text-primary">YouTube to WAV Converter</h3>
-              <p className="text-sm text-text-muted mt-1">
-                Pull a track from YouTube, then check its key and BPM here.
-              </p>
-            </Link>
-            <Link
-              href="/vocal-remover"
-              className="rounded-xl border border-graphite-800 bg-graphite-900 p-4 hover:border-amber-500/40 transition-colors"
-            >
-              <h3 className="font-semibold text-text-primary">Vocal Remover</h3>
-              <p className="text-sm text-text-muted mt-1">
-                Isolate the instrumental, then confirm its key before you mix it in.
-              </p>
-            </Link>
-          </div>
-        </section>
+        {relatedTools.length > 0 && (
+          <section className="space-y-4">
+            <h2 className="text-2xl font-bold text-text-primary">More free tools</h2>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {relatedTools.map((tool) => (
+                <Link
+                  key={tool.slug}
+                  href={`/${tool.slug}`}
+                  className="rounded-xl border border-graphite-800 bg-graphite-900 p-4 hover:border-amber-500/40 transition-colors"
+                >
+                  <h3 className="font-semibold text-text-primary">{tool.name}</h3>
+                  <p className="text-sm text-text-muted mt-1">{tool.shortDescription}</p>
+                </Link>
+              ))}
+            </div>
+          </section>
+        )}
 
         <section className="space-y-4">
           <h2 className="text-2xl font-bold text-text-primary">Frequently asked questions</h2>

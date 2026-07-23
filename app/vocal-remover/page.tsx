@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { VocalRemoverForm } from "@/components/converter/VocalRemoverForm";
 import { SITE_URL } from "@/lib/constants";
+import { getRelatedTools } from "@/lib/data/tools";
 
 export const metadata: Metadata = {
   title: "Free AI Vocal Remover Online",
@@ -123,6 +124,8 @@ const breadcrumbJsonLd = {
 };
 
 export default function VocalRemoverPage() {
+  const relatedTools = getRelatedTools("vocal-remover", 2);
+
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />
@@ -194,29 +197,23 @@ export default function VocalRemoverPage() {
           </div>
         </section>
 
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">More free tools</h2>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Link
-              href="/youtube-to-wav"
-              className="rounded-xl border border-graphite-800 bg-graphite-900 p-4 hover:border-amber-500/40 transition-colors"
-            >
-              <h3 className="font-semibold text-text-primary">YouTube to WAV Converter</h3>
-              <p className="text-sm text-text-muted mt-1">
-                Grab a track from YouTube first, then strip the vocals here.
-              </p>
-            </Link>
-            <Link
-              href="/key-finder"
-              className="rounded-xl border border-graphite-800 bg-graphite-900 p-4 hover:border-amber-500/40 transition-colors"
-            >
-              <h3 className="font-semibold text-text-primary">Song Key &amp; BPM Finder</h3>
-              <p className="text-sm text-text-muted mt-1">
-                Check the key and tempo of your instrumental before mixing it in.
-              </p>
-            </Link>
-          </div>
-        </section>
+        {relatedTools.length > 0 && (
+          <section className="space-y-4">
+            <h2 className="text-2xl font-bold text-text-primary">More free tools</h2>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {relatedTools.map((tool) => (
+                <Link
+                  key={tool.slug}
+                  href={`/${tool.slug}`}
+                  className="rounded-xl border border-graphite-800 bg-graphite-900 p-4 hover:border-amber-500/40 transition-colors"
+                >
+                  <h3 className="font-semibold text-text-primary">{tool.name}</h3>
+                  <p className="text-sm text-text-muted mt-1">{tool.shortDescription}</p>
+                </Link>
+              ))}
+            </div>
+          </section>
+        )}
 
         <section className="rounded-xl border border-graphite-800 bg-graphite-900 p-5 space-y-2">
           <h2 className="font-semibold text-text-primary">Copyright &amp; fair use</h2>

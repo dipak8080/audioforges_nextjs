@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Music, AlertTriangle, Info } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { FileDropZone } from "@/components/ui/FileDropZone";
@@ -23,6 +23,8 @@ export function KeyFinderForm() {
   const [validationError, setValidationError] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+
+  const cancelledRef = useRef(false);
 
   useEffect(() => {
     if (status !== "processing") return;
@@ -57,9 +59,12 @@ export function KeyFinderForm() {
     setStatus("processing");
     setResult(null);
     setErrorMessage(null);
+    cancelledRef.current = false;
 
     try {
       const data = await analyzeAudioFile(file);
+      if (cancelledRef.current) return;
+
       const rawConf = Number(data.confidence) || 0;
       const rawBpmConf = Number(data.bpm_confidence) || 0;
       const toPct = (n: number) => Math.round(n > 1 ? n : n * 100);
@@ -75,6 +80,7 @@ export function KeyFinderForm() {
       });
       setStatus("complete");
     } catch (error) {
+      if (cancelledRef.current) return;
       console.error("Analysis error:", error);
       const message = error instanceof ApiError ? error.message : "Something went wrong. Please try again.";
       setErrorMessage(message);
@@ -87,6 +93,12 @@ export function KeyFinderForm() {
     setResult(null);
     setStatus("idle");
     setValidationError(null);
+    setErrorMessage(null);
+  };
+
+  const handleCancel = () => {
+    cancelledRef.current = true;
+    setStatus("idle");
     setErrorMessage(null);
   };
 
@@ -120,6 +132,13 @@ export function KeyFinderForm() {
           <p className="text-xs font-mono text-text-subtle tabular-nums">
             {formatElapsed(elapsedSeconds)} elapsed — usually 30–60 seconds
           </p>
+          <button
+            type="button"
+            onClick={handleCancel}
+            className="text-xs text-text-subtle hover:text-red-500 underline transition-colors"
+          >
+            Cancel
+          </button>
         </div>
       )}
 

@@ -1,19 +1,20 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, AudioWaveform, Music4, Zap } from "lucide-react";
+import { ArrowRight, AudioWaveform, Music4, Zap, LayoutGrid } from "lucide-react";
 import { SITE_URL } from "@/lib/constants";
+import { CATEGORY_ORDER, getToolsByCategory, getLiveTools } from "@/lib/data/tools";
 
 export const metadata: Metadata = {
   title: "AudioForges — Free Audio Tools for Music Producers & DJs",
   description:
-    "Free, fast audio tools built for producers and DJs. Convert YouTube to WAV/MP3, detect key & BPM, and more — no sign-up required.",
+    "14 free, fast audio tools built for producers and DJs — conversion, editing, cleanup, pitch/tempo, and AI-powered transcription. No sign-up required.",
   alternates: {
     canonical: SITE_URL,
   },
   openGraph: {
     title: "AudioForges — Free Audio Tools for Music Producers & DJs",
     description:
-      "Free, fast audio tools built for producers and DJs. No sign-up required.",
+      "14 free, fast audio tools built for producers and DJs. No sign-up required.",
     url: SITE_URL,
     siteName: "AudioForges",
     type: "website",
@@ -30,7 +31,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "AudioForges — Free Audio Tools for Music Producers & DJs",
     description:
-      "Free, fast audio tools built for producers and DJs. No sign-up required.",
+      "14 free, fast audio tools built for producers and DJs. No sign-up required.",
     images: ["/images/og-default.png"],
   },
 };
@@ -41,7 +42,7 @@ const organizationJsonLd = {
   name: "AudioForges",
   url: SITE_URL,
   description:
-    "Free audio tools for music producers, DJs, and creators — YouTube to WAV/MP3 conversion, key & BPM detection, and vocal removal.",
+    "Free audio tools for music producers, DJs, and creators — conversion, cleanup, pitch/tempo, and AI transcription tools.",
   sameAs: [],
 };
 
@@ -63,7 +64,7 @@ const faqJsonLd = {
       name: "What tools does AudioForges offer?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "A YouTube to WAV/MP3 converter, a song key & BPM finder, and a vocal remover — all free, with no sign-up required.",
+        text: "14 free audio tools covering conversion, trimming, volume, pitch and tempo, noise/echo/silence cleanup, vocal removal, key/BPM detection, and speech-to-text transcription — all with no sign-up required.",
       },
     },
     {
@@ -87,13 +88,19 @@ const faqJsonLd = {
       name: "Who is AudioForges built for?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Music producers, DJs, remixers, and content creators who need quick, accurate audio utilities without the friction of ad-heavy or sign-up-gated tools.",
+        text: "Music producers, DJs, remixers, podcasters, and content creators who need quick, accurate audio utilities without the friction of ad-heavy or sign-up-gated tools.",
       },
     },
   ],
 };
 
 export default function HomePage() {
+  const liveTools = getLiveTools();
+
+  const featured = CATEGORY_ORDER.map((category) =>
+    getToolsByCategory(category).find((t) => t.status === "live")
+  ).filter((t): t is NonNullable<typeof t> => Boolean(t));
+
   return (
     <>
       <script
@@ -113,23 +120,30 @@ export default function HomePage() {
         <section className="text-center space-y-6">
           <div className="inline-flex items-center gap-2 rounded-full border border-graphite-700 bg-graphite-900 px-4 py-1.5 text-sm text-amber-400">
             <AudioWaveform className="h-4 w-4" />
-            <span>Built for producers and DJs</span>
+            <span>{liveTools.length} free tools for producers and DJs</span>
           </div>
           <h1 className="text-4xl font-bold tracking-tight sm:text-6xl text-text-primary">
             Free audio tools that
             <br className="hidden sm:block" /> respect your workflow
           </h1>
           <p className="text-lg text-text-muted max-w-2xl mx-auto">
-            No sign-up, no watermark, no artificial limits. Just fast, high-quality
-            tools for extracting and analyzing audio.
+            No sign-up, no watermark, no artificial limits. Convert, edit, clean up,
+            and analyze audio — all in one place.
           </p>
-          <div>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
             <Link
               href="/youtube-to-wav"
               className="inline-flex items-center gap-2 rounded-lg bg-amber-500 text-graphite-950 font-medium px-6 py-3 hover:bg-amber-400 transition-colors shadow-[0_0_0_1px_rgba(232,162,61,0.3)] hover:shadow-[0_0_24px_-4px_rgba(232,162,61,0.5)]"
             >
               Try YouTube to WAV converter
               <ArrowRight className="h-4 w-4" />
+            </Link>
+            <Link
+              href="/tools"
+              className="inline-flex items-center gap-2 rounded-lg border border-graphite-700 text-text-primary font-medium px-6 py-3 hover:border-amber-500/40 hover:text-amber-400 transition-colors"
+            >
+              <LayoutGrid className="h-4 w-4" />
+              Browse all {liveTools.length} tools
             </Link>
           </div>
         </section>
@@ -139,12 +153,12 @@ export default function HomePage() {
             {
               icon: Zap,
               title: "Fast",
-              desc: "Most conversions finish in 20–40 seconds, no queue.",
+              desc: "Most tools finish in seconds, no queue.",
             },
             {
               icon: Music4,
               title: "High quality",
-              desc: "Lossless WAV or 320kbps MP3 — your choice, every time.",
+              desc: "Lossless output where it matters, every time.",
             },
             {
               icon: AudioWaveform,
@@ -164,43 +178,28 @@ export default function HomePage() {
         </section>
 
         <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">Available tools</h2>
-          <Link
-            href="/youtube-to-wav"
-            className="group block rounded-xl border border-graphite-800 bg-graphite-900 p-5 hover:border-amber-500/40 transition-colors"
-          >
-            <h3 className="font-semibold text-text-primary group-hover:text-amber-400 transition-colors">
-              YouTube to WAV &amp; MP3 Converter →
-            </h3>
-            <p className="text-sm text-text-muted mt-1">
-              Paste any YouTube link and download high-quality WAV or MP3 audio —
-              works with standard videos and Shorts.
-            </p>
-          </Link>
-
-          <Link
-            href="/key-finder"
-            className="group block rounded-xl border border-graphite-800 bg-graphite-900 p-5 hover:border-amber-500/40 transition-colors"
-          >
-            <h3 className="font-semibold text-text-primary group-hover:text-amber-400 transition-colors">
-              Song Key &amp; BPM Finder →
-            </h3>
-            <p className="text-sm text-text-muted mt-1">
-              Upload a track and instantly detect its musical key and tempo for
-              mixing and production.
-            </p>
-          </Link>
-
-          <div className="rounded-xl border border-graphite-800 bg-graphite-900 p-5 hover:border-amber-500/40 transition-colors">
-            <Link href="/vocal-remover" className="group block">
-              <h3 className="font-semibold text-text-primary group-hover:text-amber-400 transition-colors">
-                Vocal Remover →
-              </h3>
-              <p className="text-sm text-text-muted mt-1">
-                Strip vocals from any track to get a clean instrumental — great for
-                karaoke, practice, or remixing.
-              </p>
+          <div className="flex items-center justify-between">
+            <h2 className="text-2xl font-bold text-text-primary">Popular tools</h2>
+            <Link
+              href="/tools"
+              className="text-sm text-amber-400 hover:text-amber-300 transition-colors"
+            >
+              View all →
             </Link>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {featured.map((tool) => (
+              <Link
+                key={tool.slug}
+                href={`/${tool.slug}`}
+                className="group block rounded-xl border border-graphite-800 bg-graphite-900 p-5 hover:border-amber-500/40 transition-colors"
+              >
+                <h3 className="font-semibold text-text-primary group-hover:text-amber-400 transition-colors">
+                  {tool.name} →
+                </h3>
+                <p className="text-sm text-text-muted mt-1">{tool.shortDescription}</p>
+              </Link>
+            ))}
           </div>
         </section>
 
@@ -211,11 +210,13 @@ export default function HomePage() {
               AudioForges started as a set of tools built for a producer&apos;s own
               workflow — pulling reference audio, checking key and tempo before a
               session, and getting clean files without wading through ad-heavy
-              downloader sites or signing up for yet another account.
+              downloader sites or signing up for yet another account. It&apos;s since
+              grown into a full toolkit covering conversion, editing, cleanup, and
+              transcription.
             </p>
             <p>
-              Every tool here is built to do one job well: convert, analyze, or
-              extract audio quickly and accurately, then get out of your way.
+              Every tool here is built to do one job well: convert, analyze, clean
+              up, or extract audio quickly and accurately, then get out of your way.
             </p>
           </div>
         </section>
@@ -229,19 +230,45 @@ export default function HomePage() {
               Whether you&apos;re prepping a DJ set, sampling for a beat, editing a
               podcast, or pulling reference audio for a mix, the same few steps come
               up again and again: get a clean audio file, know its key and tempo,
-              and sometimes strip the vocals out entirely. AudioForges handles each
-              of those steps as its own focused tool instead of one bloated app.
+              trim or adjust it, and sometimes strip the vocals out entirely.
+              AudioForges handles each of those steps as its own focused tool
+              instead of one bloated app.
             </p>
             <p>
-              Use <Link href="/youtube-to-wav" className="text-amber-400 hover:text-amber-300 underline underline-offset-2">YouTube to WAV / MP3</Link>{" "}
-              when you need a source file to work with — reference tracks, your own
-              uploaded content, or royalty-free audio. Once you have a file, run it
-              through the{" "}
-              <Link href="/key-finder" className="text-amber-400 hover:text-amber-300 underline underline-offset-2">Key &amp; BPM Finder</Link>{" "}
-              to get the numbers you need for harmonic mixing, or the{" "}
-              <Link href="/vocal-remover" className="text-amber-400 hover:text-amber-300 underline underline-offset-2">Vocal Remover</Link>{" "}
-              if you need an instrumental or acapella. All three are built to be
-              used together, in whatever order your workflow needs.
+              Start with{" "}
+              <Link href="/youtube-to-wav" className="text-amber-400 hover:text-amber-300 underline underline-offset-2">
+                YouTube to WAV / MP3
+              </Link>{" "}
+              or the{" "}
+              <Link href="/convert" className="text-amber-400 hover:text-amber-300 underline underline-offset-2">
+                Format Converter
+              </Link>{" "}
+              to get a source file. From there, check its{" "}
+              <Link href="/key-finder" className="text-amber-400 hover:text-amber-300 underline underline-offset-2">
+                key and BPM
+              </Link>
+              , pull out an{" "}
+              <Link href="/vocal-remover" className="text-amber-400 hover:text-amber-300 underline underline-offset-2">
+                instrumental or acapella
+              </Link>
+              , clean up noise with the{" "}
+              <Link href="/noise-remove" className="text-amber-400 hover:text-amber-300 underline underline-offset-2">
+                Noise Remover
+              </Link>{" "}
+              or{" "}
+              <Link href="/voice-clean" className="text-amber-400 hover:text-amber-300 underline underline-offset-2">
+                Voice Cleaner
+              </Link>
+              , or get a full transcript with{" "}
+              <Link href="/speech-to-text" className="text-amber-400 hover:text-amber-300 underline underline-offset-2">
+                Speech to Text
+              </Link>
+              . Every tool is built to be used together, in whatever order your
+              workflow needs — browse the{" "}
+              <Link href="/tools" className="text-amber-400 hover:text-amber-300 underline underline-offset-2">
+                full list
+              </Link>{" "}
+              to see everything available.
             </p>
           </div>
         </section>
@@ -271,8 +298,10 @@ export default function HomePage() {
                 What tools does AudioForges offer?
               </h3>
               <p>
-                A YouTube to WAV/MP3 converter, a song key &amp; BPM finder, and a
-                vocal remover — all free, with no sign-up required.
+                {liveTools.length} free audio tools covering conversion, trimming,
+                volume, pitch and tempo, noise/echo/silence cleanup, vocal removal,
+                key/BPM detection, and speech-to-text transcription — all with no
+                sign-up required.
               </p>
             </div>
             <div>
@@ -298,9 +327,9 @@ export default function HomePage() {
                 Who is AudioForges built for?
               </h3>
               <p>
-                Music producers, DJs, remixers, and content creators who need quick,
-                accurate audio utilities without the friction of ad-heavy or
-                sign-up-gated tools.
+                Music producers, DJs, remixers, podcasters, and content creators who
+                need quick, accurate audio utilities without the friction of
+                ad-heavy or sign-up-gated tools.
               </p>
             </div>
           </div>
