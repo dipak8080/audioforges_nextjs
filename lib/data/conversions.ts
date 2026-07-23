@@ -1,16 +1,13 @@
 // lib/data/conversions.ts
-// Mirrors the backend's allowed (source -> targets) table for /convert.
-// Keep this in sync if the backend's supported pairs ever change.
+// Mirrors the backend's AUDIO_CONVERSION_MATRIX in config.py — full
+// any-to-any conversion between all supported formats. Generated from
+// one list, same pattern as the backend, so adding an 8th format later
+// is a one-line change here too instead of editing 7 arrays by hand.
+const ALL_FORMATS = ["mp3", "wav", "flac", "m4a", "aac", "ogg", "aiff"];
 
-export const CONVERSION_TARGETS: Record<string, string[]> = {
-  mp3: ["wav"],
-  wav: ["mp3", "flac", "aac", "aiff"],
-  flac: ["wav"],
-  m4a: ["mp3"],
-  aac: ["wav"],
-  ogg: ["mp3"],
-  aiff: ["wav"],
-};
+export const CONVERSION_TARGETS: Record<string, string[]> = Object.fromEntries(
+  ALL_FORMATS.map((fmt) => [fmt, ALL_FORMATS.filter((f) => f !== fmt)])
+);
 
 export function getSourceExtension(filename: string): string | null {
   const match = filename.toLowerCase().match(/\.([a-z0-9]+)$/);

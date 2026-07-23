@@ -7,7 +7,7 @@ import { getRelatedTools } from "@/lib/data/tools";
 export const metadata: Metadata = {
   title: "Free Audio Converter (MP3, WAV, FLAC & More)",
   description:
-    "Free audio converter — no sign-up, no limits. Convert MP3, WAV, FLAC, AAC, M4A, OGG and AIFF in seconds, then download instantly.",
+    "Free audio converter — no sign-up, no limits. Convert between MP3, WAV, FLAC, M4A, AAC, OGG and AIFF in seconds, then download instantly.",
   keywords: [
     "audio converter",
     "mp3 to wav converter",
@@ -21,7 +21,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Free Audio Converter (MP3, WAV, FLAC & More)",
     description:
-      "Free audio converter — no sign-up, no limits. Convert between major audio formats in seconds.",
+      "Free audio converter — no sign-up, no limits. Convert between any of 7 major audio formats in seconds.",
     url: `${SITE_URL}/convert`,
     siteName: SITE_NAME,
     type: "website",
@@ -30,7 +30,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Free Audio Converter (MP3, WAV, FLAC & More)",
     description:
-      "Free audio converter — no sign-up, no limits. Convert between major audio formats in seconds.",
+      "Free audio converter — no sign-up, no limits. Convert between any of 7 major audio formats in seconds.",
   },
 };
 
@@ -43,7 +43,7 @@ const faqJsonLd = {
       name: "What formats can I convert between?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "MP3 to WAV, WAV to MP3/FLAC/AAC/AIFF, FLAC to WAV, M4A to MP3, AAC to WAV, and OGG to MP3.",
+        text: "Any of MP3, WAV, FLAC, M4A, AAC, OGG, and AIFF — every format converts to every other one.",
       },
     },
     {
@@ -82,9 +82,8 @@ const webAppJsonLd = {
   operatingSystem: "Any",
   offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
   featureList: [
-    "Convert MP3 to WAV",
-    "Convert WAV to MP3, FLAC, AAC, or AIFF",
-    "Convert FLAC, M4A, AAC, and OGG",
+    "Convert between MP3, WAV, FLAC, M4A, AAC, OGG, and AIFF",
+    "Any format to any other format",
     "No sign-up required",
     "No watermark",
   ],
@@ -98,6 +97,8 @@ const breadcrumbJsonLd = {
     { "@type": "ListItem", position: 2, name: "Audio Converter", item: `${SITE_URL}/convert` },
   ],
 };
+
+const ALL_FORMATS = ["MP3", "WAV", "FLAC", "M4A", "AAC", "OGG", "AIFF"];
 
 export default function ConvertPage() {
   const relatedTools = getRelatedTools("convert", 2);
@@ -117,8 +118,9 @@ export default function ConvertPage() {
             Free Audio Converter
           </h1>
           <p className="text-lg text-text-muted max-w-xl mx-auto">
-            Convert MP3, WAV, FLAC, AAC, M4A, OGG and AIFF free — no sign-up, no
-            watermark. Upload a file and download the converted version in seconds.
+            Convert between MP3, WAV, FLAC, M4A, AAC, OGG and AIFF free — no
+            sign-up, no watermark. Upload a file and download the converted
+            version in seconds.
           </p>
         </header>
 
@@ -127,7 +129,7 @@ export default function ConvertPage() {
         <section className="grid gap-4 sm:grid-cols-3">
           {[
             { title: "Fast", desc: "Most conversions finish in a few seconds." },
-            { title: "7 formats", desc: "MP3, WAV, FLAC, AAC, M4A, OGG, AIFF." },
+            { title: "7 formats", desc: "Any format converts to any other format." },
             { title: "No sign-up", desc: "No account, no email, no watermark." },
           ].map((f) => (
             <div key={f.title} className="rounded-xl border border-graphite-800 bg-graphite-900 p-5 space-y-2">
@@ -138,22 +140,28 @@ export default function ConvertPage() {
         </section>
 
         <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">Supported conversions</h2>
-          <div className="space-y-3 text-text-muted leading-relaxed">
-            <p>
-              <strong className="text-text-primary">MP3</strong> → WAV.{" "}
-              <strong className="text-text-primary">WAV</strong> → MP3, FLAC, AAC, or
-              AIFF. <strong className="text-text-primary">FLAC</strong> → WAV.{" "}
-              <strong className="text-text-primary">M4A</strong> → MP3.{" "}
-              <strong className="text-text-primary">AAC</strong> → WAV.{" "}
-              <strong className="text-text-primary">OGG</strong> → MP3.
-            </p>
-            <p>
-              Convert to WAV when you need lossless audio for editing or DJ software.
-              Convert to MP3 when file size and easy sharing matter more than absolute
-              quality.
-            </p>
+          <h2 className="text-2xl font-bold text-text-primary">Supported formats</h2>
+          <p className="text-text-muted leading-relaxed">
+            Every format below converts to every other one — upload any of these,
+            pick any other as your target:
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {ALL_FORMATS.map((fmt) => (
+              <span
+                key={fmt}
+                className="rounded-lg border border-graphite-700 bg-graphite-850 px-3 py-1.5 font-mono text-sm font-semibold text-amber-400"
+              >
+                {fmt}
+              </span>
+            ))}
           </div>
+          <p className="text-text-muted leading-relaxed">
+            Convert to WAV or FLAC when you need lossless audio for editing or DJ
+            software. Convert to MP3 or AAC when file size and easy sharing matter
+            more than absolute quality. Note: converting a lossy format (like MP3)
+            to a lossless one (like WAV or FLAC) repackages the audio but doesn&apos;t
+            recover any quality already lost in the original encoding.
+          </p>
         </section>
 
         {relatedTools.length > 0 && (
@@ -179,7 +187,7 @@ export default function ConvertPage() {
           <div className="space-y-5 text-text-muted leading-relaxed">
             <div>
               <h3 className="font-semibold text-text-primary mb-1">What formats can I convert between?</h3>
-              <p>MP3 to WAV, WAV to MP3/FLAC/AAC/AIFF, FLAC to WAV, M4A to MP3, AAC to WAV, and OGG to MP3.</p>
+              <p>Any of MP3, WAV, FLAC, M4A, AAC, OGG, and AIFF — every format converts to every other one.</p>
             </div>
             <div>
               <h3 className="font-semibold text-text-primary mb-1">Is this really free?</h3>

@@ -73,7 +73,7 @@ export const TOOLS: Tool[] = [
   },
   {
     slug: "convert",
-    name: "Format Converter",
+    name: "Audio Converter",
     shortDescription: "Convert between MP3, WAV, FLAC, M4A, AAC, OGG, AIFF.",
     category: "convert",
     status: "live",

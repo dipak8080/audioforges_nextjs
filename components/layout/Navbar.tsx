@@ -87,12 +87,19 @@ export function Navbar() {
                         {CATEGORY_LABELS[category]}
                       </p>
                       <div className="space-y-0.5">
-                        {tools.map((tool) =>
-                          tool.status === "live" ? (
+                        {tools.map((tool) => {
+                          const isActive = pathname === `/${tool.slug}`;
+                          return tool.status === "live" ? (
                             <Link
                               key={tool.slug}
                               href={`/${tool.slug}`}
-                              className="block rounded-md px-2 py-1.5 text-sm text-text-muted hover:text-text-primary hover:bg-graphite-850 transition-colors"
+                              aria-current={isActive ? "page" : undefined}
+                              className={cn(
+                                "block rounded-md px-2 py-1.5 text-sm transition-colors",
+                                isActive
+                                  ? "bg-amber-500/10 text-amber-400"
+                                  : "text-text-muted hover:text-text-primary hover:bg-graphite-850"
+                              )}
                             >
                               {tool.name}
                             </Link>
@@ -106,8 +113,8 @@ export function Navbar() {
                                 Soon
                               </span>
                             </div>
-                          )
-                        )}
+                          );
+                        })}
                       </div>
                     </div>
                   );
@@ -143,7 +150,6 @@ export function Navbar() {
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Fixed: Added missing <a> tag */}
           <a
             href="https://ko-fi.com/audioforges"
             target="_blank"
@@ -229,7 +235,6 @@ export function Navbar() {
             Guides
           </Link>
 
-          {/* Fixed: Added missing <a> tag */}
           <a
             href="https://ko-fi.com/audioforges"
             target="_blank"
