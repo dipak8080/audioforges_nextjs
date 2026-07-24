@@ -148,6 +148,7 @@ export default function AdminLogsPage() {
   const [isPaused, setIsPaused] = useState(false);
   const [manageOpen, setManageOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const sysRef = useRef<HTMLDivElement>(null);
@@ -311,6 +312,16 @@ export default function AdminLogsPage() {
     }
   }
 
+  async function handleManualRefresh() {
+    setIsRefreshing(true);
+    const minSpinTime = new Promise((resolve) => setTimeout(resolve, 500));
+    try {
+      await Promise.all([fetchHttp(), fetchSystem(), minSpinTime]);
+    } finally {
+      setIsRefreshing(false);
+    }
+  }
+
   return (
     <main className="min-h-screen bg-graphite-950 text-text-primary">
       {/* ===== Top bar ===== */}
@@ -415,7 +426,13 @@ export default function AdminLogsPage() {
                     label={isPaused ? "Resume" : "Pause"}
                     highlight={isPaused}
                   />
-                  <IconAction onClick={() => { fetchHttp(); fetchSystem(); }} icon={RefreshCw} label="Refresh" />
+                  <IconAction
+                    onClick={handleManualRefresh}
+                    icon={RefreshCw}
+                    label={isRefreshing ? "Refreshing…" : "Refresh"}
+                    spinning={isRefreshing}
+                    disabled={isRefreshing}
+                  />
                   <div className="relative">
                     <IconAction
                       onClick={() => setManageOpen((o) => !o)}
@@ -630,24 +647,27 @@ function Th({ children, className = "" }: { children: React.ReactNode; className
 }
 
 function IconAction({
-  onClick, icon: Icon, label, highlight = false,
+  onClick, icon: Icon, label, highlight = false, spinning = false, disabled = false,
 }: {
   onClick: () => void;
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   highlight?: boolean;
+  spinning?: boolean;
+  disabled?: boolean;
 }) {
   return (
     <button
       onClick={onClick}
+      disabled={disabled}
       title={label}
-      className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs transition-colors ${
+      className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs transition-colors disabled:opacity-60 disabled:cursor-not-allowed ${
         highlight
           ? "border-amber-500/50 text-amber-400"
           : "border-graphite-700 text-text-muted hover:text-text-primary hover:bg-graphite-850"
       }`}
     >
-      <Icon className="h-3.5 w-3.5" />
+      <Icon className={`h-3.5 w-3.5 ${spinning ? "animate-spin" : ""}`} />
       <span className="hidden sm:inline">{label}</span>
     </button>
   );
