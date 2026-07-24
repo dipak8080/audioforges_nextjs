@@ -3,11 +3,12 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { SITE_URL } from "@/lib/constants";
 import { getGuideBySlug } from "@/lib/guides";
+import { GuideByline } from "@/components/guides/GuideByline";
 
 const guide = getGuideBySlug("wav-vs-mp3-for-sampling")!;
 
 export const metadata: Metadata = {
-  title: "WAV vs MP3 for Sampling",
+  title: guide.title,
   description: guide.description,
   alternates: { canonical: `${SITE_URL}/guides/${guide.slug}` },
   openGraph: {
@@ -59,14 +60,9 @@ export default function WavVsMp3GuidePage() {
           <h1 className="text-3xl font-bold tracking-tight sm:text-4xl text-text-primary">
             {guide.title}
           </h1>
-          <p className="text-sm text-text-subtle">
-            Published {new Date(guide.publishedDate).toLocaleDateString("en-US", {
-              year: "numeric",
-              month: "long",
-              day: "numeric",
-            })}
-          </p>
         </header>
+
+        <GuideByline publishedDate={guide.publishedDate} updatedDate={guide.updatedDate} />
 
         <div className="space-y-6 text-text-muted leading-relaxed">
           <p>

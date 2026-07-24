@@ -3,11 +3,12 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { SITE_URL } from "@/lib/constants";
 import { getGuideBySlug } from "@/lib/guides";
+import { GuideByline } from "@/components/guides/GuideByline";
 
 const guide = getGuideBySlug("dj-set-prep-checklist")!;
 
 export const metadata: Metadata = {
-  title: "DJ Set Prep Checklist",
+  title: guide.title,
   description: guide.description,
   alternates: { canonical: `${SITE_URL}/guides/${guide.slug}` },
   openGraph: {
@@ -59,14 +60,9 @@ export default function DjSetPrepGuidePage() {
           <h1 className="text-3xl font-bold tracking-tight sm:text-4xl text-text-primary">
             {guide.title}
           </h1>
-          <p className="text-sm text-text-subtle">
-            Published {new Date(guide.publishedDate).toLocaleDateString("en-US", {
-              year: "numeric",
-              month: "long",
-              day: "numeric",
-            })}
-          </p>
         </header>
+
+        <GuideByline publishedDate={guide.publishedDate} updatedDate={guide.updatedDate} />
 
         <div className="space-y-6 text-text-muted leading-relaxed">
           <p>

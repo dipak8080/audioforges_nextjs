@@ -3,11 +3,12 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { SITE_URL } from "@/lib/constants";
 import { getGuideBySlug } from "@/lib/guides";
+import { GuideByline } from "@/components/guides/GuideByline";
 
 const guide = getGuideBySlug("camelot-wheel-harmonic-mixing")!;
 
 export const metadata: Metadata = {
-  title: "Camelot Wheel Explained for DJs",
+  title: guide.title,
   description: guide.description,
   alternates: { canonical: `${SITE_URL}/guides/${guide.slug}` },
   openGraph: {
@@ -59,14 +60,9 @@ export default function CamelotWheelGuidePage() {
           <h1 className="text-3xl font-bold tracking-tight sm:text-4xl text-text-primary">
             {guide.title}
           </h1>
-          <p className="text-sm text-text-subtle">
-            Published {new Date(guide.publishedDate).toLocaleDateString("en-US", {
-              year: "numeric",
-              month: "long",
-              day: "numeric",
-            })}
-          </p>
         </header>
+
+        <GuideByline publishedDate={guide.publishedDate} updatedDate={guide.updatedDate} />
 
         <div className="space-y-6 text-text-muted leading-relaxed">
           <p>
@@ -131,6 +127,41 @@ export default function CamelotWheelGuidePage() {
 
           <section className="space-y-3">
             <h2 className="text-2xl font-bold text-text-primary">
+              A worked example
+            </h2>
+            <p>
+              Say your current track comes back as{" "}
+              <strong className="text-text-primary">8A</strong> (A minor). Your safe
+              next moves are:
+            </p>
+            <ul className="list-disc list-inside space-y-1 pl-2">
+              <li>
+                <strong className="text-text-primary">8A</strong> — another A minor
+                track. Safest possible blend, but can feel static if you stay there
+                too long.
+              </li>
+              <li>
+                <strong className="text-text-primary">8B</strong> (C major) — same
+                notes, brighter mood. Great for lifting energy without a key clash.
+              </li>
+              <li>
+                <strong className="text-text-primary">9A</strong> (E minor) — a fifth
+                up. Subtle energy lift, still clearly related.
+              </li>
+              <li>
+                <strong className="text-text-primary">7A</strong> (D minor) — a fifth
+                down. Slight energy drop, useful heading into a breakdown.
+              </li>
+            </ul>
+            <p>
+              Anything else — say jumping from 8A to 2A — puts you five steps around
+              the wheel, which is where the audible clash lives. Not forbidden, just
+              not a blend you can do on autopilot.
+            </p>
+          </section>
+
+          <section className="space-y-3">
+            <h2 className="text-2xl font-bold text-text-primary">
               Where it actually matters vs. where it doesn&apos;t
             </h2>
             <p>
@@ -145,6 +176,25 @@ export default function CamelotWheelGuidePage() {
               transition in a set can backfire — it flattens the energy arc. Some of
               the best moments in a set come from an intentional key jump timed to a
               breakdown or a vocal drop, not from strict adjacency.
+            </p>
+          </section>
+
+          <section className="space-y-3">
+            <h2 className="text-2xl font-bold text-text-primary">
+              A note on detection accuracy
+            </h2>
+            <p>
+              Automatic key detection — whether from Rekordbox, Mixed In Key, or any
+              other tool — is very good but not infallible. It&apos;s most reliable on
+              clean, tonal, single-key material and least reliable on tracks with
+              mid-song key changes, heavy atonal sound design, or sparse arrangements
+              where there simply isn&apos;t much harmonic information to analyze.
+            </p>
+            <p>
+              If a detected key produces a blend that sounds wrong despite being
+              &quot;compatible&quot; on paper, trust your ears over the tag. The
+              Camelot system is a shortcut for good decisions, not a replacement for
+              listening.
             </p>
           </section>
 
