@@ -33,6 +33,7 @@ interface SystemLogEntry {
   level: string;
   logger: string;
   message: string;
+  request_id: string;
 }
 
 const NOISE_PATTERNS = [
@@ -191,21 +192,22 @@ export default function AdminLogsPage() {
 
   useEffect(() => { fetchHttp(); fetchSystem(); }, [fetchHttp, fetchSystem]);
 
-  // Auto-scroll to the bottom when new entries arrive, but only if the
-  // user was already near the bottom - if they've scrolled up to read
-  // history, new data shouldn't yank the view out from under them.
+  // Always pinned to the newest entry, like Railway's own log tail -
+  // no "only if already near bottom" heuristic. On first load this puts
+  // you straight at the latest activity instead of the oldest entry in
+  // the loaded window; on every poll after that it keeps following the
+  // newest data automatically. Use Pause if you need to hold still and
+  // read something further up without it jumping around.
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
-    const wasNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
-    if (wasNearBottom) el.scrollTop = el.scrollHeight;
+    el.scrollTop = el.scrollHeight;
   }, [httpLogs]);
 
   useEffect(() => {
     const el = sysRef.current;
     if (!el) return;
-    const wasNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
-    if (wasNearBottom) el.scrollTop = el.scrollHeight;
+    el.scrollTop = el.scrollHeight;
   }, [systemLogs]);
 
   useEffect(() => {
@@ -447,10 +449,22 @@ export default function AdminLogsPage() {
               </button>
             </div>
             <div ref={sysRef} className="max-h-[560px] overflow-y-auto scrollbar-thin font-mono text-xs">
-              {systemLogs.map((entry) => {
+              {systemLogs.map((entry, index) => {
                 const tone = levelTone(entry.level);
+                // Only draw a divider when this entry's request_id differs
+                // from the previous entry's - groups all log lines that
+                // came from the same request together, with a visible
+                // break only where a new request's logs actually start,
+                // instead of a line after every single log entry.
+                const prevEntry = systemLogs[index - 1];
+                const isNewRequestGroup = index === 0 || entry.request_id !== prevEntry?.request_id;
                 return (
-                  <div key={entry.id} className={`border-l-2 ${tone.border} px-4 py-2 hover:bg-graphite-850/60 transition-colors`}>
+                  <div
+                    key={entry.id}
+                    className={`border-l-2 ${tone.border} px-4 py-2 hover:bg-graphite-850/60 transition-colors ${
+                      isNewRequestGroup && index !== 0 ? "border-t border-t-graphite-700 mt-1 pt-2.5" : ""
+                    }`}
+                  >
                     <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
                       <span className={`font-semibold ${tone.text}`}>{entry.level}</span>
                       <span className="text-text-subtle tabular-nums">{npDate(entry.timestamp)} {npTime(entry.timestamp)}</span>
