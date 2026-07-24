@@ -6,7 +6,7 @@ import { ToolsExplorer } from "@/components/tools/ToolsExplorer";
 export const metadata: Metadata = {
   title: "All Tools",
   description:
-    "Every free audio tool on AudioForges in one place — conversion, pitch and tempo, cleanup, and AI-powered tools for producers, DJs, and anyone working with audio.",
+    "Every free audio tool on AudioForges: conversion, pitch and tempo, cleanup, and AI-powered tools for producers and DJs. No sign-up, no watermark.",
   alternates: { canonical: `${SITE_URL}/tools` },
   openGraph: {
     title: `All Tools | ${SITE_NAME}`,

@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { VocalRemoverForm } from "@/components/converter/VocalRemoverForm";
-import { SITE_URL } from "@/lib/constants";
+import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
 
 export const metadata: Metadata = {
   title: "Free AI Vocal Remover Online",
   description:
-    "Remove vocals from any song free with AI — no sign-up, no download required. Get a clean instrumental or karaoke track in minutes.",
+    "Remove vocals from any song online with AI for free. Create instrumentals or extract acapellas from MP3, WAV, FLAC, AAC, and more. No sign-up required.",
   keywords: [
     "vocal remover",
     "ai vocal remover",
@@ -19,6 +19,10 @@ export const metadata: Metadata = {
     "isolate vocals",
     "free vocal remover",
     "stem splitter",
+    "instrumental maker",
+    "vocal isolation",
+    "extract vocals",
+    "ai stem splitter",
   ],
   alternates: { canonical: `${SITE_URL}/vocal-remover` },
   openGraph: {
@@ -26,7 +30,7 @@ export const metadata: Metadata = {
     description:
       "Remove vocals from any song free with AI — no sign-up, no download required.",
     url: `${SITE_URL}/vocal-remover`,
-    siteName: "AudioForges",
+    siteName: SITE_NAME,
     type: "website",
     images: [
       {
@@ -72,6 +76,14 @@ const faqJsonLd = {
       acceptedAnswer: {
         "@type": "Answer",
         text: "Karaoke practice, remixing, sampling, or isolating vocals for an acapella — as long as you have the right to use the source track that way.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "Can AI remove vocals completely?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "AI source separation gets much closer than a center-channel filter, but it isn't perfect on every track — dense mixes, heavy reverb, or doubled vocals can leave faint traces behind. Simpler mixes tend to separate more cleanly.",
       },
     },
     {
@@ -123,14 +135,26 @@ const breadcrumbJsonLd = {
   ],
 };
 
+const howToJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "HowTo",
+  name: "How to Remove Vocals from a Song",
+  step: [
+    { "@type": "HowToStep", name: "Upload", text: "Upload an MP3, WAV, FLAC, AAC, M4A, or OGG file." },
+    { "@type": "HowToStep", name: "Processing", text: "AI source separation splits the track into vocal and instrumental components, typically taking a few minutes." },
+    { "@type": "HowToStep", name: "Download", text: "Download the resulting instrumental or vocal stem directly from your browser." },
+  ],
+};
+
 export default function VocalRemoverPage() {
-  const relatedTools = getRelatedTools("vocal-remover", 2);
+  const relatedTools = getRelatedTools("vocal-remover", 5);
 
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(webAppJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(howToJsonLd) }} />
 
       <main className="mx-auto max-w-3xl px-4 py-12 sm:py-16 space-y-12">
         <header className="text-center space-y-4">
@@ -160,7 +184,16 @@ export default function VocalRemoverPage() {
         </section>
 
         <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">How it works</h2>
+          <h2 className="text-2xl font-bold text-text-primary">How to remove vocals from a song</h2>
+          <ol className="list-decimal list-inside space-y-2 text-text-muted leading-relaxed">
+            <li>Upload an MP3, WAV, FLAC, AAC, M4A, or OGG file.</li>
+            <li>AI source separation splits the track into vocal and instrumental components — usually a few minutes, depending on length and server load.</li>
+            <li>Download the result directly in your browser, no install needed.</li>
+          </ol>
+        </section>
+
+        <section className="space-y-4">
+          <h2 className="text-2xl font-bold text-text-primary">How AI vocal removal works</h2>
           <div className="space-y-3 text-text-muted leading-relaxed">
             <p>
               This tool uses real AI audio-source-separation processing to split a
@@ -170,13 +203,44 @@ export default function VocalRemoverPage() {
               often damages the mix.
             </p>
             <p>
+              A center-channel filter works by cutting whatever&apos;s panned
+              dead-center in the stereo mix — that catches lead vocals in many
+              commercial mixes, but it also strips out anything else placed
+              centrally (kick, bass, snare) and leaves behind any vocal element that
+              isn&apos;t perfectly centered. AI source separation instead analyzes
+              the audio&apos;s learned characteristics of what a voice sounds like
+              versus an instrument, which is why it can isolate vocals regardless
+              of where they sit in the stereo field, and why it produces a cleaner
+              instrumental as a result.
+            </p>
+            <p>
               Because this runs on CPU rather than expensive GPU infrastructure, a
               single track takes a few minutes and we limit it to one separation per
               hour per person, so it stays free and available for everyone. No
               download, install, or account is needed — everything happens in your
               browser.
             </p>
+            <p>
+              Want the fuller breakdown of how this compares to older methods and
+              where separation still struggles?{" "}
+              <Link href="/guides/ai-vocal-removal-explained" className="text-amber-400 hover:underline">
+                Read How AI Vocal Removal Actually Works
+              </Link>.
+            </p>
           </div>
+        </section>
+
+        <section className="space-y-4">
+          <h2 className="text-2xl font-bold text-text-primary">Instrumental vs. acapella</h2>
+          <p className="text-text-muted leading-relaxed">
+            An <strong className="text-text-primary">instrumental</strong> is the
+            track with vocals removed — everything except the voice. An{" "}
+            <strong className="text-text-primary">acapella</strong> is the reverse:
+            just the isolated vocal, with the instrumentation removed. Both come
+            from the same underlying separation process, just keeping the opposite
+            stem. Karaoke and remixing usually call for the instrumental; sampling
+            a vocal hook or building a mashup usually calls for the acapella.
+          </p>
         </section>
 
         <section className="space-y-4">
@@ -189,6 +253,10 @@ export default function VocalRemoverPage() {
             <p>
               <strong className="text-text-primary">Remixing &amp; sampling:</strong>{" "}
               isolate an acapella or a clean instrumental bed to build on.
+            </p>
+            <p>
+              <strong className="text-text-primary">DJ mashups:</strong> pull an
+              acapella from one track to lay over the instrumental of another.
             </p>
             <p>
               <strong className="text-text-primary">Cover reference:</strong> hear the
@@ -244,6 +312,15 @@ export default function VocalRemoverPage() {
               <p>
                 Karaoke practice, remixing, sampling, or isolating vocals for an
                 acapella — as long as you have the right to use the source track.
+              </p>
+            </div>
+            <div>
+              <h3 className="font-semibold text-text-primary mb-1">Can AI remove vocals completely?</h3>
+              <p>
+                It gets much closer than a center-channel filter, but it isn&apos;t
+                perfect on every track — dense mixes, heavy reverb, or doubled
+                vocals can leave faint traces behind. Simpler mixes tend to
+                separate more cleanly.
               </p>
             </div>
             <div>

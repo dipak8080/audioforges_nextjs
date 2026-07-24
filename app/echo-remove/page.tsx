@@ -7,13 +7,18 @@ import { getRelatedTools } from "@/lib/data/tools";
 export const metadata: Metadata = {
   title: "Free Echo Reducer — Tame Echo & Slap-Back in Recordings",
   description:
-    "Reduce echo in speech or music recordings free, no sign-up. Best for mild room echo and slap-back — upload, process, and download in seconds.",
+    "Reduce or remove echo from audio recordings online free. Improve voice recordings, podcasts, and interviews by cutting room echo and slap-back. No sign-up.",
   keywords: [
-    "reduce echo audio",
+    "remove echo from audio",
+    "echo remover",
+    "echo remover online",
     "remove echo from recording",
-    "echo reducer online",
+    "remove echo from voice recording",
+    "reduce echo audio",
+    "remove room echo",
     "fix echo in audio free",
     "slap echo remover",
+    "audio echo remover",
   ],
   alternates: { canonical: `${SITE_URL}/echo-remove` },
   openGraph: {
@@ -40,6 +45,22 @@ const faqJsonLd = {
       acceptedAnswer: {
         "@type": "Answer",
         text: "It reduces mild room echo and repeated slap-back echo well, but it doesn't perform full acoustic dereverberation — heavy reverb from a large or empty room won't be fully eliminated.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "What's the difference between echo, reverb, and slap-back?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Slap-back is a single, distinct repeat off a hard surface — common in small tiled or hard-walled rooms. Reverb is the accumulated wash of countless overlapping reflections in a larger space, without a single clear repeat. This tool handles slap-back and mild room echo well; it isn't designed for heavy reverb.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "Can I remove echo from Zoom or phone recordings?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Yes — phone recordings, Zoom calls, and voice memos with mild room echo are exactly the kind of source material this tool handles well.",
       },
     },
     {
@@ -94,17 +115,26 @@ const breadcrumbJsonLd = {
   ],
 };
 
+const howToJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "HowTo",
+  name: "How to Reduce Echo in a Recording",
+  step: [
+    { "@type": "HowToStep", name: "Upload", text: "Upload an MP3, WAV, FLAC, M4A, AAC, OGG, or AIFF file." },
+    { "@type": "HowToStep", name: "Process", text: "The tool gates out the quiet trailing reflections that create the echo." },
+    { "@type": "HowToStep", name: "Download", text: "Download the cleaned-up file." },
+  ],
+};
+
 export default function EchoRemovePage() {
-  const relatedTools = getRelatedTools("echo-remove", 2);
+  const relatedTools = getRelatedTools("echo-remove", 5);
 
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(webAppJsonLd) }} />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
-      />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(howToJsonLd) }} />
 
       <main className="mx-auto max-w-3xl px-4 py-12 sm:py-16 space-y-12">
         <header className="text-center space-y-4">
@@ -143,13 +173,46 @@ export default function EchoRemovePage() {
         </section>
 
         <section className="space-y-4">
+          <h2 className="text-2xl font-bold text-text-primary">How to reduce echo in a recording</h2>
+          <ol className="list-decimal list-inside space-y-2 text-text-muted leading-relaxed">
+            <li>Upload an MP3, WAV, FLAC, M4A, AAC, OGG, or AIFF file.</li>
+            <li>The tool gates out the quiet trailing reflections that create the echo.</li>
+            <li>Download the cleaned-up result.</li>
+          </ol>
+        </section>
+
+        <section className="space-y-4">
+          <h2 className="text-2xl font-bold text-text-primary">Echo vs. reverb vs. slap-back</h2>
+          <p className="text-text-muted leading-relaxed">
+            These terms get used interchangeably, but they&apos;re different
+            problems. <strong className="text-text-primary">Slap-back echo</strong>{" "}
+            is a single, distinct repeat off a hard surface — a tiled bathroom, a
+            hallway, an empty room with bare walls. <strong className="text-text-primary">Reverb</strong>{" "}
+            is the accumulated wash of countless overlapping reflections in a
+            larger space, without one clean repeat to point to — a concert hall or
+            an empty gymnasium produces reverb, not slap-back. This tool works by
+            gating out quiet trailing reflections, which handles slap-back and
+            mild room echo well. Heavy reverb doesn&apos;t offer that same clean
+            separation between direct sound and reflection, which is why it&apos;s
+            outside what this tool can fully fix.
+          </p>
+          <p className="text-text-muted leading-relaxed">
+            Want the full explanation of why one gates out cleanly and the other
+            doesn&apos;t?{" "}
+            <Link href="/guides/fixing-echo-in-home-recordings" className="text-amber-400 hover:underline">
+              Read How to Fix Echo in Home Recordings
+            </Link>.
+          </p>
+        </section>
+
+        <section className="space-y-4">
           <h2 className="text-2xl font-bold text-text-primary">When to use this</h2>
           <div className="space-y-3 text-text-muted leading-relaxed">
             <p>
               Good fits: a phone recording made in a tiled bathroom or hallway, a voice
-              memo with a faint repeat, or an interview recorded in a slightly echoey
-              room. This works by gating out the quiet trailing reflections that create
-              the echo sensation.
+              memo with a faint repeat, a Zoom call recorded in an untreated room, or an
+              interview recorded in a slightly echoey space. This works by gating out the
+              quiet trailing reflections that create the echo sensation.
             </p>
             <p>
               For speech recordings that also have background noise or inconsistent
@@ -189,6 +252,24 @@ export default function EchoRemovePage() {
                 It reduces mild room echo and repeated slap-back echo well, but it
                 doesn&apos;t perform full acoustic dereverberation — heavy reverb from a
                 large or empty room won&apos;t be fully eliminated.
+              </p>
+            </div>
+            <div>
+              <h3 className="font-semibold text-text-primary mb-1">What&apos;s the difference between echo, reverb, and slap-back?</h3>
+              <p>
+                Slap-back is a single, distinct repeat off a hard surface — common
+                in small tiled or hard-walled rooms. Reverb is the accumulated wash
+                of countless overlapping reflections in a larger space, without a
+                single clear repeat. This tool handles slap-back and mild room echo
+                well; it isn&apos;t designed for heavy reverb.
+              </p>
+            </div>
+            <div>
+              <h3 className="font-semibold text-text-primary mb-1">Can I remove echo from Zoom or phone recordings?</h3>
+              <p>
+                Yes — phone recordings, Zoom calls, and voice memos with mild room
+                echo are exactly the kind of source material this tool handles
+                well.
               </p>
             </div>
             <div>

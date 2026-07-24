@@ -7,7 +7,7 @@ import { getRelatedTools } from "@/lib/data/tools";
 export const metadata: Metadata = {
   title: "Free Song Key & BPM Finder",
   description:
-    "Find any song's key, BPM, and Camelot notation instantly. Free, web-based, no sign-up required for DJs and music producers.",
+    "Find any song's musical key, BPM, and Camelot notation online free. Upload MP3, WAV, FLAC, AAC, M4A, or OGG — no sign-up required.",
   keywords: [
     "key finder",
     "bpm finder",
@@ -18,6 +18,10 @@ export const metadata: Metadata = {
     "keyfinder",
     "free key bpm finder",
     "camelot wheel finder",
+    "camelot notation",
+    "harmonic mixing",
+    "find key of song",
+    "detect song key",
   ],
   alternates: { canonical: `${SITE_URL}/key-finder` },
   openGraph: {
@@ -63,6 +67,14 @@ const faqJsonLd = {
       acceptedAnswer: {
         "@type": "Answer",
         text: "Matching or beat-syncing BPM is what allows two tracks to play in time together.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "What's the difference between major and minor keys?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Major keys generally sound brighter and more resolved, while minor keys sound darker or more emotional. Every major key has a relative minor built from the same notes, which is why they share the same Camelot number with a different letter.",
       },
     },
     {
@@ -123,7 +135,7 @@ const breadcrumbJsonLd = {
 };
 
 export default function KeyFinderPage() {
-  const relatedTools = getRelatedTools("key-finder", 2);
+  const relatedTools = getRelatedTools("key-finder", 5);
 
   return (
     <>
@@ -158,6 +170,15 @@ export default function KeyFinderPage() {
         </section>
 
         <section className="space-y-4">
+          <h2 className="text-2xl font-bold text-text-primary">How to find a song's key and BPM</h2>
+          <ol className="list-decimal list-inside space-y-2 text-text-muted leading-relaxed">
+            <li>Upload an MP3, WAV, FLAC, M4A, AAC, or OGG file.</li>
+            <li>Analysis runs automatically — no settings to configure.</li>
+            <li>Get the detected key, BPM, and Camelot code in a few seconds.</li>
+          </ol>
+        </section>
+
+        <section className="space-y-4">
           <h2 className="text-2xl font-bold text-text-primary">Why key and BPM matter</h2>
           <div className="space-y-3 text-text-muted leading-relaxed">
             <p>
@@ -176,6 +197,18 @@ export default function KeyFinderPage() {
         </section>
 
         <section className="space-y-4">
+          <h2 className="text-2xl font-bold text-text-primary">Major vs. minor keys</h2>
+          <p className="text-text-muted leading-relaxed">
+            A detected key is always either major or minor. Major keys
+            generally read as brighter or more resolved; minor keys read as
+            darker or more emotional. Every major key shares its exact notes
+            with a relative minor key — which is exactly why they sit at the
+            same Camelot number with a different letter (8A and 8B, for
+            example), and why that pairing is always a safe harmonic move.
+          </p>
+        </section>
+
+        <section className="space-y-4">
           <h2 className="text-2xl font-bold text-text-primary">Understanding Camelot notation</h2>
           <div className="space-y-3 text-text-muted leading-relaxed">
             <p>
@@ -183,6 +216,12 @@ export default function KeyFinderPage() {
               the 24 musical keys as numbers 1–12 followed by &quot;A&quot; (minor) or
               &quot;B&quot; (major). From any key, you can safely mix into the same
               number, the next number up, or the next number down.
+            </p>
+            <p>
+              Want the full breakdown of how to use this for building a set?{" "}
+              <Link href="/guides/camelot-wheel-harmonic-mixing" className="text-amber-400 hover:underline">
+                Read The Camelot Wheel Explained: Harmonic Mixing for DJs
+              </Link>.
             </p>
           </div>
         </section>
@@ -215,6 +254,10 @@ export default function KeyFinderPage() {
             <div>
               <h3 className="font-semibold text-text-primary mb-1">Why does BPM matter for DJs?</h3>
               <p>Matching or beat-syncing BPM lets two tracks play in time together.</p>
+            </div>
+            <div>
+              <h3 className="font-semibold text-text-primary mb-1">What&apos;s the difference between major and minor keys?</h3>
+              <p>Major keys generally sound brighter and more resolved, while minor keys sound darker or more emotional. Every major key has a relative minor built from the same notes, which is why they share the same Camelot number with a different letter.</p>
             </div>
             <div>
               <h3 className="font-semibold text-text-primary mb-1">What file formats can I upload?</h3>

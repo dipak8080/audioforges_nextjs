@@ -5,28 +5,31 @@ import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
 
 export const metadata: Metadata = {
-  title: "Free Audio Volume Booster & Reducer",
+  title: "Volume Booster - Increase or Reduce Audio Volume Online",
   description:
-    "Boost or reduce audio volume free, no sign-up. Adjust gain from -30dB to +30dB and download in seconds — no quality loss beyond the gain change itself.",
+    "Increase or reduce audio volume online free — adjust gain from -30dB to +30dB on MP3, WAV, FLAC, and more. No sign-up, no watermark, fast processing.",
   keywords: [
+    "volume booster",
     "audio volume booster",
-    "increase volume of audio file",
+    "increase audio volume",
+    "increase mp3 volume",
+    "boost mp3 volume",
     "reduce audio volume online",
-    "boost mp3 volume free",
     "audio gain adjuster",
+    "make audio louder",
   ],
   alternates: { canonical: `${SITE_URL}/volume` },
   openGraph: {
-    title: "Free Audio Volume Booster & Reducer",
-    description: "Boost or reduce audio volume free, no sign-up.",
+    title: "Volume Booster - Increase or Reduce Audio Volume Online",
+    description: "Increase or reduce audio volume online, free and fast.",
     url: `${SITE_URL}/volume`,
     siteName: SITE_NAME,
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Free Audio Volume Booster & Reducer",
-    description: "Boost or reduce audio volume free, no sign-up.",
+    title: "Volume Booster - Increase or Reduce Audio Volume Online",
+    description: "Increase or reduce audio volume online, free and fast.",
   },
 };
 
@@ -94,26 +97,36 @@ const breadcrumbJsonLd = {
   ],
 };
 
+const howToJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "HowTo",
+  name: "How to Increase or Reduce Audio Volume Online",
+  step: [
+    { "@type": "HowToStep", name: "Upload", text: "Upload your MP3, WAV, FLAC, or other supported audio file." },
+    { "@type": "HowToStep", name: "Set gain", text: "Move the gain slider between -30dB and +30dB." },
+    { "@type": "HowToStep", name: "Apply", text: "Click Adjust volume to process the file." },
+    { "@type": "HowToStep", name: "Download", text: "Download the volume-adjusted file in the original format." },
+  ],
+};
+
 export default function VolumePage() {
-  const relatedTools = getRelatedTools("volume", 2);
+  const relatedTools = getRelatedTools("volume", 5);
 
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(webAppJsonLd) }} />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
-      />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(howToJsonLd) }} />
 
       <main className="mx-auto max-w-3xl px-4 py-12 sm:py-16 space-y-12">
         <header className="text-center space-y-4">
           <h1 className="text-4xl font-bold tracking-tight sm:text-5xl text-text-primary">
-            Free Volume Booster
+            Audio Volume Booster
           </h1>
           <p className="text-lg text-text-muted max-w-xl mx-auto">
-            Boost or reduce audio volume free — no sign-up, no watermark. Adjust gain
-            and download in seconds.
+            Increase or reduce audio volume online, free — no sign-up, no
+            watermark. Adjust gain and download in seconds.
           </p>
         </header>
 
@@ -133,6 +146,28 @@ export default function VolumePage() {
         </section>
 
         <section className="space-y-4">
+          <h2 className="text-2xl font-bold text-text-primary">What is an audio volume booster?</h2>
+          <p className="text-text-muted leading-relaxed">
+            A volume booster increases or decreases the loudness of an audio
+            file without touching its speed, pitch, or format. It&apos;s the
+            right fix when a recording came out too quiet, a podcast has
+            uneven levels between takes, or a track needs a small loudness
+            adjustment before sharing — a straightforward gain change, nothing
+            more.
+          </p>
+        </section>
+
+        <section className="space-y-4">
+          <h2 className="text-2xl font-bold text-text-primary">How to increase or reduce audio volume</h2>
+          <ol className="list-decimal list-inside space-y-2 text-text-muted leading-relaxed">
+            <li>Upload your MP3, WAV, FLAC, M4A, AAC, OGG, or AIFF file.</li>
+            <li>Move the gain slider to your target dB value, positive to boost or negative to reduce.</li>
+            <li>Click Adjust volume to process the file.</li>
+            <li>Download the result — same format as your upload, just at the new level.</li>
+          </ol>
+        </section>
+
+        <section className="space-y-4">
           <h2 className="text-2xl font-bold text-text-primary">Choosing a gain amount</h2>
           <div className="space-y-3 text-text-muted leading-relaxed">
             <p>
@@ -146,6 +181,13 @@ export default function VolumePage() {
               On the reduction side, <strong className="text-text-primary">-6dB to
               -10dB</strong> is enough to noticeably quiet a recording that&apos;s too
               loud, while still keeping it clearly audible.
+            </p>
+            <p>
+              Want the full explanation of why clipping happens and where gain
+              adjustments fit in a mixing workflow? Read{" "}
+              <Link href="/guides/gain-staging-for-home-studios" className="text-amber-400 hover:underline">
+                Gain Staging Explained for Home Studios
+              </Link>.
             </p>
           </div>
         </section>

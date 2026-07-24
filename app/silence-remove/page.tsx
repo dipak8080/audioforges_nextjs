@@ -7,13 +7,17 @@ import { getRelatedTools } from "@/lib/data/tools";
 export const metadata: Metadata = {
   title: "Free Silence Remover — Cut Dead Air From Any Recording",
   description:
-    "Strip silent gaps from a podcast, voice memo, or recording free, no sign-up. Removes dead air throughout, not just the ends — download in seconds.",
+    "Strip silent gaps from a podcast, audiobook, or recording online free. Removes dead air throughout, not just the ends. No sign-up, download in seconds.",
   keywords: [
     "silence remover online",
     "remove dead air podcast",
     "cut silence from audio free",
     "strip silence mp3",
     "podcast silence cutter",
+    "remove silence from audio",
+    "cut dead air",
+    "audio silence detector",
+    "remove pauses from recording",
   ],
   alternates: { canonical: `${SITE_URL}/silence-remove` },
   openGraph: {
@@ -40,6 +44,14 @@ const faqJsonLd = {
       acceptedAnswer: {
         "@type": "Answer",
         text: "No — it strips silent gaps throughout the entire recording, not just the leading and trailing edges. Good for cutting dead air between spoken sections in a podcast.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "What do threshold and minimum gap length control?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Threshold sets how quiet something has to be to count as silence. Minimum gap length sets how long that quiet stretch has to last before it's actually cut. Both have sensible defaults for most podcast and voice-memo cleanup.",
       },
     },
     {
@@ -94,17 +106,27 @@ const breadcrumbJsonLd = {
   ],
 };
 
+const howToJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "HowTo",
+  name: "How to Cut Dead Air from a Recording",
+  step: [
+    { "@type": "HowToStep", name: "Upload", text: "Upload an MP3, WAV, FLAC, M4A, AAC, OGG, or AIFF file." },
+    { "@type": "HowToStep", name: "Set threshold", text: "Leave the silence threshold at its default, or adjust it manually." },
+    { "@type": "HowToStep", name: "Set minimum gap", text: "Leave minimum gap length at its default, or shorten/lengthen it for tighter or looser cutting." },
+    { "@type": "HowToStep", name: "Download", text: "Download the trimmed result — shorter than the original, with dead air removed throughout." },
+  ],
+};
+
 export default function SilenceRemovePage() {
-  const relatedTools = getRelatedTools("silence-remove", 2);
+  const relatedTools = getRelatedTools("silence-remove", 5);
 
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(webAppJsonLd) }} />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
-      />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(howToJsonLd) }} />
 
       <main className="mx-auto max-w-3xl px-4 py-12 sm:py-16 space-y-12">
         <header className="text-center space-y-4">
@@ -133,19 +155,37 @@ export default function SilenceRemovePage() {
         </section>
 
         <section className="space-y-4">
+          <h2 className="text-2xl font-bold text-text-primary">How to cut dead air from a recording</h2>
+          <ol className="list-decimal list-inside space-y-2 text-text-muted leading-relaxed">
+            <li>Upload an MP3, WAV, FLAC, M4A, AAC, OGG, or AIFF file.</li>
+            <li>Leave threshold and minimum gap length at their defaults, or adjust them.</li>
+            <li>Download the result — shorter than the original, with dead air cut throughout.</li>
+          </ol>
+        </section>
+
+        <section className="space-y-4">
           <h2 className="text-2xl font-bold text-text-primary">Common uses</h2>
           <div className="space-y-3 text-text-muted leading-relaxed">
             <p>
               Perfect for podcast editing — cutting the dead air between sentences or
               during long pauses without manually scrubbing through the whole
-              recording. Also useful for voice memos with awkward gaps, or field
-              recordings with long quiet stretches you don&apos;t need.
+              recording. It&apos;s also useful for audiobook and lecture recordings
+              with long quiet stretches between sections, voice memos with awkward
+              gaps, meeting recordings you want to tighten up before sharing, or
+              field recordings with dead air you don&apos;t need.
             </p>
             <p>
               Want tighter or looser detection? Lower the threshold toward -90dB to
               catch even quiet background noise as silence, or raise it toward -10dB
               to only cut near-total silence. Shorter minimum gap lengths cut brief
               pauses too; longer ones only remove genuinely long dead air.
+            </p>
+            <p>
+              Want the full breakdown of how these two settings interact, and why
+              cutting too aggressively can clip natural pauses?{" "}
+              <Link href="/guides/editing-out-dead-air-podcasts" className="text-amber-400 hover:underline">
+                Read Cutting Dead Air from Podcasts &amp; Recordings
+              </Link>.
             </p>
           </div>
         </section>
@@ -174,6 +214,15 @@ export default function SilenceRemovePage() {
             <div>
               <h3 className="font-semibold text-text-primary mb-1">Does this only trim silence from the start and end?</h3>
               <p>No — it strips silent gaps throughout the entire recording, not just the leading and trailing edges.</p>
+            </div>
+            <div>
+              <h3 className="font-semibold text-text-primary mb-1">What do threshold and minimum gap length control?</h3>
+              <p>
+                Threshold sets how quiet something has to be to count as silence.
+                Minimum gap length sets how long that quiet stretch has to last
+                before it&apos;s actually cut. Both have sensible defaults for most
+                podcast and voice-memo cleanup.
+              </p>
             </div>
             <div>
               <h3 className="font-semibold text-text-primary mb-1">Will the output be shorter than the original?</h3>

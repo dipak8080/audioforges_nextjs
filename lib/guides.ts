@@ -40,6 +40,14 @@ export const guides: Guide[] = [
     updatedDate: "2026-07-24",
   },
   {
+    slug: "ai-vocal-removal-explained",
+    title: "How AI Vocal Removal Actually Works",
+    description:
+      "Why AI source separation beats a center-channel filter, the real difference between an instrumental and an acapella, and where separation still struggles.",
+    publishedDate: "2026-07-24",
+    updatedDate: "2026-07-24",
+  },
+  {
     slug: "lossless-vs-lossy-audio-formats",
     title: "Lossless vs Lossy Audio: Which Format to Use",
     description:

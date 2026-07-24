@@ -7,7 +7,7 @@ import { getRelatedTools } from "@/lib/data/tools";
 export const metadata: Metadata = {
   title: "Free YouTube to WAV & MP3 Converter",
   description:
-    "Free YouTube to WAV converter — no sign-up, no watermark, no limits. Paste a link, get lossless WAV or 320kbps MP3 in seconds. Works with any video or Shorts.",
+    "Convert YouTube videos to WAV or 320kbps MP3 online free. No sign-up, no watermark, supports YouTube Shorts. Paste a link, download in seconds.",
   keywords: [
     "youtube to wav",
     "youtube to wav converter",
@@ -46,6 +46,7 @@ export const metadata: Metadata = {
     images: ["/images/og-default.png"],
   },
 };
+
 const faqJsonLd = {
   "@context": "https://schema.org",
   "@type": "FAQPage",
@@ -141,8 +142,20 @@ const breadcrumbJsonLd = {
   ],
 };
 
+const howToJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "HowTo",
+  name: "How to Convert YouTube to WAV or MP3",
+  step: [
+    { "@type": "HowToStep", name: "Copy the link", text: "Copy a YouTube video, Shorts, or youtu.be URL." },
+    { "@type": "HowToStep", name: "Paste it", text: "Paste the link into the converter." },
+    { "@type": "HowToStep", name: "Choose a format", text: "Select WAV for lossless audio or MP3 for a smaller file." },
+    { "@type": "HowToStep", name: "Convert and download", text: "Click Convert and download your audio file, usually within 20-40 seconds." },
+  ],
+};
+
 export default function YouTubeToWavPage() {
-  const relatedTools = getRelatedTools("youtube-to-wav", 2);
+  const relatedTools = getRelatedTools("youtube-to-wav", 5);
 
   return (
     <>
@@ -157,6 +170,10 @@ export default function YouTubeToWavPage() {
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(howToJsonLd) }}
       />
 
       <main className="mx-auto max-w-3xl px-4 py-12 sm:py-16 space-y-12">
@@ -199,6 +216,18 @@ export default function YouTubeToWavPage() {
 
         <section className="space-y-4">
           <h2 className="text-2xl font-bold text-text-primary">
+            How to convert YouTube to WAV
+          </h2>
+          <ol className="list-decimal list-inside space-y-2 text-text-muted leading-relaxed">
+            <li>Copy a YouTube video, Shorts, or youtu.be URL.</li>
+            <li>Paste it into the converter above.</li>
+            <li>Choose WAV for lossless audio or MP3 for a smaller file.</li>
+            <li>Click Convert and download — usually ready in 20–40 seconds.</li>
+          </ol>
+        </section>
+
+        <section className="space-y-4">
+          <h2 className="text-2xl font-bold text-text-primary">
             About the YouTube to WAV / MP3 converter
           </h2>
           <div className="space-y-3 text-text-muted leading-relaxed">
@@ -211,19 +240,6 @@ export default function YouTubeToWavPage() {
               youtu.be, and /shorts links.
             </p>
             <p>
-              <strong className="text-text-primary">When to use WAV:</strong> DJ
-              software, audio editing (Ableton, Logic, FL Studio, Audacity),
-              sampling, or video editing where quality matters — WAV is
-              lossless, so there are no compression artifacts to worry about
-              during further processing.
-            </p>
-            <p>
-              <strong className="text-text-primary">When to use MP3:</strong>{" "}
-              mobile listening, sharing via chat, or storing large libraries
-              where file size matters. At 320kbps, MP3 is transparent enough
-              for most casual use.
-            </p>
-            <p>
               <strong className="text-text-primary">Common legitimate uses:</strong>{" "}
               downloading your own uploaded videos, extracting audio from
               Creative-Commons or public-domain content, saving royalty-free
@@ -231,6 +247,65 @@ export default function YouTubeToWavPage() {
               grabbing reference audio for a track you own.
             </p>
           </div>
+        </section>
+
+        <section className="space-y-4">
+          <h2 className="text-2xl font-bold text-text-primary">
+            WAV vs MP3: which should you choose?
+          </h2>
+          <p className="text-text-muted leading-relaxed">
+            WAV stores the original PCM audio with no compression, which is
+            why it&apos;s preferred for editing, sampling, and mastering —
+            there&apos;s nothing for further processing to expose. MP3 trades
+            some of that data for a much smaller file, which is the right
+            call when you&apos;re just listening or sharing rather than
+            processing further.
+          </p>
+          <div className="overflow-x-auto rounded-xl border border-graphite-800">
+            <table className="w-full text-sm text-left text-text-muted">
+              <thead className="bg-graphite-900 text-text-primary">
+                <tr>
+                  <th className="px-4 py-3 font-semibold">Feature</th>
+                  <th className="px-4 py-3 font-semibold">WAV</th>
+                  <th className="px-4 py-3 font-semibold">MP3</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-graphite-800">
+                <tr>
+                  <td className="px-4 py-3">File size</td>
+                  <td className="px-4 py-3">Large (~10MB/min)</td>
+                  <td className="px-4 py-3">Small (~1MB/min at 320kbps)</td>
+                </tr>
+                <tr>
+                  <td className="px-4 py-3">Quality</td>
+                  <td className="px-4 py-3">Lossless</td>
+                  <td className="px-4 py-3">Compressed, transparent at 320kbps</td>
+                </tr>
+                <tr>
+                  <td className="px-4 py-3">Editing / sampling</td>
+                  <td className="px-4 py-3">Ideal — no artifacts to expose</td>
+                  <td className="px-4 py-3">Fine for reference, riskier for heavy processing</td>
+                </tr>
+                <tr>
+                  <td className="px-4 py-3">DJ software</td>
+                  <td className="px-4 py-3">Preferred</td>
+                  <td className="px-4 py-3">Workable</td>
+                </tr>
+                <tr>
+                  <td className="px-4 py-3">Casual listening / sharing</td>
+                  <td className="px-4 py-3">Overkill on size</td>
+                  <td className="px-4 py-3">Ideal</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p className="text-text-muted leading-relaxed">
+            Want the full technical breakdown of why this matters for
+            sampling and production specifically?{" "}
+            <Link href="/guides/wav-vs-mp3-for-sampling" className="text-amber-400 hover:underline">
+              Read WAV vs MP3 for Sampling: What Actually Changes
+            </Link>.
+          </p>
         </section>
 
         {relatedTools.length > 0 && (

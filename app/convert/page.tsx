@@ -7,15 +7,20 @@ import { getRelatedTools } from "@/lib/data/tools";
 export const metadata: Metadata = {
   title: "Free Audio Converter (MP3, WAV, FLAC & More)",
   description:
-    "Free audio converter — no sign-up, no limits. Convert between MP3, WAV, FLAC, M4A, AAC, OGG and AIFF in seconds, then download instantly.",
+    "Convert audio files online free between MP3, WAV, FLAC, M4A, AAC, OGG, and AIFF. Fast conversion, no sign-up, no watermark on the output.",
   keywords: [
     "audio converter",
+    "audio converter online",
+    "convert audio files",
     "mp3 to wav converter",
     "wav to mp3 converter",
-    "convert audio online free",
-    "flac to wav converter",
-    "audio format converter",
+    "flac to mp3",
     "aac to wav",
+    "convert audio online free",
+    "audio format converter",
+    "mp3 converter",
+    "wav converter",
+    "flac converter",
   ],
   alternates: { canonical: `${SITE_URL}/convert` },
   openGraph: {
@@ -44,6 +49,14 @@ const faqJsonLd = {
       acceptedAnswer: {
         "@type": "Answer",
         text: "Any of MP3, WAV, FLAC, M4A, AAC, OGG, and AIFF — every format converts to every other one.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "Does converting MP3 to WAV improve quality?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "No. Converting a lossy file like MP3 to a lossless format like WAV repackages the audio but doesn't restore data the original MP3 encoding already discarded — the file gets larger, not higher quality.",
       },
     },
     {
@@ -98,19 +111,29 @@ const breadcrumbJsonLd = {
   ],
 };
 
+const howToJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "HowTo",
+  name: "How to Convert an Audio File",
+  step: [
+    { "@type": "HowToStep", name: "Upload", text: "Upload an MP3, WAV, FLAC, M4A, AAC, OGG, or AIFF file." },
+    { "@type": "HowToStep", name: "Choose format", text: "Select the output format you need." },
+    { "@type": "HowToStep", name: "Convert", text: "Click Convert to process the file." },
+    { "@type": "HowToStep", name: "Download", text: "Download the converted file, usually within a few seconds." },
+  ],
+};
+
 const ALL_FORMATS = ["MP3", "WAV", "FLAC", "M4A", "AAC", "OGG", "AIFF"];
 
 export default function ConvertPage() {
-  const relatedTools = getRelatedTools("convert", 2);
+  const relatedTools = getRelatedTools("convert", 5);
 
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(webAppJsonLd) }} />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
-      />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(howToJsonLd) }} />
 
       <main className="mx-auto max-w-3xl px-4 py-12 sm:py-16 space-y-12">
         <header className="text-center space-y-4">
@@ -140,6 +163,16 @@ export default function ConvertPage() {
         </section>
 
         <section className="space-y-4">
+          <h2 className="text-2xl font-bold text-text-primary">How to convert an audio file</h2>
+          <ol className="list-decimal list-inside space-y-2 text-text-muted leading-relaxed">
+            <li>Upload any MP3, WAV, FLAC, M4A, AAC, OGG, or AIFF file.</li>
+            <li>Choose the output format you need.</li>
+            <li>Click Convert.</li>
+            <li>Download the converted file — usually ready in a few seconds.</li>
+          </ol>
+        </section>
+
+        <section className="space-y-4">
           <h2 className="text-2xl font-bold text-text-primary">Supported formats</h2>
           <p className="text-text-muted leading-relaxed">
             Every format below converts to every other one — upload any of these,
@@ -161,6 +194,57 @@ export default function ConvertPage() {
             more than absolute quality. Note: converting a lossy format (like MP3)
             to a lossless one (like WAV or FLAC) repackages the audio but doesn&apos;t
             recover any quality already lost in the original encoding.
+          </p>
+        </section>
+
+        <section className="space-y-4">
+          <h2 className="text-2xl font-bold text-text-primary">Which format should you pick?</h2>
+          <div className="overflow-x-auto rounded-xl border border-graphite-800">
+            <table className="w-full text-sm text-left text-text-muted">
+              <thead className="bg-graphite-900 text-text-primary">
+                <tr>
+                  <th className="px-4 py-3 font-semibold">Format</th>
+                  <th className="px-4 py-3 font-semibold">Best for</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-graphite-800">
+                <tr>
+                  <td className="px-4 py-3 font-mono">MP3</td>
+                  <td className="px-4 py-3">Sharing, casual listening, small file size</td>
+                </tr>
+                <tr>
+                  <td className="px-4 py-3 font-mono">WAV</td>
+                  <td className="px-4 py-3">Editing, sampling, DJ software — lossless</td>
+                </tr>
+                <tr>
+                  <td className="px-4 py-3 font-mono">FLAC</td>
+                  <td className="px-4 py-3">Archiving at full quality with a smaller footprint than WAV</td>
+                </tr>
+                <tr>
+                  <td className="px-4 py-3 font-mono">M4A</td>
+                  <td className="px-4 py-3">Apple devices and Apple Music/iTunes compatibility</td>
+                </tr>
+                <tr>
+                  <td className="px-4 py-3 font-mono">AAC</td>
+                  <td className="px-4 py-3">Mobile and streaming — similar to MP3, often smaller at equal quality</td>
+                </tr>
+                <tr>
+                  <td className="px-4 py-3 font-mono">OGG</td>
+                  <td className="px-4 py-3">Open-source software and games</td>
+                </tr>
+                <tr>
+                  <td className="px-4 py-3 font-mono">AIFF</td>
+                  <td className="px-4 py-3">Professional editing on Apple/Logic-based workflows — lossless</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p className="text-text-muted leading-relaxed">
+            Want the deeper technical explanation of lossless vs. lossy, and why
+            converting up to WAV doesn&apos;t recover lost quality?{" "}
+            <Link href="/guides/lossless-vs-lossy-audio-formats" className="text-amber-400 hover:underline">
+              Read Lossless vs Lossy Audio: Which Format to Use
+            </Link>.
           </p>
         </section>
 
@@ -188,6 +272,15 @@ export default function ConvertPage() {
             <div>
               <h3 className="font-semibold text-text-primary mb-1">What formats can I convert between?</h3>
               <p>Any of MP3, WAV, FLAC, M4A, AAC, OGG, and AIFF — every format converts to every other one.</p>
+            </div>
+            <div>
+              <h3 className="font-semibold text-text-primary mb-1">Does converting MP3 to WAV improve quality?</h3>
+              <p>
+                No. Converting a lossy file like MP3 to a lossless format like WAV
+                repackages the audio but doesn&apos;t restore data the original MP3
+                encoding already discarded — the file gets larger, not higher
+                quality.
+              </p>
             </div>
             <div>
               <h3 className="font-semibold text-text-primary mb-1">Is this really free?</h3>

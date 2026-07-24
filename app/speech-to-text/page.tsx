@@ -7,14 +7,20 @@ import { getRelatedTools } from "@/lib/data/tools";
 export const metadata: Metadata = {
   title: "Free Speech to Text — Transcribe Audio with Timestamps",
   description:
-    "Transcribe audio to text free, no sign-up. Auto-detects language, includes timestamps, and exports as plain text or SRT captions.",
+    "Transcribe audio to text free, no sign-up. Auto-detects language, includes timestamps, and exports as plain text or SRT captions and subtitles.",
   keywords: [
     "speech to text free",
     "audio transcription online",
     "transcribe audio to text",
+    "automatic transcription",
+    "speech recognition online",
+    "transcript generator",
+    "subtitle generator",
+    "caption generator",
     "auto transcribe mp3",
     "generate srt from audio",
-    "whisper transcription free",
+    "transcribe mp3 to text",
+    "transcribe wav to text",
   ],
   alternates: { canonical: `${SITE_URL}/speech-to-text` },
   openGraph: {
@@ -61,6 +67,22 @@ const faqJsonLd = {
     },
     {
       "@type": "Question",
+      name: "What affects transcription accuracy?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Background noise, overlapping speech, and low recording volume are the most common causes of transcription errors. Cleaning up noisy audio before transcribing it usually improves the result more than anything else.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "What formats can I upload?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "MP3, WAV, FLAC, M4A, AAC, and OGG, up to 50MB and 20 minutes long.",
+      },
+    },
+    {
+      "@type": "Question",
       name: "Is this really free?",
       acceptedAnswer: {
         "@type": "Answer",
@@ -95,17 +117,27 @@ const breadcrumbJsonLd = {
   ],
 };
 
+const howToJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "HowTo",
+  name: "How to Transcribe Audio to Text",
+  step: [
+    { "@type": "HowToStep", name: "Upload", text: "Upload an MP3, WAV, FLAC, M4A, AAC, or OGG file." },
+    { "@type": "HowToStep", name: "Transcribe", text: "Processing runs automatically — language is auto-detected, no settings needed." },
+    { "@type": "HowToStep", name: "Choose export", text: "Export the result as plain text or SRT captions." },
+    { "@type": "HowToStep", name: "Download", text: "Download your transcript or caption file." },
+  ],
+};
+
 export default function SpeechToTextPage() {
-  const relatedTools = getRelatedTools("speech-to-text", 2);
+  const relatedTools = getRelatedTools("speech-to-text", 5);
 
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(webAppJsonLd) }} />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
-      />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(howToJsonLd) }} />
 
       <main className="mx-auto max-w-3xl px-4 py-12 sm:py-16 space-y-12">
         <header className="text-center space-y-4">
@@ -133,6 +165,16 @@ export default function SpeechToTextPage() {
           ))}
         </section>
 
+        <section className="space-y-4">
+          <h2 className="text-2xl font-bold text-text-primary">How to transcribe audio to text</h2>
+          <ol className="list-decimal list-inside space-y-2 text-text-muted leading-relaxed">
+            <li>Upload an MP3, WAV, FLAC, M4A, AAC, or OGG file.</li>
+            <li>Processing runs automatically — language is detected for you.</li>
+            <li>Choose plain text or SRT captions as your export format.</li>
+            <li>Download your transcript or caption file.</li>
+          </ol>
+        </section>
+
         <section className="rounded-xl border border-graphite-800 bg-graphite-900 p-5 space-y-2">
           <h2 className="font-semibold text-text-primary">Set your expectations on wait time</h2>
           <p className="text-sm text-text-muted leading-relaxed">
@@ -143,20 +185,46 @@ export default function SpeechToTextPage() {
         </section>
 
         <section className="space-y-4">
+          <h2 className="text-2xl font-bold text-text-primary">Supported formats</h2>
+          <p className="text-text-muted leading-relaxed">
+            Upload MP3, WAV, FLAC, M4A, AAC, or OGG files up to 50MB and 20 minutes
+            long. The transcript comes back with per-segment timestamps regardless
+            of source format, so you can export the same result as plain text for
+            reading or SRT for captions.
+          </p>
+        </section>
+
+        <section className="space-y-4">
+          <h2 className="text-2xl font-bold text-text-primary">What affects transcription accuracy</h2>
+          <p className="text-text-muted leading-relaxed">
+            Background noise, overlapping speech, and low recording volume are the
+            most common reasons a transcript comes back with errors — this is true
+            of any speech-to-text engine, not specific to this tool. If your source
+            recording has noticeable hiss, hum, or background noise, running it
+            through the{" "}
+            <Link href="/voice-clean" className="text-amber-400 hover:underline">
+              Voice Cleaner
+            </Link>{" "}
+            first is the single most effective way to improve accuracy before you
+            transcribe.
+          </p>
+          <p className="text-text-muted leading-relaxed">
+            Want the fuller breakdown of what specifically degrades accuracy and how
+            to prep a file properly?{" "}
+            <Link href="/guides/transcribing-audio-accurately" className="text-amber-400 hover:underline">
+              Read How to Get Accurate Audio Transcripts
+            </Link>.
+          </p>
+        </section>
+
+        <section className="space-y-4">
           <h2 className="text-2xl font-bold text-text-primary">Common uses</h2>
           <div className="space-y-3 text-text-muted leading-relaxed">
             <p>
               Turn a podcast episode or interview into a searchable text transcript,
-              generate SRT captions for a video, or pull quotable text from a voice
-              memo without re-listening to the whole thing.
-            </p>
-            <p>
-              Have background noise making a recording hard to transcribe cleanly?
-              Run it through the{" "}
-              <Link href="/voice-clean" className="text-amber-400 hover:underline">
-                Voice Cleaner
-              </Link>{" "}
-              first for better transcription accuracy.
+              generate SRT captions or subtitles for a video, pull quotable text from
+              a voice memo without re-listening to the whole thing, or convert a
+              lecture or online-course recording into notes you can search and skim.
             </p>
           </div>
         </section>
@@ -193,6 +261,19 @@ export default function SpeechToTextPage() {
             <div>
               <h3 className="font-semibold text-text-primary mb-1">Do I need to specify the language?</h3>
               <p>No — language is automatically detected.</p>
+            </div>
+            <div>
+              <h3 className="font-semibold text-text-primary mb-1">What affects transcription accuracy?</h3>
+              <p>
+                Background noise, overlapping speech, and low recording volume are
+                the most common causes of transcription errors. Cleaning up noisy
+                audio before transcribing it usually improves the result more than
+                anything else.
+              </p>
+            </div>
+            <div>
+              <h3 className="font-semibold text-text-primary mb-1">What formats can I upload?</h3>
+              <p>MP3, WAV, FLAC, M4A, AAC, and OGG, up to 50MB and 20 minutes long.</p>
             </div>
             <div>
               <h3 className="font-semibold text-text-primary mb-1">Is this really free?</h3>

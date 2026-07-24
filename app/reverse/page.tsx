@@ -7,14 +7,19 @@ import { getRelatedTools } from "@/lib/data/tools";
 export const metadata: Metadata = {
   title: "Free Audio Reverser — Play a Track Backwards",
   description:
-    "Reverse any audio file free, no sign-up. Upload a track, flip it backwards, and download the result in seconds.",
+    "Reverse audio files online free. Play MP3, WAV, FLAC, AAC, M4A, OGG, and AIFF backwards in seconds. No sign-up, no watermark, no software required.",
   keywords: [
     "reverse audio",
+    "reverse audio online",
     "audio reverser",
     "play audio backwards",
     "reverse audio online free",
+    "reverse mp3",
+    "reverse wav",
+    "reverse song",
+    "reverse music",
+    "backwards audio",
     "flip audio track",
-    "backwards audio maker",
   ],
   alternates: { canonical: `${SITE_URL}/reverse` },
   openGraph: {
@@ -41,6 +46,22 @@ const faqJsonLd = {
       acceptedAnswer: {
         "@type": "Answer",
         text: "It flips the entire file so it plays back to front — the last sound becomes the first, and vice versa.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "Does reversing reduce audio quality?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "No. Reversing changes the playback order only, not the underlying audio data. Since the output stays in your original format, there's no additional quality loss beyond that format's normal characteristics.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "Can I reverse just part of a track?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "This tool reverses the entire file. If you only want a section reversed, trim the clip you want first, then reverse the trimmed result.",
       },
     },
     {
@@ -95,17 +116,26 @@ const breadcrumbJsonLd = {
   ],
 };
 
+const howToJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "HowTo",
+  name: "How to Reverse an Audio File",
+  step: [
+    { "@type": "HowToStep", name: "Upload", text: "Upload an MP3, WAV, FLAC, M4A, AAC, OGG, or AIFF file." },
+    { "@type": "HowToStep", name: "Reverse", text: "Click Reverse — no settings to configure." },
+    { "@type": "HowToStep", name: "Download", text: "Download the reversed file in its original format." },
+  ],
+};
+
 export default function ReversePage() {
-  const relatedTools = getRelatedTools("reverse", 2);
+  const relatedTools = getRelatedTools("reverse", 5);
 
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(webAppJsonLd) }} />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
-      />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(howToJsonLd) }} />
 
       <main className="mx-auto max-w-3xl px-4 py-12 sm:py-16 space-y-12">
         <header className="text-center space-y-4">
@@ -134,6 +164,15 @@ export default function ReversePage() {
         </section>
 
         <section className="space-y-4">
+          <h2 className="text-2xl font-bold text-text-primary">How to reverse an audio file</h2>
+          <ol className="list-decimal list-inside space-y-2 text-text-muted leading-relaxed">
+            <li>Upload an MP3, WAV, FLAC, M4A, AAC, OGG, or AIFF file.</li>
+            <li>Click Reverse — nothing to configure.</li>
+            <li>Download the reversed file, same format as your upload.</li>
+          </ol>
+        </section>
+
+        <section className="space-y-4">
           <h2 className="text-2xl font-bold text-text-primary">Why reverse audio?</h2>
           <div className="space-y-3 text-text-muted leading-relaxed">
             <p>
@@ -145,6 +184,58 @@ export default function ReversePage() {
             <p>
               The output keeps your original file format, so a WAV stays a WAV and an
               MP3 stays an MP3 — no extra conversion step needed.
+            </p>
+          </div>
+        </section>
+
+        <section className="space-y-4">
+          <h2 className="text-2xl font-bold text-text-primary">Does reversing change quality?</h2>
+          <p className="text-text-muted leading-relaxed">
+            No. Reversing only changes the playback order of the audio — every
+            sample stays exactly as it was, just read back to front. Since the
+            output keeps your original format, there&apos;s no extra quality loss
+            beyond whatever that format&apos;s normal characteristics already are.
+            A reversed WAV is exactly as lossless as the WAV you uploaded.
+          </p>
+        </section>
+
+        <section className="space-y-4">
+          <h2 className="text-2xl font-bold text-text-primary">Common uses</h2>
+          <div className="space-y-3 text-text-muted leading-relaxed">
+            <p>
+              <strong className="text-text-primary">Music production:</strong>{" "}
+              reversed cymbal swells, risers, and vocal chops — staples in melodic
+              house, hip-hop, and cinematic sound design.
+            </p>
+            <p>
+              <strong className="text-text-primary">Sound design &amp; SFX:</strong>{" "}
+              flip a recorded sound effect for a distinctive texture that a forward
+              sound simply doesn&apos;t have.
+            </p>
+            <p>
+              <strong className="text-text-primary">Backmasking curiosity:</strong>{" "}
+              check a track or recording for hidden or unintentional content by
+              listening to it in reverse.
+            </p>
+            <p>
+              <strong className="text-text-primary">Creative experiments:</strong>{" "}
+              reverse a voice memo, a field recording, or anything else just to hear
+              what it sounds like flipped.
+            </p>
+            <p>
+              Only need part of a track reversed, not the whole file? Trim the
+              section you want with the{" "}
+              <Link href="/trim" className="text-amber-400 hover:underline">
+                Audio Trimmer
+              </Link>{" "}
+              first, then reverse the trimmed clip.
+            </p>
+            <p>
+              Want the deeper explanation of how reversed swells and vocal chops
+              are actually built?{" "}
+              <Link href="/guides/reversed-audio-in-music-production" className="text-amber-400 hover:underline">
+                Read Reversed Audio: Creative Uses in Production
+              </Link>.
             </p>
           </div>
         </section>
@@ -173,6 +264,23 @@ export default function ReversePage() {
             <div>
               <h3 className="font-semibold text-text-primary mb-1">What does reversing audio do?</h3>
               <p>It flips the entire file so it plays back to front — the last sound becomes the first, and vice versa.</p>
+            </div>
+            <div>
+              <h3 className="font-semibold text-text-primary mb-1">Does reversing reduce audio quality?</h3>
+              <p>
+                No. Reversing changes the playback order only, not the underlying
+                audio data. Since the output stays in your original format,
+                there&apos;s no additional quality loss beyond that format&apos;s
+                normal characteristics.
+              </p>
+            </div>
+            <div>
+              <h3 className="font-semibold text-text-primary mb-1">Can I reverse just part of a track?</h3>
+              <p>
+                This tool reverses the entire file. If you only want a section
+                reversed, trim the clip you want first, then reverse the trimmed
+                result.
+              </p>
             </div>
             <div>
               <h3 className="font-semibold text-text-primary mb-1">Is this really free?</h3>
