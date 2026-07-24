@@ -89,7 +89,7 @@ export const TOOLS: Tool[] = [
   },
   {
     slug: "volume",
-    name: "Volume Adjuster",
+    name: "Volume Booster",
     shortDescription: "Boost or reduce audio gain in decibels.",
     category: "convert",
     status: "live",
@@ -137,8 +137,8 @@ export const TOOLS: Tool[] = [
   },
   {
     slug: "echo-remove",
-    name: "Echo Remover",
-    shortDescription: "Suppress echo and reverb tails from a recording.",
+    name: "Echo Reducer",
+    shortDescription: "Reduce mild echo and slap-back in a recording.",
     category: "cleanup",
     status: "live",
     related: ["voice-clean", "noise-remove"],

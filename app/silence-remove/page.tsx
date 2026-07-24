@@ -26,14 +26,22 @@ export const metadata: Metadata = {
     url: `${SITE_URL}/silence-remove`,
     siteName: SITE_NAME,
     type: "website",
+    images: [
+      {
+        url: "/images/og-default.png",
+        width: 1200,
+        height: 630,
+        alt: "AudioForges",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "Free Silence Remover — Cut Dead Air From Any Recording",
     description: "Strip silent gaps from a recording free, no sign-up.",
+    images: ["/images/og-default.png"],
   },
 };
-
 const faqJsonLd = {
   "@context": "https://schema.org",
   "@type": "FAQPage",

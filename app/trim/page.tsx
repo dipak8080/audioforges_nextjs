@@ -27,11 +27,20 @@ export const metadata: Metadata = {
     url: `${SITE_URL}/trim`,
     siteName: SITE_NAME,
     type: "website",
+    images: [
+      {
+        url: "/images/og-default.png",
+        width: 1200,
+        height: 630,
+        alt: "AudioForges",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "Free Audio Trimmer — Cut Any Track Online",
     description: "Trim or cut audio free, no sign-up.",
+    images: ["/images/og-default.png"],
   },
 };
 

@@ -28,11 +28,20 @@ export const metadata: Metadata = {
     url: `${SITE_URL}/voice-clean`,
     siteName: SITE_NAME,
     type: "website",
+    images: [
+      {
+        url: "/images/og-default.png",
+        width: 1200,
+        height: 630,
+        alt: "AudioForges",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "Free Voice Cleaner — Clean Up Podcasts & Voice Memos",
     description: "Clean up speech recordings free, no sign-up. One click, done.",
+    images: ["/images/og-default.png"],
   },
 };
 

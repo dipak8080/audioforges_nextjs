@@ -5,7 +5,7 @@ import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
 
 export const metadata: Metadata = {
-  title: "Free Audio Speed Changer – Change Tempo Without Changing Pitch",
+  title: "Free Audio Speed Changer | Tempo Changer",
   description:
     "Speed up or slow down audio free, no sign-up — from 50% to 200% speed, pitch stays the same. Works on MP3, WAV, FLAC, and more.",
   keywords: [
@@ -27,11 +27,20 @@ export const metadata: Metadata = {
     url: `${SITE_URL}/tempo`,
     siteName: SITE_NAME,
     type: "website",
+    images: [
+      {
+        url: "/images/og-default.png",
+        width: 1200,
+        height: 630,
+        alt: "AudioForges",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "Free Audio Speed Changer – Change Tempo Without Changing Pitch",
     description: "Speed up or slow down audio free, no sign-up. Pitch stays the same.",
+    images: ["/images/og-default.png"],
   },
 };
 

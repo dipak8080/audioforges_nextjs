@@ -4,6 +4,7 @@ export interface Guide {
   description: string;
   publishedDate: string; // ISO format
   updatedDate: string;   // ISO format
+  category: "dj-mixing" | "production" | "podcast-cleanup";
 }
 
 export const guides: Guide[] = [
@@ -14,6 +15,7 @@ export const guides: Guide[] = [
       "How the Camelot Wheel works, why harmonic mixing makes sets flow, and how to use key compatibility when building a set.",
     publishedDate: "2026-07-21",
     updatedDate: "2026-07-21",
+    category: "dj-mixing",
   },
   {
     slug: "wav-vs-mp3-for-sampling",
@@ -22,6 +24,7 @@ export const guides: Guide[] = [
       "The real technical differences between WAV and MP3 for sampling, layering, and production — and when the difference actually matters.",
     publishedDate: "2026-07-21",
     updatedDate: "2026-07-24",
+    category: "production",
   },
   {
     slug: "dj-set-prep-checklist",
@@ -30,6 +33,7 @@ export const guides: Guide[] = [
       "A 6-step DJ set prep workflow: gather tracks, tag key and BPM, group by Camelot compatibility, and order for energy — before you play.",
     publishedDate: "2026-07-21",
     updatedDate: "2026-07-24",
+    category: "dj-mixing",
   },
   {
     slug: "finding-reference-tracks",
@@ -38,6 +42,7 @@ export const guides: Guide[] = [
       "How to pick reference tracks for a specific purpose, match their role to your mix, and get them into a usable local format for A/B comparison.",
     publishedDate: "2026-07-21",
     updatedDate: "2026-07-24",
+    category: "production",
   },
   {
     slug: "ai-vocal-removal-explained",
@@ -46,6 +51,7 @@ export const guides: Guide[] = [
       "Why AI source separation beats a center-channel filter, the real difference between an instrumental and an acapella, and where separation still struggles.",
     publishedDate: "2026-07-24",
     updatedDate: "2026-07-24",
+    category: "production",
   },
   {
     slug: "lossless-vs-lossy-audio-formats",
@@ -54,6 +60,7 @@ export const guides: Guide[] = [
       "The real difference between lossless and lossy audio — and why converting MP3 to WAV won't recover quality you've already lost.",
     publishedDate: "2026-07-24",
     updatedDate: "2026-07-24",
+    category: "production",
   },
   {
     slug: "how-to-trim-audio-without-losing-quality",
@@ -62,6 +69,7 @@ export const guides: Guide[] = [
       "Why trimming a lossless file is bit-perfect but a lossy file depends on cut placement, and how to avoid a click at your trim point.",
     publishedDate: "2026-07-24",
     updatedDate: "2026-07-24",
+    category: "production",
   },
   {
     slug: "gain-staging-for-home-studios",
@@ -70,6 +78,7 @@ export const guides: Guide[] = [
       "How decibels work, why clipping happens at the top of the range, and where to set gain before other processing so nothing distorts downstream.",
     publishedDate: "2026-07-24",
     updatedDate: "2026-07-24",
+    category: "production",
   },
   {
     slug: "pitch-shifting-vs-key-changing",
@@ -78,6 +87,7 @@ export const guides: Guide[] = [
       "Why shifting pitch by semitones is different from just speeding up or slowing down a track, and how to pick a comfortable vocal range without changing tempo.",
     publishedDate: "2026-07-24",
     updatedDate: "2026-07-24",
+    category: "dj-mixing",
   },
   {
     slug: "dj-tempo-matching-without-pitch-shift",
@@ -86,6 +96,7 @@ export const guides: Guide[] = [
       "Why nudging a track's speed for a mashup or DJ set doesn't have to shift its key, and how much tempo change you can get away with before it sounds off.",
     publishedDate: "2026-07-24",
     updatedDate: "2026-07-24",
+    category: "dj-mixing",
   },
   {
     slug: "reversed-audio-in-music-production",
@@ -94,6 +105,7 @@ export const guides: Guide[] = [
       "How reversed cymbals, vocal chops, and risers are actually built, plus the backmasking curiosity that made reversed audio famous in the first place.",
     publishedDate: "2026-07-24",
     updatedDate: "2026-07-24",
+    category: "production",
   },
   {
     slug: "removing-background-noise-from-recordings",
@@ -102,6 +114,7 @@ export const guides: Guide[] = [
       "How FFT-based noise reduction actually works, why pushing the strength too high causes warbling, and when a general denoiser beats a speech-only preset.",
     publishedDate: "2026-07-24",
     updatedDate: "2026-07-24",
+    category: "podcast-cleanup",
   },
   {
     slug: "podcast-audio-cleanup-checklist",
@@ -110,6 +123,7 @@ export const guides: Guide[] = [
       "A step-by-step order for cleaning up a podcast recording — rumble, noise, and loudness — and why doing them in the wrong order gives a worse result.",
     publishedDate: "2026-07-24",
     updatedDate: "2026-07-24",
+    category: "podcast-cleanup",
   },
   {
     slug: "fixing-echo-in-home-recordings",
@@ -118,6 +132,7 @@ export const guides: Guide[] = [
       "The difference between slap-back echo and room reverb, why one gates out cleanly and the other doesn't, and what to expect from echo reduction tools.",
     publishedDate: "2026-07-24",
     updatedDate: "2026-07-24",
+    category: "podcast-cleanup",
   },
   {
     slug: "editing-out-dead-air-podcasts",
@@ -126,6 +141,7 @@ export const guides: Guide[] = [
       "How silence threshold and minimum gap length work together, why cutting too aggressively clips natural pauses, and how to tune both for your recording.",
     publishedDate: "2026-07-24",
     updatedDate: "2026-07-24",
+    category: "podcast-cleanup",
   },
   {
     slug: "transcribing-audio-accurately",
@@ -134,8 +150,8 @@ export const guides: Guide[] = [
       "What actually affects transcription accuracy — audio quality, overlapping speech, background noise — and how to prep a file before transcribing it.",
     publishedDate: "2026-07-24",
     updatedDate: "2026-07-24",
+    category: "podcast-cleanup",
   },
-  
 ];
 
 export function getGuideBySlug(slug: string): Guide | undefined {

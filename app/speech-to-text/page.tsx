@@ -29,11 +29,20 @@ export const metadata: Metadata = {
     url: `${SITE_URL}/speech-to-text`,
     siteName: SITE_NAME,
     type: "website",
+    images: [
+      {
+        url: "/images/og-default.png",
+        width: 1200,
+        height: 630,
+        alt: "AudioForges",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "Free Speech to Text — Transcribe Audio with Timestamps",
     description: "Transcribe audio to text free, no sign-up. Includes timestamps.",
+    images: ["/images/og-default.png"],
   },
 };
 

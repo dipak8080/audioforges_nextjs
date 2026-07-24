@@ -27,11 +27,20 @@ export const metadata: Metadata = {
     url: `${SITE_URL}/echo-remove`,
     siteName: SITE_NAME,
     type: "website",
+    images: [
+      {
+        url: "/images/og-default.png",
+        width: 1200,
+        height: 630,
+        alt: "AudioForges",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "Free Echo Reducer — Tame Echo & Slap-Back in Recordings",
     description: "Reduce echo in speech or music recordings free, no sign-up.",
+    images: ["/images/og-default.png"],
   },
 };
 

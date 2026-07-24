@@ -38,8 +38,8 @@ export default function AboutPage() {
       <header className="space-y-3">
         <h1 className="text-3xl font-bold text-text-primary">About AudioForges</h1>
         <p className="text-lg text-text-muted">
-          A small set of audio tools, built by one producer for the workflow problems
-          that kept coming up in their own sessions.
+          A growing set of audio tools, built by one producer for the workflow
+          problems that kept coming up in their own sessions.
         </p>
       </header>
 
@@ -51,8 +51,14 @@ export default function AboutPage() {
           instrumental to practice over, I ended up on some ad-plastered downloader
           site, or paying for a tool that did one thing I needed buried inside ten I
           didn&apos;t. So I built the pieces I actually use — a YouTube-to-audio
-          converter, a key and BPM detector, and a vocal remover — and put them
-          somewhere free for anyone else running into the same problem.
+          converter first, then a key and BPM detector, then a vocal remover — and
+          put them somewhere free for anyone else running into the same problem. The
+          site has since grown into a full set of{" "}
+          <Link href="/tools" className="text-amber-400 hover:underline">
+            free audio tools
+          </Link>{" "}
+          covering conversion, editing, pitch and tempo, cleanup, and AI-powered
+          processing — but the bar for adding anything new stays the same as day one.
         </p>
       </section>
 
@@ -75,6 +81,18 @@ export default function AboutPage() {
           vocals and often damages the mix. Because this runs on CPU rather than
           paid GPU infrastructure, it&apos;s limited to one separation per hour per
           person so it stays free and available for everyone.
+        </p>
+        <p>
+          Beyond those three, the toolset also covers everyday editing tasks —
+          format conversion, trimming, volume adjustment, reversing, pitch shifting,
+          and tempo changes — plus cleanup tools purpose-built for different jobs:
+          a general-purpose noise remover with adjustable strength, a one-click
+          Voice Cleaner tuned specifically for speech, an echo reducer for mild
+          room echo, a silence remover that strips dead air throughout a whole
+          recording, and a speech-to-text transcriber with timestamped SRT export.
+          Every tool follows the same rule as the original three: it exists because
+          it solved a real problem in an actual production or editing session, not
+          because it filled a gap in a feature list.
         </p>
       </section>
 

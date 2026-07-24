@@ -25,14 +25,22 @@ export const metadata: Metadata = {
     url: `${SITE_URL}/volume`,
     siteName: SITE_NAME,
     type: "website",
+    images: [
+      {
+        url: "/images/og-default.png",
+        width: 1200,
+        height: 630,
+        alt: "AudioForges",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "Volume Booster - Increase or Reduce Audio Volume Online",
     description: "Increase or reduce audio volume online, free and fast.",
+    images: ["/images/og-default.png"],
   },
 };
-
 const faqJsonLd = {
   "@context": "https://schema.org",
   "@type": "FAQPage",

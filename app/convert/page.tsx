@@ -30,15 +30,23 @@ export const metadata: Metadata = {
     url: `${SITE_URL}/convert`,
     siteName: SITE_NAME,
     type: "website",
+    images: [
+      {
+        url: "/images/og-default.png",
+        width: 1200,
+        height: 630,
+        alt: "AudioForges",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "Free Audio Converter (MP3, WAV, FLAC & More)",
     description:
       "Free audio converter — no sign-up, no limits. Convert between any of 7 major audio formats in seconds.",
+    images: ["/images/og-default.png"],
   },
 };
-
 const faqJsonLd = {
   "@context": "https://schema.org",
   "@type": "FAQPage",
