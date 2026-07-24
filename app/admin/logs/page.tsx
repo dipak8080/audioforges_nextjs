@@ -4,7 +4,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Activity,
+  ArrowDown,
   AudioWaveform,
+  Loader2,
   LogOut,
   Pause,
   Play,
@@ -145,9 +147,59 @@ export default function AdminLogsPage() {
 
   const [isPaused, setIsPaused] = useState(false);
   const [manageOpen, setManageOpen] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const sysRef = useRef<HTMLDivElement>(null);
+
+  // "Pinned to bottom" - true means auto-scroll should keep following new
+  // data (the Railway/Discord pattern). The instant the user scrolls up
+  // even a little, this flips to false and new data stops yanking the
+  // view around; it only re-pins once they scroll back down themselves,
+  // or click the "Jump to latest" button. Refs (not state) so scroll
+  // handlers don't cause extra re-renders on every scroll tick.
+  const httpPinnedRef = useRef(true);
+  const sysPinnedRef = useRef(true);
+  const mobileScrollRef = useRef<HTMLDivElement>(null);
+  const [showJumpHttp, setShowJumpHttp] = useState(false);
+  const [showJumpSys, setShowJumpSys] = useState(false);
+
+  const NEAR_BOTTOM_PX = 48;
+
+  // Desktop table and mobile card list are two separate DOM elements
+  // (only one is ever visible at a time via CSS, but both exist in the
+  // DOM), so each needs its own ref and its own scroll listener rather
+  // than sharing scrollRef - otherwise the mobile view's scroll position
+  // was never actually being read.
+  function handleHttpScroll(el: HTMLDivElement | null) {
+    if (!el) return;
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < NEAR_BOTTOM_PX;
+    httpPinnedRef.current = nearBottom;
+    if (nearBottom) setShowJumpHttp(false);
+  }
+
+  function handleSysScroll() {
+    const el = sysRef.current;
+    if (!el) return;
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < NEAR_BOTTOM_PX;
+    sysPinnedRef.current = nearBottom;
+    if (nearBottom) setShowJumpSys(false);
+  }
+
+  function jumpToBottomHttp() {
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    if (mobileScrollRef.current) mobileScrollRef.current.scrollTop = mobileScrollRef.current.scrollHeight;
+    httpPinnedRef.current = true;
+    setShowJumpHttp(false);
+  }
+
+  function jumpToBottomSys() {
+    const el = sysRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+    sysPinnedRef.current = true;
+    setShowJumpSys(false);
+  }
 
   const fetchHttp = useCallback(async () => {
     try {
@@ -192,22 +244,30 @@ export default function AdminLogsPage() {
 
   useEffect(() => { fetchHttp(); fetchSystem(); }, [fetchHttp, fetchSystem]);
 
-  // Always pinned to the newest entry, like Railway's own log tail -
-  // no "only if already near bottom" heuristic. On first load this puts
-  // you straight at the latest activity instead of the oldest entry in
-  // the loaded window; on every poll after that it keeps following the
-  // newest data automatically. Use Pause if you need to hold still and
-  // read something further up without it jumping around.
+  // Follows new data only while "pinned to bottom." The moment you
+  // scroll up (handleHttpScroll/handleSysScroll above), pinned flips to
+  // false and this stops forcing your scroll position - new data just
+  // shows a small "Jump to latest" button instead of yanking you back
+  // down mid-read. Scrolling back to the bottom yourself, or clicking
+  // that button, re-pins it. First load pins to bottom by default so you
+  // land on the newest activity immediately, same as Railway.
   useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    el.scrollTop = el.scrollHeight;
+    if (httpPinnedRef.current) {
+      if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      if (mobileScrollRef.current) mobileScrollRef.current.scrollTop = mobileScrollRef.current.scrollHeight;
+    } else if (httpLogs.length > 0) {
+      setShowJumpHttp(true);
+    }
   }, [httpLogs]);
 
   useEffect(() => {
     const el = sysRef.current;
     if (!el) return;
-    el.scrollTop = el.scrollHeight;
+    if (sysPinnedRef.current) {
+      el.scrollTop = el.scrollHeight;
+    } else if (systemLogs.length > 0) {
+      setShowJumpSys(true);
+    }
   }, [systemLogs]);
 
   useEffect(() => {
@@ -243,8 +303,12 @@ export default function AdminLogsPage() {
   }
 
   async function handleLogout() {
-    await fetch("/api/admin/logout", { method: "POST" });
-    router.push("/admin/login");
+    setIsLoggingOut(true);
+    try {
+      await fetch("/api/admin/logout", { method: "POST" });
+    } finally {
+      router.push("/admin/login");
+    }
   }
 
   return (
@@ -265,10 +329,15 @@ export default function AdminLogsPage() {
             </span>
             <button
               onClick={handleLogout}
-              className="flex items-center gap-1.5 rounded-md border border-graphite-700 px-2.5 py-1.5 text-xs text-text-muted hover:text-text-primary hover:border-graphite-700 hover:bg-graphite-900 transition-colors"
+              disabled={isLoggingOut}
+              className="flex items-center gap-1.5 rounded-md border border-graphite-700 px-2.5 py-1.5 text-xs text-text-muted hover:text-text-primary hover:border-graphite-700 hover:bg-graphite-900 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              <LogOut className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Sign out</span>
+              {isLoggingOut ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <LogOut className="h-3.5 w-3.5" />
+              )}
+              <span className="hidden sm:inline">{isLoggingOut ? "Signing out…" : "Sign out"}</span>
             </button>
           </div>
         </div>
@@ -366,7 +435,8 @@ export default function AdminLogsPage() {
               </div>
 
               {/* Desktop table */}
-              <div ref={scrollRef} className="hidden md:block max-h-[540px] overflow-y-auto scrollbar-thin">
+              <div className="hidden md:block relative">
+              <div ref={scrollRef} onScroll={(e) => handleHttpScroll(e.currentTarget)} className="max-h-[540px] overflow-y-auto scrollbar-thin">
                 <table className="w-full text-sm border-collapse">
                   <thead className="sticky top-0 z-10 bg-graphite-900 border-b border-graphite-800">
                     <tr className="text-left">
@@ -407,9 +477,20 @@ export default function AdminLogsPage() {
                 </table>
                 <ListState loading={httpLoading} error={httpError} empty={filtered.length === 0} emptyLabel="No requests match the current filters." />
               </div>
+              {showJumpHttp && (
+                <button
+                  onClick={jumpToBottomHttp}
+                  className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 rounded-full bg-amber-500 text-graphite-950 px-3.5 py-1.5 text-xs font-medium shadow-lg hover:bg-amber-400 transition-colors"
+                >
+                  <ArrowDown className="h-3.5 w-3.5" />
+                  New activity - jump to latest
+                </button>
+              )}
+              </div>
 
               {/* Mobile rows */}
-              <div className="md:hidden max-h-[540px] overflow-y-auto scrollbar-thin divide-y divide-graphite-800/70">
+              <div className="md:hidden relative">
+              <div ref={mobileScrollRef} onScroll={(e) => handleHttpScroll(e.currentTarget)} className="max-h-[540px] overflow-y-auto scrollbar-thin divide-y divide-graphite-800/70">
                 {filtered.map((log) => (
                   <div key={log.id} className="px-4 py-2.5">
                     <div className="flex items-center gap-2">
@@ -428,6 +509,16 @@ export default function AdminLogsPage() {
                   </div>
                 ))}
                 <ListState loading={httpLoading} error={httpError} empty={filtered.length === 0} emptyLabel="No requests match the current filters." />
+              </div>
+              {showJumpHttp && (
+                <button
+                  onClick={jumpToBottomHttp}
+                  className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 rounded-full bg-amber-500 text-graphite-950 px-3.5 py-1.5 text-xs font-medium shadow-lg hover:bg-amber-400 transition-colors"
+                >
+                  <ArrowDown className="h-3.5 w-3.5" />
+                  New activity
+                </button>
+              )}
               </div>
 
               {/* Footer */}
@@ -448,7 +539,8 @@ export default function AdminLogsPage() {
                 Clear
               </button>
             </div>
-            <div ref={sysRef} className="max-h-[560px] overflow-y-auto scrollbar-thin font-mono text-xs">
+            <div className="relative">
+            <div ref={sysRef} onScroll={handleSysScroll} className="max-h-[560px] overflow-y-auto scrollbar-thin font-mono text-xs">
               {systemLogs.map((entry, index) => {
                 const tone = levelTone(entry.level);
                 // Only draw a divider when this entry's request_id differs
@@ -477,6 +569,16 @@ export default function AdminLogsPage() {
                 );
               })}
               <ListState loading={systemLoading} error={systemError} empty={systemLogs.length === 0} emptyLabel="No system logs yet." />
+            </div>
+            {showJumpSys && (
+              <button
+                onClick={jumpToBottomSys}
+                className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 rounded-full bg-amber-500 text-graphite-950 px-3.5 py-1.5 text-xs font-medium shadow-lg hover:bg-amber-400 transition-colors"
+              >
+                <ArrowDown className="h-3.5 w-3.5" />
+                New activity - jump to latest
+              </button>
+            )}
             </div>
           </section>
         )}
