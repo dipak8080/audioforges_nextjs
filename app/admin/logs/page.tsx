@@ -202,7 +202,12 @@ export default function AdminLogsPage() {
     setShowJumpSys(false);
   }
 
+  const httpInFlightRef = useRef(false);
+  const sysInFlightRef = useRef(false);
+
   const fetchHttp = useCallback(async () => {
+    if (httpInFlightRef.current) return;
+    httpInFlightRef.current = true;
     try {
       const res = await fetch(`/api/admin/logs?type=http&limit=${MAX_LOGS_IN_MEMORY}`, { cache: "no-store" });
       if (res.status === 401) { router.push("/admin/login"); return; }
@@ -222,10 +227,13 @@ export default function AdminLogsPage() {
       setHttpError((e as Error).message);
     } finally {
       setHttpLoading(false);
+      httpInFlightRef.current = false;
     }
   }, [router]);
 
   const fetchSystem = useCallback(async () => {
+    if (sysInFlightRef.current) return;
+    sysInFlightRef.current = true;
     try {
       const res = await fetch(`/api/admin/logs?type=system&limit=200`, { cache: "no-store" });
       if (res.status === 401) { router.push("/admin/login"); return; }
@@ -240,6 +248,7 @@ export default function AdminLogsPage() {
       setSystemError((e as Error).message);
     } finally {
       setSystemLoading(false);
+      sysInFlightRef.current = false;
     }
   }, [router]);
 
@@ -273,7 +282,13 @@ export default function AdminLogsPage() {
 
   useEffect(() => {
     if (isPaused) return;
-    const id = setInterval(() => { fetchHttp(); fetchSystem(); }, POLL_INTERVAL_MS);
+    const id = setInterval(() => {
+      // Don't poll while the tab is hidden - resumes automatically on the
+      // next tick after the tab regains focus.
+      if (document.hidden) return;
+      fetchHttp();
+      fetchSystem();
+    }, POLL_INTERVAL_MS);
     return () => clearInterval(id);
   }, [isPaused, fetchHttp, fetchSystem]);
 
@@ -371,13 +386,16 @@ export default function AdminLogsPage() {
           <>
             {/* ===== Stat strip ===== */}
             <div className="grid grid-cols-3 divide-x divide-graphite-800 rounded-lg border border-graphite-800 bg-graphite-900">
-              <Stat label="Total requests" value={totals.total} />
-              <Stat label="Succeeded" value={totals.success} valueClass="text-teal-400" />
+              <Stat label="Total" value={totals.total} />
+              <Stat label="Success" value={totals.success} valueClass="text-teal-400" />
               <Stat label="Failed" value={totals.failed} valueClass={totals.failed > 0 ? "text-red-500" : ""} />
             </div>
 
             {/* ===== Unified table card ===== */}
-            <section className="rounded-lg border border-graphite-800 bg-graphite-900 overflow-hidden">
+            {/* NOTE: no overflow-hidden here - it would clip the Delete
+                dropdown menu, which needs to escape the card bounds on
+                small screens. */}
+            <section className="rounded-lg border border-graphite-800 bg-graphite-900">
               {/* Toolbar row */}
               <div className="flex flex-col lg:flex-row lg:items-center gap-3 px-4 py-3 border-b border-graphite-800">
                 <div className="relative flex-1 min-w-0">
@@ -441,11 +459,20 @@ export default function AdminLogsPage() {
                       highlight={manageOpen}
                     />
                     {manageOpen && (
-                      <div className="absolute top-full right-0 mt-2 w-48 rounded-lg border border-graphite-700 bg-graphite-850 shadow-xl overflow-hidden z-20">
-                        <MenuItem onClick={() => { setManageOpen(false); handleDelete(1); }}>Older than 1 day</MenuItem>
-                        <MenuItem onClick={() => { setManageOpen(false); handleDelete(7); }}>Older than 7 days</MenuItem>
-                        <MenuItem danger onClick={() => { setManageOpen(false); handleDelete(null); }}>Delete all logs</MenuItem>
-                      </div>
+                      <>
+                        {/* invisible backdrop: tap anywhere outside to close */}
+                        <button
+                          aria-hidden
+                          tabIndex={-1}
+                          onClick={() => setManageOpen(false)}
+                          className="fixed inset-0 z-20 cursor-default"
+                        />
+                        <div className="absolute top-full left-0 sm:left-auto sm:right-0 mt-2 w-48 rounded-lg border border-graphite-700 bg-graphite-850 shadow-xl overflow-hidden z-30">
+                          <MenuItem onClick={() => { setManageOpen(false); handleDelete(1); }}>Older than 1 day</MenuItem>
+                          <MenuItem onClick={() => { setManageOpen(false); handleDelete(7); }}>Older than 7 days</MenuItem>
+                          <MenuItem danger onClick={() => { setManageOpen(false); handleDelete(null); }}>Delete all logs</MenuItem>
+                        </div>
+                      </>
                     )}
                   </div>
                 </div>
@@ -629,8 +656,8 @@ function TabButton({
 
 function Stat({ label, value, valueClass = "" }: { label: string; value: number; valueClass?: string }) {
   return (
-    <div className="px-4 sm:px-5 py-3.5">
-      <p className="text-[11px] uppercase tracking-wider text-text-subtle">{label}</p>
+    <div className="px-3 sm:px-5 py-3.5 min-w-0">
+      <p className="text-[11px] uppercase tracking-wider text-text-subtle truncate whitespace-nowrap">{label}</p>
       <p className={`mt-0.5 text-xl sm:text-2xl font-semibold tabular-nums ${valueClass || "text-text-primary"}`}>
         {value.toLocaleString()}
       </p>
