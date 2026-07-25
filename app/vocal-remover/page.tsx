@@ -6,8 +6,8 @@ import { getRelatedTools } from "@/lib/data/tools";
 
 export const metadata: Metadata = {
   title: "Free AI Vocal Remover Online",
-  description:
-    "Remove vocals from songs online with AI for free. Extract instrumentals or acapellas from MP3, WAV, FLAC, AAC, and more. No sign-up, no watermark, fast browser-based processing.",
+description:
+  "Remove vocals from songs online with AI for free. Extract instrumentals or acapellas from MP3, WAV, FLAC, AAC & more. No sign-up, no watermark.",
   keywords: [
     "vocal remover",
     "ai vocal remover",
