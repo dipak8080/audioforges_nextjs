@@ -19,6 +19,8 @@ export const metadata: Metadata = {
     "change playback speed audio",
     "0.5x speed audio",
     "2x speed audio",
+    "time stretching audio",
+    "tempo vs bpm",
   ],
   alternates: { canonical: `${SITE_URL}/tempo` },
   openGraph: {
@@ -94,6 +96,38 @@ const faqJsonLd = {
       acceptedAnswer: {
         "@type": "Answer",
         text: "Yes — completely free, no sign-up, no watermark on the output.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "Does changing speed also change the BPM?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Yes, effectively — since this changes an already-recorded audio file rather than a MIDI tempo track, speeding it up compresses the time between beats, which raises its audible BPM proportionally. A 120 BPM track played at 200% speed sounds like roughly 240 BPM.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "Does it work on mobile?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Yes — it works in any mobile browser on iPhone or Android, no app install required.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "Can I restore the original speed later?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "There's no saved history — this is a stateless upload-process-download tool. Re-upload the original file if you need a different speed afterward.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "Does this affect stereo audio?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "No — time-stretching processes the channels without changing the stereo layout. Stereo files stay stereo.",
       },
     },
   ],
@@ -173,6 +207,21 @@ export default function TempoPage() {
         </section>
 
         <section className="space-y-4">
+          <h2 className="text-2xl font-bold text-text-primary">How it works</h2>
+          <p className="text-text-muted leading-relaxed">
+            Simply playing a file faster or slower changes its pitch along
+            with its speed — that&apos;s how a turntable or tape sounds
+            higher-pitched when sped up. This tool uses{" "}
+            <strong className="text-text-primary">Rubberband</strong>, a
+            time-stretching engine that analyzes the waveform and
+            reconstructs it at the new duration while holding pitch steady,
+            rather than just playing the same data back faster or slower.
+            That&apos;s what makes it possible to change speed and pitch
+            completely independently of each other.
+          </p>
+        </section>
+
+        <section className="space-y-4">
           <h2 className="text-2xl font-bold text-text-primary">How to change audio speed</h2>
           <ol className="list-decimal list-inside space-y-2 text-text-muted leading-relaxed">
             <li>Upload an MP3, WAV, FLAC, M4A, AAC, OGG, or AIFF file.</li>
@@ -213,6 +262,17 @@ export default function TempoPage() {
             </table>
           </div>
           <p className="text-text-muted leading-relaxed">
+            One nuance worth knowing if you work in a DAW: in a MIDI or
+            multi-track project, &quot;tempo&quot; (the BPM setting) and
+            &quot;playback speed&quot; of an audio file are genuinely
+            different things — changing a project&apos;s tempo doesn&apos;t
+            necessarily change an audio clip&apos;s speed unless it&apos;s
+            warped to follow. But for an already-rendered audio file like
+            what this tool processes, speeding it up does proportionally
+            raise its audible BPM, so &quot;tempo&quot; and
+            &quot;speed&quot; end up meaning the same practical thing here.
+          </p>
+          <p className="text-text-muted leading-relaxed">
             Want the deeper explanation of why tempo and pitch are usually linked,
             and how much you can push a tempo change before it starts sounding
             artificial?{" "}
@@ -223,34 +283,48 @@ export default function TempoPage() {
         </section>
 
         <section className="space-y-4">
+          <h2 className="text-2xl font-bold text-text-primary">Why extreme speed changes sound different</h2>
+          <p className="text-text-muted leading-relaxed">
+            Moderate speed changes — within roughly 10–20% of the original —
+            tend to sound close to transparent, since the engine only has to
+            reconstruct a small amount of extra or missing waveform data.
+            Pushing further toward the 50% or 200% ends of the range means
+            reconstructing much more of the signal, and that&apos;s where
+            artifacts start showing up: sharp transients like drum hits or
+            plucked strings can smear slightly, since a single instant in the
+            original has to be stretched or compressed across a different
+            span of time. It&apos;s not a flaw so much as the inherent
+            tradeoff of asking a time-stretching algorithm to do more work —
+            staying closer to 100% keeps results cleaner, and pushing toward
+            the extremes trades some fidelity for the bigger change.
+          </p>
+        </section>
+
+        <section className="space-y-4">
           <h2 className="text-2xl font-bold text-text-primary">Common uses</h2>
-          <div className="space-y-3 text-text-muted leading-relaxed">
-            <p>
-              Slow a track down to learn a fast guitar solo, drum pattern, or piano
-              passage note-by-note, speed up a lecture, audiobook, or podcast to save
-              time, or nudge a track&apos;s tempo slightly to match another for a DJ
-              mashup or beatmatch — all without the pitch shifting along with it,
-              which is what a simple playback-speed change would do instead. It also
-              works well for slowing down a reference track for dance or
-              choreography practice, or for language-learning audio where hearing
-              speech more slowly helps with comprehension.
-            </p>
-            <p>
-              Want to know the key before you start matching tempos? Run the track
-              through the{" "}
-              <Link href="/key-finder" className="text-amber-400 hover:underline">
-                Key &amp; BPM Finder
-              </Link>{" "}
-              first.
-            </p>
-            <p>
-              Need to change key without affecting speed? Use the{" "}
-              <Link href="/pitch" className="text-amber-400 hover:underline">
-                Pitch Shifter
-              </Link>{" "}
-              instead — same engine, applied to pitch rather than speed.
-            </p>
-          </div>
+          <ul className="list-disc list-inside space-y-1.5 text-text-muted leading-relaxed">
+            <li>Slowing a track down to learn a fast guitar solo, drum pattern, or piano passage note-by-note</li>
+            <li>Speeding up a lecture, audiobook, or podcast to save time</li>
+            <li>Nudging a track's tempo to match another for a DJ mashup or beatmatch, without shifting the key</li>
+            <li>Slowing down choreography or dance reference audio for practice</li>
+            <li>Slowing speech down for language-learning or transcription accuracy</li>
+            <li>Speeding through recorded meetings or interviews to skim faster</li>
+          </ul>
+          <p className="text-text-muted leading-relaxed">
+            Want to know the key before you start matching tempos? Run the track
+            through the{" "}
+            <Link href="/key-finder" className="text-amber-400 hover:underline">
+              Key &amp; BPM Finder
+            </Link>{" "}
+            first.
+          </p>
+          <p className="text-text-muted leading-relaxed">
+            Need to change key without affecting speed? Use the{" "}
+            <Link href="/pitch" className="text-amber-400 hover:underline">
+              Pitch Shifter
+            </Link>{" "}
+            instead — same engine, applied to pitch rather than speed.
+          </p>
         </section>
 
         {relatedTools.length > 0 && (
@@ -307,6 +381,30 @@ export default function TempoPage() {
             <div>
               <h3 className="font-semibold text-text-primary mb-1">Is this really free?</h3>
               <p>Yes — completely free, no sign-up, no watermark on the output.</p>
+            </div>
+            <div>
+              <h3 className="font-semibold text-text-primary mb-1">Does changing speed also change the BPM?</h3>
+              <p>
+                Yes, effectively — since this changes an already-recorded audio
+                file rather than a MIDI tempo track, speeding it up compresses the
+                time between beats, which raises its audible BPM proportionally.
+                A 120 BPM track played at 200% speed sounds like roughly 240 BPM.
+              </p>
+            </div>
+            <div>
+              <h3 className="font-semibold text-text-primary mb-1">Does it work on mobile?</h3>
+              <p>Yes — it works in any mobile browser on iPhone or Android, no app install required.</p>
+            </div>
+            <div>
+              <h3 className="font-semibold text-text-primary mb-1">Can I restore the original speed later?</h3>
+              <p>
+                There&apos;s no saved history — this is a stateless upload-process-download
+                tool. Re-upload the original file if you need a different speed afterward.
+              </p>
+            </div>
+            <div>
+              <h3 className="font-semibold text-text-primary mb-1">Does this affect stereo audio?</h3>
+              <p>No — time-stretching processes the channels without changing the stereo layout. Stereo files stay stereo.</p>
             </div>
           </div>
         </section>

@@ -7,7 +7,7 @@ import { getRelatedTools } from "@/lib/data/tools";
 export const metadata: Metadata = {
   title: "Free Noise Remover — Denoise Any Audio File",
   description:
-    "Remove background noise, hiss, hum, and static from audio online free. Works with MP3, WAV, FLAC, AAC, M4A, OGG, and AIFF. No sign-up required.",
+    "Remove background noise from audio online free. Eliminate hiss, hum, fan noise, and static from MP3, WAV, FLAC, AAC, M4A, OGG, and AIFF. No sign-up.",
   keywords: [
     "remove background noise from audio",
     "background noise remover",
@@ -20,6 +20,12 @@ export const metadata: Metadata = {
     "remove hum from audio",
     "audio noise reduction",
     "remove microphone noise",
+    "remove background hiss",
+    "remove fan noise from audio",
+    "remove white noise",
+    "noise cancellation audio",
+    "audio cleanup tool",
+    "remove buzzing from audio",
   ],
   alternates: { canonical: `${SITE_URL}/noise-remove` },
   openGraph: {
@@ -87,6 +93,14 @@ const faqJsonLd = {
       acceptedAnswer: {
         "@type": "Answer",
         text: "MP3, WAV, FLAC, M4A, AAC, OGG, and AIFF, up to 50MB and 20 minutes long.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "Should I denoise before or after boosting volume?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Denoise first, then boost volume. Boosting first raises the noise right along with everything else, which just means the denoiser has more to remove — cleaning it up before adjusting levels gives a clearer result.",
       },
     },
   ],
@@ -188,6 +202,12 @@ export default function NoiseRemovePage() {
             target; strength adjustments can help partially, but this isn&apos;t a
             tool built to isolate one-off transient sounds.
           </p>
+          <p className="text-text-muted leading-relaxed">
+            If you&apos;re also planning to adjust the volume, denoise first —
+            boosting volume before cleanup just raises the noise right along
+            with everything else, giving the denoiser more to remove and a
+            messier starting point than cleaning it up first would.
+          </p>
         </section>
 
         <section className="space-y-4">
@@ -277,6 +297,15 @@ export default function NoiseRemovePage() {
             <div>
               <h3 className="font-semibold text-text-primary mb-1">What formats are supported?</h3>
               <p>MP3, WAV, FLAC, M4A, AAC, OGG, and AIFF, up to 50MB and 20 minutes long.</p>
+            </div>
+            <div>
+              <h3 className="font-semibold text-text-primary mb-1">Should I denoise before or after boosting volume?</h3>
+              <p>
+                Denoise first, then boost volume. Boosting first raises the noise
+                right along with everything else, which just means the denoiser
+                has more to remove — cleaning it up before adjusting levels gives
+                a clearer result.
+              </p>
             </div>
           </div>
         </section>

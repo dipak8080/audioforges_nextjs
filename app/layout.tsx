@@ -52,6 +52,14 @@ export const metadata: Metadata = {
   },
 };
 
+const organizationJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  name: "AudioForges",
+  url: SITE_URL,
+  logo: `${SITE_URL}/images/og-default.png`,
+};
+
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html
@@ -80,6 +88,14 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           src="https://analytics.ahrefs.com/analytics.js"
           data-key="QkVPNT1O6u+JbZ5njmaMTw"
           strategy="afterInteractive"
+        />
+
+        {/* Site-wide Organization schema - only needs to appear once, not
+            per-page, since it describes the publisher/brand rather than
+            any individual page's content. */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }}
         />
 
         <SiteChrome>{children}</SiteChrome>

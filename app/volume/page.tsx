@@ -17,6 +17,9 @@ export const metadata: Metadata = {
     "reduce audio volume online",
     "audio gain adjuster",
     "make audio louder",
+    "lower mp3 volume",
+    "audio clipping",
+    "gain vs volume",
   ],
   alternates: { canonical: `${SITE_URL}/volume` },
   openGraph: {
@@ -41,6 +44,7 @@ export const metadata: Metadata = {
     images: ["/images/og-default.png"],
   },
 };
+
 const faqJsonLd = {
   "@context": "https://schema.org",
   "@type": "FAQPage",
@@ -75,6 +79,54 @@ const faqJsonLd = {
       acceptedAnswer: {
         "@type": "Answer",
         text: "MP3, WAV, FLAC, M4A, AAC, OGG, and AIFF, up to 50MB and 20 minutes long.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "Does boosting volume reduce quality?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "The gain change itself doesn't discard any audio quality. The only quality risk is clipping if you push the boost high enough that peaks exceed the format's maximum level — moderate boosts don't carry that risk.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "Why is my audio still quiet after boosting?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "If the source recording was very quiet to begin with, a single gain boost may not be enough to reach a comfortable listening level without introducing clipping. Try a moderate boost first and check the result before pushing higher.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "What is clipping?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Clipping is the harsh distortion that happens when a boosted signal tries to exceed the loudest level a format can represent, and the peaks get cut off flat instead of following the natural waveform.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "Is this different from normalization?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Yes. Normalization automatically raises a track to a target loudness level. This tool applies a fixed gain change you choose yourself, which gives you direct control but means you're responsible for picking a value that doesn't clip.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "Will boosting volume remove background noise?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "No — a volume boost raises everything in the recording equally, including background noise. If the noise itself is the problem, a dedicated noise reduction tool is the better fix.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "Does it work on mobile?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Yes — it works in any mobile browser on iPhone or Android, no app install required.",
       },
     },
   ],
@@ -166,6 +218,35 @@ export default function VolumePage() {
         </section>
 
         <section className="space-y-4">
+          <h2 className="text-2xl font-bold text-text-primary">Why increase audio volume?</h2>
+          <p className="text-text-muted leading-relaxed">
+            Recordings end up too quiet for all kinds of ordinary reasons: a
+            voice memo captured at arm&apos;s length, a lecture or interview
+            recorded on whatever device was on hand, a podcast segment that
+            came in at a different level than the rest of the episode, or a
+            music track exported at a conservative level to leave headroom.
+            In every one of those cases the audio itself is fine — it just
+            needs to be louder, which is exactly what a gain boost does
+            without re-processing anything else about the file.
+          </p>
+        </section>
+
+        <section className="space-y-4">
+          <h2 className="text-2xl font-bold text-text-primary">When should you reduce volume instead?</h2>
+          <p className="text-text-muted leading-relaxed">
+            Reducing gain matters just as often as boosting it. A recording
+            that&apos;s already clipping or distorted from being captured too
+            hot can sometimes be brought back to a listenable level by
+            pulling the gain down, though it won&apos;t undo distortion that
+            already happened at the moment of recording. More commonly,
+            reducing volume is about consistency — matching one clip&apos;s
+            level to the rest of a project, or turning a track down before
+            handing it off somewhere with its own loudness expectations, like
+            a podcast platform or a shared mix.
+          </p>
+        </section>
+
+        <section className="space-y-4">
           <h2 className="text-2xl font-bold text-text-primary">How to increase or reduce audio volume</h2>
           <ol className="list-decimal list-inside space-y-2 text-text-muted leading-relaxed">
             <li>Upload your MP3, WAV, FLAC, M4A, AAC, OGG, or AIFF file.</li>
@@ -190,14 +271,106 @@ export default function VolumePage() {
               -10dB</strong> is enough to noticeably quiet a recording that&apos;s too
               loud, while still keeping it clearly audible.
             </p>
-            <p>
-              Want the full explanation of why clipping happens and where gain
-              adjustments fit in a mixing workflow? Read{" "}
-              <Link href="/guides/gain-staging-for-home-studios" className="text-amber-400 hover:underline">
-                Gain Staging Explained for Home Studios
-              </Link>.
-            </p>
           </div>
+          <div className="overflow-x-auto rounded-xl border border-graphite-800">
+            <table className="w-full text-sm text-left text-text-muted">
+              <thead className="bg-graphite-900 text-text-primary">
+                <tr>
+                  <th className="px-4 py-3 font-semibold">Gain</th>
+                  <th className="px-4 py-3 font-semibold">Typical result</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-graphite-800">
+                <tr>
+                  <td className="px-4 py-3">+3dB</td>
+                  <td className="px-4 py-3">A subtle, barely-there increase</td>
+                </tr>
+                <tr>
+                  <td className="px-4 py-3">+6dB</td>
+                  <td className="px-4 py-3">Clearly louder, low clipping risk on most material</td>
+                </tr>
+                <tr>
+                  <td className="px-4 py-3">+10dB</td>
+                  <td className="px-4 py-3">Much louder; check for clipping on already-loud recordings</td>
+                </tr>
+                <tr>
+                  <td className="px-4 py-3">+20dB</td>
+                  <td className="px-4 py-3">More likely to clip unless the source had a lot of headroom to begin with</td>
+                </tr>
+                <tr>
+                  <td className="px-4 py-3">+30dB</td>
+                  <td className="px-4 py-3">Only for very quiet source material — high clipping risk otherwise</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p className="text-text-muted leading-relaxed">
+            Where clipping actually sets in depends on how much headroom the
+            original recording already had — a very quiet source can often
+            take a bigger boost before clipping than a recording that was
+            already close to its loudest point.
+          </p>
+        </section>
+
+        <section className="space-y-4">
+          <h2 className="text-2xl font-bold text-text-primary">Understanding clipping</h2>
+          <p className="text-text-muted leading-relaxed">
+            Clipping happens when a boosted signal tries to go louder than
+            the format&apos;s maximum representable level, so instead of the
+            waveform&apos;s peaks following their natural shape, they get cut
+            off flat. That flattening is what produces the harsh, crackling
+            distortion associated with an over-boosted recording. It&apos;s
+            not something a volume tool can fix after the fact by adjusting
+            gain back down — once a peak has been clipped, the detail that
+            got cut off is gone, not just quieter. The only real prevention
+            is boosting conservatively enough that peaks stay under the
+            format&apos;s ceiling in the first place, which is exactly why
+            the guidance above stays in a moderate range for most material.
+          </p>
+        </section>
+
+        <section className="space-y-4">
+          <h2 className="text-2xl font-bold text-text-primary">Gain vs volume: what&apos;s the difference?</h2>
+          <p className="text-text-muted leading-relaxed">
+            The two terms get used interchangeably, but they describe
+            different things. <strong className="text-text-primary">Gain</strong>{" "}
+            is a change applied to the actual audio data itself — it&apos;s
+            baked into the file you download, and it&apos;s what this tool
+            adjusts. <strong className="text-text-primary">Volume</strong>{" "}
+            usually refers to playback loudness on whatever device or app is
+            playing the file back — your phone&apos;s volume buttons, for
+            instance, change nothing about the file itself. If a file sounds
+            too quiet even at full playback volume, that&apos;s a sign the
+            file needs a gain boost, not just a louder playback setting.
+          </p>
+        </section>
+
+        <section className="space-y-4">
+          <h2 className="text-2xl font-bold text-text-primary">Related tools</h2>
+          <p className="text-text-muted leading-relaxed">
+            If background noise, not just loudness, is the issue, our{" "}
+            <Link href="/noise-remove" className="text-amber-400 hover:underline">
+              Noise Remover
+            </Link>{" "}
+            is the better fit — a volume boost raises noise right along with
+            everything else. Need to cut a clip down before adjusting its
+            level? Try{" "}
+            <Link href="/trim" className="text-amber-400 hover:underline">
+              Trim Audio
+            </Link>{" "}
+            first, or head to the{" "}
+            <Link href="/convert" className="text-amber-400 hover:underline">
+              Audio Converter
+            </Link>{" "}
+            if you need a different file format afterward.
+          </p>
+          <p className="text-text-muted leading-relaxed">
+            Want the full explanation of why clipping happens and where gain
+            adjustments fit in a mixing workflow? Read{" "}
+            <Link href="/guides/gain-staging-for-home-studios" className="text-amber-400 hover:underline">
+              Gain Staging Explained for Home Studios
+            </Link>.
+          </p>
         </section>
 
         {relatedTools.length > 0 && (
@@ -239,6 +412,59 @@ export default function VolumePage() {
             <div>
               <h3 className="font-semibold text-text-primary mb-1">What formats are supported?</h3>
               <p>MP3, WAV, FLAC, M4A, AAC, OGG, and AIFF, up to 50MB and 20 minutes long.</p>
+            </div>
+            <div>
+              <h3 className="font-semibold text-text-primary mb-1">Does boosting volume reduce quality?</h3>
+              <p>
+                The gain change itself doesn&apos;t discard any audio
+                quality. The only quality risk is clipping if you push the
+                boost high enough that peaks exceed the format&apos;s
+                maximum level — moderate boosts don&apos;t carry that risk.
+              </p>
+            </div>
+            <div>
+              <h3 className="font-semibold text-text-primary mb-1">Why is my audio still quiet after boosting?</h3>
+              <p>
+                If the source recording was very quiet to begin with, a
+                single gain boost may not be enough to reach a comfortable
+                listening level without introducing clipping. Try a moderate
+                boost first and check the result before pushing higher.
+              </p>
+            </div>
+            <div>
+              <h3 className="font-semibold text-text-primary mb-1">What is clipping?</h3>
+              <p>
+                Clipping is the harsh distortion that happens when a boosted
+                signal tries to exceed the loudest level a format can
+                represent, and the peaks get cut off flat instead of
+                following the natural waveform.
+              </p>
+            </div>
+            <div>
+              <h3 className="font-semibold text-text-primary mb-1">Is this different from normalization?</h3>
+              <p>
+                Yes. Normalization automatically raises a track to a target
+                loudness level. This tool applies a fixed gain change you
+                choose yourself, which gives you direct control but means
+                you&apos;re responsible for picking a value that
+                doesn&apos;t clip.
+              </p>
+            </div>
+            <div>
+              <h3 className="font-semibold text-text-primary mb-1">Will boosting volume remove background noise?</h3>
+              <p>
+                No — a volume boost raises everything in the recording
+                equally, including background noise. If the noise itself is
+                the problem, a{" "}
+                <Link href="/noise-remove" className="text-amber-400 hover:underline">
+                  dedicated noise reduction tool
+                </Link>{" "}
+                is the better fix.
+              </p>
+            </div>
+            <div>
+              <h3 className="font-semibold text-text-primary mb-1">Does it work on mobile?</h3>
+              <p>Yes — it works in any mobile browser on iPhone or Android, no app install required.</p>
             </div>
           </div>
         </section>

@@ -19,6 +19,10 @@ export const metadata: Metadata = {
     "fix echo in audio free",
     "slap echo remover",
     "audio echo remover",
+    "remove echo from microphone",
+    "remove echo from voice",
+    "remove echo from podcast",
+    "clean echo from recording",
   ],
   alternates: { canonical: `${SITE_URL}/echo-remove` },
   openGraph: {
@@ -191,6 +195,26 @@ export default function EchoRemovePage() {
         </section>
 
         <section className="space-y-4">
+          <h2 className="text-2xl font-bold text-text-primary">Why recordings get echo</h2>
+          <p className="text-text-muted leading-relaxed">
+            Echo happens when sound reflects off hard surfaces — walls,
+            ceilings, glass, tile — before reaching the microphone. Instead
+            of picking up only the direct sound, the mic also captures those
+            delayed reflections, which is what makes speech sound distant or
+            hollow. Rooms with little furniture, carpet, or soft surfaces to
+            absorb sound tend to produce the strongest echo, since there&apos;s
+            nothing to dampen the reflections bouncing around.
+          </p>
+          <p className="text-text-muted leading-relaxed">
+            Recording closer to the microphone, adding soft furnishings, or
+            using acoustic panels all reduce echo before it&apos;s ever
+            captured. This tool works on the other end of that problem —
+            reducing echo that&apos;s already baked into a recording after
+            the fact.
+          </p>
+        </section>
+
+        <section className="space-y-4">
           <h2 className="text-2xl font-bold text-text-primary">Echo vs. reverb vs. slap-back</h2>
           <p className="text-text-muted leading-relaxed">
             These terms get used interchangeably, but they&apos;re different
@@ -220,8 +244,10 @@ export default function EchoRemovePage() {
             <p>
               Good fits: a phone recording made in a tiled bathroom or hallway, a voice
               memo with a faint repeat, a Zoom call recorded in an untreated room, or an
-              interview recorded in a slightly echoey space. This works by gating out the
-              quiet trailing reflections that create the echo sensation.
+              interview recorded in a slightly echoey space. This works on audio from
+              any source — phone, laptop, camera, Zoom, Discord, Teams, OBS, whatever
+              recorded it — as long as it&apos;s a supported file format with mild room
+              echo rather than heavy reverb.
             </p>
             <p>
               For speech recordings that also have background noise or inconsistent
@@ -229,7 +255,12 @@ export default function EchoRemovePage() {
               <Link href="/voice-clean" className="text-amber-400 hover:underline">
                 Voice Cleaner
               </Link>{" "}
-              first — it handles denoising and normalization in the same pass.
+              first — it handles denoising and normalization in the same pass. If
+              you want direct control over noise reduction strength instead, the{" "}
+              <Link href="/noise-remove" className="text-amber-400 hover:underline">
+                Noise Remover
+              </Link>{" "}
+              is the more adjustable option.
             </p>
           </div>
         </section>

@@ -21,6 +21,8 @@ export const metadata: Metadata = {
     "generate srt from audio",
     "transcribe mp3 to text",
     "transcribe wav to text",
+    "txt vs srt",
+    "multilingual transcription",
   ],
   alternates: { canonical: `${SITE_URL}/speech-to-text` },
   openGraph: {
@@ -98,6 +100,30 @@ const faqJsonLd = {
         text: "Yes — completely free, no sign-up. Limited to 2 transcriptions per 5 minutes since only one runs at a time.",
       },
     },
+    {
+      "@type": "Question",
+      name: "What's the difference between the TXT and SRT export?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Plain text is the transcript as continuous readable text, with no timing information — good for reading, searching, or pasting into notes. SRT is the same transcript split into timed caption blocks that video players and editors recognize directly as subtitles.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "What languages does this support?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "The underlying model supports a wide range of languages and detects the spoken language automatically. Accuracy is generally strongest for widely-spoken languages with more training data, and can vary for less common languages or heavy accents.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "Are my files stored after transcription?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "No — your audio is processed only for the time needed to generate the transcript and isn't retained afterward.",
+      },
+    },
   ],
 };
 
@@ -108,6 +134,7 @@ const webAppJsonLd = {
   url: `${SITE_URL}/speech-to-text`,
   applicationCategory: "MultimediaApplication",
   operatingSystem: "Any",
+  dateModified: "2026-07-25",
   offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
   featureList: [
     "Automatic language detection",
@@ -182,6 +209,17 @@ export default function SpeechToTextPage() {
             <li>Choose plain text or SRT captions as your export format.</li>
             <li>Download your transcript or caption file.</li>
           </ol>
+          <div className="flex flex-wrap gap-2 pt-1">
+            {["MP3", "WAV", "FLAC", "M4A", "AAC", "OGG"].map((fmt) => (
+              <span
+                key={fmt}
+                className="inline-flex items-center gap-1 rounded-full border border-graphite-800 bg-graphite-900 px-3 py-1 text-xs text-text-muted"
+              >
+                <span className="text-teal-400">✓</span>
+                {fmt}
+              </span>
+            ))}
+          </div>
         </section>
 
         <section className="rounded-xl border border-graphite-800 bg-graphite-900 p-5 space-y-2">
@@ -194,12 +232,28 @@ export default function SpeechToTextPage() {
         </section>
 
         <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">Supported formats</h2>
+          <h2 className="text-2xl font-bold text-text-primary">TXT vs SRT: which export should you pick?</h2>
           <p className="text-text-muted leading-relaxed">
-            Upload MP3, WAV, FLAC, M4A, AAC, or OGG files up to 50MB and 20 minutes
-            long. The transcript comes back with per-segment timestamps regardless
-            of source format, so you can export the same result as plain text for
-            reading or SRT for captions.
+            <strong className="text-text-primary">Plain text</strong> gives you the
+            transcript as continuous readable text with no timing markers — the
+            right choice for reading back an interview, searching a transcript for
+            a quote, or pasting notes somewhere. <strong className="text-text-primary">
+            SRT</strong> splits the same transcript into timed caption blocks that
+            video editors and players recognize directly as subtitles — use this
+            when the transcript is headed into a video, whether that&apos;s for
+            accessibility captions, translation work, or just burning subtitles
+            into a clip.
+          </p>
+        </section>
+
+        <section className="space-y-4">
+          <h2 className="text-2xl font-bold text-text-primary">Language support</h2>
+          <p className="text-text-muted leading-relaxed">
+            The transcription model auto-detects the spoken language and supports
+            a wide range of languages without you needing to specify anything.
+            Accuracy is generally strongest for widely-spoken languages with more
+            available training data, and can vary more for less common languages,
+            heavy accents, or mixed-language audio.
           </p>
         </section>
 
@@ -208,15 +262,39 @@ export default function SpeechToTextPage() {
           <p className="text-text-muted leading-relaxed">
             Background noise, overlapping speech, and low recording volume are the
             most common reasons a transcript comes back with errors — this is true
-            of any speech-to-text engine, not specific to this tool. If your source
-            recording has noticeable hiss, hum, or background noise, running it
-            through the{" "}
-            <Link href="/voice-clean" className="text-amber-400 hover:underline">
-              Voice Cleaner
-            </Link>{" "}
-            first is the single most effective way to improve accuracy before you
-            transcribe.
+            of any speech-to-text engine, not specific to this tool. A few quick
+            fixes before you transcribe tend to help more than anything else:
           </p>
+          <ul className="list-disc list-inside space-y-1.5 text-text-muted leading-relaxed">
+            <li>
+              Noticeable hiss, hum, or background noise? Run it through the{" "}
+              <Link href="/voice-clean" className="text-amber-400 hover:underline">
+                Voice Cleaner
+              </Link>{" "}
+              first.
+            </li>
+            <li>
+              Non-speech background noise from music or field recording?{" "}
+              <Link href="/noise-remove" className="text-amber-400 hover:underline">
+                Noise Remover
+              </Link>{" "}
+              gives you adjustable control instead.
+            </li>
+            <li>
+              Only need to transcribe part of a longer file?{" "}
+              <Link href="/trim" className="text-amber-400 hover:underline">
+                Trim Audio
+              </Link>{" "}
+              down to the relevant section first — shorter files also process faster.
+            </li>
+            <li>
+              Wrong file format?{" "}
+              <Link href="/convert" className="text-amber-400 hover:underline">
+                Convert
+              </Link>{" "}
+              it to one of the supported formats before uploading.
+            </li>
+          </ul>
           <p className="text-text-muted leading-relaxed">
             Want the fuller breakdown of what specifically degrades accuracy and how
             to prep a file properly?{" "}
@@ -236,6 +314,23 @@ export default function SpeechToTextPage() {
               lecture or online-course recording into notes you can search and skim.
             </p>
           </div>
+        </section>
+
+        <section className="space-y-4">
+          <h2 className="text-2xl font-bold text-text-primary">Why use AudioForges?</h2>
+          <ul className="grid gap-2 sm:grid-cols-2 text-text-muted leading-relaxed">
+            {[
+              "Free, no sign-up required",
+              "No watermark on any export",
+              "Runs entirely in your browser",
+              "Files aren't retained after processing",
+            ].map((item) => (
+              <li key={item} className="flex items-center gap-2">
+                <span className="text-teal-400">✓</span>
+                {item}
+              </li>
+            ))}
+          </ul>
         </section>
 
         {relatedTools.length > 0 && (
@@ -287,6 +382,28 @@ export default function SpeechToTextPage() {
             <div>
               <h3 className="font-semibold text-text-primary mb-1">Is this really free?</h3>
               <p>Yes — completely free, no sign-up. Limited to 2 transcriptions per 5 minutes since only one runs at a time.</p>
+            </div>
+            <div>
+              <h3 className="font-semibold text-text-primary mb-1">What&apos;s the difference between the TXT and SRT export?</h3>
+              <p>
+                Plain text is the transcript as continuous readable text, with no
+                timing information — good for reading, searching, or pasting into
+                notes. SRT is the same transcript split into timed caption blocks
+                that video players and editors recognize directly as subtitles.
+              </p>
+            </div>
+            <div>
+              <h3 className="font-semibold text-text-primary mb-1">What languages does this support?</h3>
+              <p>
+                The underlying model supports a wide range of languages and detects
+                the spoken language automatically. Accuracy is generally strongest
+                for widely-spoken languages with more training data, and can vary
+                for less common languages or heavy accents.
+              </p>
+            </div>
+            <div>
+              <h3 className="font-semibold text-text-primary mb-1">Are my files stored after transcription?</h3>
+              <p>No — your audio is processed only for the time needed to generate the transcript and isn&apos;t retained afterward.</p>
             </div>
           </div>
         </section>

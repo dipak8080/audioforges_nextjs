@@ -21,6 +21,14 @@ export const metadata: Metadata = {
     "mp3 converter",
     "wav converter",
     "flac converter",
+    "audio file converter",
+    "convert music format",
+    "wav to flac",
+    "aiff to mp3",
+    "ogg to mp3",
+    "m4a to mp3",
+    "aac converter",
+    "online audio converter",
   ],
   alternates: { canonical: `${SITE_URL}/convert` },
   openGraph: {
@@ -133,6 +141,17 @@ const howToJsonLd = {
 
 const ALL_FORMATS = ["MP3", "WAV", "FLAC", "M4A", "AAC", "OGG", "AIFF"];
 
+const EXAMPLE_PAIRS = [
+  ["MP3", "WAV"],
+  ["WAV", "MP3"],
+  ["FLAC", "MP3"],
+  ["WAV", "FLAC"],
+  ["AIFF", "MP3"],
+  ["OGG", "MP3"],
+  ["M4A", "MP3"],
+  ["AAC", "WAV"],
+];
+
 export default function ConvertPage() {
   const relatedTools = getRelatedTools("convert", 5);
 
@@ -206,6 +225,32 @@ export default function ConvertPage() {
         </section>
 
         <section className="space-y-4">
+          <h2 className="text-2xl font-bold text-text-primary">A few common conversions</h2>
+          <p className="text-text-muted leading-relaxed">
+            These are just examples — every format above converts to every
+            other one, not only the pairs shown here:
+          </p>
+          <div className="overflow-x-auto rounded-xl border border-graphite-800">
+            <table className="w-full text-sm text-left text-text-muted">
+              <thead className="bg-graphite-900 text-text-primary">
+                <tr>
+                  <th className="px-4 py-3 font-semibold">Convert from</th>
+                  <th className="px-4 py-3 font-semibold">Convert to</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-graphite-800">
+                {EXAMPLE_PAIRS.map(([from, to]) => (
+                  <tr key={`${from}-${to}`}>
+                    <td className="px-4 py-3 font-mono">{from}</td>
+                    <td className="px-4 py-3 font-mono">{to}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section className="space-y-4">
           <h2 className="text-2xl font-bold text-text-primary">Which format should you pick?</h2>
           <div className="overflow-x-auto rounded-xl border border-graphite-800">
             <table className="w-full text-sm text-left text-text-muted">
@@ -253,6 +298,33 @@ export default function ConvertPage() {
             <Link href="/guides/lossless-vs-lossy-audio-formats" className="text-amber-400 hover:underline">
               Read Lossless vs Lossy Audio: Which Format to Use
             </Link>.
+          </p>
+        </section>
+
+        <section className="space-y-4">
+          <h2 className="text-2xl font-bold text-text-primary">Works with files from anywhere</h2>
+          <p className="text-text-muted leading-relaxed">
+            Since conversion works on the file format itself rather than
+            where it came from, this handles exports from Audacity, Adobe
+            Audition, Ableton Live, Logic Pro, FL Studio, GarageBand, OBS,
+            Premiere Pro, DaVinci Resolve, or anywhere else — as long as the
+            file is one of the seven formats above.
+          </p>
+          <p className="text-text-muted leading-relaxed">
+            Need to trim, reverse, or adjust a file before or after
+            converting it? The{" "}
+            <Link href="/trim" className="text-amber-400 hover:underline">
+              Audio Trimmer
+            </Link>
+            ,{" "}
+            <Link href="/pitch" className="text-amber-400 hover:underline">
+              Pitch Shifter
+            </Link>
+            , and{" "}
+            <Link href="/tempo" className="text-amber-400 hover:underline">
+              Tempo Changer
+            </Link>{" "}
+            all work on any of these formats too.
           </p>
         </section>
 

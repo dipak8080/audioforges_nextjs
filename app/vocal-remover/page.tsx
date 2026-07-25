@@ -7,7 +7,7 @@ import { getRelatedTools } from "@/lib/data/tools";
 export const metadata: Metadata = {
   title: "Free AI Vocal Remover Online",
   description:
-    "Remove vocals from any song online with AI for free. Create instrumentals or extract acapellas from MP3, WAV, FLAC, AAC, and more. No sign-up required.",
+    "Remove vocals from songs online with AI for free. Extract instrumentals or acapellas from MP3, WAV, FLAC, AAC, and more. No sign-up, no watermark, fast browser-based processing.",
   keywords: [
     "vocal remover",
     "ai vocal remover",
@@ -59,7 +59,7 @@ const faqJsonLd = {
       name: "How long does vocal removal take?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Usually 1–5 minutes, depending on track length and server load — this runs real AI audio-separation processing, not a simple filter.",
+        text: "Usually 1–5 minutes, depending on track length and server load — this runs real AI audio-separation processing, not a simple filter, on CPU rather than expensive GPU infrastructure.",
       },
     },
     {
@@ -100,6 +100,54 @@ const faqJsonLd = {
       acceptedAnswer: {
         "@type": "Answer",
         text: "Center-channel filters only remove audio panned dead-center, which often leaves vocal bleed and damages the stereo mix. This tool uses AI source separation to isolate vocals and instrumental as fully separate stems.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "Does it work on live recordings?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "It can, but results are usually less clean than a studio recording — crowd noise and stage bleed are harder for the model to separate from the vocal than a controlled studio mix.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "Can I use this on a track I downloaded with the YouTube converter?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Yes — upload the WAV or MP3 from our YouTube to WAV converter directly into this tool, as long as you have the right to process that audio.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "Can I separate drums or other instruments instead of vocals?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Not currently — this tool splits a track into exactly two stems, vocals and instrumental, rather than isolating individual instruments like drums or bass separately.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "Does it preserve stereo sound?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Yes — the separation model processes and outputs stereo audio, not a mono downmix.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "Is there a maximum file size?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Yes, 50MB per upload.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "Does AI separation improve the audio quality?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "No — it isolates what's already in the mix, it doesn't remaster or add fidelity the original recording didn't have.",
       },
     },
   ],
@@ -184,12 +232,31 @@ export default function VocalRemoverPage() {
         </section>
 
         <section className="space-y-4">
+          <h2 className="text-2xl font-bold text-text-primary">Who is this for?</h2>
+          <p className="text-text-muted leading-relaxed">
+            Producers pulling an instrumental to sample or build on, DJs
+            extracting an acapella for a mashup, singers practicing over a
+            clean backing track, music teachers preparing karaoke material
+            for students, and content creators needing an instrumental bed
+            all use this tool for the same underlying job — splitting a mix
+            into vocal and instrumental stems.
+          </p>
+        </section>
+
+        <section className="space-y-4">
           <h2 className="text-2xl font-bold text-text-primary">How to remove vocals from a song</h2>
           <ol className="list-decimal list-inside space-y-2 text-text-muted leading-relaxed">
             <li>Upload an MP3, WAV, FLAC, AAC, M4A, or OGG file.</li>
             <li>AI source separation splits the track into vocal and instrumental components — usually a few minutes, depending on length and server load.</li>
             <li>Download the result directly in your browser, no install needed.</li>
           </ol>
+          <p className="text-text-muted leading-relaxed">
+            Need a track from YouTube first? Grab it with our{" "}
+            <Link href="/youtube-to-wav" className="text-amber-400 hover:underline">
+              YouTube to WAV converter
+            </Link>{" "}
+            and upload the result here.
+          </p>
         </section>
 
         <section className="space-y-4">
@@ -211,7 +278,10 @@ export default function VocalRemoverPage() {
               the audio&apos;s learned characteristics of what a voice sounds like
               versus an instrument, which is why it can isolate vocals regardless
               of where they sit in the stereo field, and why it produces a cleaner
-              instrumental as a result.
+              instrumental as a result. The model processes and outputs full stereo
+              audio, and splits a track into exactly two stems — vocals and
+              instrumental — rather than separating individual instruments like
+              drums or bass on their own.
             </p>
             <p>
               Because this runs on CPU rather than expensive GPU infrastructure, a
@@ -228,6 +298,21 @@ export default function VocalRemoverPage() {
               </Link>.
             </p>
           </div>
+        </section>
+
+        <section className="space-y-4">
+          <h2 className="text-2xl font-bold text-text-primary">AI vocal removal isn&apos;t perfect</h2>
+          <p className="text-text-muted leading-relaxed">
+            Separation quality depends heavily on the source track. Choir or
+            group vocals confuse the model since it has multiple overlapping
+            vocal-like sources to untangle instead of one. Heavy distortion
+            can share enough spectral character with a distorted or screamed
+            vocal that the two get separated less cleanly. Live recordings
+            with crowd noise or stage bleed give the model a messier signal
+            to work from than a controlled studio mix. None of these make
+            separation fail outright — they just tend to leave more audible
+            traces behind than a clean studio recording would.
+          </p>
         </section>
 
         <section className="space-y-4">
@@ -252,7 +337,12 @@ export default function VocalRemoverPage() {
             </p>
             <p>
               <strong className="text-text-primary">Remixing &amp; sampling:</strong>{" "}
-              isolate an acapella or a clean instrumental bed to build on.
+              isolate an acapella or a clean instrumental bed to build on. Check the
+              key first with our{" "}
+              <Link href="/key-finder" className="text-amber-400 hover:underline">
+                Key &amp; BPM Finder
+              </Link>{" "}
+              if you&apos;re building something new around the sample.
             </p>
             <p>
               <strong className="text-text-primary">DJ mashups:</strong> pull an
@@ -298,7 +388,11 @@ export default function VocalRemoverPage() {
           <div className="space-y-5 text-text-muted leading-relaxed">
             <div>
               <h3 className="font-semibold text-text-primary mb-1">How long does vocal removal take?</h3>
-              <p>Usually 1–5 minutes, depending on track length and server load.</p>
+              <p>
+                Usually 1–5 minutes, depending on track length and server load —
+                this runs on CPU rather than expensive GPU infrastructure, which is
+                also why it's limited to one track per hour per person.
+              </p>
             </div>
             <div>
               <h3 className="font-semibold text-text-primary mb-1">Is this really free?</h3>
@@ -338,6 +432,54 @@ export default function VocalRemoverPage() {
                 Center-channel filters only remove audio panned dead-center, often
                 leaving vocal bleed. This uses AI source separation to isolate vocals
                 and instrumental as fully separate stems.
+              </p>
+            </div>
+            <div>
+              <h3 className="font-semibold text-text-primary mb-1">Does it work on live recordings?</h3>
+              <p>
+                It can, but results are usually less clean than a studio recording
+                — crowd noise and stage bleed are harder for the model to separate
+                from the vocal than a controlled studio mix.
+              </p>
+            </div>
+            <div>
+              <h3 className="font-semibold text-text-primary mb-1">
+                Can I use this on a track I downloaded with the YouTube converter?
+              </h3>
+              <p>
+                Yes — upload the WAV or MP3 from our{" "}
+                <Link href="/youtube-to-wav" className="text-amber-400 hover:underline">
+                  YouTube to WAV converter
+                </Link>{" "}
+                directly into this tool, as long as you have the right to process
+                that audio.
+              </p>
+            </div>
+            <div>
+              <h3 className="font-semibold text-text-primary mb-1">
+                Can I separate drums or other instruments instead of vocals?
+              </h3>
+              <p>
+                Not currently — this tool splits a track into exactly two stems,
+                vocals and instrumental, rather than isolating individual
+                instruments like drums or bass separately.
+              </p>
+            </div>
+            <div>
+              <h3 className="font-semibold text-text-primary mb-1">Does it preserve stereo sound?</h3>
+              <p>Yes — the separation model processes and outputs stereo audio, not a mono downmix.</p>
+            </div>
+            <div>
+              <h3 className="font-semibold text-text-primary mb-1">Is there a maximum file size?</h3>
+              <p>Yes, 50MB per upload.</p>
+            </div>
+            <div>
+              <h3 className="font-semibold text-text-primary mb-1">
+                Does AI separation improve the audio quality?
+              </h3>
+              <p>
+                No — it isolates what&apos;s already in the mix, it doesn&apos;t
+                remaster or add fidelity the original recording didn&apos;t have.
               </p>
             </div>
           </div>

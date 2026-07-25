@@ -7,7 +7,7 @@ import { getRelatedTools } from "@/lib/data/tools";
 export const metadata: Metadata = {
   title: "Free Song Key & BPM Finder",
   description:
-    "Find any song's musical key, BPM, and Camelot notation online free. Upload MP3, WAV, FLAC, AAC, M4A, or OGG — no sign-up required.",
+    "Find the musical key, BPM, tempo, and Camelot notation of any song online for free. Upload MP3, WAV, FLAC, AAC, M4A, or OGG. No sign-up required.",
   keywords: [
     "key finder",
     "bpm finder",
@@ -22,6 +22,14 @@ export const metadata: Metadata = {
     "harmonic mixing",
     "find key of song",
     "detect song key",
+    "song bpm detector",
+    "music key detector",
+    "track key finder",
+    "tempo detector",
+    "find bpm of song",
+    "detect tempo",
+    "dj key finder",
+    "harmonic mixing tool",
   ],
   alternates: { canonical: `${SITE_URL}/key-finder` },
   openGraph: {
@@ -101,6 +109,14 @@ const faqJsonLd = {
         text: "No. Analysis runs entirely to detect key and tempo — AudioForges does not store or distribute uploaded tracks.",
       },
     },
+    {
+      "@type": "Question",
+      name: "What affects detection accuracy?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Clean, full-length tracks with consistent tempo and clear harmonic content analyze most reliably. Live recordings, heavy distortion, tempo changes mid-track, spoken-word audio, or long drum-only intros give the analysis less to work with and can reduce accuracy.",
+      },
+    },
   ],
 };
 
@@ -134,6 +150,17 @@ const breadcrumbJsonLd = {
   ],
 };
 
+const howToJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "HowTo",
+  name: "How to Find the Key and BPM of a Song",
+  step: [
+    { "@type": "HowToStep", name: "Upload", text: "Upload an MP3, WAV, FLAC, M4A, AAC, or OGG file." },
+    { "@type": "HowToStep", name: "Analyze", text: "The tool automatically analyzes the musical key and tempo — no settings to configure." },
+    { "@type": "HowToStep", name: "View results", text: "See the detected key, BPM, and Camelot notation in a few seconds." },
+  ],
+};
+
 export default function KeyFinderPage() {
   const relatedTools = getRelatedTools("key-finder", 5);
 
@@ -142,6 +169,7 @@ export default function KeyFinderPage() {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(webAppJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(howToJsonLd) }} />
 
       <main className="mx-auto max-w-3xl px-4 py-12 sm:py-16 space-y-12">
         <header className="text-center space-y-4">
@@ -226,6 +254,31 @@ export default function KeyFinderPage() {
           </div>
         </section>
 
+        <section className="space-y-4">
+          <h2 className="text-2xl font-bold text-text-primary">What affects detection accuracy</h2>
+          <div className="space-y-3 text-text-muted leading-relaxed">
+            <p>
+              Key and BPM detection works best on clean, full-length tracks
+              with a consistent tempo and clear harmonic content throughout.
+            </p>
+            <p>
+              Live recordings, heavy distortion, songs with tempo changes
+              mid-track, spoken-word audio, or long intros containing only
+              drums give the analysis less to work with, which can reduce
+              accuracy — there&apos;s simply less clear harmonic and rhythmic
+              information for it to lock onto.
+            </p>
+            <p>
+              If your recording has significant background noise, running it
+              through the{" "}
+              <Link href="/noise-remove" className="text-amber-400 hover:underline">
+                Noise Remover
+              </Link>{" "}
+              first can improve detection.
+            </p>
+          </div>
+        </section>
+
         {relatedTools.length > 0 && (
           <section className="space-y-4">
             <h2 className="text-2xl font-bold text-text-primary">More free tools</h2>
@@ -270,6 +323,15 @@ export default function KeyFinderPage() {
             <div>
               <h3 className="font-semibold text-text-primary mb-1">Is my uploaded track stored or shared?</h3>
               <p>No — AudioForges does not store or distribute uploaded tracks.</p>
+            </div>
+            <div>
+              <h3 className="font-semibold text-text-primary mb-1">What affects detection accuracy?</h3>
+              <p>
+                Clean, full-length tracks with consistent tempo and clear
+                harmonic content analyze most reliably. Live recordings,
+                heavy distortion, tempo changes mid-track, spoken-word audio,
+                or long drum-only intros can reduce accuracy.
+              </p>
             </div>
           </div>
         </section>

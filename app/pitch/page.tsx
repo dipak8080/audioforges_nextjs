@@ -7,7 +7,7 @@ import { getRelatedTools } from "@/lib/data/tools";
 export const metadata: Metadata = {
   title: "Free Pitch Shifter — Change Key Without Changing Speed",
   description:
-    "Shift audio pitch free, no sign-up — transpose up or down up to an octave, independent of tempo. Works on MP3, WAV, FLAC, and more.",
+    "Change audio pitch or transpose music online for free. Shift MP3, WAV, FLAC, AAC, M4A, OGG, and AIFF up or down by up to 12 semitones without changing tempo.",
   keywords: [
     "pitch shifter online",
     "change pitch of audio free",
@@ -19,6 +19,11 @@ export const metadata: Metadata = {
     "change key of song",
     "audio key changer",
     "transpose vocal",
+    "transpose song",
+    "change song key",
+    "audio transpose",
+    "pitch changer online",
+    "change vocal pitch",
   ],
   alternates: { canonical: `${SITE_URL}/pitch` },
   openGraph: {
@@ -93,6 +98,14 @@ const faqJsonLd = {
       acceptedAnswer: {
         "@type": "Answer",
         text: "Yes — completely free, no sign-up, no watermark on the output.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "Can I change the key of a song without changing its speed?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Yes. This tool shifts pitch independently of tempo, so you can transpose a song into a different key while keeping its original duration.",
       },
     },
   ],
@@ -182,6 +195,24 @@ export default function PitchPage() {
         </section>
 
         <section className="space-y-4">
+          <h2 className="text-2xl font-bold text-text-primary">Semitones and octaves explained</h2>
+          <p className="text-text-muted leading-relaxed">
+            Pitch is usually adjusted in semitones. Twelve semitones make one
+            octave, so shifting a track by +12 moves every note one octave
+            higher, while -12 moves everything one octave lower. Smaller
+            adjustments of one or two semitones are commonly used to match a
+            singer&apos;s vocal range or transpose a song into a more
+            comfortable key.
+          </p>
+          <p className="text-text-muted leading-relaxed">
+            Large pitch shifts are possible, but bigger changes naturally
+            sound less realistic because voices and instruments take on
+            different tonal characteristics as they move farther from their
+            original range.
+          </p>
+        </section>
+
+        <section className="space-y-4">
           <h2 className="text-2xl font-bold text-text-primary">Pitch Shifter vs. Tempo Changer</h2>
           <div className="overflow-x-auto rounded-xl border border-graphite-800">
             <table className="w-full text-sm text-left text-text-muted">
@@ -222,6 +253,18 @@ export default function PitchPage() {
         </section>
 
         <section className="space-y-4">
+          <h2 className="text-2xl font-bold text-text-primary">Who uses a pitch shifter?</h2>
+          <p className="text-text-muted leading-relaxed">
+            Pitch shifting comes up for singers practicing in a different key,
+            musicians transposing a backing track, DJs preparing harmonically
+            compatible mixes, producers building vocal effects, and content
+            creators nudging background music to better fit a project.
+            Because tempo stays fixed, everything stays synchronized — only
+            the musical key changes.
+          </p>
+        </section>
+
+        <section className="space-y-4">
           <h2 className="text-2xl font-bold text-text-primary">Common uses</h2>
           <div className="space-y-3 text-text-muted leading-relaxed">
             <p>
@@ -240,6 +283,13 @@ export default function PitchPage() {
                 Key &amp; BPM Finder
               </Link>{" "}
               first, then transpose it here to the key you need.
+            </p>
+            <p>
+              Need to trim the audio before transposing it? Use the{" "}
+              <Link href="/trim" className="text-amber-400 hover:underline">
+                Audio Trimmer
+              </Link>{" "}
+              first, then apply the pitch shift to only the section you need.
             </p>
             <p>
               Need to change speed without affecting pitch? Use the{" "}
@@ -306,6 +356,14 @@ export default function PitchPage() {
             <div>
               <h3 className="font-semibold text-text-primary mb-1">Is this really free?</h3>
               <p>Yes — completely free, no sign-up, no watermark on the output.</p>
+            </div>
+            <div>
+              <h3 className="font-semibold text-text-primary mb-1">Can I change the key of a song without changing its speed?</h3>
+              <p>
+                Yes. This tool shifts pitch independently of tempo, so you can
+                transpose a song into a different key while keeping its original
+                duration.
+              </p>
             </div>
           </div>
         </section>

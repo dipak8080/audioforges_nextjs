@@ -18,6 +18,7 @@ export const metadata: Metadata = {
     "cut dead air",
     "audio silence detector",
     "remove pauses from recording",
+    "silence remover vs trimmer",
   ],
   alternates: { canonical: `${SITE_URL}/silence-remove` },
   openGraph: {
@@ -84,6 +85,14 @@ const faqJsonLd = {
       acceptedAnswer: {
         "@type": "Answer",
         text: "Yes — completely free, no sign-up, no watermark on the output.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "Does removing silence affect audio quality?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "No — only the silent sections themselves are cut out. The remaining audio keeps its original quality and format.",
       },
     },
   ],
@@ -169,6 +178,90 @@ export default function SilenceRemovePage() {
             <li>Leave threshold and minimum gap length at their defaults, or adjust them.</li>
             <li>Download the result — shorter than the original, with dead air cut throughout.</li>
           </ol>
+          <div className="flex flex-wrap gap-2 pt-1">
+            {["MP3", "WAV", "FLAC", "AAC", "M4A", "OGG", "AIFF"].map((fmt) => (
+              <span
+                key={fmt}
+                className="inline-flex items-center gap-1 rounded-full border border-graphite-800 bg-graphite-900 px-3 py-1 text-xs text-text-muted"
+              >
+                <span className="text-teal-400">✓</span>
+                {fmt}
+              </span>
+            ))}
+          </div>
+        </section>
+
+        <section className="space-y-4">
+          <h2 className="text-2xl font-bold text-text-primary">How silence detection works</h2>
+          <p className="text-text-muted leading-relaxed">
+            The tool scans the recording for stretches that fall below your
+            chosen loudness threshold. Once a quiet stretch lasts longer than
+            the minimum gap length you&apos;ve set, it&apos;s cut out
+            entirely and the audio on either side is joined back together.
+            Anything quieter than the threshold but shorter than the minimum
+            gap — a brief pause between words, for instance — is left alone,
+            since it doesn&apos;t meet both conditions at once.
+          </p>
+        </section>
+
+        <section className="space-y-4">
+          <h2 className="text-2xl font-bold text-text-primary">Silence Remover vs. Audio Trimmer</h2>
+          <div className="overflow-x-auto rounded-xl border border-graphite-800">
+            <table className="w-full text-sm text-left text-text-muted">
+              <thead className="bg-graphite-900 text-text-primary">
+                <tr>
+                  <th className="px-4 py-3 font-semibold">&nbsp;</th>
+                  <th className="px-4 py-3 font-semibold">Silence Remover</th>
+                  <th className="px-4 py-3 font-semibold">Audio Trimmer</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-graphite-800">
+                <tr>
+                  <td className="px-4 py-3 font-medium text-text-primary">Cuts</td>
+                  <td className="px-4 py-3">All silent gaps automatically</td>
+                  <td className="px-4 py-3">One section you select manually</td>
+                </tr>
+                <tr>
+                  <td className="px-4 py-3 font-medium text-text-primary">Best for</td>
+                  <td className="px-4 py-3">Podcasts and voice recordings with scattered dead air</td>
+                  <td className="px-4 py-3">Extracting a specific clip</td>
+                </tr>
+                <tr>
+                  <td className="px-4 py-3 font-medium text-text-primary">Manual editing needed</td>
+                  <td className="px-4 py-3">No — automatic</td>
+                  <td className="px-4 py-3">Yes — you pick start/end</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p className="text-text-muted leading-relaxed">
+            Need to keep just one section instead of cutting scattered gaps
+            throughout? The{" "}
+            <Link href="/trim" className="text-amber-400 hover:underline">
+              Audio Trimmer
+            </Link>{" "}
+            is the better fit for that.
+          </p>
+        </section>
+
+        <section className="space-y-4">
+          <h2 className="text-2xl font-bold text-text-primary">Adjusting the settings</h2>
+          <p className="text-text-muted leading-relaxed">
+            The defaults (-30dB threshold, 0.5 second minimum gap) work well
+            for most podcast and voice-memo cleanup without any adjustment.
+            If you do want to tune it: lowering the threshold toward -50dB or
+            beyond makes the tool more sensitive, catching quieter background
+            noise as silence too — useful for a very clean studio recording.
+            Raising it toward -10dB makes it stricter, only cutting
+            near-total silence. Shortening the minimum gap cuts brief pauses
+            as well as long ones; lengthening it leaves shorter pauses intact
+            and only removes genuinely long dead air. There&apos;s no single
+            &quot;correct&quot; setting for a given content type — it depends
+            on how quiet your room tone is and how tightly you want the
+            result edited, so it&apos;s worth previewing the result and
+            adjusting from there rather than assuming one preset fits
+            everything.
+          </p>
         </section>
 
         <section className="space-y-4">
@@ -179,14 +272,26 @@ export default function SilenceRemovePage() {
               during long pauses without manually scrubbing through the whole
               recording. It&apos;s also useful for audiobook and lecture recordings
               with long quiet stretches between sections, voice memos with awkward
-              gaps, meeting recordings you want to tighten up before sharing, or
-              field recordings with dead air you don&apos;t need.
+              gaps, meeting recordings you want to tighten up before sharing, field
+              recordings with dead air you don&apos;t need, online course
+              recordings, YouTube narration, and voice-over editing.
             </p>
             <p>
-              Want tighter or looser detection? Lower the threshold toward -90dB to
-              catch even quiet background noise as silence, or raise it toward -10dB
-              to only cut near-total silence. Shorter minimum gap lengths cut brief
-              pauses too; longer ones only remove genuinely long dead air.
+              Getting the recording transcribed afterward? Cutting dead air first
+              means less audio for the{" "}
+              <Link href="/speech-to-text" className="text-amber-400 hover:underline">
+                Speech to Text
+              </Link>{" "}
+              tool to process. If background noise (not just silence) is the
+              problem, the{" "}
+              <Link href="/noise-remove" className="text-amber-400 hover:underline">
+                Noise Remover
+              </Link>{" "}
+              or, for speech specifically, the{" "}
+              <Link href="/voice-clean" className="text-amber-400 hover:underline">
+                Voice Cleaner
+              </Link>{" "}
+              handle that instead.
             </p>
             <p>
               Want the full breakdown of how these two settings interact, and why
@@ -243,6 +348,10 @@ export default function SilenceRemovePage() {
             <div>
               <h3 className="font-semibold text-text-primary mb-1">Is this really free?</h3>
               <p>Yes — completely free, no sign-up, no watermark on the output.</p>
+            </div>
+            <div>
+              <h3 className="font-semibold text-text-primary mb-1">Does removing silence affect audio quality?</h3>
+              <p>No — only the silent sections themselves are cut out. The remaining audio keeps its original quality and format.</p>
             </div>
           </div>
         </section>

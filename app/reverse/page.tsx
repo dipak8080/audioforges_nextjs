@@ -7,7 +7,7 @@ import { getRelatedTools } from "@/lib/data/tools";
 export const metadata: Metadata = {
   title: "Free Audio Reverser — Play a Track Backwards",
   description:
-    "Reverse audio files online free. Play MP3, WAV, FLAC, AAC, M4A, OGG, and AIFF backwards in seconds. No sign-up, no watermark, no software required.",
+    "Reverse MP3, WAV, FLAC, AAC, M4A, OGG, and AIFF files online for free. Create backwards audio instantly with no sign-up, no watermark, and no software required.",
   keywords: [
     "reverse audio",
     "reverse audio online",
@@ -20,6 +20,11 @@ export const metadata: Metadata = {
     "reverse music",
     "backwards audio",
     "flip audio track",
+    "reverse sound",
+    "reverse recording",
+    "reverse voice recording",
+    "reverse audio effect",
+    "backwards music",
   ],
   alternates: { canonical: `${SITE_URL}/reverse` },
   openGraph: {
@@ -95,6 +100,14 @@ const faqJsonLd = {
       acceptedAnswer: {
         "@type": "Answer",
         text: "Files up to 50MB and 20 minutes long are supported.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "Can I reverse a voice recording?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Yes. The tool works with voice recordings, podcasts, music, sound effects, and any other supported audio file.",
       },
     },
   ],
@@ -198,6 +211,23 @@ export default function ReversePage() {
         </section>
 
         <section className="space-y-4">
+          <h2 className="text-2xl font-bold text-text-primary">Reverse audio vs. reverse playback</h2>
+          <p className="text-text-muted leading-relaxed">
+            Reversing an audio file here creates an actual new file with every
+            sample rearranged in the opposite order — something you can
+            download, share, edit, or drop straight into a DAW.
+          </p>
+          <p className="text-text-muted leading-relaxed">
+            Reverse playback is a different thing entirely: some media
+            players can temporarily play a file backwards while
+            you&apos;re listening, without ever creating a new file — close
+            the player and there&apos;s nothing saved. This tool does the
+            former, permanently generating a reversed copy you can keep and
+            use anywhere, not just a playback trick in one app.
+          </p>
+        </section>
+
+        <section className="space-y-4">
           <h2 className="text-2xl font-bold text-text-primary">Does reversing change quality?</h2>
           <p className="text-text-muted leading-relaxed">
             No. Reversing only changes the playback order of the audio — every
@@ -219,7 +249,12 @@ export default function ReversePage() {
             <p>
               <strong className="text-text-primary">Sound design &amp; SFX:</strong>{" "}
               flip a recorded sound effect for a distinctive texture that a forward
-              sound simply doesn&apos;t have.
+              sound simply doesn&apos;t have. Need to change the speed of the
+              reversed audio too? Run it through the{" "}
+              <Link href="/tempo" className="text-amber-400 hover:underline">
+                Audio Speed Changer
+              </Link>{" "}
+              afterward.
             </p>
             <p>
               <strong className="text-text-primary">Backmasking curiosity:</strong>{" "}
@@ -302,6 +337,10 @@ export default function ReversePage() {
             <div>
               <h3 className="font-semibold text-text-primary mb-1">Is there a file size or length limit?</h3>
               <p>Files up to 50MB and 20 minutes long are supported.</p>
+            </div>
+            <div>
+              <h3 className="font-semibold text-text-primary mb-1">Can I reverse a voice recording?</h3>
+              <p>Yes. The tool works with voice recordings, podcasts, music, sound effects, and any other supported audio file.</p>
             </div>
           </div>
         </section>

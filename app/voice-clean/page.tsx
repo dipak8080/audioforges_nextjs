@@ -20,6 +20,11 @@ export const metadata: Metadata = {
     "podcast audio cleaner",
     "voice recording cleaner",
     "improve voice recording",
+    "speech cleaner",
+    "voice recording noise removal",
+    "remove hiss from voice recording",
+    "remove hum from voice recording",
+    "speech noise reduction",
   ],
   alternates: { canonical: `${SITE_URL}/voice-clean` },
   openGraph: {
@@ -95,6 +100,46 @@ const faqJsonLd = {
       acceptedAnswer: {
         "@type": "Answer",
         text: "MP3, WAV, FLAC, M4A, AAC, OGG, and AIFF, up to 50MB and 20 minutes long.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "Will it change my voice?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "No. It only affects background noise and loudness — it doesn't alter pitch, formants, or anything about how your voice actually sounds.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "Does it remove keyboard clicks or mouse clicks?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Not reliably. This chain is built for steady background noise like hiss, hum, and rumble — short, one-off sounds like keyboard clicks don't have a consistent noise profile for it to remove, so some may still come through.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "Can it remove breathing sounds?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Not specifically — breaths are close enough to speech frequencies that a general noise-reduction chain isn't built to isolate and remove them the way it removes steady background hiss or hum.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "Can I clean multiple files at once?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "One file at a time — there's currently no batch upload option.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "Will it reduce audio quality?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "No — it removes noise and evens out loudness without discarding quality from the rest of the recording.",
       },
     },
   ],
@@ -174,6 +219,20 @@ export default function VoiceCleanPage() {
         </section>
 
         <section className="space-y-4">
+          <h2 className="text-2xl font-bold text-text-primary">Why clean up a voice recording?</h2>
+          <p className="text-text-muted leading-relaxed">
+            A clean voice recording is easier to understand and sounds
+            noticeably more professional than one buried under hiss, hum, or
+            rumble — the difference shows up immediately to a listener, even
+            if they couldn&apos;t name what was wrong with the noisy version.
+            Cleaning up background noise and evening out loudness helps
+            podcasts, interviews, meeting recordings, narration, and voice
+            memos all sound like they came from the same consistent setup,
+            without touching how the speaker actually sounds.
+          </p>
+        </section>
+
+        <section className="space-y-4">
           <h2 className="text-2xl font-bold text-text-primary">How to clean up a voice recording</h2>
           <ol className="list-decimal list-inside space-y-2 text-text-muted leading-relaxed">
             <li>Upload an MP3, WAV, FLAC, M4A, AAC, OGG, or AIFF speech recording.</li>
@@ -190,11 +249,15 @@ export default function VoiceCleanPage() {
               rumble from handling noise or AC hum, a hiss or hum sitting under the
               voice, and inconsistent loudness between takes. This tool runs a fixed
               chain built to fix exactly those issues — cut the rumble, denoise the
-              rest, then normalize levels — with nothing to configure.
+              rest, then normalize levels — with nothing to configure. Steady
+              background sources like a computer fan, an air conditioner, or a
+              microphone&apos;s own self-noise generally fall into that same
+              hiss/hum/rumble category the chain is built to handle.
             </p>
             <p>
               <strong className="text-text-primary">Best for:</strong> podcasts, phone
-              recordings, interviews, Zoom recordings, voice memos, narration, and any
+              recordings, interviews, Zoom recordings, voice memos, narration,
+              audiobooks, online courses, dictation, lectures, and any other
               speech-only audio. For music or general noise reduction with adjustable
               strength, use the{" "}
               <Link href="/noise-remove" className="text-amber-400 hover:underline">
@@ -212,9 +275,11 @@ export default function VoiceCleanPage() {
             address echo or reverb, since that&apos;s a different kind of problem
             entirely (repeated or trailing reflections, rather than steady
             background noise). It also can&apos;t recover audio that&apos;s
-            severely clipped or distorted at the source — cleanup can improve a
-            noisy recording, but it can&apos;t reconstruct data that was never
-            captured. If echo is the issue, the{" "}
+            severely clipped or distorted at the source, separate two people talking
+            over each other, or remove background music sitting under a voice —
+            cleanup can improve a noisy recording, but it can&apos;t reconstruct
+            data that was never captured or isolate speech from another full audio
+            source layered underneath it. If echo is the issue, the{" "}
             <Link href="/echo-remove" className="text-amber-400 hover:underline">
               Echo Reducer
             </Link>{" "}
@@ -330,6 +395,35 @@ export default function VoiceCleanPage() {
             <div>
               <h3 className="font-semibold text-text-primary mb-1">What formats are supported?</h3>
               <p>MP3, WAV, FLAC, M4A, AAC, OGG, and AIFF, up to 50MB and 20 minutes long.</p>
+            </div>
+            <div>
+              <h3 className="font-semibold text-text-primary mb-1">Will it change my voice?</h3>
+              <p>
+                No. It only affects background noise and loudness — it doesn&apos;t
+                alter pitch, formants, or anything about how your voice actually
+                sounds.
+              </p>
+            </div>
+            <div>
+              <h3 className="font-semibold text-text-primary mb-1">Does it remove keyboard clicks or mouse clicks?</h3>
+              <p>
+                Not reliably. This chain is built for steady background noise like
+                hiss, hum, and rumble — short, one-off sounds like keyboard clicks
+                don&apos;t have a consistent noise profile for it to remove, so some
+                may still come through.
+              </p>
+            </div>
+            <div>
+              <h3 className="font-semibold text-text-primary mb-1">Can it remove breathing sounds?</h3>
+              <p>
+                Not specifically — breaths are close enough to speech frequencies
+                that a general noise-reduction chain isn&apos;t built to isolate and
+                remove them the way it removes steady background hiss or hum.
+              </p>
+            </div>
+            <div>
+              <h3 className="font-semibold text-text-primary mb-1">Can I clean multiple files at once?</h3>
+              <p>One file at a time — there&apos;s currently no batch upload option.</p>
             </div>
           </div>
         </section>
