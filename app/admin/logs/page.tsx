@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Activity,
   ArrowDown,
   AudioWaveform,
+  ChevronUp,
   Loader2,
   LogOut,
   Pause,
@@ -14,10 +15,17 @@ import {
   Search,
   Terminal,
   Trash2,
+  X,
 } from "lucide-react";
 
 const POLL_INTERVAL_MS = 3000;
-const MAX_LOGS_IN_MEMORY = 1000;
+
+// Paging: start with a small window, load older entries on demand.
+// MAX_FETCH_LIMIT matches the backend's own cap (Query(200, le=2000)) -
+// asking for more than 2000 would return a 422 validation error.
+const INITIAL_FETCH_LIMIT = 200;
+const LOAD_MORE_STEP = 200;
+const MAX_FETCH_LIMIT = 2000;
 
 interface HttpLogEntry {
   id: number;
@@ -50,22 +58,46 @@ function parseTs(isoString: string): Date {
   return new Date(hasZone ? isoString : isoString + "Z");
 }
 
+// Two shared formatter instances instead of one-per-call:
+// Intl.DateTimeFormat construction is by far the most expensive part of
+// date formatting, and toLocaleTimeString() constructs a fresh one every
+// single call. Reusing instances + caching results per timestamp string
+// (timestamps are immutable) means each log row is formatted exactly once
+// for its entire lifetime instead of on every poll re-render.
+const NP_TIME_FMT = new Intl.DateTimeFormat("en-US", {
+  timeZone: "Asia/Kathmandu",
+  hour: "numeric",
+  minute: "2-digit",
+  second: "2-digit",
+  hour12: true,
+});
+const NP_DATE_FMT = new Intl.DateTimeFormat("en-US", {
+  timeZone: "Asia/Kathmandu",
+  month: "short",
+  day: "2-digit",
+});
+
+const fmtCache = new Map<string, [string, string]>();
+
+function npFormatted(isoString: string): [string, string] {
+  let hit = fmtCache.get(isoString);
+  if (!hit) {
+    // Bounded cache: old entries are useless once their rows scroll out of
+    // the loadable window, so just reset rather than grow forever.
+    if (fmtCache.size > 6000) fmtCache.clear();
+    const d = parseTs(isoString);
+    hit = [NP_TIME_FMT.format(d), NP_DATE_FMT.format(d)];
+    fmtCache.set(isoString, hit);
+  }
+  return hit;
+}
+
 function npTime(isoString: string): string {
-  return parseTs(isoString).toLocaleTimeString("en-US", {
-    timeZone: "Asia/Kathmandu",
-    hour: "numeric",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: true,
-  });
+  return npFormatted(isoString)[0];
 }
 
 function npDate(isoString: string): string {
-  return parseTs(isoString).toLocaleDateString("en-US", {
-    timeZone: "Asia/Kathmandu",
-    month: "short",
-    day: "2-digit",
-  });
+  return npFormatted(isoString)[1];
 }
 
 function npYMD(isoString: string): string {
@@ -127,9 +159,28 @@ function levelTone(level: string): { text: string; border: string } {
 type DateFilter = "all" | "today" | "yesterday";
 type Tab = "http" | "system";
 
+/** Render only the layout that's actually visible. The previous approach
+ *  kept BOTH the desktop table and the mobile card list mounted at all
+ *  times (hidden via CSS), which meant React built and reconciled up to
+ *  2x every row on every update - pure waste, since only one can ever be
+ *  seen. Defaults to desktop on first paint, corrects immediately after
+ *  mount, and tracks live resizes. */
+function useIsMobile(): boolean {
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 767px)");
+    const update = () => setIsMobile(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
+  return isMobile;
+}
+
 export default function AdminLogsPage() {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("http");
+  const isMobile = useIsMobile();
 
   const [httpLogs, setHttpLogs] = useState<HttpLogEntry[]>([]);
   const [totals, setTotals] = useState({ total: 0, success: 0, failed: 0 });
@@ -149,6 +200,26 @@ export default function AdminLogsPage() {
   const [manageOpen, setManageOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // How many rows we're currently asking the backend for, per tab. Grows
+  // by LOAD_MORE_STEP each time the user loads older entries.
+  const [httpLimit, setHttpLimit] = useState(INITIAL_FETCH_LIMIT);
+  const [sysLimit, setSysLimit] = useState(INITIAL_FETCH_LIMIT);
+  // Total rows that exist in the DB (from the API response), used to know
+  // whether there's anything older left to load.
+  const [httpTotal, setHttpTotal] = useState(0);
+  const [sysTotal, setSysTotal] = useState(0);
+  const [httpLoadingMore, setHttpLoadingMore] = useState(false);
+  const [sysLoadingMore, setSysLoadingMore] = useState(false);
+
+  // When older entries get prepended at the top, the scroll position would
+  // otherwise jump. We capture pre-load scroll metrics here and restore the
+  // user's view right after the new rows render.
+  const httpScrollAdjustRef = useRef<{
+    desk: [number, number] | null;
+    mob: [number, number] | null;
+  } | null>(null);
+  const sysScrollAdjustRef = useRef<[number, number] | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const sysRef = useRef<HTMLDivElement>(null);
@@ -176,7 +247,11 @@ export default function AdminLogsPage() {
     if (!el) return;
     const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < NEAR_BOTTOM_PX;
     httpPinnedRef.current = nearBottom;
-    if (nearBottom) setShowJumpHttp(false);
+    // Button visibility tracks scroll position directly: the moment you
+    // scroll up, the way back down appears - it doesn't wait for new data
+    // to arrive. (Setting the same boolean repeatedly during a scroll is
+    // free: React bails out of re-renders when state is unchanged.)
+    setShowJumpHttp(!nearBottom);
   }
 
   function handleSysScroll() {
@@ -184,7 +259,7 @@ export default function AdminLogsPage() {
     if (!el) return;
     const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < NEAR_BOTTOM_PX;
     sysPinnedRef.current = nearBottom;
-    if (nearBottom) setShowJumpSys(false);
+    setShowJumpSys(!nearBottom);
   }
 
   function jumpToBottomHttp() {
@@ -204,19 +279,31 @@ export default function AdminLogsPage() {
 
   const httpInFlightRef = useRef(false);
   const sysInFlightRef = useRef(false);
+  const httpSigRef = useRef("");
+  const sysSigRef = useRef("");
 
-  const fetchHttp = useCallback(async () => {
-    if (httpInFlightRef.current) return;
+  const fetchHttpWithLimit = useCallback(async (limit: number, force = false) => {
+    if (!force && httpInFlightRef.current) return;
     httpInFlightRef.current = true;
     try {
-      const res = await fetch(`/api/admin/logs?type=http&limit=${MAX_LOGS_IN_MEMORY}`, { cache: "no-store" });
+      const res = await fetch(`/api/admin/logs?type=http&limit=${limit}`, { cache: "no-store" });
       if (res.status === 401) { router.push("/admin/login"); return; }
       if (!res.ok) {
         const body = await res.json().catch(() => null);
         throw new Error(body?.error || `Server returned ${res.status}`);
       }
       const data = await res.json();
+      // Most polls return exactly what we already have. Setting state with a
+      // new (but identical-content) array forces React to re-render every
+      // row for zero visual change - the single biggest source of lag on
+      // this page. A cheap signature comparison lets identical polls become
+      // complete no-ops instead.
+      const sig = `${data.total}:${data.success}:${data.logs.length}:${data.logs[0]?.id ?? 0}`;
+      if (sig === httpSigRef.current) return;
+      httpSigRef.current = sig;
+
       setTotals({ total: data.total, success: data.success, failed: data.failed });
+      setHttpTotal(data.total);
       // Backend returns newest-first (ORDER BY id DESC); reverse so the
       // oldest entry is at the top and the newest lands at the bottom,
       // like a terminal tail - the most recent activity is always the
@@ -224,6 +311,7 @@ export default function AdminLogsPage() {
       setHttpLogs([...data.logs].reverse());
       setHttpError(null);
     } catch (e) {
+      httpSigRef.current = ""; // force a real update on next successful poll
       setHttpError((e as Error).message);
     } finally {
       setHttpLoading(false);
@@ -231,26 +319,43 @@ export default function AdminLogsPage() {
     }
   }, [router]);
 
-  const fetchSystem = useCallback(async () => {
-    if (sysInFlightRef.current) return;
+  const fetchHttp = useCallback(
+    () => fetchHttpWithLimit(httpLimit),
+    [fetchHttpWithLimit, httpLimit]
+  );
+
+  const fetchSystemWithLimit = useCallback(async (limit: number, force = false) => {
+    if (!force && sysInFlightRef.current) return;
     sysInFlightRef.current = true;
     try {
-      const res = await fetch(`/api/admin/logs?type=system&limit=200`, { cache: "no-store" });
+      const res = await fetch(`/api/admin/logs?type=system&limit=${limit}`, { cache: "no-store" });
       if (res.status === 401) { router.push("/admin/login"); return; }
       if (!res.ok) {
         const body = await res.json().catch(() => null);
         throw new Error(body?.error || `Server returned ${res.status}`);
       }
       const data = await res.json();
+      const lastId = data.logs.length > 0 ? data.logs[data.logs.length - 1].id : 0;
+      const sig = `${data.total}:${data.logs.length}:${lastId}`;
+      if (sig === sysSigRef.current) return;
+      sysSigRef.current = sig;
+
+      setSysTotal(data.total);
       setSystemLogs(data.logs); // already oldest -> newest from backend; newest lands at the bottom
       setSystemError(null);
     } catch (e) {
+      sysSigRef.current = "";
       setSystemError((e as Error).message);
     } finally {
       setSystemLoading(false);
       sysInFlightRef.current = false;
     }
   }, [router]);
+
+  const fetchSystem = useCallback(
+    () => fetchSystemWithLimit(sysLimit),
+    [fetchSystemWithLimit, sysLimit]
+  );
 
   useEffect(() => { fetchHttp(); fetchSystem(); }, [fetchHttp, fetchSystem]);
 
@@ -262,35 +367,70 @@ export default function AdminLogsPage() {
   // that button, re-pins it. First load pins to bottom by default so you
   // land on the newest activity immediately, same as Railway.
   useEffect(() => {
+    // If older rows were just prepended by "load more", restore the user's
+    // previous view rather than following new data or nagging about it.
+    const adjust = httpScrollAdjustRef.current;
+    if (adjust) {
+      if (scrollRef.current && adjust.desk) {
+        scrollRef.current.scrollTop =
+          scrollRef.current.scrollHeight - adjust.desk[0] + adjust.desk[1];
+      }
+      if (mobileScrollRef.current && adjust.mob) {
+        mobileScrollRef.current.scrollTop =
+          mobileScrollRef.current.scrollHeight - adjust.mob[0] + adjust.mob[1];
+      }
+      httpScrollAdjustRef.current = null;
+      return;
+    }
+
     if (httpPinnedRef.current) {
       if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
       if (mobileScrollRef.current) mobileScrollRef.current.scrollTop = mobileScrollRef.current.scrollHeight;
-    } else if (httpLogs.length > 0) {
-      setShowJumpHttp(true);
     }
+    // No else branch needed: the jump button's visibility is driven purely
+    // by scroll position in handleHttpScroll, not by data arrival.
   }, [httpLogs]);
 
   useEffect(() => {
     const el = sysRef.current;
     if (!el) return;
+
+    const adjust = sysScrollAdjustRef.current;
+    if (adjust) {
+      el.scrollTop = el.scrollHeight - adjust[0] + adjust[1];
+      sysScrollAdjustRef.current = null;
+      return;
+    }
+
     if (sysPinnedRef.current) {
       el.scrollTop = el.scrollHeight;
-    } else if (systemLogs.length > 0) {
-      setShowJumpSys(true);
     }
   }, [systemLogs]);
 
   useEffect(() => {
     if (isPaused) return;
     const id = setInterval(() => {
-      // Don't poll while the tab is hidden - resumes automatically on the
-      // next tick after the tab regains focus.
+      // Don't poll while the browser tab is hidden - resumes automatically
+      // on the next tick after it regains focus.
       if (document.hidden) return;
-      fetchHttp();
-      fetchSystem();
+      // Only poll the panel that's actually on screen - polling the hidden
+      // one every 3s doubles network and parse work for data nobody is
+      // looking at. Switching tabs triggers an immediate fetch (below), so
+      // the other panel is never stale when you come back to it.
+      if (tab === "http") fetchHttp();
+      else fetchSystem();
     }, POLL_INTERVAL_MS);
     return () => clearInterval(id);
-  }, [isPaused, fetchHttp, fetchSystem]);
+  }, [isPaused, tab, fetchHttp, fetchSystem]);
+
+  // Immediate refresh whenever the user switches panels, so the newly
+  // visible tab shows current data right away instead of waiting for the
+  // next poll tick.
+  useEffect(() => {
+    if (tab === "http") fetchHttp();
+    else fetchSystem();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab]);
 
   const passesDate = (log: HttpLogEntry): boolean => {
     if (dateFilter === "all") return true;
@@ -300,13 +440,65 @@ export default function AdminLogsPage() {
     } catch { return false; }
   };
 
-  const filtered = httpLogs.filter((log) => {
-    if (methodFilter && log.method !== methodFilter) return false;
-    if (pathFilter && !log.path.toLowerCase().includes(pathFilter.toLowerCase())) return false;
-    if (hideNoise && isNoise(log.path)) return false;
-    if (!passesDate(log)) return false;
-    return true;
-  });
+  // Memoized: without this, the whole array gets re-filtered on EVERY
+  // render, including ones triggered by unrelated state like the refresh
+  // spinner or dropdown toggles.
+  const filtered = useMemo(
+    () =>
+      httpLogs.filter((log) => {
+        if (methodFilter && log.method !== methodFilter) return false;
+        if (pathFilter && !log.path.toLowerCase().includes(pathFilter.toLowerCase())) return false;
+        if (hideNoise && isNoise(log.path)) return false;
+        if (!passesDate(log)) return false;
+        return true;
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [httpLogs, methodFilter, pathFilter, hideNoise, dateFilter]
+  );
+
+  const httpHasMore = httpLogs.length < httpTotal && httpLimit < MAX_FETCH_LIMIT;
+  const httpAtCap = httpLogs.length < httpTotal && httpLimit >= MAX_FETCH_LIMIT;
+  const sysHasMore = systemLogs.length < sysTotal && sysLimit < MAX_FETCH_LIMIT;
+  const sysAtCap = systemLogs.length < sysTotal && sysLimit >= MAX_FETCH_LIMIT;
+
+  async function loadMoreHttp() {
+    if (httpLoadingMore) return;
+    const nextLimit = Math.min(httpLimit + LOAD_MORE_STEP, MAX_FETCH_LIMIT);
+    if (nextLimit === httpLimit) return;
+
+    // Capture where the user is looking before older rows get prepended,
+    // so the view can be restored instead of jumping.
+    httpScrollAdjustRef.current = {
+      desk: scrollRef.current
+        ? [scrollRef.current.scrollHeight, scrollRef.current.scrollTop]
+        : null,
+      mob: mobileScrollRef.current
+        ? [mobileScrollRef.current.scrollHeight, mobileScrollRef.current.scrollTop]
+        : null,
+    };
+
+    setHttpLoadingMore(true);
+    setHttpLimit(nextLimit);
+    // force: true - bypasses the in-flight guard so a poll already running
+    // can't silently swallow this request and leave the button spinning.
+    await fetchHttpWithLimit(nextLimit, true);
+    setHttpLoadingMore(false);
+  }
+
+  async function loadMoreSystem() {
+    if (sysLoadingMore) return;
+    const nextLimit = Math.min(sysLimit + LOAD_MORE_STEP, MAX_FETCH_LIMIT);
+    if (nextLimit === sysLimit) return;
+
+    sysScrollAdjustRef.current = sysRef.current
+      ? [sysRef.current.scrollHeight, sysRef.current.scrollTop]
+      : null;
+
+    setSysLoadingMore(true);
+    setSysLimit(nextLimit);
+    await fetchSystemWithLimit(nextLimit, true);
+    setSysLoadingMore(false);
+  }
 
   async function handleDelete(olderThanDays: number | null) {
     const label = olderThanDays ? `older than ${olderThanDays} day(s)` : "ALL";
@@ -338,9 +530,9 @@ export default function AdminLogsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-graphite-950 text-text-primary">
+    <main className="h-dvh flex flex-col overflow-hidden bg-graphite-950 text-text-primary">
       {/* ===== Top bar ===== */}
-      <header className="border-b border-graphite-800 bg-graphite-950">
+      <header className="shrink-0 border-b border-graphite-800 bg-graphite-950">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
           <div className="flex items-center gap-2.5">
             <AudioWaveform className="h-5 w-5 text-amber-500" />
@@ -369,12 +561,12 @@ export default function AdminLogsPage() {
         </div>
       </header>
 
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 py-6 space-y-6">
+      <div className="mx-auto max-w-7xl w-full px-4 sm:px-6 py-4 sm:py-5 flex-1 min-h-0 flex flex-col gap-4 sm:gap-5">
         {/* ===== Page heading + tabs ===== */}
-        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+        <div className="shrink-0 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 sm:gap-4">
           <div>
-            <h1 className="text-xl font-semibold tracking-tight">Request Logs</h1>
-            <p className="text-sm text-text-muted mt-0.5">Live traffic and system events from the backend.</p>
+            <h1 className="text-lg sm:text-xl font-semibold tracking-tight">Request Logs</h1>
+            <p className="text-xs sm:text-sm text-text-muted mt-0.5 hidden sm:block">Live traffic and system events from the backend.</p>
           </div>
           <div className="flex rounded-lg border border-graphite-800 bg-graphite-900 p-0.5 self-start sm:self-auto">
             <TabButton active={tab === "http"} onClick={() => setTab("http")} icon={Activity} label="HTTP" />
@@ -385,7 +577,7 @@ export default function AdminLogsPage() {
         {tab === "http" ? (
           <>
             {/* ===== Stat strip ===== */}
-            <div className="grid grid-cols-3 divide-x divide-graphite-800 rounded-lg border border-graphite-800 bg-graphite-900">
+            <div className="shrink-0 grid grid-cols-3 divide-x divide-graphite-800 rounded-lg border border-graphite-800 bg-graphite-900">
               <Stat label="Total" value={totals.total} />
               <Stat label="Success" value={totals.success} valueClass="text-teal-400" />
               <Stat label="Failed" value={totals.failed} valueClass={totals.failed > 0 ? "text-red-500" : ""} />
@@ -395,9 +587,9 @@ export default function AdminLogsPage() {
             {/* NOTE: no overflow-hidden here - it would clip the Delete
                 dropdown menu, which needs to escape the card bounds on
                 small screens. */}
-            <section className="rounded-lg border border-graphite-800 bg-graphite-900">
+            <section className="rounded-lg border border-graphite-800 bg-graphite-900 flex-1 min-h-0 flex flex-col">
               {/* Toolbar row */}
-              <div className="flex flex-col lg:flex-row lg:items-center gap-3 px-4 py-3 border-b border-graphite-800">
+              <div className="shrink-0 flex flex-col lg:flex-row lg:items-center gap-3 px-4 py-3 border-b border-graphite-800">
                 <div className="relative flex-1 min-w-0">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-text-subtle pointer-events-none" />
                   <input
@@ -405,8 +597,17 @@ export default function AdminLogsPage() {
                     value={pathFilter}
                     onChange={(e) => setPathFilter(e.target.value)}
                     placeholder="Filter by path…"
-                    className="w-full rounded-md border border-graphite-700 bg-graphite-850 py-1.5 pl-9 pr-3 text-sm text-text-primary placeholder:text-text-subtle focus:outline-none focus:border-amber-500/60"
+                    className="w-full rounded-md border border-graphite-700 bg-graphite-850 py-1.5 pl-9 pr-9 text-sm text-text-primary placeholder:text-text-subtle focus:outline-none focus:border-amber-500/60"
                   />
+                  {pathFilter && (
+                    <button
+                      onClick={() => setPathFilter("")}
+                      aria-label="Clear search"
+                      className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1 rounded text-text-subtle hover:text-text-primary hover:bg-graphite-800 transition-colors"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <select
@@ -479,8 +680,17 @@ export default function AdminLogsPage() {
               </div>
 
               {/* Desktop table */}
-              <div className="hidden md:block relative">
-              <div ref={scrollRef} onScroll={(e) => handleHttpScroll(e.currentTarget)} className="max-h-[540px] overflow-y-auto scrollbar-thin">
+              {!isMobile && (
+              <div className="relative flex-1 min-h-0">
+              <div ref={scrollRef} onScroll={(e) => handleHttpScroll(e.currentTarget)} className="h-full overflow-y-auto scrollbar-thin">
+                <LoadMoreBar
+                  hasMore={httpHasMore}
+                  atCap={httpAtCap}
+                  loading={httpLoadingMore}
+                  onClick={loadMoreHttp}
+                  loadedCount={httpLogs.length}
+                  total={httpTotal}
+                />
                 <table className="w-full text-sm border-collapse">
                   <thead className="sticky top-0 z-10 bg-graphite-900 border-b border-graphite-800">
                     <tr className="text-left">
@@ -494,28 +704,7 @@ export default function AdminLogsPage() {
                   </thead>
                   <tbody className="divide-y divide-graphite-800/70">
                     {filtered.map((log) => (
-                      <tr key={log.id} className="hover:bg-graphite-850/60 transition-colors">
-                        <td className="px-4 py-2 whitespace-nowrap tabular-nums">
-                          <span className="text-text-primary">{npTime(log.timestamp)}</span>
-                          <span className="text-text-subtle ml-1.5 text-xs">{npDate(log.timestamp)}</span>
-                        </td>
-                        <td className={`px-4 py-2 text-xs font-semibold ${methodTone(log.method)}`}>
-                          {log.method}
-                        </td>
-                        <td className="px-4 py-2 font-mono text-xs text-text-primary max-w-0 truncate" title={log.path}>
-                          {log.path}
-                        </td>
-                        <td className="px-4 py-2">
-                          <span className="inline-flex items-center gap-1.5 tabular-nums">
-                            <span className={`h-1.5 w-1.5 rounded-full ${statusDot(log.status_code)}`} />
-                            <span className={`text-xs font-medium ${statusText(log.status_code)}`}>{log.status_code}</span>
-                          </span>
-                        </td>
-                        <td className="px-4 py-2 text-right tabular-nums text-xs text-text-muted whitespace-nowrap">
-                          {fmtMs(log.duration_ms)}
-                        </td>
-                        <td className="px-4 py-2 font-mono text-xs text-text-subtle">{log.client_ip}</td>
-                      </tr>
+                      <HttpTableRow key={log.id} log={log} />
                     ))}
                   </tbody>
                 </table>
@@ -527,31 +716,29 @@ export default function AdminLogsPage() {
                   className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 rounded-full bg-amber-500 text-graphite-950 px-3.5 py-1.5 text-xs font-medium shadow-lg hover:bg-amber-400 transition-colors"
                 >
                   <ArrowDown className="h-3.5 w-3.5" />
-                  New activity - jump to latest
+                  Jump to latest
                 </button>
               )}
               </div>
+              )}
 
               {/* Mobile rows */}
-              <div className="md:hidden relative">
-              <div ref={mobileScrollRef} onScroll={(e) => handleHttpScroll(e.currentTarget)} className="max-h-[540px] overflow-y-auto scrollbar-thin divide-y divide-graphite-800/70">
+              {isMobile && (
+              <div className="relative flex-1 min-h-0">
+              <div ref={mobileScrollRef} onScroll={(e) => handleHttpScroll(e.currentTarget)} className="h-full overflow-y-auto scrollbar-thin">
+                <LoadMoreBar
+                  hasMore={httpHasMore}
+                  atCap={httpAtCap}
+                  loading={httpLoadingMore}
+                  onClick={loadMoreHttp}
+                  loadedCount={httpLogs.length}
+                  total={httpTotal}
+                />
+                <div className="divide-y divide-graphite-800/70">
                 {filtered.map((log) => (
-                  <div key={log.id} className="px-4 py-2.5">
-                    <div className="flex items-center gap-2">
-                      <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${statusDot(log.status_code)}`} />
-                      <span className={`text-xs font-semibold shrink-0 ${methodTone(log.method)}`}>{log.method}</span>
-                      <span className="font-mono text-xs text-text-primary truncate flex-1" title={log.path}>{log.path}</span>
-                      <span className={`text-xs font-medium tabular-nums shrink-0 ${statusText(log.status_code)}`}>{log.status_code}</span>
-                    </div>
-                    <div className="mt-1 flex items-center justify-between text-[11px] text-text-subtle tabular-nums pl-3.5">
-                      <span>{npDate(log.timestamp)} {npTime(log.timestamp)}</span>
-                      <span className="flex items-center gap-2.5">
-                        <span>{fmtMs(log.duration_ms)}</span>
-                        <span className="font-mono">{log.client_ip}</span>
-                      </span>
-                    </div>
-                  </div>
+                  <HttpCardRow key={log.id} log={log} />
                 ))}
+                </div>
                 <ListState loading={httpLoading} error={httpError} empty={filtered.length === 0} emptyLabel="No requests match the current filters." />
               </div>
               {showJumpHttp && (
@@ -560,21 +747,30 @@ export default function AdminLogsPage() {
                   className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 rounded-full bg-amber-500 text-graphite-950 px-3.5 py-1.5 text-xs font-medium shadow-lg hover:bg-amber-400 transition-colors"
                 >
                   <ArrowDown className="h-3.5 w-3.5" />
-                  New activity
+                  Jump to latest
                 </button>
               )}
               </div>
+              )}
 
               {/* Footer */}
-              <div className="px-4 py-2.5 border-t border-graphite-800 text-xs text-text-subtle tabular-nums">
-                Showing {filtered.length} of {httpLogs.length} loaded
+              <div className="shrink-0 px-4 py-2.5 border-t border-graphite-800 text-xs text-text-subtle tabular-nums">
+                Showing {filtered.length.toLocaleString()} of {httpLogs.length.toLocaleString()} loaded
+                {httpTotal > httpLogs.length && <> · {httpTotal.toLocaleString()} total</>}
               </div>
             </section>
           </>
         ) : (
-          <section className="rounded-lg border border-graphite-800 bg-graphite-900 overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-graphite-800">
-              <span className="text-sm text-text-muted">Application log buffer (latest 200)</span>
+          <section className="rounded-lg border border-graphite-800 bg-graphite-900 overflow-hidden flex-1 min-h-0 flex flex-col">
+            <div className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-graphite-800">
+              <span className="text-sm text-text-muted">
+                Application log buffer
+                {sysTotal > 0 && (
+                  <span className="text-text-subtle tabular-nums">
+                    {" "}({systemLogs.length.toLocaleString()} of {sysTotal.toLocaleString()})
+                  </span>
+                )}
+              </span>
               <button
                 onClick={() => handleDelete(null)}
                 className="flex items-center gap-1.5 text-xs text-text-subtle hover:text-red-500 transition-colors"
@@ -583,8 +779,16 @@ export default function AdminLogsPage() {
                 Clear
               </button>
             </div>
-            <div className="relative">
-            <div ref={sysRef} onScroll={handleSysScroll} className="max-h-[560px] overflow-y-auto scrollbar-thin font-mono text-xs">
+            <div className="relative flex-1 min-h-0">
+            <div ref={sysRef} onScroll={handleSysScroll} className="h-full overflow-y-auto scrollbar-thin font-mono text-xs">
+              <LoadMoreBar
+                hasMore={sysHasMore}
+                atCap={sysAtCap}
+                loading={sysLoadingMore}
+                onClick={loadMoreSystem}
+                loadedCount={systemLogs.length}
+                total={sysTotal}
+              />
               {systemLogs.map((entry, index) => {
                 const tone = levelTone(entry.level);
                 // Only draw a divider when this entry's request_id differs
@@ -620,7 +824,7 @@ export default function AdminLogsPage() {
                 className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 rounded-full bg-amber-500 text-graphite-950 px-3.5 py-1.5 text-xs font-medium shadow-lg hover:bg-amber-400 transition-colors"
               >
                 <ArrowDown className="h-3.5 w-3.5" />
-                New activity - jump to latest
+                Jump to latest
               </button>
             )}
             </div>
@@ -718,6 +922,109 @@ function MenuItem({
     >
       {children}
     </button>
+  );
+}
+
+/** Sits at the TOP of a log list, since older entries load upward
+ *  (newest is always pinned at the bottom, terminal-tail style).
+ *  Renders nothing at all when there's nothing older left to load. */
+const HttpTableRow = memo(
+  function HttpTableRow({ log }: { log: HttpLogEntry }) {
+    return (
+      <tr className="hover:bg-graphite-850/60 transition-colors">
+        <td className="px-4 py-2 whitespace-nowrap tabular-nums">
+          <span className="text-text-primary">{npTime(log.timestamp)}</span>
+          <span className="text-text-subtle ml-1.5 text-xs">{npDate(log.timestamp)}</span>
+        </td>
+        <td className={`px-4 py-2 text-xs font-semibold ${methodTone(log.method)}`}>
+          {log.method}
+        </td>
+        <td className="px-4 py-2 font-mono text-xs text-text-primary max-w-0 truncate" title={log.path}>
+          {log.path}
+        </td>
+        <td className="px-4 py-2">
+          <span className="inline-flex items-center gap-1.5 tabular-nums">
+            <span className={`h-1.5 w-1.5 rounded-full ${statusDot(log.status_code)}`} />
+            <span className={`text-xs font-medium ${statusText(log.status_code)}`}>{log.status_code}</span>
+          </span>
+        </td>
+        <td className="px-4 py-2 text-right tabular-nums text-xs text-text-muted whitespace-nowrap">
+          {fmtMs(log.duration_ms)}
+        </td>
+        <td className="px-4 py-2 font-mono text-xs text-text-subtle">{log.client_ip}</td>
+      </tr>
+    );
+  },
+  // Log rows are immutable once written - same id means identical content,
+  // so a fresh fetch producing new (but equal) objects still skips the
+  // re-render for every row that was already on screen.
+  (prev, next) => prev.log.id === next.log.id
+);
+
+const HttpCardRow = memo(
+  function HttpCardRow({ log }: { log: HttpLogEntry }) {
+    return (
+      <div className="px-4 py-2.5">
+        <div className="flex items-center gap-2">
+          <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${statusDot(log.status_code)}`} />
+          <span className={`text-xs font-semibold shrink-0 ${methodTone(log.method)}`}>{log.method}</span>
+          <span className="font-mono text-xs text-text-primary truncate flex-1" title={log.path}>{log.path}</span>
+          <span className={`text-xs font-medium tabular-nums shrink-0 ${statusText(log.status_code)}`}>{log.status_code}</span>
+        </div>
+        <div className="mt-1 flex items-center justify-between text-[11px] text-text-subtle tabular-nums pl-3.5">
+          <span>{npDate(log.timestamp)} {npTime(log.timestamp)}</span>
+          <span className="flex items-center gap-2.5">
+            <span>{fmtMs(log.duration_ms)}</span>
+            <span className="font-mono">{log.client_ip}</span>
+          </span>
+        </div>
+      </div>
+    );
+  },
+  (prev, next) => prev.log.id === next.log.id
+);
+
+function LoadMoreBar({
+  hasMore, atCap, loading, onClick, loadedCount, total,
+}: {
+  hasMore: boolean;
+  atCap: boolean;
+  loading: boolean;
+  onClick: () => void;
+  loadedCount: number;
+  total: number;
+}) {
+  if (atCap) {
+    return (
+      <div className="px-4 py-2.5 border-b border-graphite-800/70 text-center">
+        <p className="text-[11px] text-text-subtle leading-relaxed">
+          Showing the most recent {loadedCount.toLocaleString()} of{" "}
+          {total.toLocaleString()} entries — that&apos;s the maximum loadable at once.
+        </p>
+      </div>
+    );
+  }
+
+  if (!hasMore) return null;
+
+  return (
+    <div className="px-4 py-2.5 border-b border-graphite-800/70 flex flex-col items-center gap-1">
+      <button
+        onClick={onClick}
+        disabled={loading}
+        className="inline-flex items-center gap-1.5 rounded-full border border-graphite-700 bg-graphite-850 px-3.5 py-1.5 text-xs text-text-muted hover:text-text-primary hover:border-amber-500/40 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+      >
+        {loading ? (
+          <Loader2 className="h-3 w-3 animate-spin" />
+        ) : (
+          <ChevronUp className="h-3 w-3" />
+        )}
+        {loading ? "Loading…" : "Load older entries"}
+      </button>
+      <p className="text-[11px] text-text-subtle tabular-nums">
+        {loadedCount.toLocaleString()} of {total.toLocaleString()} loaded
+      </p>
+    </div>
   );
 }
 
