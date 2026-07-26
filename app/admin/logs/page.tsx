@@ -18,8 +18,6 @@ import {
   X,
 } from "lucide-react";
 
-const POLL_INTERVAL_MS = 3000;
-
 // Paging: start with a small window, load older entries on demand.
 // MAX_FETCH_LIMIT matches the backend's own cap (Query(200, le=2000)) -
 // asking for more than 2000 would return a 422 validation error.
@@ -282,6 +280,25 @@ export default function AdminLogsPage() {
   const httpSigRef = useRef("");
   const sysSigRef = useRef("");
 
+  // Highest log id we currently hold, per tab. Delta polls send this as
+  // afterId so the backend returns ONLY genuinely new rows instead of the
+  // whole window - see log_stream.py's after_id handling. Separate
+  // in-flight guards from the full-fetch ones above so a delta poll can
+  // never get blocked by (or block) a full refresh happening at the same
+  // moment, e.g. right after clicking "Load more."
+  const httpLastIdRef = useRef(0);
+  const sysLastIdRef = useRef(0);
+  const httpDeltaInFlightRef = useRef(false);
+  const sysDeltaInFlightRef = useRef(false);
+
+  // Self-adjusting poll delay: starts fast, stretches out after
+  // consecutive polls return nothing new, snaps back to fast the moment
+  // real activity (or user interaction) happens. Ref, not state, since it
+  // changes every tick and shouldn't trigger re-renders on its own.
+  const MIN_POLL_MS = 3000;
+  const MAX_POLL_MS = 20000;
+  const currentDelayRef = useRef(MIN_POLL_MS);
+
   const fetchHttpWithLimit = useCallback(async (limit: number, force = false) => {
     if (!force && httpInFlightRef.current) return;
     httpInFlightRef.current = true;
@@ -308,7 +325,11 @@ export default function AdminLogsPage() {
       // oldest entry is at the top and the newest lands at the bottom,
       // like a terminal tail - the most recent activity is always the
       // last thing you see when scrolled down.
-      setHttpLogs([...data.logs].reverse());
+      const reversed = [...data.logs].reverse();
+      setHttpLogs(reversed);
+      if (reversed.length > 0) {
+        httpLastIdRef.current = reversed[reversed.length - 1].id;
+      }
       setHttpError(null);
     } catch (e) {
       httpSigRef.current = ""; // force a real update on next successful poll
@@ -342,6 +363,9 @@ export default function AdminLogsPage() {
 
       setSysTotal(data.total);
       setSystemLogs(data.logs); // already oldest -> newest from backend; newest lands at the bottom
+      if (data.logs.length > 0) {
+        sysLastIdRef.current = data.logs[data.logs.length - 1].id;
+      }
       setSystemError(null);
     } catch (e) {
       sysSigRef.current = "";
@@ -356,6 +380,79 @@ export default function AdminLogsPage() {
     () => fetchSystemWithLimit(sysLimit),
     [fetchSystemWithLimit, sysLimit]
   );
+
+  // ---- Delta polling: appends only, never replaces ----
+  // These are what the background poll loop actually calls. Unlike the
+  // full-fetch functions above (which replace the whole array - correct
+  // for initial load, load-more, and manual refresh), these APPEND new
+  // rows onto existing state, since the backend guarantees a delta
+  // response contains only rows newer than afterId. Returns whether any
+  // new data actually arrived, which drives the backoff timer below.
+  const fetchHttpDelta = useCallback(async (): Promise<boolean> => {
+    if (httpDeltaInFlightRef.current || httpLastIdRef.current === 0) return false;
+    httpDeltaInFlightRef.current = true;
+    try {
+      const res = await fetch(`/api/admin/logs?type=http&afterId=${httpLastIdRef.current}`, { cache: "no-store" });
+      if (res.status === 401) { router.push("/admin/login"); return false; }
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        setHttpError(body?.error || `Server returned ${res.status}`);
+        return false;
+      }
+      const data = await res.json();
+      setTotals({ total: data.total, success: data.success, failed: data.failed });
+      setHttpTotal(data.total);
+      setHttpError(null);
+      if (!data.logs || data.logs.length === 0) return false;
+
+      // Cap memory growth for a tab left open a long time - trim from the
+      // front (oldest) once the in-memory list gets excessive, same idea
+      // as the old MAX_LOGS_IN_MEMORY constant.
+      const APPEND_CAP = 3000;
+      setHttpLogs((prev) => {
+        const merged = [...prev, ...data.logs];
+        return merged.length > APPEND_CAP ? merged.slice(merged.length - APPEND_CAP) : merged;
+      });
+      httpLastIdRef.current = data.logs[data.logs.length - 1].id;
+      return true;
+    } catch (e) {
+      setHttpError((e as Error).message);
+      return false;
+    } finally {
+      httpDeltaInFlightRef.current = false;
+    }
+  }, [router]);
+
+  const fetchSystemDelta = useCallback(async (): Promise<boolean> => {
+    if (sysDeltaInFlightRef.current || sysLastIdRef.current === 0) return false;
+    sysDeltaInFlightRef.current = true;
+    try {
+      const res = await fetch(`/api/admin/logs?type=system&afterId=${sysLastIdRef.current}`, { cache: "no-store" });
+      if (res.status === 401) { router.push("/admin/login"); return false; }
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        setSystemError(body?.error || `Server returned ${res.status}`);
+        return false;
+      }
+      const data = await res.json();
+      setSysTotal(data.total);
+      setSystemError(null);
+      if (!data.logs || data.logs.length === 0) return false;
+
+      const APPEND_CAP = 3000;
+      setSystemLogs((prev) => {
+        const merged = [...prev, ...data.logs]; // backend delta is already oldest -> newest
+        return merged.length > APPEND_CAP ? merged.slice(merged.length - APPEND_CAP) : merged;
+      });
+      sysLastIdRef.current = data.logs[data.logs.length - 1].id;
+      return true;
+    } catch (e) {
+      setSystemError((e as Error).message);
+      return false;
+    } finally {
+      sysDeltaInFlightRef.current = false;
+    }
+  }, [router]);
 
   useEffect(() => { fetchHttp(); fetchSystem(); }, [fetchHttp, fetchSystem]);
 
@@ -407,30 +504,62 @@ export default function AdminLogsPage() {
     }
   }, [systemLogs]);
 
-  useEffect(() => {
-    if (isPaused) return;
-    const id = setInterval(() => {
-      // Don't poll while the browser tab is hidden - resumes automatically
-      // on the next tick after it regains focus.
-      if (document.hidden) return;
-      // Only poll the panel that's actually on screen - polling the hidden
-      // one every 3s doubles network and parse work for data nobody is
-      // looking at. Switching tabs triggers an immediate fetch (below), so
-      // the other panel is never stale when you come back to it.
-      if (tab === "http") fetchHttp();
-      else fetchSystem();
-    }, POLL_INTERVAL_MS);
-    return () => clearInterval(id);
-  }, [isPaused, tab, fetchHttp, fetchSystem]);
-
-  // Immediate refresh whenever the user switches panels, so the newly
+  // Immediate FULL refresh whenever the user switches panels, so the newly
   // visible tab shows current data right away instead of waiting for the
-  // next poll tick.
+  // next poll tick. Full (not delta) because we need httpLastIdRef/
+  // sysLastIdRef correctly seeded before delta polling can do anything
+  // useful for a tab that may not have been fetched in a while.
   useEffect(() => {
     if (tab === "http") fetchHttp();
     else fetchSystem();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
+
+  // Self-adjusting background poll. Starts at MIN_POLL_MS; every tick that
+  // comes back with nothing new stretches the delay out (capped at
+  // MAX_POLL_MS), so a quiet dashboard left open gradually polls less and
+  // less instead of hammering the backend every 3 seconds forever. Any
+  // tick that DOES find new data - or any manual interaction - snaps the
+  // delay straight back to fast. Recursive setTimeout instead of
+  // setInterval because the delay itself needs to change between ticks.
+  useEffect(() => {
+    if (isPaused) return;
+    currentDelayRef.current = MIN_POLL_MS; // fresh start on tab switch / unpause
+    let cancelled = false;
+    let timeoutId: ReturnType<typeof setTimeout>;
+
+    async function tick() {
+      if (cancelled) return;
+      if (!document.hidden) {
+        const gotNewData = tab === "http" ? await fetchHttpDelta() : await fetchSystemDelta();
+        currentDelayRef.current = gotNewData
+          ? MIN_POLL_MS
+          : Math.min(currentDelayRef.current * 1.5, MAX_POLL_MS);
+      }
+      if (!cancelled) timeoutId = setTimeout(tick, currentDelayRef.current);
+    }
+
+    timeoutId = setTimeout(tick, currentDelayRef.current);
+    return () => {
+      cancelled = true;
+      clearTimeout(timeoutId);
+    };
+  }, [isPaused, tab, fetchHttpDelta, fetchSystemDelta]);
+
+  // The moment the browser tab regains focus, snap back to fast polling
+  // and fetch immediately - don't make the user wait out whatever backoff
+  // delay accumulated while they were away. Matches the "revalidate on
+  // focus" behavior used by SWR/React Query.
+  useEffect(() => {
+    function handleVisibilityChange() {
+      if (document.hidden) return;
+      currentDelayRef.current = MIN_POLL_MS;
+      if (tab === "http") fetchHttpDelta();
+      else fetchSystemDelta();
+    }
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [tab, fetchHttpDelta, fetchSystemDelta]);
 
   const passesDate = (log: HttpLogEntry): boolean => {
     if (dateFilter === "all") return true;
@@ -507,6 +636,7 @@ export default function AdminLogsPage() {
     const res = await fetch(url, { method: "DELETE" });
     const data = await res.json();
     alert(`Deleted ${data.deleted_http_logs} HTTP logs.` + (data.system_buffer_cleared ? " System buffer cleared." : ""));
+    currentDelayRef.current = MIN_POLL_MS; // resume fast polling after a manual action
     fetchHttp(); fetchSystem();
   }
 
@@ -521,6 +651,7 @@ export default function AdminLogsPage() {
 
   async function handleManualRefresh() {
     setIsRefreshing(true);
+    currentDelayRef.current = MIN_POLL_MS; // resume fast polling after a manual refresh
     const minSpinTime = new Promise((resolve) => setTimeout(resolve, 500));
     try {
       await Promise.all([fetchHttp(), fetchSystem(), minSpinTime]);
