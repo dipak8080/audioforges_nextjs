@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { TrimForm } from "@/components/converter/TrimForm";
+import { FAQSection } from "@/components/faq/FAQSection";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
 
@@ -46,101 +47,6 @@ export const metadata: Metadata = {
   },
 };
 
-const faqJsonLd = {
-  "@context": "https://schema.org",
-  "@type": "FAQPage",
-  mainEntity: [
-    {
-      "@type": "Question",
-      name: "Does trimming change the audio quality?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "No — trimming just cuts the selected range and keeps your original format, with no quality loss beyond the format's normal characteristics.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "What's the difference between trimming and cutting?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "For this tool, they mean the same thing — selecting a start and end point and keeping only what's in between. \"Trim\" and \"cut\" are just different words people use for the same operation.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "Can I remove silence throughout a track, not just the ends?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "That's a separate tool. Trim cuts to a single start and end point; the Silence Remover strips silent gaps everywhere in the file, not just the edges.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "Is this really free?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "Yes — completely free, no sign-up, no watermark on the output.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "Is there a length limit?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "The source file can be up to 20 minutes long and 50MB.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "Can I convert the trimmed clip to a different format too?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "Trim keeps the original format by design. Run the trimmed result through the Format Converter afterward if you need a different format.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "Can I trim audio on my phone?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "Yes — it works in any mobile browser on iPhone or Android, no app install required.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "Can I trim multiple files at once?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "One file at a time — there's currently no batch upload option.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "Can I undo a trim?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "There's no undo history — this is a stateless upload-process-download tool with nothing saved between visits. Re-upload the original file if you need to cut it differently.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "Does trimming reduce the file size?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "Yes, proportionally to how much you cut — a shorter clip has less audio data, so the file comes out smaller than the original.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "Does it work on stereo audio?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "Yes — trimming only cuts the time range, so it doesn't affect channel layout. Stereo files stay stereo.",
-      },
-    },
-  ],
-};
-
 const webAppJsonLd = {
   "@context": "https://schema.org",
   "@type": "WebApplication",
@@ -178,12 +84,76 @@ const howToJsonLd = {
   ],
 };
 
+// Same 11 questions and answers as before, word-for-word.
+const faqs = [
+  {
+    question: "Does trimming change the audio quality?",
+    answer:
+      "No — trimming just cuts the selected range and keeps your original format, with no quality loss beyond the format's normal characteristics.",
+  },
+  {
+    question: "What's the difference between trimming and cutting?",
+    answer:
+      "For this tool, they mean the same thing — selecting a start and end point and keeping only what's in between. \"Trim\" and \"cut\" are just different words people use for the same operation.",
+  },
+  {
+    question: "Can I remove silence throughout a track, not just the ends?",
+    answer:
+      "That's a separate tool. Trim cuts to a single start and end point; the Silence Remover strips silent gaps everywhere in the file, not just the edges.",
+    answerNode: (
+      <>
+        That&apos;s a separate tool. Trim cuts to a single start and end
+        point; the{" "}
+        <Link href="/silence-remove" className="text-amber-400 hover:underline">
+          Silence Remover
+        </Link>{" "}
+        strips silent gaps everywhere in the file, not just the edges.
+      </>
+    ),
+  },
+  {
+    question: "Is this really free?",
+    answer: "Yes — completely free, no sign-up, no watermark on the output.",
+  },
+  {
+    question: "Is there a length limit?",
+    answer: "The source file can be up to 20 minutes long and 50MB.",
+  },
+  {
+    question: "Can I convert the trimmed clip to a different format too?",
+    answer:
+      "Trim keeps the original format by design. Run the trimmed result through the Format Converter afterward if you need a different format.",
+  },
+  {
+    question: "Can I trim audio on my phone?",
+    answer: "Yes — it works in any mobile browser on iPhone or Android, no app install required.",
+  },
+  {
+    question: "Can I trim multiple files at once?",
+    answer: "One file at a time — there's currently no batch upload option.",
+  },
+  {
+    question: "Can I undo a trim?",
+    answer:
+      "There's no undo history — this is a stateless upload-process-download tool with nothing saved between visits. Re-upload the original file if you need to cut it differently.",
+  },
+  {
+    question: "Does trimming reduce the file size?",
+    answer:
+      "Yes, proportionally to how much you cut — a shorter clip has less audio data, so the file comes out smaller than the original.",
+  },
+  {
+    question: "Does it work on stereo audio?",
+    answer:
+      "Yes — trimming only cuts the time range, so it doesn't affect channel layout. Stereo files stay stereo.",
+  },
+];
+
 export default function TrimPage() {
   const relatedTools = getRelatedTools("trim", 5);
 
   return (
     <>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(webAppJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(howToJsonLd) }} />
@@ -340,69 +310,7 @@ export default function TrimPage() {
           </section>
         )}
 
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">Frequently asked questions</h2>
-          <div className="space-y-5 text-text-muted leading-relaxed">
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">Does trimming change the audio quality?</h3>
-              <p>No — trimming just cuts the selected range and keeps your original format, with no quality loss beyond the format&apos;s normal characteristics.</p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">What&apos;s the difference between trimming and cutting?</h3>
-              <p>For this tool, they mean the same thing — selecting a start and end point and keeping only what&apos;s in between.</p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">Can I remove silence throughout a track, not just the ends?</h3>
-              <p>
-                That&apos;s a separate tool. Trim cuts to a single start and end
-                point; the{" "}
-                <Link href="/silence-remove" className="text-amber-400 hover:underline">
-                  Silence Remover
-                </Link>{" "}
-                strips silent gaps everywhere in the file, not just the edges.
-              </p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">Is this really free?</h3>
-              <p>Yes — completely free, no sign-up, no watermark on the output.</p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">Is there a length limit?</h3>
-              <p>The source file can be up to 20 minutes long and 50MB.</p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">Can I convert the trimmed clip to a different format too?</h3>
-              <p>Trim keeps the original format by design. Run the trimmed result through the Format Converter afterward if you need a different format.</p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">Can I trim audio on my phone?</h3>
-              <p>Yes — it works in any mobile browser on iPhone or Android, no app install required.</p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">Can I trim multiple files at once?</h3>
-              <p>One file at a time — there&apos;s currently no batch upload option.</p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">Can I undo a trim?</h3>
-              <p>
-                There&apos;s no undo history — this is a stateless upload-process-download
-                tool with nothing saved between visits. Re-upload the original file if
-                you need to cut it differently.
-              </p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">Does trimming reduce the file size?</h3>
-              <p>
-                Yes, proportionally to how much you cut — a shorter clip has less
-                audio data, so the file comes out smaller than the original.
-              </p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">Does it work on stereo audio?</h3>
-              <p>Yes — trimming only cuts the time range, so it doesn&apos;t affect channel layout. Stereo files stay stereo.</p>
-            </div>
-          </div>
-        </section>
+        <FAQSection faqs={faqs} />
       </main>
     </>
   );

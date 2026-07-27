@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { VolumeForm } from "@/components/converter/VolumeForm";
+import { FAQSection } from "@/components/faq/FAQSection";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
 
@@ -45,93 +46,6 @@ export const metadata: Metadata = {
   },
 };
 
-const faqJsonLd = {
-  "@context": "https://schema.org",
-  "@type": "FAQPage",
-  mainEntity: [
-    {
-      "@type": "Question",
-      name: "What gain range can I use?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "From -30dB to +30dB. Extreme values near either end will often sound distorted or overly quiet — that's expected behavior, not a bug.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "What's a safe boost amount?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "+6dB to +10dB is a solid, clearly audible boost without heavy clipping risk on most source material.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "Is this really free?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "Yes — completely free, no sign-up, no watermark on the output.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "What formats are supported?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "MP3, WAV, FLAC, M4A, AAC, OGG, and AIFF, up to 50MB and 20 minutes long.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "Does boosting volume reduce quality?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "The gain change itself doesn't discard any audio quality. The only quality risk is clipping if you push the boost high enough that peaks exceed the format's maximum level — moderate boosts don't carry that risk.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "Why is my audio still quiet after boosting?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "If the source recording was very quiet to begin with, a single gain boost may not be enough to reach a comfortable listening level without introducing clipping. Try a moderate boost first and check the result before pushing higher.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "What is clipping?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "Clipping is the harsh distortion that happens when a boosted signal tries to exceed the loudest level a format can represent, and the peaks get cut off flat instead of following the natural waveform.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "Is this different from normalization?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "Yes. Normalization automatically raises a track to a target loudness level. This tool applies a fixed gain change you choose yourself, which gives you direct control but means you're responsible for picking a value that doesn't clip.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "Will boosting volume remove background noise?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "No — a volume boost raises everything in the recording equally, including background noise. If the noise itself is the problem, a dedicated noise reduction tool is the better fix.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "Does it work on mobile?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "Yes — it works in any mobile browser on iPhone or Android, no app install required.",
-      },
-    },
-  ],
-};
-
 const webAppJsonLd = {
   "@context": "https://schema.org",
   "@type": "WebApplication",
@@ -169,12 +83,73 @@ const howToJsonLd = {
   ],
 };
 
+// Same 10 questions and answers as before, word-for-word - only the
+// structure changed, feeding both the schema and the accordion from one array.
+const faqs = [
+  {
+    question: "What gain range can I use?",
+    answer:
+      "From -30dB to +30dB. Extreme values near either end will often sound distorted or overly quiet — that's expected behavior, not a bug.",
+  },
+  {
+    question: "What's a safe boost amount?",
+    answer:
+      "+6dB to +10dB is a solid, clearly audible boost without heavy clipping risk on most source material.",
+  },
+  {
+    question: "Is this really free?",
+    answer: "Yes — completely free, no sign-up, no watermark on the output.",
+  },
+  {
+    question: "What formats are supported?",
+    answer: "MP3, WAV, FLAC, M4A, AAC, OGG, and AIFF, up to 50MB and 20 minutes long.",
+  },
+  {
+    question: "Does boosting volume reduce quality?",
+    answer:
+      "The gain change itself doesn't discard any audio quality. The only quality risk is clipping if you push the boost high enough that peaks exceed the format's maximum level — moderate boosts don't carry that risk.",
+  },
+  {
+    question: "Why is my audio still quiet after boosting?",
+    answer:
+      "If the source recording was very quiet to begin with, a single gain boost may not be enough to reach a comfortable listening level without introducing clipping. Try a moderate boost first and check the result before pushing higher.",
+  },
+  {
+    question: "What is clipping?",
+    answer:
+      "Clipping is the harsh distortion that happens when a boosted signal tries to exceed the loudest level a format can represent, and the peaks get cut off flat instead of following the natural waveform.",
+  },
+  {
+    question: "Is this different from normalization?",
+    answer:
+      "Yes. Normalization automatically raises a track to a target loudness level. This tool applies a fixed gain change you choose yourself, which gives you direct control but means you're responsible for picking a value that doesn't clip.",
+  },
+  {
+    question: "Will boosting volume remove background noise?",
+    answer:
+      "No — a volume boost raises everything in the recording equally, including background noise. If the noise itself is the problem, a dedicated noise reduction tool is the better fix.",
+    answerNode: (
+      <>
+        No — a volume boost raises everything in the recording equally,
+        including background noise. If the noise itself is the problem, a{" "}
+        <Link href="/noise-remove" className="text-amber-400 hover:underline">
+          dedicated noise reduction tool
+        </Link>{" "}
+        is the better fix.
+      </>
+    ),
+  },
+  {
+    question: "Does it work on mobile?",
+    answer: "Yes — it works in any mobile browser on iPhone or Android, no app install required.",
+  },
+];
+
 export default function VolumePage() {
   const relatedTools = getRelatedTools("volume", 5);
 
   return (
     <>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(webAppJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(howToJsonLd) }} />
@@ -391,83 +366,7 @@ export default function VolumePage() {
           </section>
         )}
 
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">Frequently asked questions</h2>
-          <div className="space-y-5 text-text-muted leading-relaxed">
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">What gain range can I use?</h3>
-              <p>
-                From -30dB to +30dB. Extreme values near either end will often sound
-                distorted or overly quiet — that&apos;s expected behavior, not a bug.
-              </p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">What&apos;s a safe boost amount?</h3>
-              <p>+6dB to +10dB is a solid, clearly audible boost without heavy clipping risk on most source material.</p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">Is this really free?</h3>
-              <p>Yes — completely free, no sign-up, no watermark on the output.</p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">What formats are supported?</h3>
-              <p>MP3, WAV, FLAC, M4A, AAC, OGG, and AIFF, up to 50MB and 20 minutes long.</p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">Does boosting volume reduce quality?</h3>
-              <p>
-                The gain change itself doesn&apos;t discard any audio
-                quality. The only quality risk is clipping if you push the
-                boost high enough that peaks exceed the format&apos;s
-                maximum level — moderate boosts don&apos;t carry that risk.
-              </p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">Why is my audio still quiet after boosting?</h3>
-              <p>
-                If the source recording was very quiet to begin with, a
-                single gain boost may not be enough to reach a comfortable
-                listening level without introducing clipping. Try a moderate
-                boost first and check the result before pushing higher.
-              </p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">What is clipping?</h3>
-              <p>
-                Clipping is the harsh distortion that happens when a boosted
-                signal tries to exceed the loudest level a format can
-                represent, and the peaks get cut off flat instead of
-                following the natural waveform.
-              </p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">Is this different from normalization?</h3>
-              <p>
-                Yes. Normalization automatically raises a track to a target
-                loudness level. This tool applies a fixed gain change you
-                choose yourself, which gives you direct control but means
-                you&apos;re responsible for picking a value that
-                doesn&apos;t clip.
-              </p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">Will boosting volume remove background noise?</h3>
-              <p>
-                No — a volume boost raises everything in the recording
-                equally, including background noise. If the noise itself is
-                the problem, a{" "}
-                <Link href="/noise-remove" className="text-amber-400 hover:underline">
-                  dedicated noise reduction tool
-                </Link>{" "}
-                is the better fix.
-              </p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">Does it work on mobile?</h3>
-              <p>Yes — it works in any mobile browser on iPhone or Android, no app install required.</p>
-            </div>
-          </div>
-        </section>
+        <FAQSection faqs={faqs} />
       </main>
     </>
   );

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ReverseForm } from "@/components/converter/ReverseForm";
+import { FAQSection } from "@/components/faq/FAQSection";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
 
@@ -50,69 +51,6 @@ export const metadata: Metadata = {
   },
 };
 
-const faqJsonLd = {
-  "@context": "https://schema.org",
-  "@type": "FAQPage",
-  mainEntity: [
-    {
-      "@type": "Question",
-      name: "What does reversing audio do?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "It flips the entire file so it plays back to front — the last sound becomes the first, and vice versa.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "Does reversing reduce audio quality?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "No. Reversing changes the playback order only, not the underlying audio data. Since the output stays in your original format, there's no additional quality loss beyond that format's normal characteristics.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "Can I reverse just part of a track?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "This tool reverses the entire file. If you only want a section reversed, trim the clip you want first, then reverse the trimmed result.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "Is this really free?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "Yes — reversing audio is free, with no sign-up and no watermark on the output.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "What formats are supported?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "MP3, WAV, FLAC, M4A, AAC, OGG, and AIFF. The output keeps the same format as your upload.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "Is there a file size or length limit?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "Files up to 50MB and 20 minutes long are supported.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "Can I reverse a voice recording?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "Yes. The tool works with voice recordings, podcasts, music, sound effects, and any other supported audio file.",
-      },
-    },
-  ],
-};
-
 const webAppJsonLd = {
   "@context": "https://schema.org",
   "@type": "WebApplication",
@@ -149,12 +87,48 @@ const howToJsonLd = {
   ],
 };
 
+// Same 7 questions and answers as before, word-for-word.
+const faqs = [
+  {
+    question: "What does reversing audio do?",
+    answer:
+      "It flips the entire file so it plays back to front — the last sound becomes the first, and vice versa.",
+  },
+  {
+    question: "Does reversing reduce audio quality?",
+    answer:
+      "No. Reversing changes the playback order only, not the underlying audio data. Since the output stays in your original format, there's no additional quality loss beyond that format's normal characteristics.",
+  },
+  {
+    question: "Can I reverse just part of a track?",
+    answer:
+      "This tool reverses the entire file. If you only want a section reversed, trim the clip you want first, then reverse the trimmed result.",
+  },
+  {
+    question: "Is this really free?",
+    answer: "Yes — reversing audio is free, with no sign-up and no watermark on the output.",
+  },
+  {
+    question: "What formats are supported?",
+    answer:
+      "MP3, WAV, FLAC, M4A, AAC, OGG, and AIFF. The output keeps the same format as your upload.",
+  },
+  {
+    question: "Is there a file size or length limit?",
+    answer: "Files up to 50MB and 20 minutes long are supported.",
+  },
+  {
+    question: "Can I reverse a voice recording?",
+    answer:
+      "Yes. The tool works with voice recordings, podcasts, music, sound effects, and any other supported audio file.",
+  },
+];
+
 export default function ReversePage() {
   const relatedTools = getRelatedTools("reverse", 5);
 
   return (
     <>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(webAppJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(howToJsonLd) }} />
@@ -302,48 +276,7 @@ export default function ReversePage() {
           </section>
         )}
 
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">Frequently asked questions</h2>
-          <div className="space-y-5 text-text-muted leading-relaxed">
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">What does reversing audio do?</h3>
-              <p>It flips the entire file so it plays back to front — the last sound becomes the first, and vice versa.</p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">Does reversing reduce audio quality?</h3>
-              <p>
-                No. Reversing changes the playback order only, not the underlying
-                audio data. Since the output stays in your original format,
-                there&apos;s no additional quality loss beyond that format&apos;s
-                normal characteristics.
-              </p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">Can I reverse just part of a track?</h3>
-              <p>
-                This tool reverses the entire file. If you only want a section
-                reversed, trim the clip you want first, then reverse the trimmed
-                result.
-              </p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">Is this really free?</h3>
-              <p>Yes — reversing audio is free, with no sign-up and no watermark on the output.</p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">What formats are supported?</h3>
-              <p>MP3, WAV, FLAC, M4A, AAC, OGG, and AIFF. The output keeps the same format as your upload.</p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">Is there a file size or length limit?</h3>
-              <p>Files up to 50MB and 20 minutes long are supported.</p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">Can I reverse a voice recording?</h3>
-              <p>Yes. The tool works with voice recordings, podcasts, music, sound effects, and any other supported audio file.</p>
-            </div>
-          </div>
-        </section>
+        <FAQSection faqs={faqs} />
       </main>
     </>
   );

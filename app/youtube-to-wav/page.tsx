@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { YouTubeConverterForm } from "@/components/converter/YouTubeConverterForm";
+import { FAQSection } from "@/components/faq/FAQSection";
 import { SITE_URL } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
 
@@ -49,101 +50,6 @@ export const metadata: Metadata = {
       "Free YouTube to WAV converter — no sign-up, no watermark, no limits. Paste a link and download high-quality audio in seconds.",
     images: ["/images/og-default.png"],
   },
-};
-
-const faqJsonLd = {
-  "@context": "https://schema.org",
-  "@type": "FAQPage",
-  mainEntity: [
-    {
-      "@type": "Question",
-      name: "Is this really free?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "Yes — every conversion is free, with no sign-up, no watermark, and no daily limit on how many links you can convert.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "What's the difference between WAV and MP3 here?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "WAV is lossless 44.1kHz audio — larger files, no compression artifacts. Use it for DJing, sampling, or editing. MP3 is 320kbps CBR — smaller files, transparent enough for casual listening.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "Does this work with YouTube Shorts?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "Yes. Standard youtube.com/watch links, short youtu.be links, and /shorts URLs are all supported.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "How long does conversion take?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "Most videos convert to WAV or MP3 in 20–40 seconds, with no queue or wait time.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "Does it work on mobile?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "Yes — the converter works in any mobile browser on iPhone or Android, no app install required.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "Is downloading YouTube audio legal?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "It depends on whether you own the content, it's Creative Commons or public domain, or you have permission from the rights holder. You are responsible for how you use the tool.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "Can I convert very long YouTube videos?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "Very long videos may be rejected past a certain length to keep conversions fast and reliable for everyone. Most typical music videos, podcast clips, and Shorts convert without any issue.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "Does it support YouTube playlists?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "Not currently — the converter processes one video URL at a time rather than an entire playlist.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "Why did my conversion fail?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "The most common reasons are: the video is private, deleted, or removed for copyright; it's geo-restricted and unavailable from our server's location; or YouTube is temporarily requiring extra verification. Trying a different video, or trying again in a few minutes, usually resolves it.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "Can I use the downloaded audio commercially?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "Only if you own the content, it's royalty-free or Creative Commons licensed for that use, or you have explicit permission from the rights holder. AudioForges doesn't grant any rights to the content you convert.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "Can I get FLAC or AIFF instead of WAV or MP3?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "Not directly from YouTube, but you can convert the WAV output afterward using our free Audio Converter, which supports FLAC, AIFF, and several other formats.",
-      },
-    },
-  ],
 };
 
 const webAppJsonLd = {
@@ -198,15 +104,83 @@ const howToJsonLd = {
   ],
 };
 
+// Same 11 questions and answers as before, word-for-word - only the
+// structure changed. This single array now feeds BOTH the FAQPage schema
+// and the visible accordion, via <FAQSection>, instead of duplicating the
+// content by hand in two places.
+const faqs = [
+  {
+    question: "Is this really free?",
+    answer:
+      "Yes — every conversion is free, with no sign-up, no watermark, and no daily limit on how many links you can convert.",
+  },
+  {
+    question: "What's the difference between WAV and MP3 here?",
+    answer:
+      "WAV is lossless 44.1kHz audio — larger files, no compression artifacts. Use it for DJing, sampling, or editing. MP3 is 320kbps CBR — smaller files, transparent enough for casual listening.",
+  },
+  {
+    question: "Does this work with YouTube Shorts?",
+    answer:
+      "Yes. Standard youtube.com/watch links, short youtu.be links, and /shorts URLs are all supported.",
+  },
+  {
+    question: "How long does conversion take?",
+    answer:
+      "Most videos convert to WAV or MP3 in 20–40 seconds, with no queue or wait time.",
+  },
+  {
+    question: "Does it work on mobile?",
+    answer:
+      "Yes — the converter works in any mobile browser on iPhone or Android, no app install required.",
+  },
+  {
+    question: "Is downloading YouTube audio legal?",
+    answer:
+      "It depends on whether you own the content, it's Creative Commons or public domain, or you have permission from the rights holder. You are responsible for how you use the tool.",
+  },
+  {
+    question: "Can I convert very long YouTube videos?",
+    answer:
+      "Very long videos may be rejected past a certain length to keep conversions fast and reliable for everyone. Most typical music videos, podcast clips, and Shorts convert without any issue.",
+  },
+  {
+    question: "Does it support YouTube playlists?",
+    answer:
+      "Not currently — the converter processes one video URL at a time rather than an entire playlist.",
+  },
+  {
+    question: "Why did my conversion fail?",
+    answer:
+      "The most common reasons are: the video is private, deleted, or removed for copyright; it's geo-restricted and unavailable from our server's location; or YouTube is temporarily requiring extra verification. Trying a different video, or trying again in a few minutes, usually resolves it.",
+  },
+  {
+    question: "Can I use the downloaded audio commercially?",
+    answer:
+      "Only if you own the content, it's royalty-free or Creative Commons licensed for that use, or you have explicit permission from the rights holder. AudioForges doesn't grant any rights to the content you convert.",
+  },
+  {
+    question: "Can I get FLAC or AIFF instead of WAV or MP3?",
+    answer:
+      "Not directly from YouTube, but you can convert the WAV output afterward using our free Audio Converter, which supports FLAC, AIFF, and several other formats.",
+    answerNode: (
+      <>
+        Not directly from YouTube, but you can convert the WAV output
+        afterward using our free{" "}
+        <Link href="/convert" className="text-amber-400 hover:underline">
+          Audio Converter
+        </Link>
+        , which supports FLAC, AIFF, and several other formats.
+      </>
+    ),
+  },
+];
+
 export default function YouTubeToWavPage() {
   const relatedTools = getRelatedTools("youtube-to-wav", 5);
 
   return (
     <>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
-      />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(webAppJsonLd) }}
@@ -433,126 +407,7 @@ export default function YouTubeToWavPage() {
           </p>
         </section>
 
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">
-            Frequently asked questions
-          </h2>
-          <div className="space-y-5 text-text-muted leading-relaxed">
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">
-                Is this really free?
-              </h3>
-              <p>
-                Yes — every conversion is free, with no sign-up, no watermark,
-                and no daily limit on how many links you can convert.
-              </p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">
-                What&apos;s the difference between WAV and MP3 here?
-              </h3>
-              <p>
-                WAV is lossless 44.1kHz audio — larger files, no compression
-                artifacts. Use it for DJing, sampling, or editing. MP3 is
-                320kbps CBR — smaller files, transparent enough for casual
-                listening.
-              </p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">
-                Does this work with YouTube Shorts?
-              </h3>
-              <p>
-                Yes. Standard youtube.com/watch links, short youtu.be links,
-                and /shorts URLs are all supported.
-              </p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">
-                How long does conversion take?
-              </h3>
-              <p>
-                Most videos convert to WAV or MP3 in 20–40 seconds, with no
-                queue or wait time.
-              </p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">
-                Does it work on mobile?
-              </h3>
-              <p>
-                Yes — the converter works in any mobile browser on iPhone or
-                Android, no app install required.
-              </p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">
-                Is downloading YouTube audio legal?
-              </h3>
-              <p>
-                It depends on whether you own the content, it&apos;s Creative
-                Commons or public domain, or you have permission from the
-                rights holder. You are responsible for how you use the tool.
-              </p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">
-                Can I convert very long YouTube videos?
-              </h3>
-              <p>
-                Very long videos may be rejected past a certain length to
-                keep conversions fast and reliable for everyone. Most typical
-                music videos, podcast clips, and Shorts convert without any
-                issue.
-              </p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">
-                Does it support YouTube playlists?
-              </h3>
-              <p>
-                Not currently — the converter processes one video URL at a
-                time rather than an entire playlist.
-              </p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">
-                Why did my conversion fail?
-              </h3>
-              <p>
-                The most common reasons are: the video is private, deleted,
-                or removed for copyright; it&apos;s geo-restricted and
-                unavailable from our server&apos;s location; or YouTube is
-                temporarily requiring extra verification. Trying a different
-                video, or trying again in a few minutes, usually resolves it.
-              </p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">
-                Can I use the downloaded audio commercially?
-              </h3>
-              <p>
-                Only if you own the content, it&apos;s royalty-free or
-                Creative Commons licensed for that use, or you have explicit
-                permission from the rights holder. AudioForges doesn&apos;t
-                grant any rights to the content you convert.
-              </p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">
-                Can I get FLAC or AIFF instead of WAV or MP3?
-              </h3>
-              <p>
-                Not directly from YouTube, but you can convert the WAV
-                output afterward using our free{" "}
-                <Link href="/convert" className="text-amber-400 hover:underline">
-                  Audio Converter
-                </Link>
-                , which supports FLAC, AIFF, and several other formats.
-              </p>
-            </div>
-          </div>
-        </section>
+        <FAQSection faqs={faqs} />
       </main>
     </>
   );

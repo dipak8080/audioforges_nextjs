@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ConvertForm } from "@/components/converter/ConvertForm";
+import { FAQSection } from "@/components/faq/FAQSection";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
 
@@ -55,52 +56,6 @@ export const metadata: Metadata = {
     images: ["/images/og-default.png"],
   },
 };
-const faqJsonLd = {
-  "@context": "https://schema.org",
-  "@type": "FAQPage",
-  mainEntity: [
-    {
-      "@type": "Question",
-      name: "What formats can I convert between?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "Any of MP3, WAV, FLAC, M4A, AAC, OGG, and AIFF — every format converts to every other one.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "Does converting MP3 to WAV improve quality?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "No. Converting a lossy file like MP3 to a lossless format like WAV repackages the audio but doesn't restore data the original MP3 encoding already discarded — the file gets larger, not higher quality.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "Is this really free?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "Yes — every conversion is free, with no sign-up and no watermark on the output file.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "How long does conversion take?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "Usually just a few seconds, much faster than tools that process a full audio separation.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "Is there a file size limit?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "Uploads are limited to 50MB per file.",
-      },
-    },
-  ],
-};
 
 const webAppJsonLd = {
   "@context": "https://schema.org",
@@ -152,12 +107,37 @@ const EXAMPLE_PAIRS = [
   ["AAC", "WAV"],
 ];
 
+// Same 5 questions and answers as before, word-for-word.
+const faqs = [
+  {
+    question: "What formats can I convert between?",
+    answer:
+      "Any of MP3, WAV, FLAC, M4A, AAC, OGG, and AIFF — every format converts to every other one.",
+  },
+  {
+    question: "Does converting MP3 to WAV improve quality?",
+    answer:
+      "No. Converting a lossy file like MP3 to a lossless format like WAV repackages the audio but doesn't restore data the original MP3 encoding already discarded — the file gets larger, not higher quality.",
+  },
+  {
+    question: "Is this really free?",
+    answer: "Yes — every conversion is free, with no sign-up and no watermark on the output file.",
+  },
+  {
+    question: "How long does conversion take?",
+    answer: "Usually just a few seconds, much faster than tools that process a full audio separation.",
+  },
+  {
+    question: "Is there a file size limit?",
+    answer: "Uploads are limited to 50MB per file.",
+  },
+];
+
 export default function ConvertPage() {
   const relatedTools = getRelatedTools("convert", 5);
 
   return (
     <>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(webAppJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(howToJsonLd) }} />
@@ -346,36 +326,7 @@ export default function ConvertPage() {
           </section>
         )}
 
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">Frequently asked questions</h2>
-          <div className="space-y-5 text-text-muted leading-relaxed">
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">What formats can I convert between?</h3>
-              <p>Any of MP3, WAV, FLAC, M4A, AAC, OGG, and AIFF — every format converts to every other one.</p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">Does converting MP3 to WAV improve quality?</h3>
-              <p>
-                No. Converting a lossy file like MP3 to a lossless format like WAV
-                repackages the audio but doesn&apos;t restore data the original MP3
-                encoding already discarded — the file gets larger, not higher
-                quality.
-              </p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">Is this really free?</h3>
-              <p>Yes — every conversion is free, with no sign-up and no watermark on the output file.</p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">How long does conversion take?</h3>
-              <p>Usually just a few seconds, much faster than tools that process a full audio separation.</p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">Is there a file size limit?</h3>
-              <p>Uploads are limited to 50MB per file.</p>
-            </div>
-          </div>
-        </section>
+        <FAQSection faqs={faqs} />
       </main>
     </>
   );

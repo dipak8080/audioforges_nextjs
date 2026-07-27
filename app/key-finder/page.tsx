@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { KeyFinderForm } from "@/components/converter/KeyFinderForm";
+import { FAQSection } from "@/components/faq/FAQSection";
 import { SITE_URL } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
 
@@ -57,69 +58,6 @@ export const metadata: Metadata = {
   },
 };
 
-const faqJsonLd = {
-  "@context": "https://schema.org",
-  "@type": "FAQPage",
-  mainEntity: [
-    {
-      "@type": "Question",
-      name: "What is Camelot notation?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "A numbering system for musical keys (1A–12B) that maps every key onto a wheel where neighbours are harmonically compatible. Standard on Rekordbox, Serato, Traktor and Mixed In Key.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "Why does BPM matter for DJs?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "Matching or beat-syncing BPM is what allows two tracks to play in time together.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "What's the difference between major and minor keys?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "Major keys generally sound brighter and more resolved, while minor keys sound darker or more emotional. Every major key has a relative minor built from the same notes, which is why they share the same Camelot number with a different letter.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "What file formats can I upload?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "MP3, WAV, FLAC, M4A, AAC and OGG, up to 50MB per file.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "How long does key and BPM detection take?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "Just a few seconds for most tracks — results appear as soon as analysis finishes, no waiting in a queue.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "Is my uploaded track stored or shared?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "No. Analysis runs entirely to detect key and tempo — AudioForges does not store or distribute uploaded tracks.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "What affects detection accuracy?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "Clean, full-length tracks with consistent tempo and clear harmonic content analyze most reliably. Live recordings, heavy distortion, tempo changes mid-track, spoken-word audio, or long drum-only intros give the analysis less to work with and can reduce accuracy.",
-      },
-    },
-  ],
-};
-
 const webAppJsonLd = {
   "@context": "https://schema.org",
   "@type": "WebApplication",
@@ -161,12 +99,48 @@ const howToJsonLd = {
   ],
 };
 
+// Same 7 questions and answers as before, word-for-word.
+const faqs = [
+  {
+    question: "What is Camelot notation?",
+    answer:
+      "A numbering system for musical keys (1A–12B) that maps every key onto a wheel where neighbours are harmonically compatible. Standard on Rekordbox, Serato, Traktor and Mixed In Key.",
+  },
+  {
+    question: "Why does BPM matter for DJs?",
+    answer: "Matching or beat-syncing BPM is what allows two tracks to play in time together.",
+  },
+  {
+    question: "What's the difference between major and minor keys?",
+    answer:
+      "Major keys generally sound brighter and more resolved, while minor keys sound darker or more emotional. Every major key has a relative minor built from the same notes, which is why they share the same Camelot number with a different letter.",
+  },
+  {
+    question: "What file formats can I upload?",
+    answer: "MP3, WAV, FLAC, M4A, AAC and OGG, up to 50MB per file.",
+  },
+  {
+    question: "How long does key and BPM detection take?",
+    answer:
+      "Just a few seconds for most tracks — results appear as soon as analysis finishes, no waiting in a queue.",
+  },
+  {
+    question: "Is my uploaded track stored or shared?",
+    answer:
+      "No. Analysis runs entirely to detect key and tempo — AudioForges does not store or distribute uploaded tracks.",
+  },
+  {
+    question: "What affects detection accuracy?",
+    answer:
+      "Clean, full-length tracks with consistent tempo and clear harmonic content analyze most reliably. Live recordings, heavy distortion, tempo changes mid-track, spoken-word audio, or long drum-only intros give the analysis less to work with and can reduce accuracy.",
+  },
+];
+
 export default function KeyFinderPage() {
   const relatedTools = getRelatedTools("key-finder", 5);
 
   return (
     <>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(webAppJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(howToJsonLd) }} />
@@ -297,44 +271,7 @@ export default function KeyFinderPage() {
           </section>
         )}
 
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">Frequently asked questions</h2>
-          <div className="space-y-5 text-text-muted leading-relaxed">
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">What is Camelot notation?</h3>
-              <p>A numbering system for musical keys (1A–12B) mapping every key onto a wheel of harmonically compatible neighbours.</p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">Why does BPM matter for DJs?</h3>
-              <p>Matching or beat-syncing BPM lets two tracks play in time together.</p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">What&apos;s the difference between major and minor keys?</h3>
-              <p>Major keys generally sound brighter and more resolved, while minor keys sound darker or more emotional. Every major key has a relative minor built from the same notes, which is why they share the same Camelot number with a different letter.</p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">What file formats can I upload?</h3>
-              <p>MP3, WAV, FLAC, M4A, AAC and OGG, up to 50MB per file.</p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">How long does key and BPM detection take?</h3>
-              <p>Just a few seconds for most tracks — no queue, no waiting.</p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">Is my uploaded track stored or shared?</h3>
-              <p>No — AudioForges does not store or distribute uploaded tracks.</p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">What affects detection accuracy?</h3>
-              <p>
-                Clean, full-length tracks with consistent tempo and clear
-                harmonic content analyze most reliably. Live recordings,
-                heavy distortion, tempo changes mid-track, spoken-word audio,
-                or long drum-only intros can reduce accuracy.
-              </p>
-            </div>
-          </div>
-        </section>
+        <FAQSection faqs={faqs} />
       </main>
     </>
   );

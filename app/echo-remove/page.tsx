@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { EchoRemoveForm } from "@/components/converter/EchoRemoveForm";
+import { FAQSection } from "@/components/faq/FAQSection";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
 
@@ -48,61 +49,6 @@ export const metadata: Metadata = {
   },
 };
 
-const faqJsonLd = {
-  "@context": "https://schema.org",
-  "@type": "FAQPage",
-  mainEntity: [
-    {
-      "@type": "Question",
-      name: "Does this fully remove echo?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "It reduces mild room echo and repeated slap-back echo well, but it doesn't perform full acoustic dereverberation — heavy reverb from a large or empty room won't be fully eliminated.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "What's the difference between echo, reverb, and slap-back?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "Slap-back is a single, distinct repeat off a hard surface — common in small tiled or hard-walled rooms. Reverb is the accumulated wash of countless overlapping reflections in a larger space, without a single clear repeat. This tool handles slap-back and mild room echo well; it isn't designed for heavy reverb.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "Can I remove echo from Zoom or phone recordings?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "Yes — phone recordings, Zoom calls, and voice memos with mild room echo are exactly the kind of source material this tool handles well.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "What kind of echo does this work best on?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "Mild room echo on speech recordings and repeated/slap echo. It's not designed for cleaning heavy reverb from concert halls or large empty spaces.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "Is this really free?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "Yes — completely free, no sign-up, no watermark on the output.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "What formats are supported?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "MP3, WAV, FLAC, M4A, AAC, OGG, and AIFF, up to 50MB and 20 minutes long.",
-      },
-    },
-  ],
-};
-
 const webAppJsonLd = {
   "@context": "https://schema.org",
   "@type": "WebApplication",
@@ -139,12 +85,43 @@ const howToJsonLd = {
   ],
 };
 
+// Same 6 questions and answers as before, word-for-word.
+const faqs = [
+  {
+    question: "Does this fully remove echo?",
+    answer:
+      "It reduces mild room echo and repeated slap-back echo well, but it doesn't perform full acoustic dereverberation — heavy reverb from a large or empty room won't be fully eliminated.",
+  },
+  {
+    question: "What's the difference between echo, reverb, and slap-back?",
+    answer:
+      "Slap-back is a single, distinct repeat off a hard surface — common in small tiled or hard-walled rooms. Reverb is the accumulated wash of countless overlapping reflections in a larger space, without a single clear repeat. This tool handles slap-back and mild room echo well; it isn't designed for heavy reverb.",
+  },
+  {
+    question: "Can I remove echo from Zoom or phone recordings?",
+    answer:
+      "Yes — phone recordings, Zoom calls, and voice memos with mild room echo are exactly the kind of source material this tool handles well.",
+  },
+  {
+    question: "What kind of echo does this work best on?",
+    answer:
+      "Mild room echo on speech recordings and repeated/slap echo. It's not designed for cleaning heavy reverb from concert halls or large empty spaces.",
+  },
+  {
+    question: "Is this really free?",
+    answer: "Yes — completely free, no sign-up, no watermark on the output.",
+  },
+  {
+    question: "What formats are supported?",
+    answer: "MP3, WAV, FLAC, M4A, AAC, OGG, and AIFF, up to 50MB and 20 minutes long.",
+  },
+];
+
 export default function EchoRemovePage() {
   const relatedTools = getRelatedTools("echo-remove", 5);
 
   return (
     <>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(webAppJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(howToJsonLd) }} />
@@ -283,53 +260,7 @@ export default function EchoRemovePage() {
           </section>
         )}
 
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">Frequently asked questions</h2>
-          <div className="space-y-5 text-text-muted leading-relaxed">
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">Does this fully remove echo?</h3>
-              <p>
-                It reduces mild room echo and repeated slap-back echo well, but it
-                doesn&apos;t perform full acoustic dereverberation — heavy reverb from a
-                large or empty room won&apos;t be fully eliminated.
-              </p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">What&apos;s the difference between echo, reverb, and slap-back?</h3>
-              <p>
-                Slap-back is a single, distinct repeat off a hard surface — common
-                in small tiled or hard-walled rooms. Reverb is the accumulated wash
-                of countless overlapping reflections in a larger space, without a
-                single clear repeat. This tool handles slap-back and mild room echo
-                well; it isn&apos;t designed for heavy reverb.
-              </p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">Can I remove echo from Zoom or phone recordings?</h3>
-              <p>
-                Yes — phone recordings, Zoom calls, and voice memos with mild room
-                echo are exactly the kind of source material this tool handles
-                well.
-              </p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">What kind of echo does this work best on?</h3>
-              <p>
-                Mild room echo on speech recordings and repeated/slap echo. It&apos;s not
-                designed for cleaning heavy reverb from concert halls or large empty
-                spaces.
-              </p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">Is this really free?</h3>
-              <p>Yes — completely free, no sign-up, no watermark on the output.</p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">What formats are supported?</h3>
-              <p>MP3, WAV, FLAC, M4A, AAC, OGG, and AIFF, up to 50MB and 20 minutes long.</p>
-            </div>
-          </div>
-        </section>
+        <FAQSection faqs={faqs} />
       </main>
     </>
   );

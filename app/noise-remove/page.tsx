@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { NoiseRemoveForm } from "@/components/converter/NoiseRemoveForm";
+import { FAQSection } from "@/components/faq/FAQSection";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
 
@@ -51,61 +52,6 @@ export const metadata: Metadata = {
   },
 };
 
-const faqJsonLd = {
-  "@context": "https://schema.org",
-  "@type": "FAQPage",
-  mainEntity: [
-    {
-      "@type": "Question",
-      name: "What kind of noise does this remove?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "Background hiss, hum, and static via an FFT-based denoiser. It's general-purpose, suitable for both music and speech.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "Does noise reduction affect audio quality?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "At moderate strength, quality impact is minimal. Pushed too aggressively, it can introduce a warbling artifact by cutting into frequencies the wanted audio actually needs. Start at the default strength and only raise it if noise is still clearly audible.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "Should I use this or the Voice Cleaner for a podcast?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "For speech-only recordings, the Voice Cleaner's fixed speech-tuned preset (rumble cut, denoise, loudness normalize) generally works better. Use this tool when you want direct control over reduction strength, or for music and non-speech audio.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "Is this really free?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "Yes — completely free, no sign-up, no watermark on the output.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "What formats are supported?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "MP3, WAV, FLAC, M4A, AAC, OGG, and AIFF, up to 50MB and 20 minutes long.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "Should I denoise before or after boosting volume?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "Denoise first, then boost volume. Boosting first raises the noise right along with everything else, which just means the denoiser has more to remove — cleaning it up before adjusting levels gives a clearer result.",
-      },
-    },
-  ],
-};
-
 const webAppJsonLd = {
   "@context": "https://schema.org",
   "@type": "WebApplication",
@@ -143,12 +89,43 @@ const howToJsonLd = {
   ],
 };
 
+// Same 6 questions and answers as before, word-for-word.
+const faqs = [
+  {
+    question: "What kind of noise does this remove?",
+    answer:
+      "Background hiss, hum, and static via an FFT-based denoiser. It's general-purpose, suitable for both music and speech.",
+  },
+  {
+    question: "Does noise reduction affect audio quality?",
+    answer:
+      "At moderate strength, quality impact is minimal. Pushed too aggressively, it can introduce a warbling artifact by cutting into frequencies the wanted audio actually needs. Start at the default strength and only raise it if noise is still clearly audible.",
+  },
+  {
+    question: "Should I use this or the Voice Cleaner for a podcast?",
+    answer:
+      "For speech-only recordings, the Voice Cleaner's fixed speech-tuned preset (rumble cut, denoise, loudness normalize) generally works better. Use this tool when you want direct control over reduction strength, or for music and non-speech audio.",
+  },
+  {
+    question: "Is this really free?",
+    answer: "Yes — completely free, no sign-up, no watermark on the output.",
+  },
+  {
+    question: "What formats are supported?",
+    answer: "MP3, WAV, FLAC, M4A, AAC, OGG, and AIFF, up to 50MB and 20 minutes long.",
+  },
+  {
+    question: "Should I denoise before or after boosting volume?",
+    answer:
+      "Denoise first, then boost volume. Boosting first raises the noise right along with everything else, which just means the denoiser has more to remove — cleaning it up before adjusting levels gives a clearer result.",
+  },
+];
+
 export default function NoiseRemovePage() {
   const relatedTools = getRelatedTools("noise-remove", 5);
 
   return (
     <>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(webAppJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(howToJsonLd) }} />
@@ -266,49 +243,7 @@ export default function NoiseRemovePage() {
           </section>
         )}
 
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">Frequently asked questions</h2>
-          <div className="space-y-5 text-text-muted leading-relaxed">
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">What kind of noise does this remove?</h3>
-              <p>Background hiss, hum, and static via an FFT-based denoiser. It&apos;s general-purpose, suitable for both music and speech.</p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">Does noise reduction affect audio quality?</h3>
-              <p>
-                At moderate strength, quality impact is minimal. Pushed too
-                aggressively, it can introduce a warbling artifact by cutting into
-                frequencies the wanted audio actually needs. Start at the default
-                strength and only raise it if noise is still clearly audible.
-              </p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">Should I use this or the Voice Cleaner for a podcast?</h3>
-              <p>
-                For speech-only recordings, the Voice Cleaner&apos;s fixed speech-tuned
-                preset generally works better. Use this tool when you want direct
-                control over reduction strength, or for music and non-speech audio.
-              </p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">Is this really free?</h3>
-              <p>Yes — completely free, no sign-up, no watermark on the output.</p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">What formats are supported?</h3>
-              <p>MP3, WAV, FLAC, M4A, AAC, OGG, and AIFF, up to 50MB and 20 minutes long.</p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">Should I denoise before or after boosting volume?</h3>
-              <p>
-                Denoise first, then boost volume. Boosting first raises the noise
-                right along with everything else, which just means the denoiser
-                has more to remove — cleaning it up before adjusting levels gives
-                a clearer result.
-              </p>
-            </div>
-          </div>
-        </section>
+        <FAQSection faqs={faqs} />
       </main>
     </>
   );

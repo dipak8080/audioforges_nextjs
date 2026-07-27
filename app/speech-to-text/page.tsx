@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { SpeechToTextForm } from "@/components/converter/SpeechToTextForm";
+import { FAQSection } from "@/components/faq/FAQSection";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
 
@@ -48,85 +49,6 @@ export const metadata: Metadata = {
   },
 };
 
-const faqJsonLd = {
-  "@context": "https://schema.org",
-  "@type": "FAQPage",
-  mainEntity: [
-    {
-      "@type": "Question",
-      name: "How long does transcription take?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "It can take a few minutes for longer files — transcription runs on CPU, processing one file at a time, so it's slower than the other tools on this site.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "Can I get captions or subtitles from this?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "Yes — the transcript includes timestamps, so you can export it directly as an SRT caption file in addition to plain text.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "Do I need to specify the language?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "No — language is automatically detected.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "What affects transcription accuracy?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "Background noise, overlapping speech, and low recording volume are the most common causes of transcription errors. Cleaning up noisy audio before transcribing it usually improves the result more than anything else.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "What formats can I upload?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "MP3, WAV, FLAC, M4A, AAC, and OGG, up to 50MB and 20 minutes long.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "Is this really free?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "Yes — completely free, no sign-up. Limited to 2 transcriptions per 5 minutes since only one runs at a time.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "What's the difference between the TXT and SRT export?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "Plain text is the transcript as continuous readable text, with no timing information — good for reading, searching, or pasting into notes. SRT is the same transcript split into timed caption blocks that video players and editors recognize directly as subtitles.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "What languages does this support?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "The underlying model supports a wide range of languages and detects the spoken language automatically. Accuracy is generally strongest for widely-spoken languages with more training data, and can vary for less common languages or heavy accents.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "Are my files stored after transcription?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "No — your audio is processed only for the time needed to generate the transcript and isn't retained afterward.",
-      },
-    },
-  ],
-};
-
 const webAppJsonLd = {
   "@context": "https://schema.org",
   "@type": "WebApplication",
@@ -165,12 +87,58 @@ const howToJsonLd = {
   ],
 };
 
+// Same 9 questions and answers as before, word-for-word.
+const faqs = [
+  {
+    question: "How long does transcription take?",
+    answer:
+      "It can take a few minutes for longer files — transcription runs on CPU, processing one file at a time, so it's slower than the other tools on this site.",
+  },
+  {
+    question: "Can I get captions or subtitles from this?",
+    answer:
+      "Yes — the transcript includes timestamps, so you can export it directly as an SRT caption file in addition to plain text.",
+  },
+  {
+    question: "Do I need to specify the language?",
+    answer: "No — language is automatically detected.",
+  },
+  {
+    question: "What affects transcription accuracy?",
+    answer:
+      "Background noise, overlapping speech, and low recording volume are the most common causes of transcription errors. Cleaning up noisy audio before transcribing it usually improves the result more than anything else.",
+  },
+  {
+    question: "What formats can I upload?",
+    answer: "MP3, WAV, FLAC, M4A, AAC, and OGG, up to 50MB and 20 minutes long.",
+  },
+  {
+    question: "Is this really free?",
+    answer:
+      "Yes — completely free, no sign-up. Limited to 2 transcriptions per 5 minutes since only one runs at a time.",
+  },
+  {
+    question: "What's the difference between the TXT and SRT export?",
+    answer:
+      "Plain text is the transcript as continuous readable text, with no timing information — good for reading, searching, or pasting into notes. SRT is the same transcript split into timed caption blocks that video players and editors recognize directly as subtitles.",
+  },
+  {
+    question: "What languages does this support?",
+    answer:
+      "The underlying model supports a wide range of languages and detects the spoken language automatically. Accuracy is generally strongest for widely-spoken languages with more training data, and can vary for less common languages or heavy accents.",
+  },
+  {
+    question: "Are my files stored after transcription?",
+    answer:
+      "No — your audio is processed only for the time needed to generate the transcript and isn't retained afterward.",
+  },
+];
+
 export default function SpeechToTextPage() {
   const relatedTools = getRelatedTools("speech-to-text", 5);
 
   return (
     <>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(webAppJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(howToJsonLd) }} />
@@ -351,62 +319,7 @@ export default function SpeechToTextPage() {
           </section>
         )}
 
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">Frequently asked questions</h2>
-          <div className="space-y-5 text-text-muted leading-relaxed">
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">How long does transcription take?</h3>
-              <p>It can take a few minutes for longer files — transcription runs on CPU, processing one file at a time, so it&apos;s slower than the other tools on this site.</p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">Can I get captions or subtitles from this?</h3>
-              <p>Yes — the transcript includes timestamps, so you can export it directly as an SRT caption file in addition to plain text.</p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">Do I need to specify the language?</h3>
-              <p>No — language is automatically detected.</p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">What affects transcription accuracy?</h3>
-              <p>
-                Background noise, overlapping speech, and low recording volume are
-                the most common causes of transcription errors. Cleaning up noisy
-                audio before transcribing it usually improves the result more than
-                anything else.
-              </p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">What formats can I upload?</h3>
-              <p>MP3, WAV, FLAC, M4A, AAC, and OGG, up to 50MB and 20 minutes long.</p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">Is this really free?</h3>
-              <p>Yes — completely free, no sign-up. Limited to 2 transcriptions per 5 minutes since only one runs at a time.</p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">What&apos;s the difference between the TXT and SRT export?</h3>
-              <p>
-                Plain text is the transcript as continuous readable text, with no
-                timing information — good for reading, searching, or pasting into
-                notes. SRT is the same transcript split into timed caption blocks
-                that video players and editors recognize directly as subtitles.
-              </p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">What languages does this support?</h3>
-              <p>
-                The underlying model supports a wide range of languages and detects
-                the spoken language automatically. Accuracy is generally strongest
-                for widely-spoken languages with more training data, and can vary
-                for less common languages or heavy accents.
-              </p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">Are my files stored after transcription?</h3>
-              <p>No — your audio is processed only for the time needed to generate the transcript and isn&apos;t retained afterward.</p>
-            </div>
-          </div>
-        </section>
+        <FAQSection faqs={faqs} />
       </main>
     </>
   );

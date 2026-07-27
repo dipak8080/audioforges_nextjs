@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { PitchForm } from "@/components/converter/PitchForm";
+import { FAQSection } from "@/components/faq/FAQSection";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
 
@@ -48,68 +49,6 @@ export const metadata: Metadata = {
     images: ["/images/og-default.png"],
   },
 };
-const faqJsonLd = {
-  "@context": "https://schema.org",
-  "@type": "FAQPage",
-  mainEntity: [
-    {
-      "@type": "Question",
-      name: "Does pitch shifting change the tempo?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "No — pitch is shifted independently of tempo, so the duration and speed of the track stay exactly the same, only the pitch moves.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "How much can I shift the pitch?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "Up to 12 semitones in either direction — a full octave up or down.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "Will shifting pitch affect audio quality?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "Small shifts of a semitone or two are close to transparent. Larger shifts toward a full octave start to noticeably affect timbre, since formants — the resonances that give a voice or instrument its characteristic tone — shift along with the pitch.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "What's the difference between pitch and key?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "Pitch is the raw frequency of a sound; key is the overall tonal center a piece of music is built around. Shifting a track's pitch by a fixed number of semitones effectively transposes it into a new key.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "Why is there a stricter limit on this tool?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "Pitch shifting is more CPU-intensive than simple conversions, so it's limited to 3 requests per 5 minutes to keep it available for everyone.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "Is this really free?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "Yes — completely free, no sign-up, no watermark on the output.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "Can I change the key of a song without changing its speed?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "Yes. This tool shifts pitch independently of tempo, so you can transpose a song into a different key while keeping its original duration.",
-      },
-    },
-  ],
-};
 
 const webAppJsonLd = {
   "@context": "https://schema.org",
@@ -148,12 +87,48 @@ const howToJsonLd = {
   ],
 };
 
+// Same 7 questions and answers as before, word-for-word.
+const faqs = [
+  {
+    question: "Does pitch shifting change the tempo?",
+    answer:
+      "No — pitch is shifted independently of tempo, so the duration and speed of the track stay exactly the same, only the pitch moves.",
+  },
+  {
+    question: "How much can I shift the pitch?",
+    answer: "Up to 12 semitones in either direction — a full octave up or down.",
+  },
+  {
+    question: "Will shifting pitch affect audio quality?",
+    answer:
+      "Small shifts of a semitone or two are close to transparent. Larger shifts toward a full octave start to noticeably affect timbre, since formants — the resonances that give a voice or instrument its characteristic tone — shift along with the pitch.",
+  },
+  {
+    question: "What's the difference between pitch and key?",
+    answer:
+      "Pitch is the raw frequency of a sound; key is the overall tonal center a piece of music is built around. Shifting a track's pitch by a fixed number of semitones effectively transposes it into a new key.",
+  },
+  {
+    question: "Why is there a stricter limit on this tool?",
+    answer:
+      "Pitch shifting is more CPU-intensive than simple conversions, so it's limited to 3 requests per 5 minutes to keep it available for everyone.",
+  },
+  {
+    question: "Is this really free?",
+    answer: "Yes — completely free, no sign-up, no watermark on the output.",
+  },
+  {
+    question: "Can I change the key of a song without changing its speed?",
+    answer:
+      "Yes. This tool shifts pitch independently of tempo, so you can transpose a song into a different key while keeping its original duration.",
+  },
+];
+
 export default function PitchPage() {
   const relatedTools = getRelatedTools("pitch", 5);
 
   return (
     <>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(webAppJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(howToJsonLd) }} />
@@ -320,53 +295,7 @@ export default function PitchPage() {
           </section>
         )}
 
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">Frequently asked questions</h2>
-          <div className="space-y-5 text-text-muted leading-relaxed">
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">Does pitch shifting change the tempo?</h3>
-              <p>No — pitch is shifted independently of tempo, so the duration and speed of the track stay exactly the same, only the pitch moves.</p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">How much can I shift the pitch?</h3>
-              <p>Up to 12 semitones in either direction — a full octave up or down.</p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">Will shifting pitch affect audio quality?</h3>
-              <p>
-                Small shifts of a semitone or two are close to transparent. Larger
-                shifts toward a full octave start to noticeably affect timbre, since
-                formants — the resonances that give a voice or instrument its
-                characteristic tone — shift along with the pitch.
-              </p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">What&apos;s the difference between pitch and key?</h3>
-              <p>
-                Pitch is the raw frequency of a sound; key is the overall tonal
-                center a piece of music is built around. Shifting a track&apos;s
-                pitch by a fixed number of semitones effectively transposes it into
-                a new key.
-              </p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">Why is there a stricter limit on this tool?</h3>
-              <p>Pitch shifting is more CPU-intensive than simple conversions, so it&apos;s limited to 3 requests per 5 minutes to keep it available for everyone.</p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">Is this really free?</h3>
-              <p>Yes — completely free, no sign-up, no watermark on the output.</p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">Can I change the key of a song without changing its speed?</h3>
-              <p>
-                Yes. This tool shifts pitch independently of tempo, so you can
-                transpose a song into a different key while keeping its original
-                duration.
-              </p>
-            </div>
-          </div>
-        </section>
+        <FAQSection faqs={faqs} />
       </main>
     </>
   );

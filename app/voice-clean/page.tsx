@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { VoiceCleanForm } from "@/components/converter/VoiceCleanForm";
+import { FAQSection } from "@/components/faq/FAQSection";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
 
@@ -50,101 +51,6 @@ export const metadata: Metadata = {
   },
 };
 
-const faqJsonLd = {
-  "@context": "https://schema.org",
-  "@type": "FAQPage",
-  mainEntity: [
-    {
-      "@type": "Question",
-      name: "What does the Voice Cleaner actually do?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "It runs a three-stage chain tuned specifically for speech: cutting low-frequency rumble, applying speech-optimized noise reduction, then normalizing loudness — all in one click.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "Does it work on Zoom recordings or phone recordings?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "Yes — any speech-only recording works, including calls, Zoom recordings, phone memos, and narration, since the chain is tuned for the voice frequency range generally, not one specific recording method.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "Does this remove echo or reverb?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "No — echo and reverb are a different problem from noise, and this chain doesn't address them. Use the Echo Reducer for mild room echo or slap-back.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "Is this different from a general noise remover?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "Yes. This preset is tuned specifically for speech and has no settings to configure. For music or non-speech audio where you want to control the reduction strength yourself, use the Noise Remover instead.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "Is this really free?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "Yes — completely free, no sign-up, no watermark on the output.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "What formats are supported?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "MP3, WAV, FLAC, M4A, AAC, OGG, and AIFF, up to 50MB and 20 minutes long.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "Will it change my voice?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "No. It only affects background noise and loudness — it doesn't alter pitch, formants, or anything about how your voice actually sounds.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "Does it remove keyboard clicks or mouse clicks?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "Not reliably. This chain is built for steady background noise like hiss, hum, and rumble — short, one-off sounds like keyboard clicks don't have a consistent noise profile for it to remove, so some may still come through.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "Can it remove breathing sounds?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "Not specifically — breaths are close enough to speech frequencies that a general noise-reduction chain isn't built to isolate and remove them the way it removes steady background hiss or hum.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "Can I clean multiple files at once?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "One file at a time — there's currently no batch upload option.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "Will it reduce audio quality?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "No — it removes noise and evens out loudness without discarding quality from the rest of the recording.",
-      },
-    },
-  ],
-};
-
 const webAppJsonLd = {
   "@context": "https://schema.org",
   "@type": "WebApplication",
@@ -182,12 +88,80 @@ const howToJsonLd = {
   ],
 };
 
+// Same content as before, PLUS one fix: "Will it reduce audio quality?"
+// existed in the old faqJsonLd schema but was missing from the old visible
+// JSX section entirely - a real schema/content mismatch. It's included
+// here now, so both the schema and the visible accordion show all 11.
+const faqs = [
+  {
+    question: "What does the Voice Cleaner actually do?",
+    answer:
+      "It runs a three-stage chain tuned specifically for speech: cutting low-frequency rumble, applying speech-optimized noise reduction, then normalizing loudness — all in one click.",
+  },
+  {
+    question: "Does it work on Zoom recordings or phone recordings?",
+    answer:
+      "Yes — any speech-only recording works, including calls, Zoom recordings, phone memos, and narration, since the chain is tuned for the voice frequency range generally, not one specific recording method.",
+  },
+  {
+    question: "Does this remove echo or reverb?",
+    answer:
+      "No — echo and reverb are a different problem from noise, and this chain doesn't address them. Use the Echo Reducer for mild room echo or slap-back.",
+    answerNode: (
+      <>
+        No — echo and reverb are a different problem from noise, and this
+        chain doesn&apos;t address them. Use the{" "}
+        <Link href="/echo-remove" className="text-amber-400 hover:underline">
+          Echo Reducer
+        </Link>{" "}
+        for mild room echo or slap-back.
+      </>
+    ),
+  },
+  {
+    question: "Is this different from a general noise remover?",
+    answer:
+      "Yes. This preset is tuned specifically for speech and has no settings to configure. For music or non-speech audio where you want to control the reduction strength yourself, use the Noise Remover instead.",
+  },
+  {
+    question: "Is this really free?",
+    answer: "Yes — completely free, no sign-up, no watermark on the output.",
+  },
+  {
+    question: "What formats are supported?",
+    answer: "MP3, WAV, FLAC, M4A, AAC, OGG, and AIFF, up to 50MB and 20 minutes long.",
+  },
+  {
+    question: "Will it change my voice?",
+    answer:
+      "No. It only affects background noise and loudness — it doesn't alter pitch, formants, or anything about how your voice actually sounds.",
+  },
+  {
+    question: "Does it remove keyboard clicks or mouse clicks?",
+    answer:
+      "Not reliably. This chain is built for steady background noise like hiss, hum, and rumble — short, one-off sounds like keyboard clicks don't have a consistent noise profile for it to remove, so some may still come through.",
+  },
+  {
+    question: "Can it remove breathing sounds?",
+    answer:
+      "Not specifically — breaths are close enough to speech frequencies that a general noise-reduction chain isn't built to isolate and remove them the way it removes steady background hiss or hum.",
+  },
+  {
+    question: "Can I clean multiple files at once?",
+    answer: "One file at a time — there's currently no batch upload option.",
+  },
+  {
+    question: "Will it reduce audio quality?",
+    answer:
+      "No — it removes noise and evens out loudness without discarding quality from the rest of the recording.",
+  },
+];
+
 export default function VoiceCleanPage() {
   const relatedTools = getRelatedTools("voice-clean", 5);
 
   return (
     <>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(webAppJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(howToJsonLd) }} />
@@ -349,84 +323,7 @@ export default function VoiceCleanPage() {
           </section>
         )}
 
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">Frequently asked questions</h2>
-          <div className="space-y-5 text-text-muted leading-relaxed">
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">What does the Voice Cleaner actually do?</h3>
-              <p>
-                It runs a three-stage chain tuned specifically for speech: cutting
-                low-frequency rumble, applying speech-optimized noise reduction, then
-                normalizing loudness — all in one click.
-              </p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">Does it work on Zoom recordings or phone recordings?</h3>
-              <p>
-                Yes — any speech-only recording works, including calls, Zoom
-                recordings, phone memos, and narration, since the chain is tuned for
-                the voice frequency range generally, not one specific recording
-                method.
-              </p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">Does this remove echo or reverb?</h3>
-              <p>
-                No — echo and reverb are a different problem from noise, and this
-                chain doesn&apos;t address them. Use the{" "}
-                <Link href="/echo-remove" className="text-amber-400 hover:underline">
-                  Echo Reducer
-                </Link>{" "}
-                for mild room echo or slap-back.
-              </p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">Is this different from a general noise remover?</h3>
-              <p>
-                Yes. This preset is tuned specifically for speech and has no settings
-                to configure. For music or non-speech audio where you want to control
-                the reduction strength yourself, use the Noise Remover instead.
-              </p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">Is this really free?</h3>
-              <p>Yes — completely free, no sign-up, no watermark on the output.</p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">What formats are supported?</h3>
-              <p>MP3, WAV, FLAC, M4A, AAC, OGG, and AIFF, up to 50MB and 20 minutes long.</p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">Will it change my voice?</h3>
-              <p>
-                No. It only affects background noise and loudness — it doesn&apos;t
-                alter pitch, formants, or anything about how your voice actually
-                sounds.
-              </p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">Does it remove keyboard clicks or mouse clicks?</h3>
-              <p>
-                Not reliably. This chain is built for steady background noise like
-                hiss, hum, and rumble — short, one-off sounds like keyboard clicks
-                don&apos;t have a consistent noise profile for it to remove, so some
-                may still come through.
-              </p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">Can it remove breathing sounds?</h3>
-              <p>
-                Not specifically — breaths are close enough to speech frequencies
-                that a general noise-reduction chain isn&apos;t built to isolate and
-                remove them the way it removes steady background hiss or hum.
-              </p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary mb-1">Can I clean multiple files at once?</h3>
-              <p>One file at a time — there&apos;s currently no batch upload option.</p>
-            </div>
-          </div>
-        </section>
+        <FAQSection faqs={faqs} />
       </main>
     </>
   );
