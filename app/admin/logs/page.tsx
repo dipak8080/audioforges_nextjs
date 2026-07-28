@@ -5,10 +5,8 @@ import { useRouter } from "next/navigation";
 import {
   Activity,
   ArrowDown,
-  AudioWaveform,
   ChevronUp,
   Loader2,
-  LogOut,
   Pause,
   Play,
   RefreshCw,
@@ -196,7 +194,6 @@ export default function AdminLogsPage() {
 
   const [isPaused, setIsPaused] = useState(false);
   const [manageOpen, setManageOpen] = useState(false);
-  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   // How many rows we're currently asking the backend for, per tab. Grows
@@ -640,15 +637,6 @@ export default function AdminLogsPage() {
     fetchHttp(); fetchSystem();
   }
 
-  async function handleLogout() {
-    setIsLoggingOut(true);
-    try {
-      await fetch("/api/admin/logout", { method: "POST" });
-    } finally {
-      router.push("/admin/login");
-    }
-  }
-
   async function handleManualRefresh() {
     setIsRefreshing(true);
     currentDelayRef.current = MIN_POLL_MS; // resume fast polling after a manual refresh
@@ -661,297 +649,166 @@ export default function AdminLogsPage() {
   }
 
   return (
-    <main className="h-dvh flex flex-col overflow-hidden bg-graphite-950 text-text-primary">
-      {/* ===== Top bar ===== */}
-      <header className="shrink-0 border-b border-graphite-800 bg-graphite-950">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-2.5">
-            <AudioWaveform className="h-5 w-5 text-amber-500" />
-            <span className="text-sm font-semibold tracking-tight">AudioForges</span>
-            <span className="text-text-subtle text-sm hidden sm:inline">/</span>
-            <span className="text-sm text-text-muted hidden sm:inline">Monitoring</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="hidden sm:flex items-center gap-1.5 text-xs text-text-subtle">
-              <span className={`h-1.5 w-1.5 rounded-full ${isPaused ? "bg-amber-500" : "bg-teal-400"}`} />
-              {isPaused ? "Paused" : "Live"}
-            </span>
-            <button
-              onClick={handleLogout}
-              disabled={isLoggingOut}
-              className="flex items-center gap-1.5 rounded-md border border-graphite-700 px-2.5 py-1.5 text-xs text-text-muted hover:text-text-primary hover:border-graphite-700 hover:bg-graphite-900 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              {isLoggingOut ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <LogOut className="h-3.5 w-3.5" />
-              )}
-              <span className="hidden sm:inline">{isLoggingOut ? "Signing out…" : "Sign out"}</span>
-            </button>
-          </div>
+    <div className="mx-auto max-w-7xl w-full px-4 sm:px-6 py-4 sm:py-5 flex-1 min-h-0 flex flex-col gap-4 sm:gap-5">
+      {/* ===== Page heading + tabs ===== */}
+      <div className="shrink-0 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 sm:gap-4">
+        <div>
+          <h1 className="text-lg sm:text-xl font-semibold tracking-tight">Request Logs</h1>
+          <p className="text-xs sm:text-sm text-text-muted mt-0.5 hidden sm:block">
+            Live traffic and system events from the backend.
+          </p>
         </div>
-      </header>
-
-      <div className="mx-auto max-w-7xl w-full px-4 sm:px-6 py-4 sm:py-5 flex-1 min-h-0 flex flex-col gap-4 sm:gap-5">
-        {/* ===== Page heading + tabs ===== */}
-        <div className="shrink-0 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 sm:gap-4">
-          <div>
-            <h1 className="text-lg sm:text-xl font-semibold tracking-tight">Request Logs</h1>
-            <p className="text-xs sm:text-sm text-text-muted mt-0.5 hidden sm:block">Live traffic and system events from the backend.</p>
-          </div>
-          <div className="flex rounded-lg border border-graphite-800 bg-graphite-900 p-0.5 self-start sm:self-auto">
+        <div className="flex items-center gap-2 self-start sm:self-auto">
+          <span className="flex items-center gap-1.5 text-xs text-text-subtle">
+            <span className={`h-1.5 w-1.5 rounded-full ${isPaused ? "bg-amber-500" : "bg-teal-400"}`} />
+            {isPaused ? "Paused" : "Live"}
+          </span>
+          <div className="flex rounded-lg border border-graphite-800 bg-graphite-900 p-0.5">
             <TabButton active={tab === "http"} onClick={() => setTab("http")} icon={Activity} label="HTTP" />
             <TabButton active={tab === "system"} onClick={() => setTab("system")} icon={Terminal} label="System" />
           </div>
         </div>
+      </div>
 
-        {tab === "http" ? (
-          <>
-            {/* ===== Stat strip ===== */}
-            <div className="shrink-0 grid grid-cols-3 divide-x divide-graphite-800 rounded-lg border border-graphite-800 bg-graphite-900">
-              <Stat label="Total" value={totals.total} />
-              <Stat label="Success" value={totals.success} valueClass="text-teal-400" />
-              <Stat label="Failed" value={totals.failed} valueClass={totals.failed > 0 ? "text-red-500" : ""} />
-            </div>
+      {tab === "http" ? (
+        <>
+          {/* ===== Stat strip ===== */}
+          <div className="shrink-0 grid grid-cols-3 divide-x divide-graphite-800 rounded-lg border border-graphite-800 bg-graphite-900">
+            <Stat label="Total" value={totals.total} />
+            <Stat label="Success" value={totals.success} valueClass="text-teal-400" />
+            <Stat label="Failed" value={totals.failed} valueClass={totals.failed > 0 ? "text-red-500" : ""} />
+          </div>
 
-            {/* ===== Unified table card ===== */}
-            {/* NOTE: no overflow-hidden here - it would clip the Delete
-                dropdown menu, which needs to escape the card bounds on
-                small screens. */}
-            <section className="rounded-lg border border-graphite-800 bg-graphite-900 flex-1 min-h-0 flex flex-col">
-              {/* Toolbar row */}
-              <div className="shrink-0 flex flex-col lg:flex-row lg:items-center gap-3 px-4 py-3 border-b border-graphite-800">
-                <div className="relative flex-1 min-w-0">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-text-subtle pointer-events-none" />
+          {/* ===== Unified table card ===== */}
+          {/* NOTE: no overflow-hidden here - it would clip the Delete
+              dropdown menu, which needs to escape the card bounds on
+              small screens. */}
+          <section className="rounded-lg border border-graphite-800 bg-graphite-900 flex-1 min-h-0 flex flex-col">
+            {/* Toolbar row */}
+            <div className="shrink-0 flex flex-col lg:flex-row lg:items-center gap-3 px-4 py-3 border-b border-graphite-800">
+              <div className="relative flex-1 min-w-0">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-text-subtle pointer-events-none" />
+                <input
+                  type="text"
+                  value={pathFilter}
+                  onChange={(e) => setPathFilter(e.target.value)}
+                  placeholder="Filter by path…"
+                  className="w-full rounded-md border border-graphite-700 bg-graphite-850 py-1.5 pl-9 pr-9 text-sm text-text-primary placeholder:text-text-subtle focus:outline-none focus:border-amber-500/60"
+                />
+                {pathFilter && (
+                  <button
+                    onClick={() => setPathFilter("")}
+                    aria-label="Clear search"
+                    className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1 rounded text-text-subtle hover:text-text-primary hover:bg-graphite-800 transition-colors"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  value={methodFilter}
+                  onChange={(e) => setMethodFilter(e.target.value)}
+                  className="rounded-md border border-graphite-700 bg-graphite-850 px-2.5 py-1.5 text-sm text-text-primary focus:outline-none focus:border-amber-500/60"
+                >
+                  <option value="">Method: all</option>
+                  <option value="GET">GET</option>
+                  <option value="POST">POST</option>
+                  <option value="DELETE">DELETE</option>
+                </select>
+                <select
+                  value={dateFilter}
+                  onChange={(e) => setDateFilter(e.target.value as DateFilter)}
+                  className="rounded-md border border-graphite-700 bg-graphite-850 px-2.5 py-1.5 text-sm text-text-primary focus:outline-none focus:border-amber-500/60"
+                >
+                  <option value="all">Date: all</option>
+                  <option value="today">Today</option>
+                  <option value="yesterday">Yesterday</option>
+                </select>
+                <label className="flex items-center gap-1.5 text-sm text-text-muted select-none cursor-pointer whitespace-nowrap">
                   <input
-                    type="text"
-                    value={pathFilter}
-                    onChange={(e) => setPathFilter(e.target.value)}
-                    placeholder="Filter by path…"
-                    className="w-full rounded-md border border-graphite-700 bg-graphite-850 py-1.5 pl-9 pr-9 text-sm text-text-primary placeholder:text-text-subtle focus:outline-none focus:border-amber-500/60"
+                    type="checkbox"
+                    checked={hideNoise}
+                    onChange={(e) => setHideNoise(e.target.checked)}
+                    className="accent-amber-500"
                   />
-                  {pathFilter && (
-                    <button
-                      onClick={() => setPathFilter("")}
-                      aria-label="Clear search"
-                      className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1 rounded text-text-subtle hover:text-text-primary hover:bg-graphite-800 transition-colors"
-                    >
-                      <X className="h-3.5 w-3.5" />
-                    </button>
+                  Hide noise
+                </label>
+                <div className="h-5 w-px bg-graphite-800 hidden sm:block" />
+                <IconAction
+                  onClick={() => setIsPaused((p) => !p)}
+                  icon={isPaused ? Play : Pause}
+                  label={isPaused ? "Resume" : "Pause"}
+                  highlight={isPaused}
+                />
+                <IconAction
+                  onClick={handleManualRefresh}
+                  icon={RefreshCw}
+                  label={isRefreshing ? "Refreshing…" : "Refresh"}
+                  spinning={isRefreshing}
+                  disabled={isRefreshing}
+                />
+                <div className="relative">
+                  <IconAction
+                    onClick={() => setManageOpen((o) => !o)}
+                    icon={Trash2}
+                    label="Delete"
+                    highlight={manageOpen}
+                  />
+                  {manageOpen && (
+                    <>
+                      {/* invisible backdrop: tap anywhere outside to close */}
+                      <button
+                        aria-hidden
+                        tabIndex={-1}
+                        onClick={() => setManageOpen(false)}
+                        className="fixed inset-0 z-20 cursor-default"
+                      />
+                      <div className="absolute top-full left-0 sm:left-auto sm:right-0 mt-2 w-48 rounded-lg border border-graphite-700 bg-graphite-850 shadow-xl overflow-hidden z-30">
+                        <MenuItem onClick={() => { setManageOpen(false); handleDelete(1); }}>Older than 1 day</MenuItem>
+                        <MenuItem onClick={() => { setManageOpen(false); handleDelete(7); }}>Older than 7 days</MenuItem>
+                        <MenuItem danger onClick={() => { setManageOpen(false); handleDelete(null); }}>Delete all logs</MenuItem>
+                      </div>
+                    </>
                   )}
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <select
-                    value={methodFilter}
-                    onChange={(e) => setMethodFilter(e.target.value)}
-                    className="rounded-md border border-graphite-700 bg-graphite-850 px-2.5 py-1.5 text-sm text-text-primary focus:outline-none focus:border-amber-500/60"
-                  >
-                    <option value="">Method: all</option>
-                    <option value="GET">GET</option>
-                    <option value="POST">POST</option>
-                    <option value="DELETE">DELETE</option>
-                  </select>
-                  <select
-                    value={dateFilter}
-                    onChange={(e) => setDateFilter(e.target.value as DateFilter)}
-                    className="rounded-md border border-graphite-700 bg-graphite-850 px-2.5 py-1.5 text-sm text-text-primary focus:outline-none focus:border-amber-500/60"
-                  >
-                    <option value="all">Date: all</option>
-                    <option value="today">Today</option>
-                    <option value="yesterday">Yesterday</option>
-                  </select>
-                  <label className="flex items-center gap-1.5 text-sm text-text-muted select-none cursor-pointer whitespace-nowrap">
-                    <input
-                      type="checkbox"
-                      checked={hideNoise}
-                      onChange={(e) => setHideNoise(e.target.checked)}
-                      className="accent-amber-500"
-                    />
-                    Hide noise
-                  </label>
-                  <div className="h-5 w-px bg-graphite-800 hidden sm:block" />
-                  <IconAction
-                    onClick={() => setIsPaused((p) => !p)}
-                    icon={isPaused ? Play : Pause}
-                    label={isPaused ? "Resume" : "Pause"}
-                    highlight={isPaused}
-                  />
-                  <IconAction
-                    onClick={handleManualRefresh}
-                    icon={RefreshCw}
-                    label={isRefreshing ? "Refreshing…" : "Refresh"}
-                    spinning={isRefreshing}
-                    disabled={isRefreshing}
-                  />
-                  <div className="relative">
-                    <IconAction
-                      onClick={() => setManageOpen((o) => !o)}
-                      icon={Trash2}
-                      label="Delete"
-                      highlight={manageOpen}
-                    />
-                    {manageOpen && (
-                      <>
-                        {/* invisible backdrop: tap anywhere outside to close */}
-                        <button
-                          aria-hidden
-                          tabIndex={-1}
-                          onClick={() => setManageOpen(false)}
-                          className="fixed inset-0 z-20 cursor-default"
-                        />
-                        <div className="absolute top-full left-0 sm:left-auto sm:right-0 mt-2 w-48 rounded-lg border border-graphite-700 bg-graphite-850 shadow-xl overflow-hidden z-30">
-                          <MenuItem onClick={() => { setManageOpen(false); handleDelete(1); }}>Older than 1 day</MenuItem>
-                          <MenuItem onClick={() => { setManageOpen(false); handleDelete(7); }}>Older than 7 days</MenuItem>
-                          <MenuItem danger onClick={() => { setManageOpen(false); handleDelete(null); }}>Delete all logs</MenuItem>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                </div>
               </div>
-
-              {/* Desktop table */}
-              {!isMobile && (
-              <div className="relative flex-1 min-h-0">
-              <div ref={scrollRef} onScroll={(e) => handleHttpScroll(e.currentTarget)} className="h-full overflow-y-auto scrollbar-thin">
-                <LoadMoreBar
-                  hasMore={httpHasMore}
-                  atCap={httpAtCap}
-                  loading={httpLoadingMore}
-                  onClick={loadMoreHttp}
-                  loadedCount={httpLogs.length}
-                  total={httpTotal}
-                />
-                <table className="w-full text-sm border-collapse">
-                  <thead className="sticky top-0 z-10 bg-graphite-900 border-b border-graphite-800">
-                    <tr className="text-left">
-                      <Th className="w-[130px]">Time</Th>
-                      <Th className="w-[80px]">Method</Th>
-                      <Th>Path</Th>
-                      <Th className="w-[80px]">Status</Th>
-                      <Th className="w-[90px] text-right">Duration</Th>
-                      <Th className="w-[130px]">Client IP</Th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-graphite-800/70">
-                    {filtered.map((log) => (
-                      <HttpTableRow key={log.id} log={log} />
-                    ))}
-                  </tbody>
-                </table>
-                <ListState loading={httpLoading} error={httpError} empty={filtered.length === 0} emptyLabel="No requests match the current filters." />
-              </div>
-              {showJumpHttp && (
-                <button
-                  onClick={jumpToBottomHttp}
-                  className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 rounded-full bg-amber-500 text-graphite-950 px-3.5 py-1.5 text-xs font-medium shadow-lg hover:bg-amber-400 transition-colors"
-                >
-                  <ArrowDown className="h-3.5 w-3.5" />
-                  Jump to latest
-                </button>
-              )}
-              </div>
-              )}
-
-              {/* Mobile rows */}
-              {isMobile && (
-              <div className="relative flex-1 min-h-0">
-              <div ref={mobileScrollRef} onScroll={(e) => handleHttpScroll(e.currentTarget)} className="h-full overflow-y-auto scrollbar-thin">
-                <LoadMoreBar
-                  hasMore={httpHasMore}
-                  atCap={httpAtCap}
-                  loading={httpLoadingMore}
-                  onClick={loadMoreHttp}
-                  loadedCount={httpLogs.length}
-                  total={httpTotal}
-                />
-                <div className="divide-y divide-graphite-800/70">
-                {filtered.map((log) => (
-                  <HttpCardRow key={log.id} log={log} />
-                ))}
-                </div>
-                <ListState loading={httpLoading} error={httpError} empty={filtered.length === 0} emptyLabel="No requests match the current filters." />
-              </div>
-              {showJumpHttp && (
-                <button
-                  onClick={jumpToBottomHttp}
-                  className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 rounded-full bg-amber-500 text-graphite-950 px-3.5 py-1.5 text-xs font-medium shadow-lg hover:bg-amber-400 transition-colors"
-                >
-                  <ArrowDown className="h-3.5 w-3.5" />
-                  Jump to latest
-                </button>
-              )}
-              </div>
-              )}
-
-              {/* Footer */}
-              <div className="shrink-0 px-4 py-2.5 border-t border-graphite-800 text-xs text-text-subtle tabular-nums">
-                Showing {filtered.length.toLocaleString()} of {httpLogs.length.toLocaleString()} loaded
-                {httpTotal > httpLogs.length && <> · {httpTotal.toLocaleString()} total</>}
-              </div>
-            </section>
-          </>
-        ) : (
-          <section className="rounded-lg border border-graphite-800 bg-graphite-900 overflow-hidden flex-1 min-h-0 flex flex-col">
-            <div className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-graphite-800">
-              <span className="text-sm text-text-muted">
-                Application log buffer
-                {sysTotal > 0 && (
-                  <span className="text-text-subtle tabular-nums">
-                    {" "}({systemLogs.length.toLocaleString()} of {sysTotal.toLocaleString()})
-                  </span>
-                )}
-              </span>
-              <button
-                onClick={() => handleDelete(null)}
-                className="flex items-center gap-1.5 text-xs text-text-subtle hover:text-red-500 transition-colors"
-              >
-                <Trash2 className="h-3 w-3" />
-                Clear
-              </button>
             </div>
+
+            {/* Desktop table */}
+            {!isMobile && (
             <div className="relative flex-1 min-h-0">
-            <div ref={sysRef} onScroll={handleSysScroll} className="h-full overflow-y-auto scrollbar-thin font-mono text-xs">
+            <div ref={scrollRef} onScroll={(e) => handleHttpScroll(e.currentTarget)} className="h-full overflow-y-auto scrollbar-thin">
               <LoadMoreBar
-                hasMore={sysHasMore}
-                atCap={sysAtCap}
-                loading={sysLoadingMore}
-                onClick={loadMoreSystem}
-                loadedCount={systemLogs.length}
-                total={sysTotal}
+                hasMore={httpHasMore}
+                atCap={httpAtCap}
+                loading={httpLoadingMore}
+                onClick={loadMoreHttp}
+                loadedCount={httpLogs.length}
+                total={httpTotal}
               />
-              {systemLogs.map((entry, index) => {
-                const tone = levelTone(entry.level);
-                // Only draw a divider when this entry's request_id differs
-                // from the previous entry's - groups all log lines that
-                // came from the same request together, with a visible
-                // break only where a new request's logs actually start,
-                // instead of a line after every single log entry.
-                const prevEntry = systemLogs[index - 1];
-                const isNewRequestGroup = index === 0 || entry.request_id !== prevEntry?.request_id;
-                return (
-                  <div
-                    key={entry.id}
-                    className={`border-l-2 ${tone.border} px-4 py-2 hover:bg-graphite-850/60 transition-colors ${
-                      isNewRequestGroup && index !== 0 ? "border-t border-t-graphite-700 mt-1 pt-2.5" : ""
-                    }`}
-                  >
-                    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                      <span className={`font-semibold ${tone.text}`}>{entry.level}</span>
-                      <span className="text-text-subtle tabular-nums">{npDate(entry.timestamp)} {npTime(entry.timestamp)}</span>
-                      <span className="text-text-subtle">{entry.logger}</span>
-                    </div>
-                    <p className="text-text-primary mt-0.5 whitespace-pre-wrap break-words leading-relaxed">
-                      {entry.message}
-                    </p>
-                  </div>
-                );
-              })}
-              <ListState loading={systemLoading} error={systemError} empty={systemLogs.length === 0} emptyLabel="No system logs yet." />
+              <table className="w-full text-sm border-collapse">
+                <thead className="sticky top-0 z-10 bg-graphite-900 border-b border-graphite-800">
+                  <tr className="text-left">
+                    <Th className="w-[130px]">Time</Th>
+                    <Th className="w-[80px]">Method</Th>
+                    <Th>Path</Th>
+                    <Th className="w-[80px]">Status</Th>
+                    <Th className="w-[90px] text-right">Duration</Th>
+                    <Th className="w-[130px]">Client IP</Th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-graphite-800/70">
+                  {filtered.map((log) => (
+                    <HttpTableRow key={log.id} log={log} />
+                  ))}
+                </tbody>
+              </table>
+              <ListState loading={httpLoading} error={httpError} empty={filtered.length === 0} emptyLabel="No requests match the current filters." />
             </div>
-            {showJumpSys && (
+            {showJumpHttp && (
               <button
-                onClick={jumpToBottomSys}
+                onClick={jumpToBottomHttp}
                 className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 rounded-full bg-amber-500 text-graphite-950 px-3.5 py-1.5 text-xs font-medium shadow-lg hover:bg-amber-400 transition-colors"
               >
                 <ArrowDown className="h-3.5 w-3.5" />
@@ -959,10 +816,117 @@ export default function AdminLogsPage() {
               </button>
             )}
             </div>
+            )}
+
+            {/* Mobile rows */}
+            {isMobile && (
+            <div className="relative flex-1 min-h-0">
+            <div ref={mobileScrollRef} onScroll={(e) => handleHttpScroll(e.currentTarget)} className="h-full overflow-y-auto scrollbar-thin">
+              <LoadMoreBar
+                hasMore={httpHasMore}
+                atCap={httpAtCap}
+                loading={httpLoadingMore}
+                onClick={loadMoreHttp}
+                loadedCount={httpLogs.length}
+                total={httpTotal}
+              />
+              <div className="divide-y divide-graphite-800/70">
+              {filtered.map((log) => (
+                <HttpCardRow key={log.id} log={log} />
+              ))}
+              </div>
+              <ListState loading={httpLoading} error={httpError} empty={filtered.length === 0} emptyLabel="No requests match the current filters." />
+            </div>
+            {showJumpHttp && (
+              <button
+                onClick={jumpToBottomHttp}
+                className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 rounded-full bg-amber-500 text-graphite-950 px-3.5 py-1.5 text-xs font-medium shadow-lg hover:bg-amber-400 transition-colors"
+              >
+                <ArrowDown className="h-3.5 w-3.5" />
+                Jump to latest
+              </button>
+            )}
+            </div>
+            )}
+
+            {/* Footer */}
+            <div className="shrink-0 px-4 py-2.5 border-t border-graphite-800 text-xs text-text-subtle tabular-nums">
+              Showing {filtered.length.toLocaleString()} of {httpLogs.length.toLocaleString()} loaded
+              {httpTotal > httpLogs.length && <> · {httpTotal.toLocaleString()} total</>}
+            </div>
           </section>
-        )}
-      </div>
-    </main>
+        </>
+      ) : (
+        <section className="rounded-lg border border-graphite-800 bg-graphite-900 overflow-hidden flex-1 min-h-0 flex flex-col">
+          <div className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-graphite-800">
+            <span className="text-sm text-text-muted">
+              Application log buffer
+              {sysTotal > 0 && (
+                <span className="text-text-subtle tabular-nums">
+                  {" "}({systemLogs.length.toLocaleString()} of {sysTotal.toLocaleString()})
+                </span>
+              )}
+            </span>
+            <button
+              onClick={() => handleDelete(null)}
+              className="flex items-center gap-1.5 text-xs text-text-subtle hover:text-red-500 transition-colors"
+            >
+              <Trash2 className="h-3 w-3" />
+              Clear
+            </button>
+          </div>
+          <div className="relative flex-1 min-h-0">
+          <div ref={sysRef} onScroll={handleSysScroll} className="h-full overflow-y-auto scrollbar-thin font-mono text-xs">
+            <LoadMoreBar
+              hasMore={sysHasMore}
+              atCap={sysAtCap}
+              loading={sysLoadingMore}
+              onClick={loadMoreSystem}
+              loadedCount={systemLogs.length}
+              total={sysTotal}
+            />
+            {systemLogs.map((entry, index) => {
+              const tone = levelTone(entry.level);
+              // Only draw a divider when this entry's request_id differs
+              // from the previous entry's - groups all log lines that
+              // came from the same request together, with a visible
+              // break only where a new request's logs actually start,
+              // instead of a line after every single log entry.
+              const prevEntry = systemLogs[index - 1];
+              const isNewRequestGroup = index === 0 || entry.request_id !== prevEntry?.request_id;
+              return (
+                <div
+                  key={entry.id}
+                  className={`border-l-2 ${tone.border} px-4 py-2 hover:bg-graphite-850/60 transition-colors ${
+                    isNewRequestGroup && index !== 0 ? "border-t border-t-graphite-700 mt-1 pt-2.5" : ""
+                  }`}
+                >
+                  <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                    <span className={`font-semibold ${tone.text}`}>{entry.level}</span>
+                    <span className="text-text-subtle tabular-nums">{npDate(entry.timestamp)} {npTime(entry.timestamp)}</span>
+                    <span className="text-text-subtle">{entry.logger}</span>
+                  </div>
+                  <p className="text-text-primary mt-0.5 whitespace-pre-wrap break-words leading-relaxed">
+                    {entry.message}
+                  </p>
+                </div>
+              );
+            })}
+            <ListState loading={systemLoading} error={systemError} empty={systemLogs.length === 0} emptyLabel="No system logs yet." />
+          </div>
+          {showJumpSys && (
+            <button
+              onClick={jumpToBottomSys}
+              className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 rounded-full bg-amber-500 text-graphite-950 px-3.5 py-1.5 text-xs font-medium shadow-lg hover:bg-amber-400 transition-colors"
+            >
+              <ArrowDown className="h-3.5 w-3.5" />
+              Jump to latest
+            </button>
+          )}
+          </div>
+        </section>
+      )}
+    </div>
   );
 }
 
