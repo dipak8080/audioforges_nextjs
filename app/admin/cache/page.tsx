@@ -187,7 +187,7 @@ export default function AdminCachePage() {
   const cacheCritical = !diskCritical && !diskHigh && percent >= 95;
 
   return (
-    <div className="mx-auto max-w-2xl w-full px-4 sm:px-6 py-4 sm:py-5 flex-1 min-h-0 overflow-y-auto scrollbar-thin flex flex-col gap-4 sm:gap-5">
+    <div className="mx-auto max-w-5xl w-full px-4 sm:px-6 py-4 sm:py-5 flex-1 min-h-0 overflow-y-auto scrollbar-thin flex flex-col gap-4 sm:gap-5">
       {/* ===== Header ===== */}
       <div>
         <div className="flex items-start justify-between gap-3 mb-1">
@@ -251,82 +251,83 @@ export default function AdminCachePage() {
             </AlertBanner>
           )}
 
-          {/* ===== 1. Your disk ===== */}
-          <section className="rounded-lg border border-graphite-800 bg-graphite-900 p-4 sm:p-5 flex flex-col gap-2.5">
-            <div className="flex items-center gap-2">
-              <Server className="h-4 w-4 text-text-muted shrink-0" />
-              <span className="text-sm font-semibold">Your VPS disk</span>
-              <span className={`text-xs font-medium ml-auto ${diskHealth.text}`}>{diskHealth.label}</span>
-            </div>
-            <div>
-              <div className="flex justify-between items-baseline text-xs mb-1.5">
-                <span className="text-text-subtle tabular-nums">
-                  {fmtSize(stats.disk_used_gb)} of {fmtSize(stats.disk_total_gb)}
-                </span>
-                <span className={`tabular-nums font-semibold ${diskHealth.text}`}>{stats.disk_percent_used}%</span>
+          {/* ===== 1 & 2. Disk + cache storage side by side on wide screens ===== */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5">
+            <section className="rounded-lg border border-graphite-800 bg-graphite-900 p-4 sm:p-5 flex flex-col gap-2.5">
+              <div className="flex items-center gap-2">
+                <Server className="h-4 w-4 text-text-muted shrink-0" />
+                <span className="text-sm font-semibold">Your VPS disk</span>
+                <span className={`text-xs font-medium ml-auto ${diskHealth.text}`}>{diskHealth.label}</span>
               </div>
-              <div className="h-2 rounded-full bg-graphite-800 overflow-hidden">
-                <div
-                  className={`h-full rounded-full ${diskHealth.bar} transition-all duration-500`}
-                  style={{ width: `${Math.min(100, stats.disk_percent_used)}%` }}
-                />
+              <div>
+                <div className="flex justify-between items-baseline text-xs mb-1.5">
+                  <span className="text-text-subtle tabular-nums">
+                    {fmtSize(stats.disk_used_gb)} of {fmtSize(stats.disk_total_gb)}
+                  </span>
+                  <span className={`tabular-nums font-semibold ${diskHealth.text}`}>{stats.disk_percent_used}%</span>
+                </div>
+                <div className="h-2 rounded-full bg-graphite-800 overflow-hidden">
+                  <div
+                    className={`h-full rounded-full ${diskHealth.bar} transition-all duration-500`}
+                    style={{ width: `${Math.min(100, stats.disk_percent_used)}%` }}
+                  />
+                </div>
               </div>
-            </div>
-            <p className="text-xs text-text-subtle">
-              {fmtSize(stats.disk_free_gb)} free — shared by the operating system, Docker, and this cache.
-            </p>
-            {unaccountedGb > 1 && stats.total_gb < unaccountedGb && (
-              <p className="text-[11px] text-text-subtle border-t border-graphite-800 pt-2 leading-relaxed">
-                Only {fmtSize(stats.total_gb)} of the {fmtSize(stats.disk_used_gb)} in use is this cache — the
-                other {fmtSize(unaccountedGb)} is the OS, Docker images, or other files. Clearing the cache
-                below won&apos;t free that space.
+              <p className="text-xs text-text-subtle">
+                {fmtSize(stats.disk_free_gb)} free — shared by the operating system, Docker, and this cache.
               </p>
-            )}
-          </section>
-
-          {/* ===== 2. Cache storage ===== */}
-          <section className="rounded-lg border border-graphite-800 bg-graphite-900 p-4 sm:p-5 flex flex-col gap-3">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2 min-w-0">
-                <Database className="h-4 w-4 text-amber-500 shrink-0" />
-                <span className="text-sm font-semibold truncate">Cache storage</span>
-              </div>
-              <span className={`text-xs font-medium shrink-0 ${cacheHealth.text}`}>{cacheHealth.label}</span>
-            </div>
-
-            <div>
-              <div className="flex justify-between items-baseline text-xs mb-1.5">
-                <span className="text-text-subtle tabular-nums">
-                  {fmtSize(stats.total_gb)} used of {fmtSize(stats.max_gb)} allowed
-                </span>
-                <span className={`tabular-nums font-semibold ${cacheHealth.text}`}>{percent}%</span>
-              </div>
-              <div className="h-3 rounded-full bg-graphite-800 overflow-hidden">
-                <div
-                  className={`h-full rounded-full ${cacheHealth.bar} transition-all duration-500`}
-                  style={{ width: `${percent}%` }}
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 pt-1 border-t border-graphite-800">
-              <div>
-                <p className="text-[11px] uppercase tracking-wider text-text-subtle">Cached files</p>
-                <p className="text-base font-semibold tabular-nums mt-0.5">{stats.entry_count.toLocaleString()}</p>
-              </div>
-              <div>
-                <p className="text-[11px] uppercase tracking-wider text-text-subtle">Room left</p>
-                <p className="text-base font-semibold tabular-nums mt-0.5">
-                  {fmtSize(Math.max(0, stats.max_gb - stats.total_gb))}
+              {unaccountedGb > 1 && stats.total_gb < unaccountedGb && (
+                <p className="text-[11px] text-text-subtle border-t border-graphite-800 pt-2 leading-relaxed">
+                  Only {fmtSize(stats.total_gb)} of the {fmtSize(stats.disk_used_gb)} in use is this cache — the
+                  other {fmtSize(unaccountedGb)} is the OS, Docker images, or other files. Clearing the cache
+                  below won&apos;t free that space.
                 </p>
-              </div>
-            </div>
+              )}
+            </section>
 
-            <p className="text-[11px] text-text-subtle leading-relaxed">
-              When cached files fill this space, the oldest unplayed ones are deleted automatically to make room —
-              this never affects the disk outside its own allowance above.
-            </p>
-          </section>
+            <section className="rounded-lg border border-graphite-800 bg-graphite-900 p-4 sm:p-5 flex flex-col gap-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Database className="h-4 w-4 text-amber-500 shrink-0" />
+                  <span className="text-sm font-semibold truncate">Cache storage</span>
+                </div>
+                <span className={`text-xs font-medium shrink-0 ${cacheHealth.text}`}>{cacheHealth.label}</span>
+              </div>
+
+              <div>
+                <div className="flex justify-between items-baseline text-xs mb-1.5">
+                  <span className="text-text-subtle tabular-nums">
+                    {fmtSize(stats.total_gb)} used of {fmtSize(stats.max_gb)} allowed
+                  </span>
+                  <span className={`tabular-nums font-semibold ${cacheHealth.text}`}>{percent}%</span>
+                </div>
+                <div className="h-3 rounded-full bg-graphite-800 overflow-hidden">
+                  <div
+                    className={`h-full rounded-full ${cacheHealth.bar} transition-all duration-500`}
+                    style={{ width: `${percent}%` }}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 pt-1 border-t border-graphite-800">
+                <div>
+                  <p className="text-[11px] uppercase tracking-wider text-text-subtle">Cached files</p>
+                  <p className="text-base font-semibold tabular-nums mt-0.5">{stats.entry_count.toLocaleString()}</p>
+                </div>
+                <div>
+                  <p className="text-[11px] uppercase tracking-wider text-text-subtle">Room left</p>
+                  <p className="text-base font-semibold tabular-nums mt-0.5">
+                    {fmtSize(Math.max(0, stats.max_gb - stats.total_gb))}
+                  </p>
+                </div>
+              </div>
+
+              <p className="text-[11px] text-text-subtle leading-relaxed">
+                When cached files fill this space, the oldest unplayed ones are deleted automatically to make room —
+                this never affects the disk outside its own allowance above.
+              </p>
+            </section>
+          </div>
 
           {/* ===== 3. Change the allowance ===== */}
           <section className="rounded-lg border border-graphite-800 bg-graphite-900 p-4 sm:p-5">
