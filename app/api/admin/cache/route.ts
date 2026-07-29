@@ -55,3 +55,36 @@ export async function POST() {
     return NextResponse.json({ error: `Failed to reach backend: ${(err as Error).message}` }, { status: 502 });
   }
 }
+
+export async function PATCH(request: NextRequest) {
+  const body = await request.json().catch(() => null);
+  const gb = body?.gb;
+
+  if (typeof gb !== "number" || gb <= 0) {
+    return NextResponse.json({ error: "Invalid gb value" }, { status: 400 });
+  }
+
+  const url = new URL(`${BACKEND_BASE}/admin/cache/limit`);
+  url.searchParams.set("key", ADMIN_KEY || "");
+  url.searchParams.set("gb", String(gb));
+
+  try {
+    const res = await fetch(url.toString(), { method: "POST", cache: "no-store" });
+
+    if (res.status === 401 || res.status === 403) {
+      return NextResponse.json(
+        { error: "Backend rejected the admin key (misconfigured BACKEND_ADMIN_KEY?)" },
+        { status: 502 }
+      );
+    }
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      return NextResponse.json({ error: `Backend returned ${res.status}: ${text || res.statusText}` }, { status: 502 });
+    }
+
+    const data = await res.json();
+    return NextResponse.json(data);
+  } catch (err) {
+    return NextResponse.json({ error: `Failed to reach backend: ${(err as Error).message}` }, { status: 502 });
+  }
+}

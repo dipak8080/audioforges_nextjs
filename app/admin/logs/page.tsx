@@ -4,6 +4,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Activity,
+  AlertTriangle,
   ArrowDown,
   ChevronUp,
   Loader2,
@@ -195,6 +196,9 @@ export default function AdminLogsPage() {
   const [isPaused, setIsPaused] = useState(false);
   const [manageOpen, setManageOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<number | null | "none">("none");
+  const [deleteRunning, setDeleteRunning] = useState(false);
+  const [deleteResult, setDeleteResult] = useState<string | null>(null);
 
   // How many rows we're currently asking the backend for, per tab. Grows
   // by LOAD_MORE_STEP each time the user loads older entries.
@@ -626,15 +630,33 @@ export default function AdminLogsPage() {
     setSysLoadingMore(false);
   }
 
-  async function handleDelete(olderThanDays: number | null) {
-    const label = olderThanDays ? `older than ${olderThanDays} day(s)` : "ALL";
-    if (!confirm(`Delete logs ${label}? This can't be undone.`)) return;
-    const url = olderThanDays ? `/api/admin/logs?olderThanDays=${olderThanDays}` : `/api/admin/logs`;
-    const res = await fetch(url, { method: "DELETE" });
-    const data = await res.json();
-    alert(`Deleted ${data.deleted_http_logs} HTTP logs.` + (data.system_buffer_cleared ? " System buffer cleared." : ""));
-    currentDelayRef.current = MIN_POLL_MS; // resume fast polling after a manual action
-    fetchHttp(); fetchSystem();
+  function requestDelete(olderThanDays: number | null) {
+    setDeleteResult(null);
+    setPendingDelete(olderThanDays);
+  }
+
+  async function confirmDelete() {
+    if (pendingDelete === "none") return;
+    const olderThanDays = pendingDelete;
+    setDeleteRunning(true);
+    try {
+      const url = olderThanDays ? `/api/admin/logs?olderThanDays=${olderThanDays}` : `/api/admin/logs`;
+      const res = await fetch(url, { method: "DELETE" });
+      const data = await res.json();
+      const n = data.deleted_http_logs ?? 0;
+      setDeleteResult(
+        `Removed ${n.toLocaleString()} HTTP log ${n === 1 ? "entry" : "entries"}` +
+          (data.system_buffer_cleared ? " and cleared the system log buffer." : ".")
+      );
+      currentDelayRef.current = MIN_POLL_MS; // resume fast polling after a manual action
+      fetchHttp();
+      fetchSystem();
+    } catch (e) {
+      setDeleteResult(`Failed: ${(e as Error).message}`);
+    } finally {
+      setDeleteRunning(false);
+      setPendingDelete("none");
+    }
   }
 
   async function handleManualRefresh() {
@@ -765,9 +787,9 @@ export default function AdminLogsPage() {
                         className="fixed inset-0 z-20 cursor-default"
                       />
                       <div className="absolute top-full left-0 sm:left-auto sm:right-0 mt-2 w-48 rounded-lg border border-graphite-700 bg-graphite-850 shadow-xl overflow-hidden z-30">
-                        <MenuItem onClick={() => { setManageOpen(false); handleDelete(1); }}>Older than 1 day</MenuItem>
-                        <MenuItem onClick={() => { setManageOpen(false); handleDelete(7); }}>Older than 7 days</MenuItem>
-                        <MenuItem danger onClick={() => { setManageOpen(false); handleDelete(null); }}>Delete all logs</MenuItem>
+                        <MenuItem onClick={() => { setManageOpen(false); requestDelete(1); }}>Older than 1 day</MenuItem>
+                        <MenuItem onClick={() => { setManageOpen(false); requestDelete(7); }}>Older than 7 days</MenuItem>
+                        <MenuItem danger onClick={() => { setManageOpen(false); requestDelete(null); }}>Delete all logs</MenuItem>
                       </div>
                     </>
                   )}
@@ -804,7 +826,16 @@ export default function AdminLogsPage() {
                   ))}
                 </tbody>
               </table>
-              <ListState loading={httpLoading} error={httpError} empty={filtered.length === 0} emptyLabel="No requests match the current filters." />
+              <ListState
+                loading={httpLoading}
+                error={httpError}
+                empty={filtered.length === 0}
+                emptyLabel={
+                  httpLogs.length === 0
+                    ? "No requests logged yet."
+                    : "No requests match the current filters."
+                }
+              />
             </div>
             {showJumpHttp && (
               <button
@@ -835,7 +866,16 @@ export default function AdminLogsPage() {
                 <HttpCardRow key={log.id} log={log} />
               ))}
               </div>
-              <ListState loading={httpLoading} error={httpError} empty={filtered.length === 0} emptyLabel="No requests match the current filters." />
+              <ListState
+                loading={httpLoading}
+                error={httpError}
+                empty={filtered.length === 0}
+                emptyLabel={
+                  httpLogs.length === 0
+                    ? "No requests logged yet."
+                    : "No requests match the current filters."
+                }
+              />
             </div>
             {showJumpHttp && (
               <button
@@ -858,7 +898,7 @@ export default function AdminLogsPage() {
         </>
       ) : (
         <section className="rounded-lg border border-graphite-800 bg-graphite-900 overflow-hidden flex-1 min-h-0 flex flex-col">
-          <div className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-graphite-800">
+          <div className="shrink-0 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-4 py-3 border-b border-graphite-800">
             <span className="text-sm text-text-muted">
               Application log buffer
               {sysTotal > 0 && (
@@ -867,13 +907,29 @@ export default function AdminLogsPage() {
                 </span>
               )}
             </span>
-            <button
-              onClick={() => handleDelete(null)}
-              className="flex items-center gap-1.5 text-xs text-text-subtle hover:text-red-500 transition-colors"
-            >
-              <Trash2 className="h-3 w-3" />
-              Clear
-            </button>
+            <div className="flex items-center gap-2">
+              <IconAction
+                onClick={() => setIsPaused((p) => !p)}
+                icon={isPaused ? Play : Pause}
+                label={isPaused ? "Resume" : "Pause"}
+                highlight={isPaused}
+              />
+              <IconAction
+                onClick={handleManualRefresh}
+                icon={RefreshCw}
+                label={isRefreshing ? "Refreshing…" : "Refresh"}
+                spinning={isRefreshing}
+                disabled={isRefreshing}
+              />
+              <button
+                onClick={() => requestDelete(null)}
+                className="flex items-center gap-1.5 rounded-md border border-graphite-700 px-2.5 py-1.5 text-xs text-text-muted hover:text-red-500 hover:border-red-500/40 transition-colors"
+                title="Clears both HTTP and system logs"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Clear all logs</span>
+              </button>
+            </div>
           </div>
           <div className="relative flex-1 min-h-0">
           <div ref={sysRef} onScroll={handleSysScroll} className="h-full overflow-y-auto scrollbar-thin font-mono text-xs">
@@ -912,7 +968,12 @@ export default function AdminLogsPage() {
                 </div>
               );
             })}
-            <ListState loading={systemLoading} error={systemError} empty={systemLogs.length === 0} emptyLabel="No system logs yet." />
+            <ListState
+              loading={systemLoading}
+              error={systemError}
+              empty={systemLogs.length === 0}
+              emptyLabel="No system logs yet."
+            />
           </div>
           {showJumpSys && (
             <button
@@ -926,11 +987,99 @@ export default function AdminLogsPage() {
           </div>
         </section>
       )}
+
+      {pendingDelete !== "none" && (
+        <ConfirmDialog
+          title={pendingDelete === null ? "Delete all logs?" : `Delete logs older than ${pendingDelete} day${pendingDelete === 1 ? "" : "s"}?`}
+          body={
+            pendingDelete === null
+              ? "This permanently removes every HTTP log and clears the system log buffer. This can't be undone."
+              : `This permanently removes HTTP log entries older than ${pendingDelete} day${pendingDelete === 1 ? "" : "s"}. This can't be undone.`
+          }
+          confirmLabel={pendingDelete === null ? "Delete all logs" : "Delete"}
+          loading={deleteRunning}
+          onConfirm={confirmDelete}
+          onCancel={() => setPendingDelete("none")}
+        />
+      )}
+
+      {deleteResult && (
+        <div className="fixed bottom-4 sm:bottom-5 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-2rem)] max-w-sm sm:w-auto rounded-lg border border-graphite-700 bg-graphite-850 px-4 py-2.5 text-sm text-text-primary shadow-xl flex items-center gap-3">
+          <span className="flex-1 min-w-0">{deleteResult}</span>
+          <button
+            onClick={() => setDeleteResult(null)}
+            aria-label="Dismiss"
+            className="shrink-0 text-text-subtle hover:text-text-primary transition-colors"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
     </div>
   );
 }
 
 /* ===== Small building blocks ===== */
+
+function ConfirmDialog({
+  title, body, confirmLabel, loading, onConfirm, onCancel,
+}: {
+  title: string;
+  body: string;
+  confirmLabel: string;
+  loading: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  // Escape closes the dialog, same as clicking Cancel - matches native
+  // confirm() behavior so muscle memory still works.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape" && !loading) onCancel();
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [loading, onCancel]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <button
+        aria-hidden
+        tabIndex={-1}
+        onClick={loading ? undefined : onCancel}
+        className="absolute inset-0 bg-black/60 backdrop-blur-[2px] cursor-default"
+      />
+      <div className="relative w-full max-w-sm rounded-lg border border-graphite-700 bg-graphite-900 shadow-2xl p-4 sm:p-5 flex flex-col gap-3">
+        <div className="flex items-start gap-3">
+          <div className="shrink-0 h-8 w-8 rounded-full bg-red-500/10 flex items-center justify-center">
+            <AlertTriangle className="h-4 w-4 text-red-500" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-text-primary">{title}</p>
+            <p className="text-xs text-text-muted mt-1 leading-relaxed">{body}</p>
+          </div>
+        </div>
+        <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 pt-1">
+          <button
+            onClick={onCancel}
+            disabled={loading}
+            className="rounded-md border border-graphite-700 px-3.5 py-2 sm:py-1.5 text-xs text-text-muted hover:text-text-primary hover:bg-graphite-850 transition-colors disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={loading}
+            className="flex items-center justify-center gap-1.5 rounded-md bg-red-500 px-3.5 py-2 sm:py-1.5 text-xs font-semibold text-graphite-950 hover:bg-red-500/90 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            {loading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+            {loading ? "Deleting…" : confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function TabButton({
   active, onClick, icon: Icon, label,
