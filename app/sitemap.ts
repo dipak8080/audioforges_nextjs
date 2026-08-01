@@ -14,6 +14,7 @@ const CATEGORY_PRIORITY: Record<ToolCategory, number> = {
   "pitch-tempo": 0.8,
   cleanup: 0.7,
   ai: 0.7,
+  browser: 0.7,
 };
 
 export default function sitemap(): MetadataRoute.Sitemap {
