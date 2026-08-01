@@ -1,7 +1,15 @@
+
 // lib/types/converter.ts
 
 export type OutputFormat = "wav" | "mp3";
-export type ProcessingState = "idle" | "processing" | "complete" | "error";
+
+export type ProcessingState =
+  | "idle"
+  | "processing"
+  | "complete"
+  | "error";
+
+// ============ YOUTUBE CONVERTER TYPES ============
 
 export interface DownloadResponse {
   audio_base64?: string;
@@ -33,11 +41,29 @@ export interface FormatOption {
   value: OutputFormat;
   label: string;
   description: string;
+
+  /** Badge on the right, e.g. "Lossless" / "Compressed". */
+  quality?: string;
+
+  /** Mono spec line, e.g. "44.1 kHz · 16-bit · ~10 MB/min". */
+  spec?: string;
 }
 
 export const FORMAT_OPTIONS: FormatOption[] = [
-  { value: "wav", label: "WAV", description: "44.1kHz, lossless" },
-  { value: "mp3", label: "MP3", description: "320kbps" },
+  {
+    value: "wav",
+    label: "WAV",
+    quality: "Lossless",
+    description: "Uncompressed. Drop straight into any DAW.",
+    spec: "44.1 kHz · 16-bit · ~10 MB/min",
+  },
+  {
+    value: "mp3",
+    label: "MP3",
+    quality: "Compressed",
+    description: "Smaller files. Plays on everything.",
+    spec: "320 kbps · CBR · ~2.4 MB/min",
+  },
 ];
 
 // ============ KEY FINDER TYPES ============
@@ -76,7 +102,11 @@ export interface FileValidationResult {
 // ============ VOCAL REMOVER (SEPARATION) TYPES ============
 
 export type StemType = "vocals" | "instrumental";
-export type SeparationStatus = "processing" | "complete" | "failed";
+
+export type SeparationStatus =
+  | "processing"
+  | "complete"
+  | "failed";
 
 export interface SeparateResponse {
   job_id: string;
@@ -97,3 +127,4 @@ export type SeparationUiState =
   | "complete"
   | "failed"
   | "error";
+

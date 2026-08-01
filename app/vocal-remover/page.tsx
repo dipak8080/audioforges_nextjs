@@ -4,6 +4,7 @@ import { VocalRemoverForm } from "@/components/converter/VocalRemoverForm";
 import { FAQSection } from "@/components/faq/FAQSection";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
+import { getFeatureFlags } from "@/lib/api/railway";
 
 export const metadata: Metadata = {
   title: "Free AI Vocal Remover Online",
@@ -165,8 +166,9 @@ const faqs = [
   },
 ];
 
-export default function VocalRemoverPage() {
+export default async function VocalRemoverPage() {
   const relatedTools = getRelatedTools("vocal-remover", 5);
+  const { separationHqEnabled } = await getFeatureFlags();
 
   return (
     <>
@@ -186,7 +188,7 @@ export default function VocalRemoverPage() {
           </p>
         </header>
 
-        <VocalRemoverForm />
+        <VocalRemoverForm hqAvailable={separationHqEnabled} />
 
         <section className="grid gap-4 sm:grid-cols-3">
           {[

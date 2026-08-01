@@ -36,7 +36,7 @@ export default function TermsPage() {
   return (
     <main className="mx-auto max-w-3xl px-4 py-12 sm:py-16">
       <h1 className="text-3xl font-bold text-text-primary mb-2">Terms of Service</h1>
-      <p className="text-sm text-text-subtle mb-8">Last updated: July 2026</p>
+      <p className="text-sm text-text-subtle mb-8">Last updated: August 2026</p>
 
       <div className="space-y-8 text-text-muted leading-relaxed">
         <section className="space-y-2">
@@ -67,6 +67,13 @@ export default function TermsPage() {
             not retained longer than necessary to complete processing — you are
             responsible for keeping your own copies of any files you upload or
             results you generate.
+          </p>
+          <p>
+            Some browser-based tools, including the instrument tuner and the online
+            voice recorder, analyze microphone input directly in your browser
+            rather than uploading it to AudioForges servers. These tools do not
+            involve file uploads or server-side processing of your microphone
+            audio.
           </p>
         </section>
 

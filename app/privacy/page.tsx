@@ -36,7 +36,7 @@ export default function PrivacyPage() {
   return (
     <main className="mx-auto max-w-3xl px-4 py-12 sm:py-16">
       <h1 className="text-3xl font-bold text-text-primary mb-2">Privacy Policy</h1>
-      <p className="text-sm text-text-subtle mb-8">Last updated: July 2026</p>
+      <p className="text-sm text-text-subtle mb-8">Last updated: August 2026</p>
 
       <div className="space-y-8 text-text-muted leading-relaxed">
         <section className="space-y-2">
@@ -59,6 +59,20 @@ export default function PrivacyPage() {
             deleted after processing finishes, or after a short retention period if
             required for system reliability. We do not permanently store or
             distribute the audio files or URLs you submit.
+          </p>
+          <p>
+            <strong className="text-text-primary">Microphone input:</strong> some
+            browser-based tools, including the instrument tuner and the online
+            voice recorder, request access to your device&apos;s microphone. For
+            these tools, audio is captured and processed directly in your browser
+            using your device&apos;s own microphone and audio APIs — it is not
+            uploaded to AudioForges servers, recorded by us, or stored by us in any
+            form. For the tuner, this means the microphone signal is analyzed
+            locally to detect pitch in real time. For the voice recorder, your
+            recording is created, played back, and downloaded entirely within your
+            browser. You can stop microphone access at any time using the control
+            provided by the relevant tool or your browser&apos;s own site
+            permissions.
           </p>
           <p>
             <strong className="text-text-primary">Usage analytics:</strong> we use
@@ -114,7 +128,8 @@ export default function PrivacyPage() {
             Any file or URL you submit is used solely to provide the tool
             functionality you requested — converting, analyzing, or otherwise
             processing that specific submission. We do not use submitted content
-            for any other purpose.
+            for any other purpose. Microphone-based tools do not send audio to us
+            at all, as described above.
           </p>
         </section>
 

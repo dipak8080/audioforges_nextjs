@@ -4,6 +4,19 @@
 // Navbar dropdown, /tools hub page, and each page's "More free tools"
 // cross-link section all pull from this file — add a tool here once,
 // it shows up everywhere correctly and consistently.
+//
+// NOTE ON HQ TIERS: Studio Quality separation (/separate-hq, /stems-hq)
+// is NOT a separate entry here — it's an in-page toggle on the existing
+// "vocal-remover" and "stems" pages (see VocalRemoverForm's hqAvailable
+// prop). One URL per underlying tool concept, not two near-duplicate
+// pages competing for the same search intent.
+//
+// NOTE ON "browser" CATEGORY: these tools (recorder, metronome, BPM
+// tapper, tuner) run ENTIRELY client-side via Web Audio / MediaRecorder -
+// no upload, no backend call, no job polling. Grouped separately from
+// "convert"/"cleanup"/etc. rather than mixed in, since "no server
+// round-trip at all" is a genuinely different category of tool, not
+// just a different function within the same category.
 
 export type ToolCategory =
   | "download"
@@ -11,7 +24,8 @@ export type ToolCategory =
   | "pitch-tempo"
   | "cleanup"
   | "vocals"
-  | "ai";
+  | "ai"
+  | "browser";
 
 export type ToolStatus = "live" | "coming-soon";
 
@@ -35,6 +49,7 @@ export const CATEGORY_LABELS: Record<ToolCategory, string> = {
   cleanup: "Cleanup & Enhance",
   vocals: "Vocals & Key",
   ai: "AI Tools",
+  browser: "Browser Tools",
 };
 
 export const CATEGORY_ORDER: ToolCategory[] = [
@@ -44,9 +59,11 @@ export const CATEGORY_ORDER: ToolCategory[] = [
   "pitch-tempo",
   "cleanup",
   "ai",
+  "browser",
 ];
 
 export const TOOLS: Tool[] = [
+  // ---------- DOWNLOAD ----------
   {
     slug: "youtube-to-wav",
     name: "YouTube to WAV",
@@ -55,6 +72,32 @@ export const TOOLS: Tool[] = [
     status: "live",
     related: ["key-finder", "vocal-remover"],
   },
+  {
+    slug: "youtube-key-finder",
+    name: "YouTube Key & BPM Finder",
+    shortDescription: "Paste a YouTube link and get its key, BPM, and Camelot code directly.",
+    category: "download",
+    status: "live",
+    related: ["key-finder", "youtube-to-wav", "youtube-vocal-remover"],
+  },
+  {
+    slug: "youtube-vocal-remover",
+    name: "YouTube Vocal Remover",
+    shortDescription: "Paste a YouTube link and get vocal and instrumental stems directly.",
+    category: "download",
+    status: "live",
+    related: ["vocal-remover", "youtube-to-wav", "youtube-key-finder"],
+  },
+  {
+    slug: "youtube-stem-splitter",
+    name: "YouTube Stem Splitter",
+    shortDescription: "Paste a YouTube link and get vocals, drums, bass, and other stems directly.",
+    category: "download",
+    status: "live",
+    related: ["stems", "youtube-to-wav", "youtube-vocal-remover"],
+  },
+
+  // ---------- VOCALS & KEY ----------
   {
     slug: "key-finder",
     name: "Key & BPM Finder",
@@ -69,8 +112,18 @@ export const TOOLS: Tool[] = [
     shortDescription: "Split a track into vocal and instrumental stems.",
     category: "vocals",
     status: "live",
-    related: ["key-finder", "youtube-to-wav"],
+    related: ["stems", "key-finder", "youtube-to-wav"],
   },
+  {
+    slug: "stems",
+    name: "Stem Splitter",
+    shortDescription: "Split a track into vocals, drums, bass, and other stems.",
+    category: "vocals",
+    status: "live",
+    related: ["vocal-remover", "key-finder", "youtube-stem-splitter"],
+  },
+
+  // ---------- CONVERT & EDIT ----------
   {
     slug: "convert",
     name: "Audio Converter",
@@ -78,6 +131,14 @@ export const TOOLS: Tool[] = [
     category: "convert",
     status: "live",
     related: ["trim", "volume"],
+  },
+  {
+    slug: "video-to-audio",
+    name: "Video to Audio Converter",
+    shortDescription: "Extract audio from MP4, MOV, and other video files.",
+    category: "convert",
+    status: "live",
+    related: ["convert", "youtube-to-wav"],
   },
   {
     slug: "trim",
@@ -96,6 +157,30 @@ export const TOOLS: Tool[] = [
     related: ["trim", "convert"],
   },
   {
+    slug: "loudness-normalizer",
+    name: "Loudness Normalizer",
+    shortDescription: "Normalize a track to streaming, club, or broadcast loudness (LUFS).",
+    category: "convert",
+    status: "live",
+    related: ["volume", "convert"],
+  },
+  {
+    slug: "audio-joiner",
+    name: "Audio Joiner",
+    shortDescription: "Combine multiple audio files into a single track.",
+    category: "convert",
+    status: "live",
+    related: ["trim", "convert"],
+  },
+  {
+    slug: "fade",
+    name: "Fade In/Out",
+    shortDescription: "Add a smooth fade in and fade out to a track.",
+    category: "convert",
+    status: "live",
+    related: ["trim", "volume"],
+  },
+  {
     slug: "reverse",
     name: "Reverse Audio",
     shortDescription: "Flip a track to play backwards.",
@@ -103,6 +188,32 @@ export const TOOLS: Tool[] = [
     status: "live",
     related: ["pitch", "tempo"],
   },
+  {
+    slug: "mono-stereo-converter",
+    name: "Mono/Stereo Converter",
+    shortDescription: "Convert audio between mono and stereo channels.",
+    category: "convert",
+    status: "live",
+    related: ["sample-rate-converter", "convert"],
+  },
+  {
+    slug: "sample-rate-converter",
+    name: "Sample Rate Converter",
+    shortDescription: "Change an audio file's sample rate and bit depth.",
+    category: "convert",
+    status: "live",
+    related: ["mono-stereo-converter", "convert"],
+  },
+  {
+    slug: "ringtone-maker",
+    name: "Ringtone Maker",
+    shortDescription: "Trim a track into an iPhone-ready ringtone (M4R).",
+    category: "convert",
+    status: "live",
+    related: ["trim", "convert"],
+  },
+
+  // ---------- PITCH & TEMPO ----------
   {
     slug: "pitch",
     name: "Pitch Shifter",
@@ -119,6 +230,8 @@ export const TOOLS: Tool[] = [
     status: "live",
     related: ["pitch", "reverse"],
   },
+
+  // ---------- CLEANUP & ENHANCE ----------
   {
     slug: "noise-remove",
     name: "Noise Remover",
@@ -149,8 +262,18 @@ export const TOOLS: Tool[] = [
     shortDescription: "Strip silent gaps throughout a track, not just the ends.",
     category: "cleanup",
     status: "live",
-    related: ["voice-clean", "noise-remove"],
+    related: ["silence-split", "voice-clean", "noise-remove"],
   },
+  {
+    slug: "silence-split",
+    name: "Silence Splitter",
+    shortDescription: "Split one long recording into separate tracks at silent gaps.",
+    category: "cleanup",
+    status: "live",
+    related: ["silence-remove", "trim"],
+  },
+
+  // ---------- AI TOOLS ----------
   {
     slug: "speech-to-text",
     name: "Speech to Text",
@@ -159,6 +282,40 @@ export const TOOLS: Tool[] = [
     status: "live",
     related: ["voice-clean", "silence-remove"],
   },
+
+  // ---------- BROWSER TOOLS ----------
+  {
+    slug: "voice-recorder",
+    name: "Online Voice Recorder",
+    shortDescription: "Record audio from your microphone and download it — runs entirely in your browser.",
+    category: "browser",
+    status: "live",
+    related: ["convert", "trim"],
+  },
+  {
+  slug: "metronome",
+  name: "Online Metronome",
+  shortDescription: "Adjustable BPM metronome with time signature support, right in your browser.",
+  category: "browser",
+  status: "live",
+  related: ["bpm-tapper", "key-finder"],
+},
+{
+  slug: "bpm-tapper",
+  name: "BPM Tapper",
+  shortDescription: "Tap along to a beat and find its tempo instantly.",
+  category: "browser",
+  status: "live",
+  related: ["metronome", "key-finder"],
+},
+{
+  slug: "tuner",
+  name: "Online Tuner",
+  shortDescription: "Tune any instrument in real time using your microphone.",
+  category: "browser",
+  status: "live",
+  related: ["metronome", "key-finder"],
+},
 ];
 
 export function getLiveTools(): Tool[] {

@@ -152,6 +152,141 @@ export const guides: Guide[] = [
     updatedDate: "2026-07-24",
     category: "podcast-cleanup",
   },
+  {
+    slug: "ai-stem-separation-explained",
+    title: "How AI Stem Separation Actually Works",
+    description:
+      "How a single AI model splits a track into vocals, drums, bass, and other, why it's harder than a 2-stem split, and what Studio Quality actually changes.",
+    publishedDate: "2026-08-01",
+    updatedDate: "2026-08-01",
+    category: "production",
+  },
+  {
+    slug: "splitting-a-recording-into-separate-tracks",
+    title: "How to Split a Recording Into Separate Tracks by Silence",
+    description:
+      "How splitting a recording at silent gaps works, how to tune the threshold and gap length, and when to use manual cutting instead.",
+    publishedDate: "2026-08-01",
+    updatedDate: "2026-08-01",
+    category: "dj-mixing",
+  },
+  {
+    slug: "why-audio-needs-a-fade-in-out",
+    title: "Why Trimmed Audio Clips Need a Fade In and Out",
+    description:
+      "Why a hard cut at the start or end of audio causes a click or pop, how a fade in or fade out fixes it, and how long to make one.",
+    publishedDate: "2026-08-01",
+    updatedDate: "2026-08-01",
+    category: "production",
+  },
+  {
+    slug: "mono-vs-stereo-what-changes",
+    title: "Mono vs. Stereo: What Actually Changes When You Convert",
+    description:
+      "Why converting mono to stereo doesn't add width, why stereo to mono loses channel separation, and when each direction actually matters.",
+    publishedDate: "2026-08-01",
+    updatedDate: "2026-08-01",
+    category: "production",
+  },
+  {
+    slug: "sample-rate-and-bit-depth-explained",
+    title: "Sample Rate and Bit Depth: What They Actually Change",
+    description:
+      "Why converting to a higher sample rate doesn't add quality, what bit depth actually controls, and when you genuinely need to change either.",
+    publishedDate: "2026-08-01",
+    updatedDate: "2026-08-01",
+    category: "production",
+  },
+  {
+    slug: "what-is-lufs-loudness-explained",
+    title: "What Is LUFS, and Why Does Streaming Loudness Matter?",
+    description:
+      "Why LUFS measures perceived loudness differently than peak level, why streaming platforms normalize playback, and why two-pass measurement matters.",
+    publishedDate: "2026-08-01",
+    updatedDate: "2026-08-01",
+    category: "production",
+  },
+  {
+    slug: "what-is-an-m4r-file-explained",
+    title: "What Is an M4R File? The iPhone Ringtone Format Explained",
+    description:
+      "Why an M4R file is just AAC audio with a different extension, why iPhone ringtones cap at 40 seconds, and how to pick a good clip.",
+    publishedDate: "2026-08-01",
+    updatedDate: "2026-08-01",
+    category: "production",
+  },
+  {
+    slug: "why-m4a-extraction-is-instant",
+    title: "Why Extracting Audio to M4A Is Instant (and WAV Isn't)",
+    description:
+      "Why extracting audio to M4A is a near-instant stream copy, why WAV or FLAC doesn't add quality, and when lossless output actually helps.",
+    publishedDate: "2026-08-01",
+    updatedDate: "2026-08-01",
+    category: "production",
+  },
+  {
+    slug: "why-you-cant-just-concatenate-audio-files",
+    title: "Why You Can't Just Concatenate Audio Files",
+    description:
+      "Why joining audio files recorded at different sample rates can break playback, and how normalizing before joining fixes it.",
+    publishedDate: "2026-08-01",
+    updatedDate: "2026-08-01",
+    category: "production",
+  },
+  {
+    slug: "how-key-and-bpm-detection-works",
+    title: "How Automatic Key and BPM Detection Actually Works",
+    description:
+      "Why key and BPM detection can disagree between passes, why confidence scores matter, and why only part of a track gets analyzed.",
+    publishedDate: "2026-08-01",
+    updatedDate: "2026-08-01",
+    category: "dj-mixing",
+  },
+  {
+    slug: "how-youtube-tools-fetch-then-process",
+    title: "How AudioForges' YouTube Tools Work: Fetch, Then Process",
+    description:
+      "Why pasting a YouTube link takes longer than uploading a file, why private or restricted videos can't be processed, and what determines wait time.",
+    publishedDate: "2026-08-01",
+    updatedDate: "2026-08-01",
+    category: "production",
+  },
+  {
+    slug: "why-your-browser-can-record-without-uploading",
+    title: "Why Your Browser Can Record Audio Without Uploading It",
+    description:
+      "How browser-based recording works entirely on your device, why the output format depends on your browser, and how to get a cleaner recording.",
+    publishedDate: "2026-08-01",
+    updatedDate: "2026-08-01",
+    category: "podcast-cleanup",
+  },
+  {
+    slug: "why-online-metronomes-drift",
+    title: "Why Online Metronomes Drift Out of Time",
+    description:
+      "Why a basic JavaScript timer causes an online metronome to drift, and how scheduling clicks against the audio clock ahead of time fixes it.",
+    publishedDate: "2026-08-01",
+    updatedDate: "2026-08-01",
+    category: "production",
+  },
+  {
+    slug: "how-tap-tempo-detection-works",
+    title: "How Tap Tempo Detection Actually Works",
+    description:
+      "Why tap tempo tools only average your most recent taps, why a pause resets the count, and how to get a stable BPM reading.",
+    publishedDate: "2026-08-01",
+    updatedDate: "2026-08-01",
+    category: "dj-mixing",
+  },
+  {
+    slug: "how-instrument-tuners-detect-pitch",
+    title: "How Instrument Tuners Actually Detect Pitch",
+    description:
+      "Why tuners analyze the waveform directly instead of picking the loudest frequency, and why they turn off echo cancellation and noise suppression.",
+    publishedDate: "2026-08-01",
+    updatedDate: "2026-08-01",
+    category: "production",
+  },
 ];
 
 export function getGuideBySlug(slug: string): Guide | undefined {

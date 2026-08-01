@@ -1,7 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { Cookie, RefreshCw, Upload, Loader2, CheckCircle2, XCircle, Clock } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  Cookie,
+  RefreshCw,
+  Upload,
+  Loader2,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  FileText,
+  X,
+} from "lucide-react";
 
 interface CookieSlot {
   exists: boolean;
@@ -43,6 +53,44 @@ function formatAbsoluteTime(unixSeconds: number): string {
   });
 }
 
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  return `${(bytes / 1024).toFixed(1)} KB`;
+}
+
+// Wraps XHR in a promise so we get upload progress events, which fetch() can't provide.
+function uploadWithProgress(
+  url: string,
+  formData: FormData,
+  onProgress: (pct: number) => void
+): Promise<{ status: number; data: any }> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", url);
+
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) {
+        onProgress(Math.round((e.loaded / e.total) * 100));
+      }
+    };
+
+    xhr.onload = () => {
+      let data: any = null;
+      try {
+        data = JSON.parse(xhr.responseText);
+      } catch {
+        data = null;
+      }
+      resolve({ status: xhr.status, data });
+    };
+
+    xhr.onerror = () => reject(new Error("Network error during upload."));
+    xhr.onabort = () => reject(new Error("Upload cancelled."));
+
+    xhr.send(formData);
+  });
+}
+
 export default function AdminCookiesPage() {
   const [slots, setSlots] = useState<SlotMap | null>(null);
   const [loading, setLoading] = useState(true);
@@ -52,7 +100,11 @@ export default function AdminCookiesPage() {
   const [selectedSlot, setSelectedSlot] = useState("1");
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadResult, setUploadResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const dismissTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -73,30 +125,71 @@ export default function AdminCookiesPage() {
     load();
   }, [load]);
 
+  useEffect(() => {
+    return () => {
+      if (dismissTimer.current) clearTimeout(dismissTimer.current);
+    };
+  }, []);
+
   async function handleRefresh() {
     setRefreshing(true);
     await load();
+  }
+
+  function pickFile(f: File | null) {
+    setUploadResult(null);
+    if (dismissTimer.current) clearTimeout(dismissTimer.current);
+
+    if (f && !f.name.toLowerCase().endsWith(".txt")) {
+      setUploadResult({ ok: false, message: "Please choose a .txt cookies file exported from your browser." });
+      setFile(null);
+      return;
+    }
+    setFile(f);
+  }
+
+  function handleDrop(e: React.DragEvent<HTMLDivElement>) {
+    e.preventDefault();
+    setIsDragging(false);
+    const dropped = e.dataTransfer.files?.[0] ?? null;
+    if (dropped) pickFile(dropped);
   }
 
   async function handleUpload(e: React.FormEvent) {
     e.preventDefault();
     if (!file) return;
     setUploading(true);
+    setUploadProgress(0);
     setUploadResult(null);
+
     try {
       const formData = new FormData();
       formData.append("slot", selectedSlot);
       formData.append("file", file);
-      const res = await fetch("/api/admin/cookies", { method: "POST", body: formData });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || `Server returned ${res.status}`);
-      setUploadResult({ ok: true, message: `Uploaded ${(data.bytes_written / 1024).toFixed(1)} KB to slot ${data.slot}.` });
+
+      const { status, data } = await uploadWithProgress(
+        "/api/admin/cookies",
+        formData,
+        setUploadProgress
+      );
+
+      if (status < 200 || status >= 300) {
+        throw new Error(data?.error || `Server returned ${status}`);
+      }
+
+      setUploadResult({
+        ok: true,
+        message: `Uploaded ${formatFileSize(data.bytes_written)} to slot ${data.slot}.`,
+      });
       setFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
       await load();
+      dismissTimer.current = setTimeout(() => setUploadResult(null), 6000);
     } catch (e) {
       setUploadResult({ ok: false, message: (e as Error).message });
     } finally {
       setUploading(false);
+      setUploadProgress(0);
     }
   }
 
@@ -135,7 +228,7 @@ export default function AdminCookiesPage() {
           {Object.entries(slots).map(([slotName, info]) => (
             <div
               key={slotName}
-              className={`rounded-lg border p-3.5 flex flex-col gap-2.5 ${
+              className={`rounded-lg border p-3.5 flex flex-col gap-2.5 transition-colors ${
                 info.exists
                   ? "border-graphite-800 bg-graphite-900"
                   : "border-graphite-800/60 bg-graphite-900/40"
@@ -160,7 +253,7 @@ export default function AdminCookiesPage() {
                   <div className="flex items-baseline gap-1.5">
                     <span className="text-xs text-text-subtle">Size</span>
                     <span className="text-xs text-text-primary tabular-nums font-medium">
-                      {info.size_bytes ? `${(info.size_bytes / 1024).toFixed(1)} KB` : "—"}
+                      {info.size_bytes ? formatFileSize(info.size_bytes) : "—"}
                     </span>
                   </div>
                   {info.last_modified && (
@@ -184,34 +277,108 @@ export default function AdminCookiesPage() {
         <p className="text-xs text-text-muted mb-3">
           Export from your browser's cookie extension and upload here — no SSH needed.
         </p>
+
         <form onSubmit={handleUpload} className="flex flex-col gap-3">
-          <div className="flex flex-col sm:flex-row gap-3">
-            <select
-              value={selectedSlot}
-              onChange={(e) => setSelectedSlot(e.target.value)}
-              className="rounded-md border border-graphite-700 bg-graphite-850 px-2.5 py-2 text-sm text-text-primary focus:outline-none focus:border-amber-500/60 sm:w-44"
+          <select
+            value={selectedSlot}
+            onChange={(e) => setSelectedSlot(e.target.value)}
+            disabled={uploading}
+            className="rounded-md border border-graphite-700 bg-graphite-850 px-2.5 py-2 text-sm text-text-primary focus:outline-none focus:border-amber-500/60 sm:w-48 disabled:opacity-60"
+          >
+            <option value="1">Slot 1 (Primary)</option>
+            <option value="2">Slot 2 (Backup)</option>
+            <option value="3">Slot 3 (Backup)</option>
+          </select>
+
+          {/* Dropzone / file chip */}
+          {!file ? (
+            <div
+              onDragOver={(e) => {
+                e.preventDefault();
+                setIsDragging(true);
+              }}
+              onDragLeave={() => setIsDragging(false)}
+              onDrop={handleDrop}
+              onClick={() => fileInputRef.current?.click()}
+              role="button"
+              tabIndex={0}
+              className={`rounded-md border border-dashed px-4 py-6 flex flex-col items-center justify-center gap-1.5 cursor-pointer transition-colors ${
+                isDragging
+                  ? "border-amber-500 bg-amber-500/5"
+                  : "border-graphite-700 bg-graphite-850 hover:border-graphite-600 hover:bg-graphite-800/60"
+              }`}
             >
-              <option value="1">Slot 1 (Primary)</option>
-              <option value="2">Slot 2 (Backup)</option>
-              <option value="3">Slot 3 (Backup)</option>
-            </select>
-            <input
-              type="file"
-              accept=".txt"
-              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-              className="flex-1 rounded-md border border-graphite-700 bg-graphite-850 px-2.5 py-2 text-sm text-text-primary file:mr-3 file:rounded file:border-0 file:bg-graphite-800 file:px-2.5 file:py-1 file:text-xs file:text-text-muted focus:outline-none focus:border-amber-500/60"
-            />
-          </div>
+              <Upload className={`h-5 w-5 ${isDragging ? "text-amber-500" : "text-text-subtle"}`} />
+              <p className="text-xs text-text-primary">
+                <span className="font-medium">Click to browse</span> or drag a .txt file here
+              </p>
+              <p className="text-[11px] text-text-subtle">Exported cookies.txt only</p>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".txt"
+                onChange={(e) => pickFile(e.target.files?.[0] ?? null)}
+                className="hidden"
+              />
+            </div>
+          ) : (
+            <div className="rounded-md border border-graphite-700 bg-graphite-850 px-3 py-2.5 flex flex-col gap-2">
+              <div className="flex items-center gap-2.5">
+                <FileText className="h-4 w-4 text-amber-500 shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs text-text-primary truncate">{file.name}</p>
+                  <p className="text-[11px] text-text-subtle">
+                    {uploading ? `Uploading… ${uploadProgress}%` : formatFileSize(file.size)}
+                  </p>
+                </div>
+                {!uploading && (
+                  <button
+                    type="button"
+                    onClick={() => pickFile(null)}
+                    className="p-1 rounded text-text-subtle hover:text-text-primary hover:bg-graphite-800 transition-colors"
+                    aria-label="Remove file"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {/* Progress bar */}
+              {uploading && (
+                <div className="h-1.5 w-full rounded-full bg-graphite-800 overflow-hidden">
+                  <div
+                    className="h-full bg-amber-500 transition-[width] duration-150 ease-out"
+                    style={{ width: `${uploadProgress}%` }}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
           <button
             type="submit"
             disabled={!file || uploading}
             className="self-start flex items-center gap-1.5 rounded-md bg-amber-500 text-graphite-950 px-3.5 py-2 text-xs font-semibold hover:bg-amber-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
-            {uploading ? "Uploading…" : "Upload"}
+            {uploading ? `Uploading… ${uploadProgress}%` : "Upload"}
           </button>
+
           {uploadResult && (
-            <p className={`text-xs ${uploadResult.ok ? "text-teal-400" : "text-red-500"}`}>{uploadResult.message}</p>
+            <div
+              className={`flex items-start gap-2 rounded-md border px-3 py-2 text-xs transition-opacity ${
+                uploadResult.ok
+                  ? "border-teal-400/30 bg-teal-400/5 text-teal-400"
+                  : "border-red-500/30 bg-red-500/5 text-red-500"
+              }`}
+            >
+              {uploadResult.ok ? (
+                <CheckCircle2 className="h-3.5 w-3.5 shrink-0 mt-px" />
+              ) : (
+                <XCircle className="h-3.5 w-3.5 shrink-0 mt-px" />
+              )}
+              <span>{uploadResult.message}</span>
+            </div>
           )}
         </form>
       </div>

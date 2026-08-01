@@ -3,14 +3,14 @@ import Link from "next/link";
 import { SITE_URL } from "@/lib/constants";
 
 export const metadata: Metadata = {
-  title: "About AudioForges",
+  title: "About AudioForges — Free Audio Tools for Musicians & Creators",
   description:
-    "Learn about AudioForges, our mission to build free audio tools for music producers and DJs, and how our audio tools work.",
+    "Learn about AudioForges and our mission to build free audio tools for music producers, DJs, musicians, and creators — from audio editing and analysis to tuning, BPM, and metronome tools.",
   alternates: { canonical: `${SITE_URL}/about` },
   openGraph: {
-    title: "About AudioForges",
+    title: "About AudioForges — Free Audio Tools for Musicians & Creators",
     description:
-      "Learn about AudioForges, our mission to build free audio tools for music producers and DJs, and how our audio tools work.",
+      "Learn about AudioForges and our mission to build free audio tools for music producers, DJs, musicians, and creators — from audio editing and analysis to tuning, BPM, and metronome tools.",
     url: `${SITE_URL}/about`,
     siteName: "AudioForges",
     type: "website",
@@ -25,9 +25,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "About AudioForges",
+    title: "About AudioForges — Free Audio Tools for Musicians & Creators",
     description:
-      "Learn about AudioForges, our mission to build free audio tools for music producers and DJs, and how our audio tools work.",
+      "Learn about AudioForges and our mission to build free audio tools for music producers, DJs, musicians, and creators — from audio editing and analysis to tuning, BPM, and metronome tools.",
     images: ["/images/og-default.png"],
   },
 };
@@ -57,8 +57,9 @@ export default function AboutPage() {
           <Link href="/tools" className="text-amber-400 hover:underline">
             free audio tools
           </Link>{" "}
-          covering conversion, editing, pitch and tempo, cleanup, and AI-powered
-          processing — but the bar for adding anything new stays the same as day one.
+          covering conversion, editing, pitch and tempo, tuning, BPM, metronome
+          practice, cleanup, and AI-powered processing — but the bar for adding
+          anything new stays the same as day one.
         </p>
       </section>
 
@@ -83,7 +84,24 @@ export default function AboutPage() {
           person so it stays free and available for everyone.
         </p>
         <p>
-          Beyond those three, the toolset also covers everyday editing tasks —
+          <Link href="/bpm-tapper" className="text-amber-400 hover:underline">
+            <strong>BPM Tapper</strong>
+          </Link>{" "}
+          lets you tap along to a beat and calculates its tempo from the intervals
+          between taps.{" "}
+          <Link href="/metronome" className="text-amber-400 hover:underline">
+            <strong>Online Metronome</strong>
+          </Link>{" "}
+          provides adjustable BPM and time signature controls for practice, while
+          its scheduler uses the browser&apos;s audio clock to keep clicks precise.{" "}
+          <Link href="/tuner" className="text-amber-400 hover:underline">
+            <strong>Instrument Tuner</strong>
+          </Link>{" "}
+          uses your microphone to detect the pitch of a played note and shows the
+          nearest note, octave, and cents sharp or flat directly in the browser.
+        </p>
+        <p>
+          Beyond these core tools, the toolset also covers everyday editing tasks —
           format conversion, trimming, volume adjustment, reversing, pitch shifting,
           and tempo changes — plus cleanup tools purpose-built for different jobs:
           a general-purpose noise remover with adjustable strength, a one-click

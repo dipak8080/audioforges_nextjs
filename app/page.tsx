@@ -5,16 +5,16 @@ import { SITE_URL } from "@/lib/constants";
 import { CATEGORY_ORDER, getToolsByCategory, getLiveTools } from "@/lib/data/tools";
 
 export const metadata: Metadata = {
-  title: "AudioForges — Free Audio Tools for Music Producers & DJs",
+  title: "Free Audio Tools for Music Producers, DJs & Musicians",
   description:
-    "14 free, fast audio tools built for producers and DJs — conversion, editing, cleanup, pitch/tempo, and AI-powered transcription. No sign-up required.",
+    "Free online audio tools for producers, DJs, and musicians — convert, edit, clean, analyze, tune instruments, find BPM, and practice with a metronome. No sign-up required.",
   alternates: {
     canonical: SITE_URL,
   },
   openGraph: {
-    title: "AudioForges — Free Audio Tools for Music Producers & DJs",
+    title: "Free Audio Tools for Music Producers, DJs & Musicians",
     description:
-      "14 free, fast audio tools built for producers and DJs. No sign-up required.",
+      "Free online audio tools for producers, DJs, and musicians — convert, edit, clean, analyze, tune instruments, find BPM, and practice with a metronome. No sign-up required.",
     url: SITE_URL,
     siteName: "AudioForges",
     type: "website",
@@ -29,9 +29,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "AudioForges — Free Audio Tools for Music Producers & DJs",
+    title: "Free Audio Tools for Music Producers, DJs & Musicians",
     description:
-      "14 free, fast audio tools built for producers and DJs. No sign-up required.",
+      "Free online audio tools for producers, DJs, and musicians — convert, edit, clean, analyze, tune instruments, find BPM, and practice with a metronome. No sign-up required.",
     images: ["/images/og-default.png"],
   },
 };
@@ -42,7 +42,7 @@ const organizationJsonLd = {
   name: "AudioForges",
   url: SITE_URL,
   description:
-    "Free audio tools for music producers, DJs, and creators — conversion, cleanup, pitch/tempo, and AI transcription tools.",
+    "Free audio tools for music producers, DJs, musicians, and creators — conversion, editing, cleanup, pitch, tempo, tuning, metronome, BPM, and transcription tools.",
   sameAs: [],
 };
 
@@ -55,51 +55,54 @@ const websiteJsonLd = {
     "Free, fast audio tools built for producers and DJs — no sign-up required.",
 };
 
-const faqJsonLd = {
-  "@context": "https://schema.org",
-  "@type": "FAQPage",
-  mainEntity: [
-    {
-      "@type": "Question",
-      name: "What tools does AudioForges offer?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "14 free audio tools covering conversion, trimming, volume, pitch and tempo, noise/echo/silence cleanup, vocal removal, key/BPM detection, and speech-to-text transcription — all with no sign-up required.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "Do I need an account to use AudioForges?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "No. Every tool works without creating an account, entering an email, or installing anything.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "Are the tools actually free?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "Yes. There's no watermark, no paywall, and no hidden tier — the free tools are the only tools.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "Who is AudioForges built for?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "Music producers, DJs, remixers, podcasters, and content creators who need quick, accurate audio utilities without the friction of ad-heavy or sign-up-gated tools.",
-      },
-    },
-  ],
-};
-
 export default function HomePage() {
   const liveTools = getLiveTools();
 
   const featured = CATEGORY_ORDER.map((category) =>
     getToolsByCategory(category).find((t) => t.status === "live")
   ).filter((t): t is NonNullable<typeof t> => Boolean(t));
+
+  // Built inside the component (rather than as a module-level constant) so
+  // the tool count and description can never go stale the way the old
+  // hardcoded "14 free audio tools" text did as new tools got added.
+  const faqJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: [
+      {
+        "@type": "Question",
+        name: "What tools does AudioForges offer?",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: `${liveTools.length} free audio tools covering conversion, trimming, volume, pitch and tempo, noise/echo/silence cleanup, vocal removal, key/BPM detection, instrument tuning, metronome practice, BPM tapping, and speech-to-text transcription — all with no sign-up required.`,
+        },
+      },
+      {
+        "@type": "Question",
+        name: "Do I need an account to use AudioForges?",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: "No. Every tool works without creating an account, entering an email, or installing anything.",
+        },
+      },
+      {
+        "@type": "Question",
+        name: "Are the tools actually free?",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: "Yes. There's no watermark, no paywall, and no hidden tier — the free tools are the only tools.",
+        },
+      },
+      {
+        "@type": "Question",
+        name: "Who is AudioForges built for?",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: "Music producers, DJs, remixers, musicians, podcasters, and content creators who need quick, accurate audio utilities without the friction of ad-heavy or sign-up-gated tools.",
+        },
+      },
+    ],
+  };
 
   return (
     <>
@@ -127,8 +130,8 @@ export default function HomePage() {
             <br className="hidden sm:block" /> respect your workflow
           </h1>
           <p className="text-lg text-text-muted max-w-2xl mx-auto">
-            No sign-up, no watermark, no artificial limits. Convert, edit, clean up,
-            and analyze audio — all in one place.
+            No sign-up, no watermark, no artificial limits. Convert, edit,
+            clean up, analyze, tune, and practice — all in one place.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
             <Link
@@ -211,12 +214,12 @@ export default function HomePage() {
               workflow — pulling reference audio, checking key and tempo before a
               session, and getting clean files without wading through ad-heavy
               downloader sites or signing up for yet another account. It&apos;s since
-              grown into a full toolkit covering conversion, editing, cleanup, and
-              transcription.
+              grown into a full toolkit covering conversion, editing, cleanup,
+              analysis, tuning, tempo, practice, and transcription.
             </p>
             <p>
               Every tool here is built to do one job well: convert, analyze, clean
-              up, or extract audio quickly and accurately, then get out of your way.
+              up, tune, or extract audio quickly and accurately, then get out of your way.
             </p>
           </div>
         </section>
@@ -247,7 +250,19 @@ export default function HomePage() {
               <Link href="/key-finder" className="text-amber-400 hover:text-amber-300 underline underline-offset-2">
                 key and BPM
               </Link>
-              , pull out an{" "}
+              , use the{" "}
+              <Link href="/bpm-tapper" className="text-amber-400 hover:text-amber-300 underline underline-offset-2">
+                BPM Tapper
+              </Link>{" "}
+              to tap along and find a song&apos;s tempo, set that BPM in the{" "}
+              <Link href="/metronome" className="text-amber-400 hover:text-amber-300 underline underline-offset-2">
+                Online Metronome
+              </Link>
+              , or tune an instrument with the{" "}
+              <Link href="/tuner" className="text-amber-400 hover:text-amber-300 underline underline-offset-2">
+                Online Instrument Tuner
+              </Link>
+              . Pull out an{" "}
               <Link href="/vocal-remover" className="text-amber-400 hover:text-amber-300 underline underline-offset-2">
                 instrumental or acapella
               </Link>
@@ -300,8 +315,9 @@ export default function HomePage() {
               <p>
                 {liveTools.length} free audio tools covering conversion, trimming,
                 volume, pitch and tempo, noise/echo/silence cleanup, vocal removal,
-                key/BPM detection, and speech-to-text transcription — all with no
-                sign-up required.
+                key/BPM detection, instrument tuning, metronome practice, BPM
+                tapping, and speech-to-text transcription — all with no sign-up
+                required.
               </p>
             </div>
             <div>
@@ -327,9 +343,9 @@ export default function HomePage() {
                 Who is AudioForges built for?
               </h3>
               <p>
-                Music producers, DJs, remixers, podcasters, and content creators who
-                need quick, accurate audio utilities without the friction of
-                ad-heavy or sign-up-gated tools.
+                Music producers, DJs, remixers, musicians, podcasters, and content
+                creators who need quick, accurate audio utilities without the
+                friction of ad-heavy or sign-up-gated tools.
               </p>
             </div>
           </div>

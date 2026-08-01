@@ -1,7 +1,14 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Play, Square, Loader2, ChevronUp, ChevronDown } from "lucide-react";
 import { JobToolForm } from "@/components/converter/JobToolForm";
+import { cn } from "@/lib/utils/cn";
+import { computeWaveformPeaks } from "@/lib/utils/waveform";
+
+const WAVEFORM_BUCKETS = 220;
+const KEY_STEP = 0.1;
+const KEY_STEP_LARGE = 1;
 
 function formatTime(seconds: number): string {
   if (!Number.isFinite(seconds)) return "0:00";
@@ -10,287 +17,412 @@ function formatTime(seconds: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
-interface TrimState {
-  duration: number | null;
-  start: number;
-  end: number;
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
 }
 
-let currentTrimState: TrimState = { duration: null, start: 0, end: 0 };
+/* ------------------------------------------------------------------ */
+/* Form — start/end now live in real React state, not a module-level   */
+/* mutable variable. buildExtraFields closes over the current render's */
+/* values directly, so a submit can never read a stale trim range from */
+/* a previous file or a previous render.                               */
+/* ------------------------------------------------------------------ */
 
 export function TrimForm() {
+  const [start, setStart] = useState(0);
+  const [end, setEnd] = useState(0);
+
   return (
     <JobToolForm
       endpoint="trim"
       pollIntervalMs={2500}
+      toolLabel="Audio trimmer"
+      toolMeta={end > start ? `${formatTime(start)} → ${formatTime(end)}` : undefined}
       submitLabel="Trim"
-      processingLabel="Trimming…"
-      expectedRange="usually a few seconds"
+      processingLabel="Trimming"
+      expectedRange="a few seconds"
       resultVerb="Trimmed"
-      missingFieldsMessage="Please select a valid start and end point."
+      stages={[
+        { at: 0, label: "Reading the audio" },
+        { at: 2, label: "Cutting the selection" },
+        { at: 5, label: "Writing the output file" },
+      ]}
+      missingFieldsMessage="Select a valid start and end point above."
       buildExtraFields={() => {
-        const { duration, start, end } = currentTrimState;
-        if (duration === null || end <= start) return null;
+        if (end <= start) return null;
         return { start_seconds: String(start), end_seconds: String(end) };
       }}
-      renderControls={(file, disabled) => <TrimControls file={file} disabled={disabled} />}
+      renderControls={(file, disabled) =>
+        file ? (
+          <TrimControls
+            file={file}
+            disabled={disabled}
+            start={start}
+            end={end}
+            onChange={(s, e) => {
+              setStart(s);
+              setEnd(e);
+            }}
+          />
+        ) : null
+      }
     />
   );
 }
 
+/* ------------------------------------------------------------------ */
+/* Controls — purely driven by props; all file probing/decoding lives  */
+/* here, but the actual start/end values are owned by the parent.      */
+/* ------------------------------------------------------------------ */
+
 interface TrimControlsProps {
-  file: File | null;
+  file: File;
   disabled: boolean;
+  start: number;
+  end: number;
+  onChange: (start: number, end: number) => void;
 }
 
-const PEAK_COUNT = 400;
+type DragTarget = "start" | "end" | null;
 
-function TrimControls({ file, disabled }: TrimControlsProps) {
+function TrimControls({ file, disabled, start, end, onChange }: TrimControlsProps) {
   const [duration, setDuration] = useState<number | null>(null);
-  const [start, setStart] = useState(0);
-  const [end, setEnd] = useState(0);
   const [peaks, setPeaks] = useState<number[] | null>(null);
-  const [isDecoding, setIsDecoding] = useState(false);
-  const [dragging, setDragging] = useState<"start" | "end" | null>(null);
+  const [isPreviewing, setIsPreviewing] = useState(false);
+  const [dragging, setDragging] = useState<DragTarget>(null);
 
+  const audioElRef = useRef<HTMLAudioElement | null>(null);
   const objectUrlRef = useRef<string | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const previewStopRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  /* --- new file: reset, probe duration, decode waveform ------------- */
   useEffect(() => {
-    if (!file) {
-      setDuration(null);
-      setPeaks(null);
-      return;
+    if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
+    const url = URL.createObjectURL(file);
+    objectUrlRef.current = url;
+
+    setDuration(null);
+    setPeaks(null);
+    setIsPreviewing(false);
+
+    if (audioElRef.current) {
+      audioElRef.current.pause();
+      audioElRef.current.src = url;
+      audioElRef.current.load();
     }
 
-    setIsDecoding(true);
     let cancelled = false;
-
     (async () => {
       try {
         const arrayBuffer = await file.arrayBuffer();
-        const AudioCtx = window.AudioContext || (window as typeof window & { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-        const audioCtx = new AudioCtx();
-        const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
-        if (cancelled) return;
-
-        const channel = audioBuffer.getChannelData(0);
-        const blockSize = Math.floor(channel.length / PEAK_COUNT);
-        const computedPeaks: number[] = [];
-        for (let i = 0; i < PEAK_COUNT; i++) {
-          const blockStart = i * blockSize;
-          let max = 0;
-          for (let j = 0; j < blockSize; j++) {
-            const abs = Math.abs(channel[blockStart + j] || 0);
-            if (abs > max) max = abs;
-          }
-          computedPeaks.push(max);
+        const Ctx =
+          window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+        const ctx = new Ctx();
+        try {
+          const buffer = await ctx.decodeAudioData(arrayBuffer);
+          if (!cancelled) setPeaks(computeWaveformPeaks(buffer, WAVEFORM_BUCKETS));
+        } finally {
+          ctx.close();
         }
-
-        setDuration(audioBuffer.duration);
-        setStart(0);
-        setEnd(audioBuffer.duration);
-        setPeaks(computedPeaks);
-        audioCtx.close();
-      } catch (err) {
-        console.error("Waveform decode failed, falling back to duration only:", err);
-        if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
-        const url = URL.createObjectURL(file);
-        objectUrlRef.current = url;
-        const audio = new Audio();
-        audio.preload = "metadata";
-        audio.onloadedmetadata = () => {
-          if (cancelled) return;
-          setDuration(audio.duration);
-          setStart(0);
-          setEnd(audio.duration);
-          setPeaks(null);
-        };
-        audio.src = url;
-      } finally {
-        if (!cancelled) setIsDecoding(false);
+      } catch {
+        // Decode not supported for this format — plain track, the tool
+        // still fully works via <audio>'s own (broader) format support.
+        if (!cancelled) setPeaks(null);
       }
     })();
 
     return () => {
       cancelled = true;
-      if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [file]);
 
   useEffect(() => {
-    currentTrimState = { duration, start, end };
-  }, [duration, start, end]);
+    return () => {
+      if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
+      if (previewStopRef.current) clearTimeout(previewStopRef.current);
+    };
+  }, []);
+
+  /* --- once real duration is known, default to the full track ------ */
+  useEffect(() => {
+    if (duration === null) return;
+    onChange(0, duration);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [duration]);
+
+  const stopPreview = useCallback(() => {
+    audioElRef.current?.pause();
+    setIsPreviewing(false);
+    if (previewStopRef.current) {
+      clearTimeout(previewStopRef.current);
+      previewStopRef.current = null;
+    }
+  }, []);
+
+  const startPreview = useCallback(async () => {
+    const audio = audioElRef.current;
+    if (!audio || duration === null || end <= start) return;
+    audio.currentTime = start;
+    await audio.play().catch(() => {});
+    setIsPreviewing(true);
+    if (previewStopRef.current) clearTimeout(previewStopRef.current);
+    previewStopRef.current = setTimeout(() => stopPreview(), (end - start) * 1000);
+  }, [start, end, duration, stopPreview]);
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas || !peaks || duration === null) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+    const audio = audioElRef.current;
+    if (!audio) return;
+    const handleEnd = () => setIsPreviewing(false);
+    audio.addEventListener("ended", handleEnd);
+    audio.addEventListener("pause", handleEnd);
+    return () => {
+      audio.removeEventListener("ended", handleEnd);
+      audio.removeEventListener("pause", handleEnd);
+    };
+  }, []);
 
-    const width = canvas.width;
-    const height = canvas.height;
-    ctx.clearRect(0, 0, width, height);
-
-    const barWidth = width / peaks.length;
-    const startX = (start / duration) * width;
-    const endX = (end / duration) * width;
-
-    peaks.forEach((peak, i) => {
-      const x = i * barWidth;
-      const barHeight = Math.max(2, peak * height);
-      const y = (height - barHeight) / 2;
-      const inSelection = x >= startX && x <= endX;
-      ctx.fillStyle = inSelection ? "#e8a23d" : "#34343a";
-      ctx.fillRect(x, y, Math.max(1, barWidth - 1), barHeight);
-    });
-  }, [peaks, start, end, duration]);
-
-  const timeFromClientX = useCallback(
-    (clientX: number): number => {
-      const container = containerRef.current;
-      if (!container || duration === null) return 0;
-      const rect = container.getBoundingClientRect();
-      const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
-      return ratio * duration;
-    },
-    [duration]
-  );
+  /* --- drag handling -------------------------------------------------*/
+  const fractionFromClientX = useCallback((clientX: number) => {
+    if (!containerRef.current) return 0;
+    const rect = containerRef.current.getBoundingClientRect();
+    return clamp((clientX - rect.left) / rect.width, 0, 1);
+  }, []);
 
   const handlePointerMove = useCallback(
-    (e: PointerEvent) => {
-      if (!dragging || duration === null) return;
-      const time = timeFromClientX(e.clientX);
+    (clientX: number) => {
+      if (duration === null || !dragging) return;
+      const timeAtX = fractionFromClientX(clientX) * duration;
       if (dragging === "start") {
-        setStart(Math.min(time, end - 0.1));
+        onChange(clamp(timeAtX, 0, end - 0.1), end);
       } else {
-        setEnd(Math.max(time, start + 0.1));
+        onChange(start, clamp(timeAtX, start + 0.1, duration));
       }
     },
-    [dragging, duration, start, end, timeFromClientX]
+    [dragging, duration, start, end, fractionFromClientX, onChange]
   );
-
-  const handlePointerUp = useCallback(() => setDragging(null), []);
 
   useEffect(() => {
     if (!dragging) return;
-    window.addEventListener("pointermove", handlePointerMove);
-    window.addEventListener("pointerup", handlePointerUp);
+    const onMove = (e: PointerEvent) => handlePointerMove(e.clientX);
+    const onUp = () => setDragging(null);
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
     return () => {
-      window.removeEventListener("pointermove", handlePointerMove);
-      window.removeEventListener("pointerup", handlePointerUp);
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
     };
-  }, [dragging, handlePointerMove, handlePointerUp]);
+  }, [dragging, handlePointerMove]);
 
-  if (!file) return null;
+  const startDrag = (target: DragTarget) => {
+    if (disabled) return;
+    if (isPreviewing) stopPreview();
+    setDragging(target);
+  };
 
-  if (isDecoding) {
-    return <p className="text-sm text-text-muted py-4 text-center">Reading audio…</p>;
+  const nudge = (which: "start" | "end", delta: number) => {
+    if (duration === null) return;
+    if (which === "start") onChange(clamp(start + delta, 0, end - 0.1), end);
+    else onChange(start, clamp(end + delta, start + 0.1, duration));
+  };
+
+  const handleKeyDown = (target: "start" | "end") => (e: React.KeyboardEvent) => {
+    if (disabled || duration === null) return;
+    const step = e.shiftKey ? KEY_STEP_LARGE : KEY_STEP;
+    if (e.key === "ArrowLeft") {
+      e.preventDefault();
+      nudge(target, -step);
+    } else if (e.key === "ArrowRight") {
+      e.preventDefault();
+      nudge(target, step);
+    } else if (e.key === "Home" && target === "start") {
+      e.preventDefault();
+      onChange(0, end);
+    } else if (e.key === "End" && target === "end") {
+      e.preventDefault();
+      onChange(start, duration);
+    }
+  };
+
+  if (duration === null) {
+    return (
+      <div className="flex h-20 items-center justify-center gap-2 rounded-lg border border-graphite-700 bg-graphite-850 text-xs text-text-subtle">
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        Reading audio…
+      </div>
+    );
   }
-
-  if (duration === null) return null;
 
   const startPercent = (start / duration) * 100;
   const endPercent = (end / duration) * 100;
 
   return (
     <div className="space-y-3">
+      <audio ref={audioElRef} preload="metadata" />
+
       <div className="flex items-center justify-between">
         <label className="text-sm font-medium text-text-primary">Clip range</label>
-        <span className="text-sm font-mono text-amber-400">
+        <span className="font-mono text-sm text-amber-400">
           {formatTime(start)} – {formatTime(end)}
         </span>
       </div>
 
       <div
         ref={containerRef}
-        className="relative h-20 rounded-lg bg-graphite-850 overflow-hidden select-none touch-none"
+        className="relative h-20 select-none overflow-hidden rounded-lg border border-graphite-700 bg-graphite-850 touch-none"
       >
-        {peaks ? (
-          <canvas ref={canvasRef} width={800} height={80} className="w-full h-full" />
-        ) : (
-          <div className="absolute inset-0 flex items-center justify-center text-xs text-text-subtle">
-            Preview unavailable for this file — use the sliders below
-          </div>
-        )}
+        <div className="absolute inset-0 flex items-center gap-px px-1 opacity-70">
+          {peaks ? (
+            peaks.map((p, i) => (
+              <div key={i} className="flex-1 rounded-sm bg-graphite-600" style={{ height: `${Math.max(p * 100, 4)}%` }} />
+            ))
+          ) : (
+            <div className="flex h-full w-full items-center justify-center text-xs text-text-subtle">
+              Preview unavailable for this format — drag the handles below
+            </div>
+          )}
+        </div>
 
-        <div
-          className="absolute inset-y-0 left-0 bg-graphite-950/60 pointer-events-none"
-          style={{ width: `${startPercent}%` }}
-        />
-        <div
-          className="absolute inset-y-0 right-0 bg-graphite-950/60 pointer-events-none"
-          style={{ width: `${100 - endPercent}%` }}
-        />
+        <div className="pointer-events-none absolute inset-y-0 left-0 bg-graphite-950/60" style={{ width: `${startPercent}%` }} />
+        <div className="pointer-events-none absolute inset-y-0 right-0 bg-graphite-950/60" style={{ width: `${100 - endPercent}%` }} />
 
+        {/* Start handle */}
         <div
-          className="absolute inset-y-0 w-3 -ml-1.5 cursor-ew-resize group"
+          role="slider"
+          aria-label="Start time"
+          aria-valuemin={0}
+          aria-valuemax={duration}
+          aria-valuenow={start}
+          aria-valuetext={formatTime(start)}
+          tabIndex={disabled ? -1 : 0}
+          onPointerDown={(e) => {
+            e.preventDefault();
+            e.currentTarget.setPointerCapture(e.pointerId);
+            startDrag("start");
+          }}
+          onKeyDown={handleKeyDown("start")}
+          className="absolute inset-y-0 -ml-2.5 flex w-5 cursor-ew-resize touch-none items-center justify-center focus:outline-none"
           style={{ left: `${startPercent}%` }}
-          onPointerDown={(e) => {
-            e.preventDefault();
-            e.currentTarget.setPointerCapture(e.pointerId);
-            setDragging("start");
-          }}
         >
-          <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-0.5 bg-amber-500" />
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-6 w-3 rounded-sm bg-amber-500 group-hover:bg-amber-400 transition-colors" />
+          <div className="h-full w-0.5 bg-amber-500" />
+          <div className="absolute h-3 w-3 rounded-full border-2 border-amber-500 bg-graphite-900 shadow-sm transition-transform hover:scale-110" />
         </div>
 
+        {/* End handle */}
         <div
-          className="absolute inset-y-0 w-3 -ml-1.5 cursor-ew-resize group"
-          style={{ left: `${endPercent}%` }}
+          role="slider"
+          aria-label="End time"
+          aria-valuemin={0}
+          aria-valuemax={duration}
+          aria-valuenow={end}
+          aria-valuetext={formatTime(end)}
+          tabIndex={disabled ? -1 : 0}
           onPointerDown={(e) => {
             e.preventDefault();
             e.currentTarget.setPointerCapture(e.pointerId);
-            setDragging("end");
+            startDrag("end");
           }}
+          onKeyDown={handleKeyDown("end")}
+          className="absolute inset-y-0 -ml-2.5 flex w-5 cursor-ew-resize touch-none items-center justify-center focus:outline-none"
+          style={{ left: `${endPercent}%` }}
         >
-          <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-0.5 bg-amber-500" />
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-6 w-3 rounded-sm bg-amber-500 group-hover:bg-amber-400 transition-colors" />
+          <div className="h-full w-0.5 bg-amber-500" />
+          <div className="absolute h-3 w-3 rounded-full border-2 border-amber-500 bg-graphite-900 shadow-sm transition-transform hover:scale-110" />
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1">
-          <label className="text-xs text-text-subtle">Start: {formatTime(start)}</label>
-          <input
-            type="range"
-            min={0}
-            max={duration}
-            step={0.1}
-            value={start}
-            disabled={disabled}
-            onChange={(e) => {
-              const value = Math.min(Number(e.target.value), end - 0.1);
-              setStart(Math.max(0, value));
-            }}
-            className="w-full h-1.5 rounded-full appearance-none bg-graphite-700 accent-amber-500 disabled:opacity-40 cursor-pointer"
-            aria-label="Start time"
-          />
-        </div>
-        <div className="space-y-1">
-          <label className="text-xs text-text-subtle">End: {formatTime(end)}</label>
-          <input
-            type="range"
-            min={0}
-            max={duration}
-            step={0.1}
-            value={end}
-            disabled={disabled}
-            onChange={(e) => {
-              const value = Math.max(Number(e.target.value), start + 0.1);
-              setEnd(Math.min(duration, value));
-            }}
-            className="w-full h-1.5 rounded-full appearance-none bg-graphite-700 accent-amber-500 disabled:opacity-40 cursor-pointer"
-            aria-label="End time"
-          />
-        </div>
+      {/* Numeric entry + preview — replaces the old duplicate pair of
+          range sliders below the waveform, which could visually drift
+          from the drag handles despite sharing the same state. */}
+      <div className="flex items-center justify-between gap-3">
+        <Stepper
+          label="Start"
+          value={start}
+          disabled={disabled}
+          onIncrement={() => nudge("start", KEY_STEP_LARGE)}
+          onDecrement={() => nudge("start", -KEY_STEP_LARGE)}
+          onChange={(v) => onChange(clamp(v, 0, end - 0.1), end)}
+        />
+
+        <button
+          type="button"
+          onClick={isPreviewing ? stopPreview : startPreview}
+          disabled={disabled || end <= start}
+          className="flex items-center gap-1.5 rounded-full border border-graphite-700 bg-graphite-850 px-3.5 py-1.5 text-text-muted transition-colors hover:border-amber-500/40 hover:text-amber-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40 disabled:opacity-40"
+        >
+          {isPreviewing ? <Square className="h-3 w-3" fill="currentColor" /> : <Play className="h-3 w-3" fill="currentColor" />}
+          {isPreviewing ? "Stop" : "Preview"}
+        </button>
+
+        <Stepper
+          label="End"
+          value={end}
+          disabled={disabled}
+          onIncrement={() => nudge("end", KEY_STEP_LARGE)}
+          onDecrement={() => nudge("end", -KEY_STEP_LARGE)}
+          onChange={(v) => onChange(start, clamp(v, start + 0.1, duration))}
+        />
       </div>
 
-      <p className="text-xs text-text-subtle">
-        Full length: {formatTime(duration)} — selected clip: {formatTime(end - start)}
+      <p className="text-center text-xs text-text-subtle">
+        Full length: {formatTime(duration)} — selected clip: {formatTime(Math.max(0, end - start))}
       </p>
     </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+
+function Stepper({
+  label,
+  value,
+  disabled,
+  onIncrement,
+  onDecrement,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  disabled: boolean;
+  onIncrement: () => void;
+  onDecrement: () => void;
+  onChange: (v: number) => void;
+}) {
+  return (
+    <label className="flex items-center gap-1.5 text-xs text-text-muted">
+      {label}
+      <span className="flex items-center overflow-hidden rounded-md border border-graphite-700 bg-graphite-850">
+        <input
+          type="number"
+          step={0.1}
+          value={Math.round(value * 10) / 10}
+          disabled={disabled}
+          onChange={(e) => onChange(Number(e.target.value))}
+          className="w-16 bg-transparent px-2 py-1 text-right font-mono text-text-primary [appearance:textfield] focus:outline-none disabled:opacity-40 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+        />
+        <span className="flex flex-col border-l border-graphite-700">
+          <button
+            type="button"
+            aria-label={`Increase ${label.toLowerCase()}`}
+            disabled={disabled}
+            onClick={onIncrement}
+            className="flex h-3.5 w-5 items-center justify-center text-text-subtle transition-colors hover:bg-graphite-800 hover:text-amber-400 disabled:opacity-40"
+          >
+            <ChevronUp className="h-2.5 w-2.5" />
+          </button>
+          <button
+            type="button"
+            aria-label={`Decrease ${label.toLowerCase()}`}
+            disabled={disabled}
+            onClick={onDecrement}
+            className="flex h-3.5 w-5 items-center justify-center border-t border-graphite-700 text-text-subtle transition-colors hover:bg-graphite-800 hover:text-amber-400 disabled:opacity-40"
+          >
+            <ChevronDown className="h-2.5 w-2.5" />
+          </button>
+        </span>
+      </span>
+      s
+    </label>
   );
 }

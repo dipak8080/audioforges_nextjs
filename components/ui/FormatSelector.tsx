@@ -1,3 +1,5 @@
+"use client";
+
 import type { FormatOption, OutputFormat } from "@/lib/types/converter";
 import { cn } from "@/lib/utils/cn";
 
@@ -10,7 +12,7 @@ interface FormatSelectorProps {
 
 export function FormatSelector({ options, value, onChange, disabled }: FormatSelectorProps) {
   return (
-    <div role="radiogroup" aria-label="Output format" className="grid grid-cols-2 gap-3">
+    <div role="radiogroup" aria-label="Output format" className="grid gap-2 sm:grid-cols-2">
       {options.map((option) => {
         const isSelected = option.value === value;
         return (
@@ -22,23 +24,40 @@ export function FormatSelector({ options, value, onChange, disabled }: FormatSel
             disabled={disabled}
             onClick={() => onChange(option.value)}
             className={cn(
-              "flex flex-col items-start rounded-lg border px-4 py-3 text-left transition-all duration-150",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50",
-              "disabled:opacity-40 disabled:cursor-not-allowed",
+              "rounded-lg border p-3.5 text-left transition-all",
+              "focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40",
+              "disabled:cursor-not-allowed disabled:opacity-40",
               isSelected
-                ? "border-amber-500/60 bg-amber-500/10"
-                : "border-graphite-700 bg-graphite-900 hover:border-graphite-700/80 hover:bg-graphite-850"
+                ? "border-amber-500/60 bg-amber-500/[0.07]"
+                : "border-graphite-700 bg-graphite-850 hover:border-graphite-700/60 hover:bg-graphite-800/60"
             )}
           >
-            <span
-              className={cn(
-                "font-mono text-lg font-semibold tracking-tight",
-                isSelected ? "text-amber-400" : "text-text-primary"
+            <div className="flex items-baseline justify-between gap-2">
+              <span
+                className={cn(
+                  "text-base font-semibold tracking-tight",
+                  isSelected ? "text-amber-400" : "text-text-primary"
+                )}
+              >
+                {option.label}
+              </span>
+              {option.quality && (
+                <span
+                  className={cn(
+                    "text-[10px] font-medium uppercase tracking-wider",
+                    isSelected ? "text-amber-500/80" : "text-text-subtle"
+                  )}
+                >
+                  {option.quality}
+                </span>
               )}
-            >
-              {option.label}
-            </span>
-            <span className="text-xs text-text-muted mt-0.5">{option.description}</span>
+            </div>
+
+            <p className="mt-1.5 text-xs leading-snug text-text-muted">{option.description}</p>
+
+            {option.spec && (
+              <p className="mt-1 font-mono text-[11px] text-text-subtle">{option.spec}</p>
+            )}
           </button>
         );
       })}
