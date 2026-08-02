@@ -281,8 +281,8 @@ export const guides: Guide[] = [
   {
     slug: "why-m4a-extraction-is-instant",
     title: "Why M4A Extraction Is Instant (WAV Isn't)",
-description:
-    "Why an M4R file is just AAC audio with a different extension, why iPhone ringtones cap at 40 seconds, and how to pick a good clip.",
+    description:
+      "Why an M4R file is just AAC audio with a different extension, why iPhone ringtones cap at 40 seconds, and how to pick a good clip.",
     publishedDate: "2026-08-02",
     updatedDate: "2026-08-02",
     category: "production",

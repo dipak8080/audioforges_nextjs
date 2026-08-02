@@ -5,9 +5,8 @@ import type { YouTubeValidationResult, RateLimitResult, FileValidationResult } f
 // ============ AUDIO FILE VALIDATION (Key Finder) ============
 
 export const AUDIO_EXTENSIONS = [".mp3", ".wav", ".m4a", ".aac", ".ogg", ".flac"] as const;
-
 export const FILE_SIZE_LIMITS = {
-  audio: 50 * 1024 * 1024,
+  audio: 80 * 1024 * 1024,
   audioMin: 1024,
 } as const;
 
