@@ -37,7 +37,7 @@ export function TrimForm() {
       endpoint="trim"
       pollIntervalMs={2500}
       toolLabel="Audio trimmer"
-      toolMeta={end > start ? `${formatTime(start)} → ${formatTime(end)}` : undefined}
+      toolMeta={end > start ? `${formatTime(start)} → ${formatTime(end)}` : "cut to an exact range"}
       submitLabel="Trim"
       processingLabel="Trimming"
       expectedRange="a few seconds"
@@ -136,6 +136,46 @@ function TrimControls({ file, disabled, start, end, onChange }: TrimControlsProp
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [file]);
+
+  /* --- READ THE REAL DURATION FROM THE <audio> ELEMENT --------------
+     This is the one piece that was missing: nothing previously ever
+     called setDuration() with a real number, so the component stayed
+     on its "duration === null" branch (rendered as "Reading audio…")
+     forever, regardless of whether the file was valid, tiny, or fully
+     decodable - and regardless of what the waveform decode above did,
+     since decodeAudioData() only produces PEAKS, not duration state.
+
+     loadedmetadata fires once the browser has read the file's headers
+     enough to know its length - normally well under a second, even for
+     a file the Web Audio API can't fully decode (which is exactly the
+     "Preview unavailable for this format" case the peaks branch below
+     already handles gracefully). Listening for it is what actually
+     turns "Reading audio…" into working controls.
+
+     Guarded against Infinity/NaN: some MP3s report an unseekable/unknown
+     duration until the browser has buffered further, which surfaces as
+     Infinity on first fire - accepting that would break every math.min/
+     clamp call below. */
+  useEffect(() => {
+    const audio = audioElRef.current;
+    if (!audio) return;
+
+    const handleLoadedMetadata = () => {
+      if (Number.isFinite(audio.duration) && audio.duration > 0) {
+        setDuration(audio.duration);
+      }
+    };
+
+    // In case metadata is already available by the time this effect
+    // runs (e.g. a cached file reselected) - readyState >= 1 means
+    // HAVE_METADATA has already fired and the event won't come again.
+    if (audio.readyState >= 1 && Number.isFinite(audio.duration) && audio.duration > 0) {
+      setDuration(audio.duration);
+    }
+
+    audio.addEventListener("loadedmetadata", handleLoadedMetadata);
+    return () => audio.removeEventListener("loadedmetadata", handleLoadedMetadata);
   }, [file]);
 
   useEffect(() => {
@@ -245,129 +285,139 @@ function TrimControls({ file, disabled, start, end, onChange }: TrimControlsProp
     }
   };
 
-  if (duration === null) {
-    return (
-      <div className="flex h-20 items-center justify-center gap-2 rounded-lg border border-graphite-700 bg-graphite-850 text-xs text-text-subtle">
-        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-        Reading audio…
-      </div>
-    );
-  }
+  const startPercent = duration ? (start / duration) * 100 : 0;
+  const endPercent = duration ? (end / duration) * 100 : 0;
 
-  const startPercent = (start / duration) * 100;
-  const endPercent = (end / duration) * 100;
-
+  // The <audio> element is ALWAYS mounted, regardless of whether
+  // duration is known yet. This is the fix: the earlier version
+  // returned the "Reading audio…" spinner BEFORE reaching the JSX
+  // that rendered <audio>, so audioElRef.current was null, the
+  // loadedmetadata listener above never had an element to attach to,
+  // setDuration() was never called, and the component was stuck on
+  // the spinner permanently - regardless of the file, the browser,
+  // or anything else. Keeping <audio> mounted unconditionally and
+  // branching only on what's rendered NEXT TO it is what lets
+  // loadedmetadata actually fire.
   return (
     <div className="space-y-3">
       <audio ref={audioElRef} preload="metadata" />
 
-      <div className="flex items-center justify-between">
-        <label className="text-sm font-medium text-text-primary">Clip range</label>
-        <span className="font-mono text-sm text-amber-400">
-          {formatTime(start)} – {formatTime(end)}
-        </span>
-      </div>
+      {duration === null ? (
+        <div className="flex h-20 items-center justify-center gap-2 rounded-lg border border-graphite-700 bg-graphite-850 text-xs text-text-subtle">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          Reading audio…
+        </div>
+      ) : (
+        <>
+          <div className="flex items-center justify-between">
+            <label className="text-sm font-medium text-text-primary">Clip range</label>
+            <span className="font-mono text-sm text-amber-400">
+              {formatTime(start)} – {formatTime(end)}
+            </span>
+          </div>
 
-      <div
-        ref={containerRef}
-        className="relative h-20 select-none overflow-hidden rounded-lg border border-graphite-700 bg-graphite-850 touch-none"
-      >
-        <div className="absolute inset-0 flex items-center gap-px px-1 opacity-70">
-          {peaks ? (
-            peaks.map((p, i) => (
-              <div key={i} className="flex-1 rounded-sm bg-graphite-600" style={{ height: `${Math.max(p * 100, 4)}%` }} />
-            ))
-          ) : (
-            <div className="flex h-full w-full items-center justify-center text-xs text-text-subtle">
-              Preview unavailable for this format — drag the handles below
+          <div
+            ref={containerRef}
+            className="relative h-20 select-none overflow-hidden rounded-lg border border-graphite-700 bg-graphite-850 touch-none"
+          >
+            <div className="absolute inset-0 flex items-center gap-px px-1 opacity-70">
+              {peaks ? (
+                peaks.map((p, i) => (
+                  <div key={i} className="flex-1 rounded-sm bg-graphite-600" style={{ height: `${Math.max(p * 100, 4)}%` }} />
+                ))
+              ) : (
+                <div className="flex h-full w-full items-center justify-center text-xs text-text-subtle">
+                  Preview unavailable for this format — drag the handles below
+                </div>
+              )}
             </div>
-          )}
-        </div>
 
-        <div className="pointer-events-none absolute inset-y-0 left-0 bg-graphite-950/60" style={{ width: `${startPercent}%` }} />
-        <div className="pointer-events-none absolute inset-y-0 right-0 bg-graphite-950/60" style={{ width: `${100 - endPercent}%` }} />
+            <div className="pointer-events-none absolute inset-y-0 left-0 bg-graphite-950/60" style={{ width: `${startPercent}%` }} />
+            <div className="pointer-events-none absolute inset-y-0 right-0 bg-graphite-950/60" style={{ width: `${100 - endPercent}%` }} />
 
-        {/* Start handle */}
-        <div
-          role="slider"
-          aria-label="Start time"
-          aria-valuemin={0}
-          aria-valuemax={duration}
-          aria-valuenow={start}
-          aria-valuetext={formatTime(start)}
-          tabIndex={disabled ? -1 : 0}
-          onPointerDown={(e) => {
-            e.preventDefault();
-            e.currentTarget.setPointerCapture(e.pointerId);
-            startDrag("start");
-          }}
-          onKeyDown={handleKeyDown("start")}
-          className="absolute inset-y-0 -ml-2.5 flex w-5 cursor-ew-resize touch-none items-center justify-center focus:outline-none"
-          style={{ left: `${startPercent}%` }}
-        >
-          <div className="h-full w-0.5 bg-amber-500" />
-          <div className="absolute h-3 w-3 rounded-full border-2 border-amber-500 bg-graphite-900 shadow-sm transition-transform hover:scale-110" />
-        </div>
+            {/* Start handle */}
+            <div
+              role="slider"
+              aria-label="Start time"
+              aria-valuemin={0}
+              aria-valuemax={duration}
+              aria-valuenow={start}
+              aria-valuetext={formatTime(start)}
+              tabIndex={disabled ? -1 : 0}
+              onPointerDown={(e) => {
+                e.preventDefault();
+                e.currentTarget.setPointerCapture(e.pointerId);
+                startDrag("start");
+              }}
+              onKeyDown={handleKeyDown("start")}
+              className="absolute inset-y-0 -ml-2.5 flex w-5 cursor-ew-resize touch-none items-center justify-center focus:outline-none"
+              style={{ left: `${startPercent}%` }}
+            >
+              <div className="h-full w-0.5 bg-amber-500" />
+              <div className="absolute h-3 w-3 rounded-full border-2 border-amber-500 bg-graphite-900 shadow-sm transition-transform hover:scale-110" />
+            </div>
 
-        {/* End handle */}
-        <div
-          role="slider"
-          aria-label="End time"
-          aria-valuemin={0}
-          aria-valuemax={duration}
-          aria-valuenow={end}
-          aria-valuetext={formatTime(end)}
-          tabIndex={disabled ? -1 : 0}
-          onPointerDown={(e) => {
-            e.preventDefault();
-            e.currentTarget.setPointerCapture(e.pointerId);
-            startDrag("end");
-          }}
-          onKeyDown={handleKeyDown("end")}
-          className="absolute inset-y-0 -ml-2.5 flex w-5 cursor-ew-resize touch-none items-center justify-center focus:outline-none"
-          style={{ left: `${endPercent}%` }}
-        >
-          <div className="h-full w-0.5 bg-amber-500" />
-          <div className="absolute h-3 w-3 rounded-full border-2 border-amber-500 bg-graphite-900 shadow-sm transition-transform hover:scale-110" />
-        </div>
-      </div>
+            {/* End handle */}
+            <div
+              role="slider"
+              aria-label="End time"
+              aria-valuemin={0}
+              aria-valuemax={duration}
+              aria-valuenow={end}
+              aria-valuetext={formatTime(end)}
+              tabIndex={disabled ? -1 : 0}
+              onPointerDown={(e) => {
+                e.preventDefault();
+                e.currentTarget.setPointerCapture(e.pointerId);
+                startDrag("end");
+              }}
+              onKeyDown={handleKeyDown("end")}
+              className="absolute inset-y-0 -ml-2.5 flex w-5 cursor-ew-resize touch-none items-center justify-center focus:outline-none"
+              style={{ left: `${endPercent}%` }}
+            >
+              <div className="h-full w-0.5 bg-amber-500" />
+              <div className="absolute h-3 w-3 rounded-full border-2 border-amber-500 bg-graphite-900 shadow-sm transition-transform hover:scale-110" />
+            </div>
+          </div>
 
-      {/* Numeric entry + preview — replaces the old duplicate pair of
-          range sliders below the waveform, which could visually drift
-          from the drag handles despite sharing the same state. */}
-      <div className="flex items-center justify-between gap-3">
-        <Stepper
-          label="Start"
-          value={start}
-          disabled={disabled}
-          onIncrement={() => nudge("start", KEY_STEP_LARGE)}
-          onDecrement={() => nudge("start", -KEY_STEP_LARGE)}
-          onChange={(v) => onChange(clamp(v, 0, end - 0.1), end)}
-        />
+          {/* Numeric entry + preview — replaces the old duplicate pair of
+              range sliders below the waveform, which could visually drift
+              from the drag handles despite sharing the same state. */}
+          <div className="flex items-center justify-between gap-3">
+            <Stepper
+              label="Start"
+              value={start}
+              disabled={disabled}
+              onIncrement={() => nudge("start", KEY_STEP_LARGE)}
+              onDecrement={() => nudge("start", -KEY_STEP_LARGE)}
+              onChange={(v) => onChange(clamp(v, 0, end - 0.1), end)}
+            />
 
-        <button
-          type="button"
-          onClick={isPreviewing ? stopPreview : startPreview}
-          disabled={disabled || end <= start}
-          className="flex items-center gap-1.5 rounded-full border border-graphite-700 bg-graphite-850 px-3.5 py-1.5 text-text-muted transition-colors hover:border-amber-500/40 hover:text-amber-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40 disabled:opacity-40"
-        >
-          {isPreviewing ? <Square className="h-3 w-3" fill="currentColor" /> : <Play className="h-3 w-3" fill="currentColor" />}
-          {isPreviewing ? "Stop" : "Preview"}
-        </button>
+            <button
+              type="button"
+              onClick={isPreviewing ? stopPreview : startPreview}
+              disabled={disabled || end <= start}
+              className="flex items-center gap-1.5 rounded-full border border-graphite-700 bg-graphite-850 px-3.5 py-1.5 text-text-muted transition-colors hover:border-amber-500/40 hover:text-amber-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40 disabled:opacity-40"
+            >
+              {isPreviewing ? <Square className="h-3 w-3" fill="currentColor" /> : <Play className="h-3 w-3" fill="currentColor" />}
+              {isPreviewing ? "Stop" : "Preview"}
+            </button>
 
-        <Stepper
-          label="End"
-          value={end}
-          disabled={disabled}
-          onIncrement={() => nudge("end", KEY_STEP_LARGE)}
-          onDecrement={() => nudge("end", -KEY_STEP_LARGE)}
-          onChange={(v) => onChange(start, clamp(v, start + 0.1, duration))}
-        />
-      </div>
+            <Stepper
+              label="End"
+              value={end}
+              disabled={disabled}
+              onIncrement={() => nudge("end", KEY_STEP_LARGE)}
+              onDecrement={() => nudge("end", -KEY_STEP_LARGE)}
+              onChange={(v) => onChange(start, clamp(v, start + 0.1, duration))}
+            />
+          </div>
 
-      <p className="text-center text-xs text-text-subtle">
-        Full length: {formatTime(duration)} — selected clip: {formatTime(Math.max(0, end - start))}
-      </p>
+          <p className="text-center text-xs text-text-subtle">
+            Full length: {formatTime(duration)} — selected clip: {formatTime(Math.max(0, end - start))}
+          </p>
+        </>
+      )}
     </div>
   );
 }
@@ -422,7 +472,6 @@ function Stepper({
           </button>
         </span>
       </span>
-      s
     </label>
   );
 }
