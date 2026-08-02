@@ -156,6 +156,25 @@ function levelTone(level: string): { text: string; border: string } {
 type DateFilter = "all" | "today" | "yesterday";
 type Tab = "http" | "system";
 
+/**
+ * Three buckets, not two. "Failed" used to mean "anything that wasn't a
+ * 2xx/3xx," which counted completely normal traffic - a bot probing a
+ * route that doesn't exist (404), a visitor who hit a rate limit (429),
+ * a job rejected because the queue was full (503-by-design) - as if the
+ * server were broken. It wasn't; it was doing exactly what it should.
+ *
+ * client:  4xx - the CALLER's request was rejected for a normal reason.
+ *          Worth glancing at, never worth panicking over.
+ * server:  5xx - the backend actually broke. This is the number that
+ *          means "go look at the logs."
+ */
+interface Totals {
+  total: number;
+  success: number;
+  client: number;
+  server: number;
+}
+
 /** Render only the layout that's actually visible. The previous approach
  *  kept BOTH the desktop table and the mobile card list mounted at all
  *  times (hidden via CSS), which meant React built and reconciled up to
@@ -180,7 +199,7 @@ export default function AdminLogsPage() {
   const isMobile = useIsMobile();
 
   const [httpLogs, setHttpLogs] = useState<HttpLogEntry[]>([]);
-  const [totals, setTotals] = useState({ total: 0, success: 0, failed: 0 });
+  const [totals, setTotals] = useState<Totals>({ total: 0, success: 0, client: 0, server: 0 });
   const [httpLoading, setHttpLoading] = useState(true);
   const [httpError, setHttpError] = useState<string | null>(null);
 
@@ -316,11 +335,11 @@ export default function AdminLogsPage() {
       // row for zero visual change - the single biggest source of lag on
       // this page. A cheap signature comparison lets identical polls become
       // complete no-ops instead.
-      const sig = `${data.total}:${data.success}:${data.logs.length}:${data.logs[0]?.id ?? 0}`;
+      const sig = `${data.total}:${data.success}:${data.client}:${data.server}:${data.logs.length}:${data.logs[0]?.id ?? 0}`;
       if (sig === httpSigRef.current) return;
       httpSigRef.current = sig;
 
-      setTotals({ total: data.total, success: data.success, failed: data.failed });
+      setTotals({ total: data.total, success: data.success, client: data.client, server: data.server });
       setHttpTotal(data.total);
       // Backend returns newest-first (ORDER BY id DESC); reverse so the
       // oldest entry is at the top and the newest lands at the bottom,
@@ -401,7 +420,7 @@ export default function AdminLogsPage() {
         return false;
       }
       const data = await res.json();
-      setTotals({ total: data.total, success: data.success, failed: data.failed });
+      setTotals({ total: data.total, success: data.success, client: data.client, server: data.server });
       setHttpTotal(data.total);
       setHttpError(null);
       if (!data.logs || data.logs.length === 0) return false;
@@ -694,11 +713,29 @@ export default function AdminLogsPage() {
 
       {tab === "http" ? (
         <>
-          {/* ===== Stat strip ===== */}
-          <div className="shrink-0 grid grid-cols-3 divide-x divide-graphite-800 rounded-lg border border-graphite-800 bg-graphite-900">
+          {/* ===== Stat strip =====
+              Four boxes, not three: Total / Success / Client Errors /
+              Server Errors. Client errors (4xx) are highlighted amber
+              only as a mild "worth a glance" - they are NORMAL traffic
+              (bots, rate limits, rejected uploads) and don't need to be
+              read as a problem. Server errors (5xx) are the one that
+              turns red and is worth actually investigating; it only
+              lights up red at all once it's greater than zero. */}
+          <div className="shrink-0 grid grid-cols-2 sm:grid-cols-4 divide-x divide-y sm:divide-y-0 divide-graphite-800 rounded-lg border border-graphite-800 bg-graphite-900">
             <Stat label="Total" value={totals.total} />
             <Stat label="Success" value={totals.success} valueClass="text-teal-400" />
-            <Stat label="Failed" value={totals.failed} valueClass={totals.failed > 0 ? "text-red-500" : ""} />
+            <Stat
+              label="Client Errors"
+              value={totals.client}
+              valueClass="text-amber-400"
+              hint="4xx — rejected requests: rate limits, bad uploads, bots probing routes. Normal, not a bug."
+            />
+            <Stat
+              label="Server Errors"
+              value={totals.server}
+              valueClass={totals.server > 0 ? "text-red-500" : ""}
+              hint="5xx — the backend actually broke. Check the System tab if this is above zero."
+            />
           </div>
 
           {/* ===== Unified table card ===== */}
@@ -1102,9 +1139,18 @@ function TabButton({
   );
 }
 
-function Stat({ label, value, valueClass = "" }: { label: string; value: number; valueClass?: string }) {
+function Stat({
+  label, value, valueClass = "", hint,
+}: {
+  label: string;
+  value: number;
+  valueClass?: string;
+  /** Optional tooltip via native title attr - explains what the bucket
+   *  means without needing permanent on-screen copy for every box. */
+  hint?: string;
+}) {
   return (
-    <div className="px-3 sm:px-5 py-3.5 min-w-0">
+    <div className="px-3 sm:px-5 py-3.5 min-w-0" title={hint}>
       <p className="text-[11px] uppercase tracking-wider text-text-subtle truncate whitespace-nowrap">{label}</p>
       <p className={`mt-0.5 text-xl sm:text-2xl font-semibold tabular-nums ${valueClass || "text-text-primary"}`}>
         {value.toLocaleString()}
