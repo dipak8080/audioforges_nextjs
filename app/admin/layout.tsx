@@ -28,17 +28,34 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
+  // This layout wraps every /admin/* route, including /admin/login itself —
+  // so it stays mounted across the logout navigation rather than
+  // unmounting. That means isLoggingOut MUST be reset explicitly once the
+  // navigation is underway, or the button is stuck on "Signing out…"
+  // forever (nothing else ever flips it back to false).
   async function handleLogout() {
     setIsLoggingOut(true);
     try {
       await fetch("/api/admin/logout", { method: "POST" });
     } finally {
       router.push("/admin/login");
+      router.refresh(); // clears any cached authenticated state for this layout
+      setIsLoggingOut(false);
     }
   }
 
   const isActive = (href: string) =>
     href === "/admin" ? pathname === "/admin" : pathname.startsWith(href);
+
+  // The login page shouldn't show the authenticated dashboard chrome at
+  // all — someone who isn't signed in has no use for nav links to Logs/
+  // Cache/Cookies, and showing a "Sign out" button on the sign-IN screen
+  // is exactly the confusing overlap this was producing.
+  const isLoginPage = pathname === "/admin/login";
+
+  if (isLoginPage) {
+    return <div className="min-h-dvh bg-graphite-950 text-text-primary">{children}</div>;
+  }
 
   return (
     <div className="h-dvh flex flex-col overflow-hidden bg-graphite-950 text-text-primary">
