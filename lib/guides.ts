@@ -208,18 +208,9 @@ export const guides: Guide[] = [
   },
   {
     slug: "what-is-an-m4r-file-explained",
-    title: "What Is an M4R File? The iPhone Ringtone Format Explained",
+    title: "What Is an M4R File? iPhone Ringtone Explained",
     description:
       "Why an M4R file is just AAC audio with a different extension, why iPhone ringtones cap at 40 seconds, and how to pick a good clip.",
-    publishedDate: "2026-08-01",
-    updatedDate: "2026-08-01",
-    category: "production",
-  },
-  {
-    slug: "why-m4a-extraction-is-instant",
-    title: "What Is an M4R File? iPhone Ringtone Format Explained",
-    description:
-      "Why extracting audio to M4A is a near-instant stream copy, why WAV or FLAC doesn't add quality, and when lossless output actually helps.",
     publishedDate: "2026-08-01",
     updatedDate: "2026-08-01",
     category: "production",
@@ -285,6 +276,20 @@ export const guides: Guide[] = [
       "Why tuners analyze the waveform directly instead of picking the loudest frequency, and why they turn off echo cancellation and noise suppression.",
     publishedDate: "2026-08-01",
     updatedDate: "2026-08-01",
+    category: "production",
+  },
+  {
+    // Added — this slug is linked directly from /video-to-audio's "Why
+    // M4A/AAC can be the fast option" section. It was missing entirely,
+    // which is what crashed the build: getGuideBySlug returned undefined
+    // for this slug, and generateMetadata (or similar) read `.title` off
+    // that undefined value during static page-data collection.
+    slug: "why-m4a-extraction-is-instant",
+    title: "Why M4A Extraction Is Instant (WAV Isn't)",
+    description:
+      "What a stream copy actually is, why it lets M4A/AAC extraction skip re-encoding entirely, and when choosing WAV or FLAC genuinely helps instead of just producing a bigger file.",
+    publishedDate: "2026-08-02",
+    updatedDate: "2026-08-02",
     category: "production",
   },
 ];
