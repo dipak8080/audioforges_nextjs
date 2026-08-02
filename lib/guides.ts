@@ -279,15 +279,10 @@ export const guides: Guide[] = [
     category: "production",
   },
   {
-    // Added — this slug is linked directly from /video-to-audio's "Why
-    // M4A/AAC can be the fast option" section. It was missing entirely,
-    // which is what crashed the build: getGuideBySlug returned undefined
-    // for this slug, and generateMetadata (or similar) read `.title` off
-    // that undefined value during static page-data collection.
     slug: "why-m4a-extraction-is-instant",
     title: "Why M4A Extraction Is Instant (WAV Isn't)",
-    description:
-      "What a stream copy actually is, why it lets M4A/AAC extraction skip re-encoding entirely, and when choosing WAV or FLAC genuinely helps instead of just producing a bigger file.",
+description:
+    "Why an M4R file is just AAC audio with a different extension, why iPhone ringtones cap at 40 seconds, and how to pick a good clip.",
     publishedDate: "2026-08-02",
     updatedDate: "2026-08-02",
     category: "production",
