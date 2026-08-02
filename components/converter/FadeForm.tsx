@@ -28,7 +28,7 @@ function roundTenth(value: number): number {
 // Downsamples one channel of decoded audio into N peak values (max
 // absolute amplitude per bucket), purely for the waveform backdrop.
 // Runs once per file, on the main thread - acceptable for a one-off
-// action on files capped at 50MB, shown behind a brief loading state.
+// action on files capped at 80MB, shown behind a brief loading state.
 function computePeaks(buffer: AudioBuffer, buckets: number): number[] {
   const channelData = buffer.numberOfChannels > 0 ? buffer.getChannelData(0) : new Float32Array(0);
   if (channelData.length === 0) return [];

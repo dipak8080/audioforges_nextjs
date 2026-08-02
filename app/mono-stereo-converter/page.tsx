@@ -125,7 +125,7 @@ const faqs = [
   },
   {
     question: "What is the maximum upload size?",
-    answer: "50MB per upload.",
+    answer: "80MB per upload.",
   },
   {
     question: "Is this really free?",
@@ -319,7 +319,7 @@ export default function ChannelsPage() {
           <h2 className="text-2xl font-bold text-text-primary">Supported formats</h2>
           <FormatBadges />
           <p className="text-text-muted leading-relaxed">
-            Upload any of the formats above, up to 50MB per file.
+            Upload any of the formats above, up to 80MB per file.
           </p>
         </section>
 

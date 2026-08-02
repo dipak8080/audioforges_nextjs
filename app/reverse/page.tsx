@@ -115,7 +115,7 @@ const faqs = [
   },
   {
     question: "Is there a file size or length limit?",
-    answer: "Files up to 50MB and 20 minutes long are supported.",
+    answer: "Files up to 80MB and 20 minutes long are supported.",
   },
   {
     question: "Can I reverse a voice recording?",

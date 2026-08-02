@@ -141,7 +141,7 @@ export default async function StemsPage() {
     },
     {
       question: "What audio formats are supported, and is there a size limit?",
-      answer: "MP3, WAV, FLAC, AAC, M4A, and OGG are all supported, up to 50MB per upload.",
+      answer: "MP3, WAV, FLAC, AAC, M4A, and OGG are all supported, up to 80MB per upload.",
     },
     {
       question: "Do I need to sign up or install anything?",
@@ -414,7 +414,7 @@ export default async function StemsPage() {
           <h2 className="text-2xl font-bold text-text-primary">Supported Audio Formats</h2>
           <FormatBadges />
           <p className="text-text-muted leading-relaxed">
-            Upload any of the formats above, up to 50MB per file. Output stems
+            Upload any of the formats above, up to 80MB per file. Output stems
             are delivered as individually downloadable audio files.
           </p>
         </section>

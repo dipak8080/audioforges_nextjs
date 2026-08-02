@@ -135,7 +135,7 @@ export function ResampleForm() {
         return fields;
       }}
       renderControls={(file, disabled) => {
-        // Probe once per newly-selected file — cheap enough at 50MB cap,
+        // Probe once per newly-selected file — cheap enough at 80MB cap,
         // and it's the only way to give live upsample/downsample context
         // instead of a bare list of numbers with no relationship to what
         // was actually uploaded.

@@ -32,7 +32,7 @@ const STANDARD_SPEC: QualitySpec = {
   label: "Standard",
   time: "1–5 min",
   detail: "Vocals, drums, bass, other",
-  rateLimit: "2 per hour",
+  rateLimit: "10 per hour",
 };
 
 const HQ_SPEC: QualitySpec = {
@@ -125,7 +125,7 @@ export function StemsForm({ hqAvailable = false }: StemsFormProps) {
       rateLimitMessage={
         isHq
           ? "You've reached the studio quality limit (1 per hour). Try again later."
-          : "You've reached the free limit (2 stem splits per hour). Try again later."
+          : "You've reached the free limit (10 stem splits per hour). Try again later."
       }
       onComplete={() => notifyOnDone("Stems are ready", "Your separated tracks finished processing.")}
       onFailed={(message) => notifyOnDone("Stem separation failed", message || "The job didn't complete.")}

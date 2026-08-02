@@ -93,7 +93,7 @@ const faqs = [
   },
   {
     question: "Is there a file size limit?",
-    answer: "Yes, 50MB per upload.",
+    answer: "Yes, 80MB per upload.",
   },
   {
     question: "Is this really free?",

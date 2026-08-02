@@ -124,7 +124,7 @@ const faqs = [
   },
   {
     question: "Is there a file size limit?",
-    answer: "Yes, 50MB per upload.",
+    answer: "Yes, 80MB per upload.",
   },
   {
     question: "Can I trim my file first and then add a fade?",
@@ -333,7 +333,7 @@ export default function FadePage() {
           <h2 className="text-2xl font-bold text-text-primary">Supported formats</h2>
           <FormatBadges />
           <p className="text-text-muted leading-relaxed">
-            Upload any of the formats above, up to 50MB per file. The output
+            Upload any of the formats above, up to 80MB per file. The output
             keeps the same format you uploaded.
           </p>
         </section>

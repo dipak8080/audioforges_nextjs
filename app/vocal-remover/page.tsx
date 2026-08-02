@@ -103,7 +103,7 @@ const faqs = [
   {
     question: "Is this really free?",
     answer:
-      "Yes, completely free. Because separation is CPU-intensive, it's limited to one track per hour per person to keep it available for everyone.",
+      "Yes, completely free. Because separation is CPU-intensive, it's limited to ten tracks per hour per person to keep it available for everyone.",
   },
   {
     question: "What can I use the instrumental for?",
@@ -157,7 +157,7 @@ const faqs = [
   },
   {
     question: "Is there a maximum file size?",
-    answer: "Yes, 50MB per upload.",
+    answer: "Yes, 80MB per upload.",
   },
   {
     question: "Does AI separation improve the audio quality?",
@@ -194,7 +194,7 @@ export default async function VocalRemoverPage() {
           {[
             { title: "AI-powered", desc: "Real source separation, not a basic center-channel filter." },
             { title: "No download", desc: "Runs entirely in your browser — upload, process, download." },
-            { title: "Free", desc: "No sign-up, no watermark — one track per hour, free for everyone." },
+            { title: "Free", desc: "No sign-up, no watermark — ten tracks per hour, free for everyone." },
           ].map((f) => (
             <div key={f.title} className="rounded-xl border border-graphite-800 bg-graphite-900 p-5 space-y-2">
               <h3 className="font-semibold text-text-primary">{f.title}</h3>

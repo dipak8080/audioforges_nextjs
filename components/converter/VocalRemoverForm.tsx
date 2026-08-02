@@ -45,7 +45,7 @@ const STANDARD_SPEC: QualitySpec = {
   label: "Standard",
   time: "1–5 min",
   detail: "Vocals and instrumental",
-  rateLimit: "2 per hour",
+  rateLimit: "10 per hour",
 };
 
 const HQ_SPEC: QualitySpec = {
@@ -282,7 +282,7 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
           hint:
             effectiveQuality === "hq"
               ? "1 studio-quality separation per hour. Try again later."
-              : "2 separations per hour. Try again later.",
+              : "10 separations per hour. Try again later.",
         });
         setCooldownSeconds(err.retryAfterSeconds ?? 3600);
       } else {

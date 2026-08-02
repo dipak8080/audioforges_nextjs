@@ -117,7 +117,7 @@ const faqs = [
   },
   {
     question: "What file formats can I upload?",
-    answer: "MP3, WAV, FLAC, M4A, AAC and OGG, up to 50MB per file.",
+    answer: "MP3, WAV, FLAC, M4A, AAC and OGG, up to 80MB per file.",
   },
   {
     question: "How long does key and BPM detection take?",

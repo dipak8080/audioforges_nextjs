@@ -104,7 +104,7 @@ const faqs = [
   {
     question: "Can I split an MP3, WAV, or other format by silence?",
     answer:
-      "Yes — MP3, WAV, FLAC, M4A, AAC, OGG, and AIFF are all supported as input, up to 50MB per upload.",
+      "Yes — MP3, WAV, FLAC, M4A, AAC, OGG, and AIFF are all supported as input, up to 80MB per upload.",
   },
   {
     question: "Can I split a DJ mix into individual tracks?",
@@ -453,7 +453,7 @@ export default function SilenceSplitPage() {
           <h2 className="text-2xl font-bold text-text-primary">Supported formats</h2>
           <FormatBadges />
           <p className="text-text-muted leading-relaxed">
-            Upload any of the formats above, up to 50MB per file. Choose one
+            Upload any of the formats above, up to 80MB per file. Choose one
             output format and every resulting track is saved in that format.
           </p>
         </section>

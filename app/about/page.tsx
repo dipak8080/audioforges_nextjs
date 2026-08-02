@@ -80,7 +80,7 @@ export default function AboutPage() {
           source-separation processing to split a track into vocal and instrumental
           stems — not a simple center-channel filter, which only partially removes
           vocals and often damages the mix. Because this runs on CPU rather than
-          paid GPU infrastructure, it&apos;s limited to one separation per hour per
+          paid GPU infrastructure, it&apos;s limited to ten separations per hour per
           person so it stays free and available for everyone.
         </p>
         <p>

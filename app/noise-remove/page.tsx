@@ -112,7 +112,7 @@ const faqs = [
   },
   {
     question: "What formats are supported?",
-    answer: "MP3, WAV, FLAC, M4A, AAC, OGG, and AIFF, up to 50MB and 20 minutes long.",
+    answer: "MP3, WAV, FLAC, M4A, AAC, OGG, and AIFF, up to 80MB and 20 minutes long.",
   },
   {
     question: "Should I denoise before or after boosting volume?",

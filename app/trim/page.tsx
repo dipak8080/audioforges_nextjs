@@ -117,7 +117,7 @@ const faqs = [
   },
   {
     question: "Is there a length limit?",
-    answer: "The source file can be up to 20 minutes long and 50MB.",
+    answer: "The source file can be up to 20 minutes long and 80MB.",
   },
   {
     question: "Can I convert the trimmed clip to a different format too?",

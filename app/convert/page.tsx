@@ -129,7 +129,7 @@ const faqs = [
   },
   {
     question: "Is there a file size limit?",
-    answer: "Uploads are limited to 50MB per file.",
+    answer: "Uploads are limited to 80MB per file.",
   },
 ];
 

@@ -107,7 +107,7 @@ const faqs = [
   },
   {
     question: "Is there a file size limit for the source file?",
-    answer: "Yes, 50MB for the file you upload — the output ringtone itself will be much smaller.",
+    answer: "Yes, 80MB for the file you upload — the output ringtone itself will be much smaller.",
   },
   {
     question: "Is this really free?",
