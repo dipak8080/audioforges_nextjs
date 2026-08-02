@@ -4,8 +4,7 @@ import { ResampleForm } from "@/components/converter/ResampleForm";
 import { FAQSection } from "@/components/faq/FAQSection";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
-
-const PAGE_TITLE = "Free Audio Sample Rate Converter — 44.1kHz, 48kHz & 96kHz";
+const PAGE_TITLE = "Free Sample Rate Converter — 44.1kHz, 48kHz & 96kHz";
 const PAGE_DESCRIPTION =
   "Convert audio sample rates online for free. Resample to 22.05kHz, 44.1kHz, 48kHz, or 96kHz, with optional bit depth conversion. No sign-up.";
 

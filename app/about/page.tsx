@@ -3,9 +3,9 @@ import Link from "next/link";
 import { SITE_URL } from "@/lib/constants";
 
 export const metadata: Metadata = {
-  title: "About AudioForges — Free Audio Tools for Musicians & Creators",
-  description:
-    "Learn about AudioForges and our mission to build free audio tools for music producers, DJs, musicians, and creators — from audio editing and analysis to tuning, BPM, and metronome tools.",
+  title: "About AudioForges — Free Online Audio Tools",
+description:
+"Learn about AudioForges and our mission to build free audio tools for producers, DJs, musicians, and creators.",
   alternates: { canonical: `${SITE_URL}/about` },
   openGraph: {
     title: "About AudioForges — Free Audio Tools for Musicians & Creators",

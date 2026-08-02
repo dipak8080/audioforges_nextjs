@@ -5,7 +5,7 @@ import { FAQSection } from "@/components/faq/FAQSection";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
 
-const PAGE_TITLE = "Free Silence Splitter Online – Split Audio at Silent Gaps";
+const PAGE_TITLE = "Free Silence Splitter Online — Split Audio by Silence";
 const PAGE_DESCRIPTION =
   "Automatically split one long recording into separate audio tracks at silent gaps. Adjustable threshold and gap length. Free, no sign-up.";
 

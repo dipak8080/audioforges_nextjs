@@ -7,8 +7,7 @@ import { getRelatedTools } from "@/lib/data/tools";
 
 const PAGE_TITLE = "Free Online Guitar Tuner & Chromatic Tuner";
 const PAGE_DESCRIPTION =
-  "Free online guitar tuner and chromatic tuner. Tune guitar, bass, ukulele, violin, and other instruments with your microphone in real time. No download or sign-up.";
-
+"Free online guitar and chromatic tuner. Tune guitar, bass, ukulele, violin, and more with your microphone in real time.";
 export const metadata: Metadata = {
   title: PAGE_TITLE,
   description: PAGE_DESCRIPTION,

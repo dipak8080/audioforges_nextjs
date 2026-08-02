@@ -5,7 +5,13 @@ import { verifySessionCookie } from "@/lib/auth/session";
 // themselves (which must stay reachable so someone can actually log in).
 const PUBLIC_ADMIN_PATHS = ["/admin/login", "/api/admin/login"];
 
-export async function middleware(req: NextRequest) {
+// Renamed from `middleware` to `proxy` per the Next.js 16 convention —
+// this file now runs on the Node.js runtime rather than Edge, which is
+// also why it's safe to keep doing a real cookie-signature check here
+// (the old Edge-runtime middleware model had a known bypass class,
+// CVE-2025-29927, under load — part of why this rename happened).
+// Logic is otherwise unchanged from the previous middleware.ts.
+export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   const isPublicAdminPath = PUBLIC_ADMIN_PATHS.some((p) => pathname.startsWith(p));

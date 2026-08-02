@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { Download, AlertTriangle, Wand2, RotateCcw } from "lucide-react";
+import { Download, AlertTriangle, Wand2, RotateCcw, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { FileDropZone } from "@/components/ui/FileDropZone";
 import { Waveform } from "@/components/ui/Waveform";
@@ -153,6 +153,11 @@ interface JobToolFormProps {
   submitTimeoutMs?: number;
   /** Button label when idle, e.g. "Convert" */
   submitLabel: string;
+  /** Icon shown on the submit button when idle. Defaults to Wand2 (the
+   * generic "transform this audio" glyph most tools use) — override for
+   * tools where a more specific icon reads better, e.g. Download for
+   * Convert, where the end result really is "get a downloaded file". */
+  icon?: LucideIcon;
   /** Label while processing, e.g. "Converting" */
   processingLabel: string;
   /** e.g. "a few seconds" */
@@ -207,6 +212,7 @@ export function JobToolForm({
   pollIntervalMs = 2500,
   submitTimeoutMs = 60_000,
   submitLabel,
+  icon: Icon = Wand2,
   processingLabel,
   expectedRange,
   resultVerb,
@@ -583,7 +589,7 @@ export function JobToolForm({
             disabled={!canSubmit}
             loading={isBusy}
           >
-            {!isBusy && <Wand2 className="h-5 w-5" />}
+            {!isBusy && <Icon className="h-5 w-5" />}
             {isBusy
               ? "Working"
               : cooldownSeconds > 0

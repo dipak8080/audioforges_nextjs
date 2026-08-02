@@ -217,7 +217,7 @@ export const guides: Guide[] = [
   },
   {
     slug: "why-m4a-extraction-is-instant",
-    title: "Why Extracting Audio to M4A Is Instant (and WAV Isn't)",
+    title: "What Is an M4R File? iPhone Ringtone Format Explained",
     description:
       "Why extracting audio to M4A is a near-instant stream copy, why WAV or FLAC doesn't add quality, and when lossless output actually helps.",
     publishedDate: "2026-08-01",
