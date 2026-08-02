@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Mic, MicOff, AlertTriangle } from "lucide-react";
+import { Mic, MicOff, AlertTriangle, ChevronUp, ChevronDown, Check } from "lucide-react";
+import { cn } from "@/lib/utils/cn";
 
 type TunerState = "idle" | "requesting" | "listening" | "denied" | "unsupported";
 
@@ -18,6 +19,18 @@ const RENDER_INTERVAL_MS = 80;
 // guessing a pitch from noise floor / room hum - avoids the note display
 // flickering to a random note when nothing is actually being played.
 const SILENCE_RMS_THRESHOLD = 0.01;
+
+const REF_PITCH_MIN = 415;
+const REF_PITCH_MAX = 466;
+const REF_PITCH_DEFAULT = 440;
+const REF_PITCH_PRESETS = [415, 440, 442, 443, 444];
+
+// How many recent readings feed the stability check, and how tight
+// they must cluster (in cents) to count as "locked" — this is what
+// turns a jittery live reading into something you can trust enough to
+// actually stop turning the tuning peg.
+const STABILITY_WINDOW = 8;
+const STABILITY_CENTS_THRESHOLD = 3;
 
 interface PitchResult {
   frequency: number;
@@ -93,9 +106,8 @@ function autoCorrelate(buffer: Float32Array, sampleRate: number): number {
   return sampleRate / foundPeriod;
 }
 
-function frequencyToPitch(frequency: number): { note: string; octave: number; cents: number } {
-  const A4 = 440;
-  const midi = 69 + 12 * Math.log2(frequency / A4);
+function frequencyToPitch(frequency: number, referencePitch: number): { note: string; octave: number; cents: number } {
+  const midi = 69 + 12 * Math.log2(frequency / referencePitch);
   const roundedMidi = Math.round(midi);
   const cents = Math.round((midi - roundedMidi) * 100);
   const noteIndex = ((roundedMidi % 12) + 12) % 12;
@@ -103,9 +115,16 @@ function frequencyToPitch(frequency: number): { note: string; octave: number; ce
   return { note: NOTE_NAMES[noteIndex], octave, cents };
 }
 
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
+}
+
 export function TunerForm() {
   const [state, setState] = useState<TunerState>("idle");
   const [pitch, setPitch] = useState<PitchResult | null>(null);
+  const [smoothedCents, setSmoothedCents] = useState(0);
+  const [isLocked, setIsLocked] = useState(false);
+  const [referencePitch, setReferencePitch] = useState(REF_PITCH_DEFAULT);
 
   const audioCtxRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
@@ -113,6 +132,12 @@ export function TunerForm() {
   const rafRef = useRef<number | null>(null);
   const renderTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const latestPitchRef = useRef<PitchResult | null>(null);
+  const referencePitchRef = useRef(referencePitch);
+  const centsHistoryRef = useRef<number[]>([]);
+
+  useEffect(() => {
+    referencePitchRef.current = referencePitch;
+  }, [referencePitch]);
 
   useEffect(() => {
     if (typeof window !== "undefined" && !navigator.mediaDevices?.getUserMedia) {
@@ -131,7 +156,9 @@ export function TunerForm() {
     audioCtxRef.current = null;
     analyserRef.current = null;
     latestPitchRef.current = null;
+    centsHistoryRef.current = [];
     setPitch(null);
+    setIsLocked(false);
     setState("idle");
   }, []);
 
@@ -149,10 +176,43 @@ export function TunerForm() {
     analyser.getFloatTimeDomainData(buffer);
     const frequency = autoCorrelate(buffer, ctx.sampleRate);
 
-    latestPitchRef.current = frequency > 0 ? { frequency, ...frequencyToPitch(frequency) } : null;
+    latestPitchRef.current =
+      frequency > 0 ? { frequency, ...frequencyToPitch(frequency, referencePitchRef.current) } : null;
 
     rafRef.current = requestAnimationFrame(detectLoop);
   }, []);
+
+  // Render tick: pulls the latest detection, smooths the needle position
+  // (raw per-frame cents are jittery even when the actual note is
+  // steady — a light exponential ease makes the needle read as settling
+  // rather than vibrating), and tracks a short rolling history to decide
+  // whether the pitch has actually "locked" rather than just briefly
+  // passing through in-tune.
+  useEffect(() => {
+    if (state !== "listening") return;
+    const id = setInterval(() => {
+      const latest = latestPitchRef.current;
+      setPitch(latest);
+
+      const targetCents = latest?.cents ?? 0;
+      setSmoothedCents((prev) => (latest ? prev + (targetCents - prev) * 0.35 : 0));
+
+      if (latest) {
+        const history = [...centsHistoryRef.current, latest.cents].slice(-STABILITY_WINDOW);
+        centsHistoryRef.current = history;
+        if (history.length >= STABILITY_WINDOW) {
+          const spread = Math.max(...history) - Math.min(...history);
+          setIsLocked(spread <= STABILITY_CENTS_THRESHOLD && Math.abs(latest.cents) <= 5);
+        } else {
+          setIsLocked(false);
+        }
+      } else {
+        centsHistoryRef.current = [];
+        setIsLocked(false);
+      }
+    }, RENDER_INTERVAL_MS);
+    return () => clearInterval(id);
+  }, [state]);
 
   const start = useCallback(async () => {
     setState("requesting");
@@ -171,10 +231,9 @@ export function TunerForm() {
 
       audioCtxRef.current = ctx;
       analyserRef.current = analyser;
+      centsHistoryRef.current = [];
 
       rafRef.current = requestAnimationFrame(detectLoop);
-      renderTimerRef.current = setInterval(() => setPitch(latestPitchRef.current), RENDER_INTERVAL_MS);
-
       setState("listening");
     } catch (err) {
       console.error("Microphone access error:", err);
@@ -200,13 +259,13 @@ export function TunerForm() {
     );
   }
 
-  const cents = pitch?.cents ?? 0;
-  const isInTune = pitch !== null && Math.abs(cents) <= 5;
-  const isClose = pitch !== null && Math.abs(cents) <= 15;
-  const needlePercent = 50 + Math.max(-50, Math.min(50, cents));
+  const isInTune = pitch !== null && Math.abs(smoothedCents) <= 5;
+  const isClose = pitch !== null && Math.abs(smoothedCents) <= 15;
+  const tone = !pitch ? "text-graphite-600" : isInTune ? "text-teal-400" : isClose ? "text-amber-400" : "text-red-400";
+  const needlePercent = clamp(50 + smoothedCents, 2, 98);
 
   return (
-    <div className="rounded-2xl border border-graphite-800 bg-graphite-900 p-6 sm:p-8 space-y-8">
+    <div className="space-y-8 rounded-2xl border border-graphite-800 bg-graphite-900 p-6 sm:p-8">
       {state === "denied" && (
         <div className="flex items-center gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3">
           <AlertTriangle className="h-4 w-4 shrink-0 text-red-500" />
@@ -216,34 +275,101 @@ export function TunerForm() {
         </div>
       )}
 
-      <div className="text-center space-y-2">
-        <p
-          className={`text-7xl font-mono font-bold transition-colors ${
-            !pitch ? "text-graphite-600" : isInTune ? "text-teal-400" : isClose ? "text-amber-400" : "text-red-400"
-          }`}
-        >
-          {pitch ? pitch.note : "—"}
-          {pitch && <span className="text-3xl align-top ml-1 text-text-subtle">{pitch.octave}</span>}
-        </p>
-        <p className="text-xs font-mono text-text-subtle tabular-nums">
-          {pitch ? `${pitch.frequency.toFixed(1)} Hz` : state === "listening" ? "Listening…" : "Play a note"}
+      <div className="space-y-2 text-center">
+        <div className="flex items-center justify-center gap-2">
+          <p className={cn("font-mono text-7xl font-bold transition-colors", tone)}>
+            {pitch ? pitch.note : "—"}
+            {pitch && <span className="ml-1 align-top text-3xl text-text-subtle">{pitch.octave}</span>}
+          </p>
+          {isLocked && (
+            <span className="flex items-center gap-1 rounded-full border border-teal-400/30 bg-teal-400/10 px-2 py-1 text-[10px] font-medium text-teal-400">
+              <Check className="h-3 w-3" />
+              Locked
+            </span>
+          )}
+        </div>
+        <p className="font-mono text-xs tabular-nums text-text-subtle">
+          {pitch
+            ? `${pitch.frequency.toFixed(1)} Hz`
+            : state === "listening"
+              ? "Listening…"
+              : "Play a note"}
         </p>
       </div>
 
-      <div className="space-y-2">
-        <div className="relative h-3 rounded-full bg-graphite-800 overflow-hidden">
-          <div className="absolute inset-y-0 left-1/2 w-px bg-graphite-600" />
+      {/* Meter — shaded in-tune band, real tick marks, smoothed needle */}
+      <div className="space-y-1.5">
+        <div className="relative h-4 overflow-hidden rounded-full bg-graphite-800">
+          {/* ±5 cent in-tune zone, shaded directly on the track */}
+          <div className="absolute inset-y-0 bg-teal-400/15" style={{ left: `${50 - 5}%`, width: "10%" }} />
+          {/* Tick marks at -50/-25/0/+25/+50 */}
+          {[-50, -25, 0, 25, 50].map((c) => (
+            <div key={c} className="absolute top-0 h-full w-px bg-graphite-950/40" style={{ left: `${50 + c / 2}%` }} />
+          ))}
           <div
-            className={`absolute inset-y-0 w-2 -ml-1 rounded-full transition-all duration-75 ${
-              !pitch ? "bg-graphite-600" : isInTune ? "bg-teal-400" : isClose ? "bg-amber-400" : "bg-red-400"
-            }`}
+            className={cn("absolute inset-y-0 -ml-1 w-2 rounded-full transition-[left] duration-75", tone.replace("text-", "bg-"))}
             style={{ left: `${needlePercent}%` }}
           />
         </div>
-        <div className="flex justify-between text-xs text-text-subtle">
+        <div className="flex justify-between text-[11px] text-text-subtle">
           <span>−50¢ flat</span>
           <span>in tune</span>
           <span>+50¢ sharp</span>
+        </div>
+      </div>
+
+      {/* Reference pitch — the thing that was hardcoded to 440 before */}
+      <div className="flex items-center justify-between gap-3 rounded-lg border border-graphite-800 bg-graphite-850/60 px-3.5 py-2.5">
+        <span className="text-xs text-text-muted">Reference pitch (A4)</span>
+        <div className="flex items-center gap-2">
+          <div className="flex flex-wrap gap-1">
+            {REF_PITCH_PRESETS.map((preset) => (
+              <button
+                key={preset}
+                type="button"
+                onClick={() => setReferencePitch(preset)}
+                className={cn(
+                  "rounded-md border px-2 py-1 font-mono text-[11px] transition-colors",
+                  referencePitch === preset
+                    ? "border-amber-500/60 bg-amber-500/10 text-amber-400"
+                    : "border-graphite-700 bg-graphite-850 text-text-muted hover:text-text-primary"
+                )}
+              >
+                {preset}
+              </button>
+            ))}
+          </div>
+          <span className="flex items-center overflow-hidden rounded-md border border-graphite-700 bg-graphite-850">
+            <input
+              type="number"
+              min={REF_PITCH_MIN}
+              max={REF_PITCH_MAX}
+              value={referencePitch}
+              onChange={(e) =>
+                setReferencePitch(clamp(Number(e.target.value) || REF_PITCH_DEFAULT, REF_PITCH_MIN, REF_PITCH_MAX))
+              }
+              className="w-12 bg-transparent px-1.5 py-1 text-right font-mono text-xs text-text-primary [appearance:textfield] focus:outline-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+            />
+            <span className="flex flex-col border-l border-graphite-700">
+              <button
+                type="button"
+                aria-label="Increase reference pitch"
+                onClick={() => setReferencePitch((v) => clamp(v + 1, REF_PITCH_MIN, REF_PITCH_MAX))}
+                className="flex h-3 w-4 items-center justify-center text-text-subtle transition-colors hover:bg-graphite-800 hover:text-amber-400"
+              >
+                <ChevronUp className="h-2 w-2" />
+              </button>
+              <button
+                type="button"
+                aria-label="Decrease reference pitch"
+                onClick={() => setReferencePitch((v) => clamp(v - 1, REF_PITCH_MIN, REF_PITCH_MAX))}
+                className="flex h-3 w-4 items-center justify-center border-t border-graphite-700 text-text-subtle transition-colors hover:bg-graphite-800 hover:text-amber-400"
+              >
+                <ChevronDown className="h-2 w-2" />
+              </button>
+            </span>
+          </span>
+          <span className="text-[11px] text-text-subtle">Hz</span>
         </div>
       </div>
 
@@ -251,11 +377,11 @@ export function TunerForm() {
         type="button"
         onClick={toggle}
         disabled={state === "requesting"}
-        className={`flex w-full items-center justify-center gap-2 rounded-lg px-6 py-3 font-medium transition-colors disabled:opacity-50 ${
-          state === "listening"
-            ? "bg-red-500 text-white hover:bg-red-400"
-            : "bg-amber-500 text-graphite-950 hover:bg-amber-400"
-        }`}
+        className={cn(
+          "flex w-full items-center justify-center gap-2 rounded-lg px-6 py-3 font-medium transition-colors disabled:opacity-50",
+          "focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40",
+          state === "listening" ? "bg-red-500 text-white hover:bg-red-400" : "bg-amber-500 text-graphite-950 hover:bg-amber-400"
+        )}
       >
         {state === "listening" ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
         {state === "requesting" ? "Requesting microphone…" : state === "listening" ? "Stop" : "Start tuning"}
