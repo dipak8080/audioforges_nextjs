@@ -63,9 +63,7 @@ export default function DmcaPage() {
           <p>
             If you believe our service has been used to infringe your copyright,
             contact us at{" "}
-            <a href="mailto:dmca@audioforges.com" className="text-amber-400 hover:underline">
-              dmca@audioforges.com
-            </a>{" "}
+            <span className="text-amber-400 select-all">dmca@audioforges.com</span>{" "}
             or via our{" "}
             <Link href="/contact" className="text-amber-400 hover:underline">Contact page</Link>,
             with a written notice that includes:

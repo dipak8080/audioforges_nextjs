@@ -61,13 +61,10 @@ export default function ContactPage() {
             feature, or contact us about copyright? We&apos;d be happy to help.
           </p>
 
-          <a
-            href="mailto:contact@audioforges.com"
-            className="inline-flex items-center gap-2 rounded-lg bg-amber-500 text-graphite-950 font-medium px-6 py-3 hover:bg-amber-400 transition-colors"
-          >
-            <Mail className="h-4 w-4" />
+          <div className="inline-flex items-center gap-2 rounded-lg bg-amber-500 text-graphite-950 font-medium px-6 py-3 select-all">
+            <Mail className="h-4 w-4" aria-hidden="true" />
             contact@audioforges.com
-          </a>
+          </div>
 
           <p className="text-sm text-text-subtle">
             We typically respond within 2–3 business days. Response times may
