@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { SITE_URL } from "@/lib/constants";
+import EmailLink from "@/components/EmailLink";
 
 export const metadata: Metadata = {
   title: "DMCA Policy",
@@ -63,7 +64,11 @@ export default function DmcaPage() {
           <p>
             If you believe our service has been used to infringe your copyright,
             contact us at{" "}
-            <span className="text-amber-400 select-all">dmca@audioforges.com</span>{" "}
+            <EmailLink
+              user="dmca"
+              domain="audioforges.com"
+              className="text-amber-400 hover:underline"
+            />{" "}
             or via our{" "}
             <Link href="/contact" className="text-amber-400 hover:underline">Contact page</Link>,
             with a written notice that includes:

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Mail } from "lucide-react";
 import { SITE_URL } from "@/lib/constants";
+import EmailLink from "@/components/EmailLink";
 
 export const metadata: Metadata = {
   title: "Contact Us",
@@ -61,10 +62,13 @@ export default function ContactPage() {
             feature, or contact us about copyright? We&apos;d be happy to help.
           </p>
 
-          <div className="inline-flex items-center gap-2 rounded-lg bg-amber-500 text-graphite-950 font-medium px-6 py-3 select-all">
+          <EmailLink
+            user="contact"
+            domain="audioforges.com"
+            className="inline-flex items-center gap-2 rounded-lg bg-amber-500 text-graphite-950 font-medium px-6 py-3 hover:bg-amber-400 transition-colors"
+          >
             <Mail className="h-4 w-4" aria-hidden="true" />
-            contact@audioforges.com
-          </div>
+          </EmailLink>
 
           <p className="text-sm text-text-subtle">
             We typically respond within 2–3 business days. Response times may
