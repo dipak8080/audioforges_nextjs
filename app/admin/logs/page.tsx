@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Activity,
@@ -474,7 +474,20 @@ export default function AdminLogsPage() {
     }
   }, [router]);
 
-  useEffect(() => { fetchHttp(); fetchSystem(); }, [fetchHttp, fetchSystem]);
+  // Boot fetch, ONCE. This used to depend on [fetchHttp, fetchSystem],
+  // whose identities change every time httpLimit/sysLimit changes - so
+  // every "Load older entries" click silently fired a second, unforced
+  // full refetch of BOTH tabs. That second response landed after the
+  // scroll-restore ref had already been consumed, and (because the panel
+  // was still flagged as pinned) dropped the reader straight back to the
+  // bottom. Load-more now owns its own fetch and nothing else re-fires.
+  const bootedRef = useRef(false);
+  useEffect(() => {
+    if (bootedRef.current) return;
+    bootedRef.current = true;
+    fetchHttpWithLimit(INITIAL_FETCH_LIMIT);
+    fetchSystemWithLimit(INITIAL_FETCH_LIMIT);
+  }, [fetchHttpWithLimit, fetchSystemWithLimit]);
 
   // Follows new data only while "pinned to bottom." The moment you
   // scroll up (handleHttpScroll/handleSysScroll above), pinned flips to
@@ -483,7 +496,11 @@ export default function AdminLogsPage() {
   // down mid-read. Scrolling back to the bottom yourself, or clicking
   // that button, re-pins it. First load pins to bottom by default so you
   // land on the newest activity immediately, same as Railway.
-  useEffect(() => {
+  //
+  // useLayoutEffect, not useEffect: the scroll write has to happen in the
+  // same frame the new rows are committed, otherwise the browser paints
+  // the un-adjusted position first and you see a visible jump.
+  useLayoutEffect(() => {
     // If older rows were just prepended by "load more", restore the user's
     // previous view rather than following new data or nagging about it.
     const adjust = httpScrollAdjustRef.current;
@@ -508,7 +525,7 @@ export default function AdminLogsPage() {
     // by scroll position in handleHttpScroll, not by data arrival.
   }, [httpLogs]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const el = sysRef.current;
     if (!el) return;
 
@@ -523,6 +540,28 @@ export default function AdminLogsPage() {
       el.scrollTop = el.scrollHeight;
     }
   }, [systemLogs]);
+
+  // Switching tabs UNMOUNTS the other panel, so its scroll container is a
+  // brand-new element (scrollTop 0) when it comes back. The System panel
+  // never got pinned at all on first view for exactly this reason: its
+  // container didn't exist when the boot fetch landed, so the effect above
+  // bailed on a null ref, and switching tabs didn't change systemLogs so
+  // nothing re-ran. Re-pin on show instead, unless the reader had
+  // deliberately scrolled up before leaving. isMobile is a dependency
+  // because the desktop table and mobile card list are separate elements.
+  useLayoutEffect(() => {
+    if (tab === "http") {
+      if (httpPinnedRef.current) {
+        if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+        if (mobileScrollRef.current) mobileScrollRef.current.scrollTop = mobileScrollRef.current.scrollHeight;
+      }
+      setShowJumpHttp(!httpPinnedRef.current);
+    } else {
+      const el = sysRef.current;
+      if (el && sysPinnedRef.current) el.scrollTop = el.scrollHeight;
+      setShowJumpSys(!sysPinnedRef.current);
+    }
+  }, [tab, isMobile]);
 
   // Immediate FULL refresh whenever the user switches panels, so the newly
   // visible tab shows current data right away instead of waiting for the
@@ -615,6 +654,13 @@ export default function AdminLogsPage() {
     const nextLimit = Math.min(httpLimit + LOAD_MORE_STEP, MAX_FETCH_LIMIT);
     if (nextLimit === httpLimit) return;
 
+    // Reading history is an explicit "stop following the tail" gesture.
+    // Without this, a panel that was still flagged as pinned (which is the
+    // default state until the reader scrolls even once) would snap back to
+    // the bottom on the very next poll tick, undoing the load.
+    httpPinnedRef.current = false;
+    setShowJumpHttp(true);
+
     // Capture where the user is looking before older rows get prepended,
     // so the view can be restored instead of jumping.
     httpScrollAdjustRef.current = {
@@ -638,6 +684,9 @@ export default function AdminLogsPage() {
     if (sysLoadingMore) return;
     const nextLimit = Math.min(sysLimit + LOAD_MORE_STEP, MAX_FETCH_LIMIT);
     if (nextLimit === sysLimit) return;
+
+    sysPinnedRef.current = false;
+    setShowJumpSys(true);
 
     sysScrollAdjustRef.current = sysRef.current
       ? [sysRef.current.scrollHeight, sysRef.current.scrollTop]
