@@ -1,11 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
-// NOTE: This file is a reconstruction based on a prior session summary of
-// its behavior, not a verified diff of your actual current file - Claude
-// does not have the literal source of this route from this conversation.
-// Please diff this against your real app/api/admin/logs/route.ts before
-// deploying; only the afterId-related lines are the actual new addition,
-// everything else should already match what you have.
+// NOTE: reconstructed from the version you pasted. Diff before deploying -
+// the ONLY new addition is the beforeId passthrough block.
 
 const BACKEND_BASE = process.env.NEXT_PUBLIC_RAILWAY_API_BASE;
 const ADMIN_KEY = process.env.BACKEND_ADMIN_KEY;
@@ -14,12 +10,16 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const type = searchParams.get("type"); // "http" | "system"
   const limit = searchParams.get("limit") ?? "200";
-  // New: delta-fetch support for the poll loop. When present, this is
-  // forwarded straight through to the backend's after_id param, which
-  // returns only rows newer than what the dashboard already has instead
-  // of the whole window - see get_http_logs()/get_system_logs() in
-  // log_stream.py.
+  // Delta-fetch support for the poll loop. Forwarded straight through to
+  // the backend's after_id param, which returns only rows newer than what
+  // the dashboard already has instead of the whole window.
   const afterId = searchParams.get("afterId");
+  // Cursor pagination for "load older". Forwarded to the backend's
+  // before_id param, which returns one fixed-size page of rows OLDER than
+  // the cursor. This is what replaced the old approach of re-requesting an
+  // ever-larger `limit` - `limit` is capped at 2000 server-side, so paging
+  // by growing it could never reach row 2001 no matter how many clicks.
+  const beforeId = searchParams.get("beforeId");
 
   if (type !== "http" && type !== "system") {
     return NextResponse.json({ error: "Invalid type parameter" }, { status: 400 });
@@ -30,6 +30,9 @@ export async function GET(request: NextRequest) {
   backendUrl.searchParams.set("limit", limit);
   if (afterId) {
     backendUrl.searchParams.set("after_id", afterId);
+  }
+  if (beforeId) {
+    backendUrl.searchParams.set("before_id", beforeId);
   }
 
   try {
