@@ -77,6 +77,12 @@ interface ToolEndpoint {
   path: string;    // canonical family, e.g. "/youtube/analyze"
   label: string;   // human label, e.g. "YouTube Analyze"
   methods: string[];
+  // Real all-time total from the database, NOT a count of loaded rows.
+  // The picker used to count rows in the browser's in-memory window,
+  // which meant its numbers shrank as older rows were trimmed - a tool
+  // showing 967 would quietly become 233 after scrolling, looking like
+  // requests had disappeared. This number doesn't move.
+  total_requests?: number;
 }
 
 interface EndpointsApiResponse {
@@ -1211,26 +1217,46 @@ export default function AdminLogsPage() {
   );
 
   const endpointOptions = useMemo(() => {
-    const byPath = new Map<string, { path: string; label: string; count: number }>();
+    const byPath = new Map<
+      string,
+      { path: string; label: string; count: number; loaded: number }
+    >();
     for (const ep of knownEndpoints) {
-      byPath.set(ep.path, { path: ep.path, label: ep.label, count: 0 });
+      byPath.set(ep.path, {
+        path: ep.path,
+        label: ep.label,
+        // Real all-time total from the database. Previously this started
+        // at 0 and was incremented per LOADED row, so the number shrank
+        // as the in-memory window trimmed older entries - a tool showing
+        // 967 quietly became 233 after scrolling, which read as
+        // "requests disappeared".
+        count: ep.total_requests ?? 0,
+        loaded: 0,
+      });
     }
 
     let otherCount = 0;
+    let otherLoaded = 0;
     for (const log of httpLogs) {
       if (!log.path) continue; // stale malformed rows (e.g. an empty path) - nothing to label
       if (hideNoise && isNoise(log.path)) continue;
       const family = toolFamily(log.path);
       const existing = byPath.get(family);
       if (existing) {
-        existing.count += 1;
+        // Tracked separately from `count` rather than replacing it: this
+        // is "how many are in memory right now", useful when a filter is
+        // active, but it must never overwrite the stable total.
+        existing.loaded += 1;
       } else {
         // NOT a registered tool. Previously this humanized the raw path
         // into a plausible-looking name - which is how
         // "/___proxy_subdomain_whm/login/" became a dropdown entry
         // reading "Proxy Subdomain Whm Login", indistinguishable from a
-        // real tool. Bucketed instead.
+        // real tool. Bucketed instead. No DB total exists for this
+        // bucket (it's a client-side grouping), so loaded rows are the
+        // only number available here.
         otherCount += 1;
+        otherLoaded += 1;
       }
     }
 
@@ -1240,6 +1266,7 @@ export default function AdminLogsPage() {
         path: OTHER_TRAFFIC_KEY,
         label: `Other (unrecognized traffic)`,
         count: otherCount,
+        loaded: otherLoaded,
       });
     }
 
@@ -1687,7 +1714,15 @@ export default function AdminLogsPage() {
                             title={
                               isOther
                                 ? `${e.count.toLocaleString()} requests to paths that aren't a registered tool - mostly scanner/bot traffic`
-                                : `${e.label}${e.count > 0 ? ` — ${e.count.toLocaleString()} requests` : " — no traffic yet"}\n${e.path}`
+                                : `${e.label}\n${e.path}\n${
+                                    e.count > 0
+                                      ? `${e.count.toLocaleString()} requests all-time`
+                                      : "No traffic yet"
+                                  }${
+                                    e.loaded > 0 && e.loaded !== e.count
+                                      ? ` (${e.loaded.toLocaleString()} currently loaded)`
+                                      : ""
+                                  }`
                             }
                             onClick={() => { setEndpointFilter(e.path); setToolPickerOpen(false); }}
                             className={`w-full flex items-center justify-between gap-3 px-3 py-2 text-left transition-colors ${
