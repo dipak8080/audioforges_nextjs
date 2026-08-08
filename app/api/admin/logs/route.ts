@@ -26,6 +26,11 @@ export async function GET(request: NextRequest) {
   // this is present, since there's no sane page size for "however many
   // lines this one request happened to produce".
   const requestId = searchParams.get("requestId");
+  // Tool-family filter, applied server-side. Client-side filtering only
+  // ever saw the rows already loaded in the browser, so selecting a tool
+  // whose requests were older than the loaded window showed an empty
+  // list even though the picker correctly reported a non-zero total.
+  const family = searchParams.get("family");
 
   if (type !== "http" && type !== "system") {
     return NextResponse.json({ error: "Invalid type parameter" }, { status: 400 });
@@ -42,6 +47,9 @@ export async function GET(request: NextRequest) {
   }
   if (requestId) {
     backendUrl.searchParams.set("request_id", requestId);
+  }
+  if (family) {
+    backendUrl.searchParams.set("family", family);
   }
 
   try {
