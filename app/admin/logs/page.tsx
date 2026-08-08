@@ -471,6 +471,25 @@ export default function AdminLogsPage() {
 
   const isAbort = (e: unknown) => (e as Error)?.name === "AbortError";
 
+  // The family filter sent to the backend. Read through a ref because
+  // the fetch callbacks are memoized on [router] and would otherwise
+  // capture a stale value - and re-creating them whenever the filter
+  // changes would retrigger every effect that depends on their identity.
+  //
+  // OTHER_TRAFFIC_KEY is deliberately excluded: "Other" is a CLIENT-side
+  // grouping (everything that isn't a known tool), so there's no single
+  // family the server could filter on. That one stays client-side, which
+  // is correct - unrecognized traffic is inherently defined by what it
+  // isn't.
+  const familyFilterRef = useRef<string | null>(null);
+  familyFilterRef.current =
+    endpointFilter && endpointFilter !== OTHER_TRAFFIC_KEY ? endpointFilter : null;
+
+  const familyParam = () => {
+    const f = familyFilterRef.current;
+    return f ? `&family=${encodeURIComponent(f)}` : "";
+  };
+
   // ---------------- Click-through correlation ----------------
   // Jumps from one HTTP row straight to every system log line that
   // request produced - including lines from a background task the
@@ -572,7 +591,7 @@ export default function AdminLogsPage() {
     if (!force && httpInFlightRef.current) return;
     httpInFlightRef.current = true;
     try {
-      const res = await fetch(`/api/admin/logs?type=http&limit=${PAGE_SIZE}`, {
+      const res = await fetch(`/api/admin/logs?type=http&limit=${PAGE_SIZE}${familyParam()}`, {
         cache: "no-store",
         signal: signal(),
       });
@@ -640,7 +659,7 @@ export default function AdminLogsPage() {
 
     try {
       const res = await fetch(
-        `/api/admin/logs?type=http&limit=${PAGE_SIZE}&beforeId=${cursor}`,
+        `/api/admin/logs?type=http&limit=${PAGE_SIZE}&beforeId=${cursor}${familyParam()}`,
         { cache: "no-store", signal: signal() }
       );
       if (res.status === 401) { router.push("/admin/login"); return; }
@@ -775,7 +794,7 @@ export default function AdminLogsPage() {
     if (httpDeltaInFlightRef.current || httpLastIdRef.current === 0) return false;
     httpDeltaInFlightRef.current = true;
     try {
-      const res = await fetch(`/api/admin/logs?type=http&afterId=${httpLastIdRef.current}`, {
+      const res = await fetch(`/api/admin/logs?type=http&afterId=${httpLastIdRef.current}${familyParam()}`, {
         cache: "no-store",
         signal: signal(),
       });
@@ -1140,6 +1159,32 @@ export default function AdminLogsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, isPaused]);
 
+  // Refetch when the tool filter changes. Filtering is now server-side,
+  // so the loaded window is scoped to whichever family was selected -
+  // switching tools has to re-query rather than re-filter rows that were
+  // fetched for a different query. Cursors are reset for the same
+  // reason: the old oldest/newest ids belong to the previous result set
+  // and would page through the wrong rows.
+  //
+  // Skipped on first mount because the boot effect already fetched.
+  const filterBootRef = useRef(true);
+  useEffect(() => {
+    if (filterBootRef.current) {
+      filterBootRef.current = false;
+      return;
+    }
+    if (tab !== "http") return;
+    httpSigRef.current = "";        // force the signature guard to accept the new result
+    httpLastIdRef.current = 0;
+    httpOldestRef.current = 0;
+    httpHasOlderRef.current = true;
+    setHttpHasOlder(true);
+    httpPinnedRef.current = true;   // a fresh query starts at its newest end
+    setShowJumpHttp(false);
+    fetchHttp(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [endpointFilter]);
+
   // ---------------- Self-adjusting poll ----------------
   // Starts at MIN_POLL_MS; every tick that comes back with nothing new
   // stretches the delay out (capped at MAX_POLL_MS), so a quiet dashboard
@@ -1369,11 +1414,17 @@ export default function AdminLogsPage() {
     return httpLogs.filter((log) => {
       if (methodFilter && log.method !== methodFilter) return false;
       if (endpointFilter) {
-        const family = toolFamily(log.path);
+        // Real tool families are filtered SERVER-side now (see the
+        // family param in fetchHttp), so everything loaded already
+        // belongs to the selected family - no client-side check needed
+        // or wanted here, since re-filtering would only be able to
+        // silently drop rows the server deliberately returned.
+        //
+        // "Other" is the exception: it means "not any known tool", which
+        // is defined by the client's knowledge of the tool list and has
+        // no single family the server could filter on.
         if (endpointFilter === OTHER_TRAFFIC_KEY) {
-          if (knownPathSet.has(family)) return false; // it IS a known tool, so it's not "Other"
-        } else if (family !== endpointFilter) {
-          return false;
+          if (knownPathSet.has(toolFamily(log.path))) return false;
         }
       }
       if (needle && !log.path.toLowerCase().includes(needle)) return false;
