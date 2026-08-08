@@ -20,6 +20,12 @@ export async function GET(request: NextRequest) {
   // ever-larger `limit` - `limit` is capped at 2000 server-side, so paging
   // by growing it could never reach row 2001 no matter how many clicks.
   const beforeId = searchParams.get("beforeId");
+  // Correlation lookup: every system_logs line produced by one specific
+  // HTTP request, regardless of how far back it is. Forwarded straight
+  // through - the backend ignores limit/afterId/beforeId entirely when
+  // this is present, since there's no sane page size for "however many
+  // lines this one request happened to produce".
+  const requestId = searchParams.get("requestId");
 
   if (type !== "http" && type !== "system") {
     return NextResponse.json({ error: "Invalid type parameter" }, { status: 400 });
@@ -33,6 +39,9 @@ export async function GET(request: NextRequest) {
   }
   if (beforeId) {
     backendUrl.searchParams.set("before_id", beforeId);
+  }
+  if (requestId) {
+    backendUrl.searchParams.set("request_id", requestId);
   }
 
   try {

@@ -6,11 +6,14 @@ import {
   Activity,
   AlertTriangle,
   ArrowDown,
+  ChevronDown,
   Loader2,
   Pause,
   Play,
   RefreshCw,
+  ScrollText,
   Search,
+  SlidersHorizontal,
   Terminal,
   Trash2,
   X,
@@ -53,6 +56,7 @@ interface HttpLogEntry {
   status_code: number;
   duration_ms: number;
   client_ip: string;
+  request_id: string | null;
 }
 
 interface SystemLogEntry {
@@ -64,12 +68,105 @@ interface SystemLogEntry {
   request_id: string;
 }
 
-const NOISE_PATTERNS = [
+// Shape of GET /api/admin/endpoints - proxies routes.py's admin_endpoints(),
+// which introspects FastAPI's own route table and collapses it to one
+// entry per TOOL (not per route). Typed explicitly rather than left to
+// inference: res.json() resolves to `unknown` under this project's
+// tsconfig, so anything downstream needs a real type to anchor on.
+interface ToolEndpoint {
+  path: string;    // canonical family, e.g. "/youtube/analyze"
+  label: string;   // human label, e.g. "YouTube Analyze"
+  methods: string[];
+}
+
+interface EndpointsApiResponse {
+  endpoints?: ToolEndpoint[];
+  noise_patterns?: string[];
+}
+
+// Collapses any request path down to the TOOL it belongs to, mirroring
+// _humanize_endpoint/admin_endpoints() in routes.py exactly.
+//
+//   /convert                      -> /convert
+//   /convert/status/a1b2c3d4      -> /convert
+//   /convert/download/a1b2c3d4    -> /convert
+//   /youtube/analyze/result/9f8e  -> /youtube/analyze
+//
+// Why collapse: every tool registers ~4 routes (submit + status +
+// preview + download). Filtering by the raw shape means ~100 dropdown
+// entries for ~25 tools, and nobody wants to filter logs by "preview"
+// specifically - they want everything /convert did. Method is already
+// its own filter, so families don't fork by method either.
+//
+// Walks LEFT to right and stops at the first action word or id, which is
+// what keeps namespaced tools intact: /youtube/analyze/result/{id}
+// yields /youtube/analyze, not /youtube.
+const _ACTION_SEGMENTS = new Set(["status", "preview", "download", "result"]);
+const _ID_SEGMENT = /^[0-9a-f]{6,}(-[0-9a-f]{4,}){0,4}$/i;
+const _FASTAPI_PARAM_SEGMENT = /^\{[^}]+\}$/;
+
+// Memoised, for the same reason the date formatters above are: this runs
+// once per row in the filter pass AND once per row when rebuilding the
+// endpoint list - which happens on every poll. Paths repeat enormously
+// (thousands of /convert/status/<id> polls), so a cache turns tens of
+// thousands of string splits per minute into one per distinct path.
+const familyCache = new Map<string, string>();
+
+// Sentinel for the "Other / unrecognized traffic" bucket - deliberately
+// not a real path shape (no leading slash a real route would ever have)
+// so it can never collide with an actual family.
+const OTHER_TRAFFIC_KEY = "__other__";
+
+function toolFamily(path: string): string {
+  let hit = familyCache.get(path);
+  if (hit === undefined) {
+    if (familyCache.size > 20000) familyCache.clear();
+    const parts: string[] = [];
+    const segs = path.split("/").filter(Boolean);
+    for (let i = 0; i < segs.length; i++) {
+      const seg = segs[i];
+      const isParam = _ID_SEGMENT.test(seg) || _FASTAPI_PARAM_SEGMENT.test(seg);
+      // Mirrors the i > 0 guard in routes.py's admin_endpoints(): an
+      // action word only ends a family when something precedes it.
+      // "/download" is a real tool AND "download" is an action segment
+      // for /<tool>/download/{job_id}; without this guard the busiest
+      // endpoint on the API resolves to an empty family and falls into
+      // the "Other" bucket. These two implementations must agree or the
+      // picker and the filter disagree about what a row belongs to.
+      if (i > 0 && (_ACTION_SEGMENTS.has(seg) || isParam)) break;
+      if (isParam) break; // a bare id as the FIRST segment is never a tool
+      parts.push(seg);
+    }
+    hit = parts.length ? "/" + parts.join("/") : path;
+    familyCache.set(path, hit);
+  }
+  return hit;
+}
+
+
+// Bootstrap fallback only - covers the ~2 seconds before the real list
+// arrives from GET /api/admin/endpoints (see the noisePatterns fetch in
+// the component below). Replaced in place, not read from React state,
+// so isNoise() - called from plain memoized functions all over this
+// file - never needs the list threaded through as an argument. The
+// authoritative source is config.NOISE_PATH_MARKERS on the backend; this
+// mirrors it just closely enough that filtering isn't visibly wrong for
+// the brief window before the fetch resolves.
+let NOISE_PATTERNS: string[] = [
   "/robots.txt", "/favicon.ico", "/.env", "/wp-", "/.git",
   "/SDK/", "/phpmyadmin", "/.well-known", "/xmlrpc.php",
 ];
 
-const isNoise = (path: string) => NOISE_PATTERNS.some((p) => path.includes(p));
+// Case-insensitive: SQLite's LIKE (used server-side for the same list)
+// is case-insensitive for ASCII by default, but JS's .includes() is
+// not - which is exactly how /language/en-GB/en-GB.xml silently slipped
+// past a /language/en-gb pattern that matched fine on the backend.
+// Lowercasing both sides kills this whole class of bug, not just this
+// one path.
+const isNoise = (path: string) => {
+  const lower = path.toLowerCase();
+  return NOISE_PATTERNS.some((p) => lower.includes(p.toLowerCase()));
+};
 
 function parseTs(isoString: string): Date {
   const hasZone = /Z$|[+-]\d{2}:\d{2}$/.test(isoString);
@@ -244,8 +341,41 @@ export default function AdminLogsPage() {
 
   const [methodFilter, setMethodFilter] = useState("");
   const [pathFilter, setPathFilter] = useState("");
+  const [endpointFilter, setEndpointFilter] = useState("");
+  const [statusClassFilter, setStatusClassFilter] = useState<"all" | "4xx" | "5xx">("all");
   const [hideNoise, setHideNoise] = useState(true);
   const [dateFilter, setDateFilter] = useState<DateFilter>("all");
+
+  // Typeahead on the path box. highlightIndex is -1 when nothing is
+  // keyboard-selected, so Enter falls through to "just use what I typed"
+  // rather than silently substituting a suggestion the user never looked at.
+  const [suggestOpen, setSuggestOpen] = useState(false);
+  const [highlightIndex, setHighlightIndex] = useState(-1);
+  // On mobile the filter controls collapse behind a single button - eight
+  // controls wrapping across a phone screen is unusable, and search plus
+  // the live/paused state are the only things worth permanent space.
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  // Custom popover for the tool filter, replacing a native <select>. A
+  // native select's OPEN dropdown is rendered by the OS, not the page -
+  // no CSS reaches it, which is why its scrollbar looked "raw" and long
+  // labels had no way to show a tooltip on truncation. This gets both
+  // for free, same as every other popover already in this file.
+  const [toolPickerOpen, setToolPickerOpen] = useState(false);
+
+  // System-tab-only filters. Separate from the HTTP filters above since
+  // the two tabs filter genuinely different data.
+  const [levelFilter, setLevelFilter] = useState("");
+  const [systemSearch, setSystemSearch] = useState("");
+
+  // Click-through correlation: viewing every system log line tied to one
+  // specific HTTP request, fetched on demand rather than hunting through
+  // the live system feed by eye. null when not active - the system tab
+  // renders its normal live/paginated view in that case.
+  const [correlatedRequestId, setCorrelatedRequestId] = useState<string | null>(null);
+  const [correlatedSummary, setCorrelatedSummary] = useState<HttpLogEntry | null>(null);
+  const [correlatedLogs, setCorrelatedLogs] = useState<SystemLogEntry[]>([]);
+  const [correlatedLoading, setCorrelatedLoading] = useState(false);
+  const [correlatedError, setCorrelatedError] = useState<string | null>(null);
 
   const [isPaused, setIsPaused] = useState(false);
   const [manageOpen, setManageOpen] = useState(false);
@@ -291,6 +421,12 @@ export default function AdminLogsPage() {
   // re-render on every scroll tick.
   const httpPinnedRef = useRef(true);
   const sysPinnedRef = useRef(true);
+  // One-shot: "the next time the live system panel exists, put it at the
+  // bottom." Set when leaving the correlated view, which remounts that
+  // panel from scratch at scrollTop 0. A flag rather than a direct scroll
+  // call because at the moment clearCorrelated() runs, the node doesn't
+  // exist yet - it mounts in the render this state change triggers.
+  const sysNeedsBottomRef = useRef(false);
   const [showJumpHttp, setShowJumpHttp] = useState(false);
   const [showJumpSys, setShowJumpSys] = useState(false);
 
@@ -328,6 +464,102 @@ export default function AdminLogsPage() {
   const currentDelayRef = useRef(MIN_POLL_MS);
 
   const isAbort = (e: unknown) => (e as Error)?.name === "AbortError";
+
+  // ---------------- Click-through correlation ----------------
+  // Jumps from one HTTP row straight to every system log line that
+  // request produced - including lines from a background task the
+  // request spawned, since the backend tags those the same way. This is
+  // the actual fix for "I see a 500, now I have to hunt for why": no
+  // timestamp-squinting, no manual search, one click.
+  // Guards against a slow earlier response overwriting a newer one when
+  // rows are clicked in quick succession - without this, clicking row A
+  // then row B could leave B's banner above A's log lines.
+  const correlationTokenRef = useRef(0);
+
+  const loadCorrelated = useCallback(async (log: HttpLogEntry) => {
+    if (!log.request_id) return; // older rows from before this existed
+    const token = ++correlationTokenRef.current;
+    setCorrelatedSummary(log);
+    setCorrelatedRequestId(log.request_id);
+    setCorrelatedLogs([]);
+    setCorrelatedError(null);
+    setCorrelatedLoading(true);
+    setTab("system");
+    try {
+      const res = await fetch(
+        `/api/admin/logs?type=system&requestId=${encodeURIComponent(log.request_id)}`,
+        { cache: "no-store", signal: signal() }
+      );
+      if (token !== correlationTokenRef.current) return; // superseded by a newer click
+      if (res.status === 401) { router.push("/admin/login"); return; }
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.error || `Server returned ${res.status}`);
+      }
+      const data = await res.json();
+      if (token !== correlationTokenRef.current) return;
+      setCorrelatedLogs(data.logs ?? []);
+    } catch (e) {
+      if (isAbort(e) || token !== correlationTokenRef.current) return;
+      setCorrelatedError((e as Error).message);
+    } finally {
+      if (token === correlationTokenRef.current) setCorrelatedLoading(false);
+    }
+  }, [router]);
+
+  // fetchSystem is declared further down (it depends on state that isn't
+  // set up yet at this point), so clearCorrelated reaches it through a
+  // ref rather than closing over the binding directly - referencing a
+  // `const` before its declaration line is a temporal-dead-zone
+  // ReferenceError, not a hoisted undefined. Side benefit: this keeps
+  // clearCorrelated referentially stable, so the Escape-key listener
+  // below doesn't tear down and re-bind every time fetchSystem's
+  // identity changes.
+  const fetchSystemRef = useRef<((force?: boolean) => void) | null>(null);
+
+  const clearCorrelated = useCallback(() => {
+    correlationTokenRef.current++; // invalidate any in-flight response
+    setCorrelatedRequestId(null);
+    setCorrelatedSummary(null);
+    setCorrelatedLogs([]);
+    setCorrelatedError(null);
+    // Closing this view swaps the correlated block out and mounts a
+    // BRAND NEW live-log scroll container, which starts at scrollTop 0.
+    // The normal pin-to-bottom effect keys on the log array's identity,
+    // and that hasn't changed - polling was paused while this view was
+    // open - so without forcing it here you land at the top of the list
+    // instead of on the newest line, which is not what "back to live"
+    // should ever mean. Re-pin unconditionally (closing a detail view
+    // always returns you to the tail, same as Railway), flag a one-shot
+    // scroll for the moment the node exists, and kick an immediate
+    // refresh rather than waiting out the poll delay for fresh data.
+    sysPinnedRef.current = true;
+    sysNeedsBottomRef.current = true;
+    setShowJumpSys(false);
+    fetchSystemRef.current?.(true);
+  }, []);
+
+  // Escape exits the correlated view, matching the confirm dialog's
+  // existing Escape handling so the muscle memory is consistent.
+  useEffect(() => {
+    if (!correlatedRequestId) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") clearCorrelated();
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [correlatedRequestId, clearCorrelated]);
+
+  // Same for the tool picker popover - keyboard dismissal is consistent
+  // everywhere in this file, not just on the one dialog that had it first.
+  useEffect(() => {
+    if (!toolPickerOpen) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setToolPickerOpen(false);
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [toolPickerOpen]);
 
   // ---------------- HTTP: initial / refresh ----------------
   const fetchHttp = useCallback(async (force = false) => {
@@ -475,6 +707,12 @@ export default function AdminLogsPage() {
       sysInFlightRef.current = false;
     }
   }, [router]);
+
+  // Wire the ref declared above (see the comment there for why
+  // clearCorrelated can't reference fetchSystem directly). Assigned
+  // during render rather than in an effect so it's already populated if
+  // clearCorrelated fires before any effect has run.
+  fetchSystemRef.current = fetchSystem;
 
   // ---------------- SYSTEM: older page (cursor) ----------------
   const loadOlderSystem = useCallback(async () => {
@@ -649,6 +887,23 @@ export default function AdminLogsPage() {
     setShowJumpSys(false);
   }
 
+  // Real endpoint list, read from the backend's own FastAPI route table
+  // (see routes.py's admin_endpoints()) rather than derived from traffic
+  // or hand-maintained here. A tool that's never been called still shows
+  // up as a search suggestion, which is the entire point - "I forgot the
+  // name of the endpoint" doesn't wait for someone to have used it first.
+  const [knownEndpoints, setKnownEndpoints] = useState<ToolEndpoint[]>([]);
+
+  // Bumped whenever NOISE_PATTERNS (a plain module-level array, not React
+  // state - see its declaration up top) is replaced by the endpoints
+  // fetch below. isNoise() is called from many memoized functions across
+  // this file, so it can't sensibly take the list as a threaded-through
+  // argument; this counter is what tells those memos "the noise
+  // definition just changed, recompute" instead of them silently running
+  // against stale data until some unrelated state change happens to
+  // force a re-render.
+  const [noiseListVersion, setNoiseListVersion] = useState(0);
+
   // ---------------- Boot ----------------
   // ONCE. This used to depend on the fetch callbacks, whose identities
   // changed every time the paging limit changed - so every "load more"
@@ -659,6 +914,33 @@ export default function AdminLogsPage() {
     bootedRef.current = true;
     fetchHttp();
     fetchSystem();
+
+    // Fire-and-forget: a failure here just means suggestions fall back
+    // to traffic-derived endpoints only, which is exactly what the page
+    // did before this existed - never worth blocking or erroring the
+    // whole dashboard over.
+    (async () => {
+      try {
+        const res = await fetch("/api/admin/endpoints", { cache: "no-store", signal: signal() });
+        if (!res.ok) return;
+        const data = (await res.json()) as EndpointsApiResponse;
+        // Backend already collapses to one entry per tool and sorts by
+        // label - no client-side dedupe or normalization needed, which is
+        // the point of doing it server-side where the route table lives.
+        if (Array.isArray(data?.endpoints)) setKnownEndpoints(data.endpoints);
+        // Replaces the bootstrap fallback in place with the backend's
+        // canonical list (config.NOISE_PATH_MARKERS) - the same list the
+        // SQL Client Errors exclusion uses, so "Hide noise" and that stat
+        // can no longer silently disagree the way the old hardcoded copy
+        // eventually did.
+        if (Array.isArray(data?.noise_patterns) && data.noise_patterns.length > 0) {
+          NOISE_PATTERNS = data.noise_patterns;
+          setNoiseListVersion((v) => v + 1);
+        }
+      } catch {
+        // Silent - see comment above.
+      }
+    })();
   }, [fetchHttp, fetchSystem]);
 
   // ---------------- Scroll anchoring ----------------
@@ -683,6 +965,31 @@ export default function AdminLogsPage() {
     }
   }, [httpLogs]);
 
+  // System-tab filtering. Declared HERE, above the scroll-anchoring
+  // effect below, because that effect depends on it - a `const` used
+  // before its declaration line is a temporal-dead-zone ReferenceError
+  // at mount, not a hoisted undefined.
+  const [debouncedSystemSearch, setDebouncedSystemSearch] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSystemSearch(systemSearch), 120);
+    return () => clearTimeout(t);
+  }, [systemSearch]);
+
+  const filteredSystemLogs = useMemo(() => {
+    const needle = debouncedSystemSearch.toLowerCase();
+    // Same fast path as the HTTP filter: unfiltered means reuse the same
+    // array identity so React can skip reconciling the whole list.
+    if (!levelFilter && !needle) return systemLogs;
+    return systemLogs.filter((entry) => {
+      if (levelFilter && entry.level !== levelFilter) return false;
+      if (needle) {
+        const hay = `${entry.logger} ${entry.message}`.toLowerCase();
+        if (!hay.includes(needle)) return false;
+      }
+      return true;
+    });
+  }, [systemLogs, levelFilter, debouncedSystemSearch]);
+
   useLayoutEffect(() => {
     const el = sysRef.current;
     if (!el) return;
@@ -695,7 +1002,25 @@ export default function AdminLogsPage() {
     if (sysPinnedRef.current) {
       el.scrollTop = el.scrollHeight;
     }
-  }, [systemLogs]);
+    // Depends on the FILTERED list because that's what's actually
+    // rendered: applying a level or search filter changes the content
+    // height without systemLogs itself changing, and anchoring on the
+    // unfiltered array would leave the view stranded mid-list.
+  }, [filteredSystemLogs]);
+
+  // Consumes the one-shot flag set by clearCorrelated(). Keyed on
+  // correlatedRequestId because that's precisely what triggers the live
+  // panel's remount - a layout effect here runs after the new node is in
+  // the DOM but before paint, so the jump to the bottom is never visible
+  // as a flash at the top first.
+  useLayoutEffect(() => {
+    if (correlatedRequestId) return;      // correlated view is open, not the live one
+    if (!sysNeedsBottomRef.current) return;
+    const el = sysRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+    sysNeedsBottomRef.current = false;
+  }, [correlatedRequestId, filteredSystemLogs]);
 
   // Switching tabs UNMOUNTS the other panel, so its scroll container is
   // a brand-new element (scrollTop 0) when it comes back. The System
@@ -737,6 +1062,10 @@ export default function AdminLogsPage() {
   // the delay itself changes between ticks.
   useEffect(() => {
     if (isPaused) return;
+    // The correlated view is a fixed, historical result set - nothing it
+    // displays can change, so polling while it's open burns requests and
+    // re-renders for data that isn't on screen.
+    if (correlatedRequestId) return;
     currentDelayRef.current = MIN_POLL_MS;
     let cancelled = false;
     let timeoutId: ReturnType<typeof setTimeout>;
@@ -757,7 +1086,7 @@ export default function AdminLogsPage() {
       cancelled = true;
       clearTimeout(timeoutId);
     };
-  }, [isPaused, tab, fetchHttpDelta, fetchSystemDelta]);
+  }, [isPaused, tab, correlatedRequestId, fetchHttpDelta, fetchSystemDelta]);
 
   // The moment the browser tab regains focus, snap back to fast polling
   // and fetch immediately - don't make the user wait out whatever backoff
@@ -784,20 +1113,151 @@ export default function AdminLogsPage() {
     return () => clearTimeout(t);
   }, [pathFilter]);
 
+  // The tool list powering both the endpoint picker and the search
+  // suggestions. Built from the backend's real route table
+  // (knownEndpoints - see admin_endpoints() in routes.py) so every tool
+  // appears even with zero traffic, then merged with live counts from
+  // what's loaded.
+  //
+  // Traffic NOT matching a known family - bot scanners, path-traversal
+  // probes, anything not a registered route - is never given its own
+  // entry or a generated label. It's counted into one "Other" bucket
+  // instead (see below). This is what actually keeps the picker clean:
+  // a single day of real traffic produced ~300 distinct junk paths, and
+  // synthesizing a plausible-looking name for each of them (the old
+  // behavior) is how scanner noise ends up indistinguishable from a real
+  // tool in the dropdown.
+  //
+  // Respects hideNoise: bot scanners probe hundreds of junk paths
+  // (/wp-admin, /.env, /phpmyadmin...) and without this the real tools
+  // would be buried. Only applies to traffic-derived entries - the
+  // backend's own route table has nothing to filter.
+  // Which paths are REAL, backend-registered tools - the only ones
+  // allowed their own picker entry. Everything else collapses into one
+  // "Other" bucket below, which is what actually solves the scanner-noise
+  // problem: a single day of traffic produced ~300 distinct junk paths
+  // (.env variants, aws/gcp credential probes, ssh keys, WHM/Joomla
+  // scanners...), and a hand-maintained pattern list can never keep pace
+  // with new campaigns. This doesn't need to - unrecognized traffic just
+  // has nowhere to go but "Other", automatically, forever.
+  const knownPathSet = useMemo(
+    () => new Set(knownEndpoints.map((e) => e.path)),
+    [knownEndpoints]
+  );
+
+  const endpointOptions = useMemo(() => {
+    const byPath = new Map<string, { path: string; label: string; count: number }>();
+    for (const ep of knownEndpoints) {
+      byPath.set(ep.path, { path: ep.path, label: ep.label, count: 0 });
+    }
+
+    let otherCount = 0;
+    for (const log of httpLogs) {
+      if (!log.path) continue; // stale malformed rows (e.g. an empty path) - nothing to label
+      if (hideNoise && isNoise(log.path)) continue;
+      const family = toolFamily(log.path);
+      const existing = byPath.get(family);
+      if (existing) {
+        existing.count += 1;
+      } else {
+        // NOT a registered tool. Previously this humanized the raw path
+        // into a plausible-looking name - which is how
+        // "/___proxy_subdomain_whm/login/" became a dropdown entry
+        // reading "Proxy Subdomain Whm Login", indistinguishable from a
+        // real tool. Bucketed instead.
+        otherCount += 1;
+      }
+    }
+
+    const all = [...byPath.values()];
+    if (otherCount > 0) {
+      all.push({
+        path: OTHER_TRAFFIC_KEY,
+        label: `Other (unrecognized traffic)`,
+        count: otherCount,
+      });
+    }
+
+    // Busy tools first (what you're most likely looking for), then the
+    // quiet ones alphabetically - still present and findable, just not
+    // competing with live activity for the top of the list. "Other" is
+    // sorted by its own count like everything else, so it naturally
+    // lands wherever its volume actually puts it.
+    const active = all.filter((e) => e.count > 0).sort((a, b) => b.count - a.count);
+    const idle = all.filter((e) => e.count === 0).sort((a, b) => a.label.localeCompare(b.label));
+    return [...active, ...idle];
+  }, [httpLogs, hideNoise, knownEndpoints, noiseListVersion]);
+
+  // Typeahead suggestions. Matches on BOTH the human label and the path,
+  // so "convert" and "/convert" both work, and searching "youtube" finds
+  // all three YouTube tools. Empty input shows the busiest tools rather
+  // than nothing - that's the "I know what it does but forgot the name"
+  // case, which is the whole reason this exists.
+  //
+  // No cap needed on the picker itself any more: collapsing routes to
+  // tool families took it from ~100 entries to ~25, which is entirely
+  // scannable. Suggestions stay capped at 8 purely so the dropdown never
+  // covers the table.
+  const pathSuggestions = useMemo(() => {
+    const needle = pathFilter.trim().toLowerCase();
+    if (!needle) return endpointOptions.slice(0, 8);
+    return endpointOptions
+      .filter(
+        (e) =>
+          e.label.toLowerCase().includes(needle) ||
+          e.path.toLowerCase().includes(needle)
+      )
+      .slice(0, 8);
+  }, [endpointOptions, pathFilter]);
+
+  // Drives the mobile "Filters" badge and the clear-all button. Counts
+  // deviations from the DEFAULT state, not merely non-empty values -
+  // hideNoise defaults to on, so having it on isn't "a filter you
+  // applied", but turning it off is.
+  const activeFilterCount =
+    (methodFilter ? 1 : 0) +
+    (endpointFilter ? 1 : 0) +
+    (dateFilter !== "all" ? 1 : 0) +
+    (statusClassFilter !== "all" ? 1 : 0) +
+    (hideNoise ? 0 : 1) +
+    (pathFilter ? 1 : 0);
+
+  const resetFilters = useCallback(() => {
+    setMethodFilter("");
+    setEndpointFilter("");
+    setDateFilter("all");
+    setStatusClassFilter("all");
+    setHideNoise(true);
+    setPathFilter("");
+  }, []);
+
   const filtered = useMemo(() => {
     const needle = debouncedPath.toLowerCase();
     // Fast path: nothing is filtering, so skip the per-row work entirely
     // and reuse the same array identity, which lets React skip the whole
     // list reconciliation too.
-    if (!methodFilter && !needle && !hideNoise && dateFilter === "all") return httpLogs;
+    if (
+      !methodFilter && !endpointFilter && !needle && !hideNoise &&
+      dateFilter === "all" && statusClassFilter === "all"
+    ) return httpLogs;
 
     const wantKey =
       dateFilter === "today" ? todayKey() : dateFilter === "yesterday" ? yesterdayKey() : null;
 
     return httpLogs.filter((log) => {
       if (methodFilter && log.method !== methodFilter) return false;
+      if (endpointFilter) {
+        const family = toolFamily(log.path);
+        if (endpointFilter === OTHER_TRAFFIC_KEY) {
+          if (knownPathSet.has(family)) return false; // it IS a known tool, so it's not "Other"
+        } else if (family !== endpointFilter) {
+          return false;
+        }
+      }
       if (needle && !log.path.toLowerCase().includes(needle)) return false;
       if (hideNoise && isNoise(log.path)) return false;
+      if (statusClassFilter === "4xx" && !(log.status_code >= 400 && log.status_code < 500)) return false;
+      if (statusClassFilter === "5xx" && log.status_code < 500) return false;
       if (wantKey) {
         try {
           if (npYMD(log.timestamp) !== wantKey) return false;
@@ -805,7 +1265,7 @@ export default function AdminLogsPage() {
       }
       return true;
     });
-  }, [httpLogs, methodFilter, debouncedPath, hideNoise, dateFilter]);
+  }, [httpLogs, methodFilter, endpointFilter, debouncedPath, hideNoise, dateFilter, statusClassFilter, noiseListVersion, knownPathSet]);
 
   function requestDelete(olderThanDays: number | null) {
     setDeleteResult(null);
@@ -908,56 +1368,140 @@ export default function AdminLogsPage() {
               dropdown menu, which needs to escape the card bounds on
               small screens. */}
           <section className="rounded-lg border border-graphite-800 bg-graphite-900 flex-1 min-h-0 flex flex-col">
-            <div className="shrink-0 flex flex-col lg:flex-row lg:items-center gap-3 px-4 py-3 border-b border-graphite-800">
-              <div className="relative flex-1 min-w-0">
+            <div className="shrink-0 flex flex-col gap-2.5 px-3 sm:px-4 py-3 border-b border-graphite-800">
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <div className="relative flex-1 min-w-0">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-text-subtle pointer-events-none" />
                 <input
                   type="text"
                   value={pathFilter}
-                  onChange={(e) => setPathFilter(e.target.value)}
+                  onChange={(e) => {
+                    setPathFilter(e.target.value);
+                    setSuggestOpen(true);
+                    setHighlightIndex(-1);
+                  }}
+                  onFocus={() => setSuggestOpen(true)}
+                  // Delayed so a mousedown on a suggestion still lands -
+                  // blur fires first otherwise and the list is gone
+                  // before the click resolves.
+                  onBlur={() => setTimeout(() => setSuggestOpen(false), 120)}
+                  onKeyDown={(e) => {
+                    if (!suggestOpen || pathSuggestions.length === 0) return;
+                    if (e.key === "ArrowDown") {
+                      e.preventDefault();
+                      setHighlightIndex((i) => (i + 1) % pathSuggestions.length);
+                    } else if (e.key === "ArrowUp") {
+                      e.preventDefault();
+                      setHighlightIndex((i) => (i <= 0 ? pathSuggestions.length - 1 : i - 1));
+                    } else if (e.key === "Enter") {
+                      // Only hijack Enter when something is actually
+                      // highlighted; otherwise the typed text stands.
+                      if (highlightIndex >= 0) {
+                        e.preventDefault();
+                        setEndpointFilter(pathSuggestions[highlightIndex].path);
+                        setPathFilter("");
+                      }
+                      setSuggestOpen(false);
+                      setHighlightIndex(-1);
+                    } else if (e.key === "Escape") {
+                      setSuggestOpen(false);
+                      setHighlightIndex(-1);
+                    }
+                  }}
                   placeholder="Filter by path…"
+                  role="combobox"
+                  aria-expanded={suggestOpen && pathSuggestions.length > 0}
+                  aria-autocomplete="list"
                   className="w-full rounded-md border border-graphite-700 bg-graphite-850 py-1.5 pl-9 pr-9 text-sm text-text-primary placeholder:text-text-subtle focus:outline-none focus:border-amber-500/60"
                 />
                 {pathFilter && (
                   <button
-                    onClick={() => setPathFilter("")}
+                    onClick={() => { setPathFilter(""); setHighlightIndex(-1); }}
                     aria-label="Clear search"
                     className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1 rounded text-text-subtle hover:text-text-primary hover:bg-graphite-800 transition-colors"
                   >
                     <X className="h-3.5 w-3.5" />
                   </button>
                 )}
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <select
-                  value={methodFilter}
-                  onChange={(e) => setMethodFilter(e.target.value)}
-                  className="rounded-md border border-graphite-700 bg-graphite-850 px-2.5 py-1.5 text-sm text-text-primary focus:outline-none focus:border-amber-500/60"
+
+                {suggestOpen && pathSuggestions.length > 0 && (
+                  <div
+                    role="listbox"
+                    className="absolute top-full left-0 right-0 mt-1 rounded-lg border border-graphite-700 bg-graphite-850 shadow-xl overflow-hidden z-40"
+                  >
+                    {!pathFilter.trim() && (
+                      <p className="px-3 pt-2 pb-1 text-[10px] uppercase tracking-wider text-text-subtle">
+                        Busiest tools
+                      </p>
+                    )}
+                    {pathSuggestions.map((sug, i) => (
+                      <button
+                        key={sug.path}
+                        role="option"
+                        aria-selected={i === highlightIndex}
+                        // mousedown, not click: fires before the input's
+                        // blur, so the selection isn't lost to the
+                        // dropdown unmounting first.
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          // Sets the EXACT tool filter rather than a
+                          // fuzzy path substring - picking "Convert"
+                          // from a list of tools should mean that tool,
+                          // not "anything containing the text convert".
+                          setEndpointFilter(sug.path);
+                          setPathFilter("");
+                          setSuggestOpen(false);
+                          setHighlightIndex(-1);
+                        }}
+                        onMouseEnter={() => setHighlightIndex(i)}
+                        className={`w-full flex items-center justify-between gap-3 px-3 py-2 text-left transition-colors ${
+                          i === highlightIndex ? "bg-graphite-800" : "hover:bg-graphite-800"
+                        }`}
+                      >
+                        <span className="min-w-0">
+                          <span className="block text-xs text-text-primary truncate">{sug.label}</span>
+                          <span className="block font-mono text-[10px] text-text-subtle truncate">{sug.path}</span>
+                        </span>
+                        {sug.count > 0 && (
+                          <span className="shrink-0 text-[11px] text-text-subtle tabular-nums">
+                            {sug.count.toLocaleString()}
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                </div>
+
+                {/* Mobile-only: collapse eight controls behind one
+                    button. The badge shows how many are active, so a
+                    filtered view never silently hides rows behind a
+                    closed panel. Hidden on desktop, where there's room
+                    to show everything inline. */}
+                <button
+                  onClick={() => setFiltersOpen((o) => !o)}
+                  className={`sm:hidden shrink-0 flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs transition-colors ${
+                    filtersOpen || activeFilterCount > 0
+                      ? "border-amber-500/50 text-amber-400"
+                      : "border-graphite-700 text-text-muted"
+                  }`}
+                  aria-expanded={filtersOpen}
                 >
-                  <option value="">Method: all</option>
-                  <option value="GET">GET</option>
-                  <option value="POST">POST</option>
-                  <option value="DELETE">DELETE</option>
-                </select>
-                <select
-                  value={dateFilter}
-                  onChange={(e) => setDateFilter(e.target.value as DateFilter)}
-                  className="rounded-md border border-graphite-700 bg-graphite-850 px-2.5 py-1.5 text-sm text-text-primary focus:outline-none focus:border-amber-500/60"
-                >
-                  <option value="all">Date: all</option>
-                  <option value="today">Today</option>
-                  <option value="yesterday">Yesterday</option>
-                </select>
-                <label className="flex items-center gap-1.5 text-sm text-text-muted select-none cursor-pointer whitespace-nowrap">
-                  <input
-                    type="checkbox"
-                    checked={hideNoise}
-                    onChange={(e) => setHideNoise(e.target.checked)}
-                    className="accent-amber-500"
-                  />
-                  Hide noise
-                </label>
-                <div className="h-5 w-px bg-graphite-800 hidden sm:block" />
+                  <SlidersHorizontal className="h-3.5 w-3.5" />
+                  Filters
+                  {activeFilterCount > 0 && (
+                    <span className="ml-0.5 rounded-full bg-amber-500 text-graphite-950 px-1.5 text-[10px] font-semibold tabular-nums">
+                      {activeFilterCount}
+                    </span>
+                  )}
+                </button>
+
+                {/* Actions - always visible, on every screen size,
+                    regardless of whether the filter panel is open or
+                    collapsed. These control the live feed itself, not
+                    what's shown in it, so hiding them behind "Filters"
+                    would be a trap, not a simplification. */}
+                <div className="hidden sm:block h-5 w-px bg-graphite-800" />
                 <IconAction
                   onClick={() => setIsPaused((p) => !p)}
                   icon={isPaused ? Play : Pause}
@@ -987,7 +1531,7 @@ export default function AdminLogsPage() {
                         onClick={() => setManageOpen(false)}
                         className="fixed inset-0 z-20 cursor-default"
                       />
-                      <div className="absolute top-full left-0 sm:left-auto sm:right-0 mt-2 w-48 rounded-lg border border-graphite-700 bg-graphite-850 shadow-xl overflow-hidden z-30">
+                      <div className="absolute top-full right-0 mt-2 w-48 rounded-lg border border-graphite-700 bg-graphite-850 shadow-xl overflow-hidden z-30">
                         <MenuItem onClick={() => { setManageOpen(false); requestDelete(1); }}>Older than 1 day</MenuItem>
                         <MenuItem onClick={() => { setManageOpen(false); requestDelete(7); }}>Older than 7 days</MenuItem>
                         <MenuItem danger onClick={() => { setManageOpen(false); requestDelete(null); }}>Delete all logs</MenuItem>
@@ -995,6 +1539,148 @@ export default function AdminLogsPage() {
                     </>
                   )}
                 </div>
+              </div>
+
+              <div className={`${filtersOpen ? "flex" : "hidden"} sm:flex flex-wrap items-center gap-2`}>
+                <select
+                  value={methodFilter}
+                  onChange={(e) => setMethodFilter(e.target.value)}
+                  className="rounded-md border border-graphite-700 bg-graphite-850 px-2.5 py-1.5 text-sm text-text-primary focus:outline-none focus:border-amber-500/60"
+                >
+                  <option value="">All methods</option>
+                  <option value="GET">GET</option>
+                  <option value="POST">POST</option>
+                  <option value="DELETE">DELETE</option>
+                </select>
+                <div className="relative flex-1 sm:flex-none min-w-0 sm:w-[220px]">
+                  <button
+                    onClick={() => setToolPickerOpen((o) => !o)}
+                    title={
+                      endpointFilter
+                        ? endpointOptions.find((e) => e.path === endpointFilter)?.label ?? endpointFilter
+                        : "Tools this API serves, read from the backend's own route table"
+                    }
+                    aria-expanded={toolPickerOpen}
+                    aria-haspopup="listbox"
+                    className={`w-full flex items-center justify-between gap-2 rounded-md border px-2.5 py-1.5 text-sm text-left transition-colors ${
+                      toolPickerOpen
+                        ? "border-amber-500/60 text-text-primary"
+                        : "border-graphite-700 text-text-primary hover:border-graphite-600"
+                    } bg-graphite-850`}
+                  >
+                    <span className="truncate">
+                      {endpointFilter
+                        ? endpointOptions.find((e) => e.path === endpointFilter)?.label ?? endpointFilter
+                        : "All tools"}
+                    </span>
+                    <ChevronDown className={`h-3.5 w-3.5 shrink-0 text-text-subtle transition-transform ${toolPickerOpen ? "rotate-180" : ""}`} />
+                  </button>
+
+                  {toolPickerOpen && (
+                    <>
+                      {/* Invisible backdrop: tap anywhere outside to close,
+                          same pattern as the Delete menu below. */}
+                      <button
+                        aria-hidden
+                        tabIndex={-1}
+                        onClick={() => setToolPickerOpen(false)}
+                        className="fixed inset-0 z-20 cursor-default"
+                      />
+                      <div
+                        role="listbox"
+                        // max-h + overflow-y-auto + scrollbar-thin: a REAL,
+                        // styled scrollbar - impossible on a native <select>,
+                        // whose open dropdown is OS-rendered and reachable
+                        // by no CSS this app owns.
+                        className="absolute top-full left-0 right-0 sm:right-auto mt-1 max-h-72 overflow-y-auto scrollbar-thin rounded-lg border border-graphite-700 bg-graphite-850 shadow-xl z-30"
+                      >
+                        <button
+                          role="option"
+                          aria-selected={!endpointFilter}
+                          onClick={() => { setEndpointFilter(""); setToolPickerOpen(false); }}
+                          className={`w-full text-left px-3 py-2 text-sm transition-colors ${
+                            !endpointFilter ? "bg-graphite-800 text-text-primary" : "text-text-muted hover:bg-graphite-800 hover:text-text-primary"
+                          }`}
+                        >
+                          All tools
+                        </button>
+                        <div className="h-px bg-graphite-800" />
+                        {endpointOptions.map((e) => {
+                          const isOther = e.path === OTHER_TRAFFIC_KEY;
+                          return (
+                          <button
+                            key={e.path}
+                            role="option"
+                            aria-selected={endpointFilter === e.path}
+                            // Real tooltip on hover - the whole reason this
+                            // replaced the native select. Shows the full
+                            // label AND path, useful the moment a label
+                            // gets long enough to truncate. "Other" gets
+                            // an explanatory tooltip instead of its
+                            // internal sentinel value, which would be a
+                            // meaningless string to show anyone.
+                            title={
+                              isOther
+                                ? `${e.count.toLocaleString()} requests to paths that aren't a registered tool - mostly scanner/bot traffic`
+                                : `${e.label}${e.count > 0 ? ` — ${e.count.toLocaleString()} requests` : " — no traffic yet"}\n${e.path}`
+                            }
+                            onClick={() => { setEndpointFilter(e.path); setToolPickerOpen(false); }}
+                            className={`w-full flex items-center justify-between gap-3 px-3 py-2 text-left transition-colors ${
+                              endpointFilter === e.path ? "bg-graphite-800" : "hover:bg-graphite-800"
+                            }`}
+                          >
+                            <span className="min-w-0">
+                              <span className={`block text-sm truncate ${isOther ? "text-text-muted italic" : "text-text-primary"}`}>
+                                {e.label}
+                              </span>
+                              {!isOther && (
+                                <span className="block font-mono text-[10px] text-text-subtle truncate">{e.path}</span>
+                              )}
+                            </span>
+                            {e.count > 0 && (
+                              <span className="shrink-0 text-[11px] text-text-subtle tabular-nums">
+                                {e.count.toLocaleString()}
+                              </span>
+                            )}
+                          </button>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+                </div>
+                <select
+                  value={dateFilter}
+                  onChange={(e) => setDateFilter(e.target.value as DateFilter)}
+                  className="rounded-md border border-graphite-700 bg-graphite-850 px-2.5 py-1.5 text-sm text-text-primary focus:outline-none focus:border-amber-500/60"
+                >
+                  <option value="all">Any date</option>
+                  <option value="today">Today</option>
+                  <option value="yesterday">Yesterday</option>
+                </select>
+                <div className="flex rounded-md border border-graphite-700 bg-graphite-850 p-0.5">
+                  <StatusChip active={statusClassFilter === "all"} onClick={() => setStatusClassFilter("all")} label="All" />
+                  <StatusChip active={statusClassFilter === "4xx"} onClick={() => setStatusClassFilter("4xx")} label="4xx" tone="text-amber-400" />
+                  <StatusChip active={statusClassFilter === "5xx"} onClick={() => setStatusClassFilter("5xx")} label="5xx" tone="text-red-500" />
+                </div>
+                <label className="flex items-center gap-1.5 text-sm text-text-muted select-none cursor-pointer whitespace-nowrap">
+                  <input
+                    type="checkbox"
+                    checked={hideNoise}
+                    onChange={(e) => setHideNoise(e.target.checked)}
+                    className="accent-amber-500"
+                  />
+                  Hide noise
+                </label>
+                {activeFilterCount > 0 && (
+                  <button
+                    onClick={resetFilters}
+                    className="flex items-center gap-1 rounded-md px-2 py-1.5 text-xs text-text-subtle hover:text-text-primary transition-colors"
+                  >
+                    <X className="h-3 w-3" />
+                    Clear
+                  </button>
+                )}
               </div>
             </div>
 
@@ -1020,7 +1706,7 @@ export default function AdminLogsPage() {
                     </thead>
                     <tbody className="divide-y divide-graphite-800/70">
                       {filtered.map((log) => (
-                        <HttpTableRow key={log.id} log={log} />
+                        <HttpTableRow key={log.id} log={log} onOpenLogs={loadCorrelated} />
                       ))}
                     </tbody>
                   </table>
@@ -1050,7 +1736,7 @@ export default function AdminLogsPage() {
                   <TopSentinel loading={httpLoadingOlder} hasOlder={httpHasOlder} count={httpLogs.length} total={httpTotal} />
                   <div className="divide-y divide-graphite-800/70">
                     {filtered.map((log) => (
-                      <HttpCardRow key={log.id} log={log} />
+                      <HttpCardRow key={log.id} log={log} onOpenLogs={loadCorrelated} />
                     ))}
                   </div>
                   <ListState
@@ -1110,33 +1796,133 @@ export default function AdminLogsPage() {
               </button>
             </div>
           </div>
-          <div className="relative flex-1 min-h-0">
-            <div
-              ref={sysRef}
-              onScroll={handleSysScroll}
-              className="h-full overflow-y-auto scrollbar-thin font-mono text-xs"
-            >
-              <TopSentinel loading={sysLoadingOlder} hasOlder={sysHasOlder} count={systemLogs.length} total={sysTotal} />
-              {systemLogs.map((entry, index) => (
-                <SystemRow
-                  key={entry.id}
-                  entry={entry}
-                  // Only draw a divider when this entry's request_id
-                  // differs from the previous one - groups all lines from
-                  // the same request together, with a visible break only
-                  // where a new request's logs actually start.
-                  newGroup={index !== 0 && entry.request_id !== systemLogs[index - 1]?.request_id}
+
+          {/* Search + level filter - disabled while viewing a correlated
+              request, since that's already a fixed, filtered result set
+              and applying a second filter on top of it would just be
+              confusing about which filter produced what's on screen. */}
+          {!correlatedRequestId && (
+            <div className="shrink-0 flex flex-wrap items-center gap-2 px-4 py-2.5 border-b border-graphite-800">
+              <div className="relative flex-1 min-w-[140px]">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-text-subtle pointer-events-none" />
+                <input
+                  type="text"
+                  value={systemSearch}
+                  onChange={(e) => setSystemSearch(e.target.value)}
+                  placeholder="Search logger or message…"
+                  className="w-full rounded-md border border-graphite-700 bg-graphite-850 py-1.5 pl-9 pr-9 text-sm text-text-primary placeholder:text-text-subtle focus:outline-none focus:border-amber-500/60"
                 />
-              ))}
-              <ListState
-                loading={systemLoading}
-                error={systemError}
-                empty={systemLogs.length === 0}
-                emptyLabel="No system logs yet."
-              />
+                {systemSearch && (
+                  <button
+                    onClick={() => setSystemSearch("")}
+                    aria-label="Clear search"
+                    className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1 rounded text-text-subtle hover:text-text-primary hover:bg-graphite-800 transition-colors"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+              <select
+                value={levelFilter}
+                onChange={(e) => setLevelFilter(e.target.value)}
+                className="shrink-0 rounded-md border border-graphite-700 bg-graphite-850 px-2.5 py-1.5 text-sm text-text-primary focus:outline-none focus:border-amber-500/60"
+              >
+                <option value="">All levels</option>
+                <option value="ERROR">ERROR</option>
+                <option value="CRITICAL">CRITICAL</option>
+                <option value="WARNING">WARNING</option>
+                <option value="INFO">INFO</option>
+              </select>
             </div>
-            {showJumpSys && <JumpButton onClick={jumpToBottomSys} />}
-          </div>
+          )}
+
+          {correlatedRequestId ? (
+            <div className="relative flex-1 min-h-0 flex flex-col">
+              <div className="shrink-0 flex items-start justify-between gap-3 px-4 py-2.5 border-b border-amber-500/30 bg-amber-500/[0.06]">
+                <div className="min-w-0">
+                  <p className="text-xs font-medium text-amber-400">
+                    Showing logs for one request
+                  </p>
+                  {correlatedSummary && (
+                    <p className="text-[11px] text-text-subtle font-mono truncate mt-0.5">
+                      {correlatedSummary.method} {correlatedSummary.path} → {correlatedSummary.status_code}
+                      {" · "}{npDate(correlatedSummary.timestamp)} {npTime(correlatedSummary.timestamp)}
+                      {" · "}{correlatedLogs.length} line{correlatedLogs.length === 1 ? "" : "s"}
+                    </p>
+                  )}
+                </div>
+                <button
+                  onClick={clearCorrelated}
+                  title="Back to live log"
+                  className="shrink-0 flex items-center gap-1 rounded-md border border-graphite-700 px-2.5 py-1 text-xs text-text-muted hover:text-text-primary hover:bg-graphite-850 transition-colors"
+                >
+                  <X className="h-3 w-3" />
+                  <span className="hidden sm:inline">Back to live log</span>
+                </button>
+              </div>
+              <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin font-mono text-xs">
+                {correlatedLoading && (
+                  <p className="text-center text-sm text-text-subtle py-12 flex items-center justify-center gap-2">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading…
+                  </p>
+                )}
+                {correlatedError && (
+                  <p className="text-center text-sm text-red-500 py-12 px-4">Failed to load: {correlatedError}</p>
+                )}
+                {!correlatedLoading && !correlatedError && correlatedLogs.length === 0 && (
+                  <p className="text-center text-sm text-text-subtle py-12">
+                    No system log lines were recorded for this request.
+                  </p>
+                )}
+                {correlatedLogs.map((entry) => (
+                  <SystemRow
+                    key={entry.id}
+                    entry={entry}
+                    // Always false here: every line in this view belongs
+                    // to the same request by construction, so there are
+                    // no request boundaries to mark. Passing true would
+                    // draw a divider between every single line.
+                    newGroup={false}
+                  />
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="relative flex-1 min-h-0">
+              <div
+                ref={sysRef}
+                onScroll={handleSysScroll}
+                className="h-full overflow-y-auto scrollbar-thin font-mono text-xs"
+              >
+                <TopSentinel loading={sysLoadingOlder} hasOlder={sysHasOlder} count={systemLogs.length} total={sysTotal} />
+                {filteredSystemLogs.map((entry, index) => (
+                  <SystemRow
+                    key={entry.id}
+                    entry={entry}
+                    // Only draw a divider when this entry's request_id
+                    // differs from the previous one - groups all lines from
+                    // the same request together, with a visible break only
+                    // where a new request's logs actually start. Computed
+                    // against the FILTERED list so a divider never appears
+                    // next to a line that got filtered out and isn't
+                    // actually adjacent on screen.
+                    newGroup={index !== 0 && entry.request_id !== filteredSystemLogs[index - 1]?.request_id}
+                  />
+                ))}
+                <ListState
+                  loading={systemLoading}
+                  error={systemError}
+                  empty={filteredSystemLogs.length === 0}
+                  emptyLabel={
+                    systemLogs.length === 0
+                      ? "No system logs yet."
+                      : "No system logs match the current filters."
+                  }
+                />
+              </div>
+              {showJumpSys && <JumpButton onClick={jumpToBottomSys} />}
+            </div>
+          )}
         </section>
       )}
 
@@ -1280,6 +2066,28 @@ function ConfirmDialog({
   );
 }
 
+function StatusChip({
+  active, onClick, label, tone = "",
+}: {
+  active: boolean;
+  onClick: () => void;
+  label: string;
+  tone?: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
+        active
+          ? `bg-graphite-700 ${tone || "text-text-primary"}`
+          : `text-text-subtle hover:text-text-primary ${tone}`
+      }`}
+    >
+      {label}
+    </button>
+  );
+}
+
 function TabButton({
   active, onClick, icon: Icon, label,
 }: {
@@ -1381,9 +2189,14 @@ function MenuItem({
 // so a fresh fetch producing new (but equal) objects still skips the
 // re-render for every row already on screen.
 const HttpTableRow = memo(
-  function HttpTableRow({ log }: { log: HttpLogEntry }) {
+  function HttpTableRow({ log, onOpenLogs }: { log: HttpLogEntry; onOpenLogs: (log: HttpLogEntry) => void }) {
+    const clickable = !!log.request_id;
     return (
-      <tr className="hover:bg-graphite-850/60 transition-colors">
+      <tr
+        onClick={clickable ? () => onOpenLogs(log) : undefined}
+        className={`group transition-colors ${clickable ? "hover:bg-graphite-850/60 cursor-pointer" : "opacity-70"}`}
+        title={clickable ? "View this request's system logs" : "No request id recorded for this row"}
+      >
         <td className="px-4 py-2 whitespace-nowrap tabular-nums">
           <span className="text-text-primary">{npTime(log.timestamp)}</span>
           <span className="text-text-subtle ml-1.5 text-xs">{npDate(log.timestamp)}</span>
@@ -1403,7 +2216,14 @@ const HttpTableRow = memo(
         <td className="px-4 py-2 text-right tabular-nums text-xs text-text-muted whitespace-nowrap">
           {fmtMs(log.duration_ms)}
         </td>
-        <td className="px-4 py-2 font-mono text-xs text-text-subtle">{log.client_ip}</td>
+        <td className="px-4 py-2 font-mono text-xs text-text-subtle">
+          <div className="flex items-center justify-between gap-2">
+            <span>{log.client_ip}</span>
+            {clickable && (
+              <ScrollText className="h-3.5 w-3.5 shrink-0 opacity-0 group-hover:opacity-100 text-amber-400 transition-opacity" />
+            )}
+          </div>
+        </td>
       </tr>
     );
   },
@@ -1411,14 +2231,19 @@ const HttpTableRow = memo(
 );
 
 const HttpCardRow = memo(
-  function HttpCardRow({ log }: { log: HttpLogEntry }) {
+  function HttpCardRow({ log, onOpenLogs }: { log: HttpLogEntry; onOpenLogs: (log: HttpLogEntry) => void }) {
+    const clickable = !!log.request_id;
     return (
-      <div className="px-4 py-2.5">
+      <div
+        onClick={clickable ? () => onOpenLogs(log) : undefined}
+        className={`px-4 py-2.5 ${clickable ? "active:bg-graphite-850/60 cursor-pointer" : "opacity-70"}`}
+      >
         <div className="flex items-center gap-2">
           <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${statusDot(log.status_code)}`} />
           <span className={`text-xs font-semibold shrink-0 ${methodTone(log.method)}`}>{log.method}</span>
           <span className="font-mono text-xs text-text-primary truncate flex-1" title={log.path}>{log.path}</span>
           <span className={`text-xs font-medium tabular-nums shrink-0 ${statusText(log.status_code)}`}>{log.status_code}</span>
+          {clickable && <ScrollText className="h-3.5 w-3.5 shrink-0 text-text-subtle" />}
         </div>
         <div className="mt-1 flex items-center justify-between text-[11px] text-text-subtle tabular-nums pl-3.5">
           <span>{npDate(log.timestamp)} {npTime(log.timestamp)}</span>
