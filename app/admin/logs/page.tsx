@@ -914,40 +914,65 @@ export default function AdminLogsPage() {
   // ONCE. This used to depend on the fetch callbacks, whose identities
   // changed every time the paging limit changed - so every "load more"
   // click silently fired a second, unforced full refetch of BOTH tabs.
+  // Fetches the tool list and their real DB totals. Extracted from the
+  // boot effect so it can also run periodically - the counts are real
+  // numbers that change as traffic arrives, and having them frozen at
+  // page-load time while every log row updates live was inconsistent
+  // enough to look broken ("why does the count only change when I
+  // refresh?").
+  //
+  // Fire-and-forget: a failure just means the picker keeps the values it
+  // already has, which is exactly what it did before this was periodic -
+  // never worth blocking or erroring the dashboard over.
+  const fetchEndpoints = useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/endpoints", { cache: "no-store", signal: signal() });
+      if (!res.ok) return;
+      const data = (await res.json()) as EndpointsApiResponse;
+      // Backend already collapses to one entry per tool and sorts by
+      // label - no client-side dedupe or normalization needed, which is
+      // the point of doing it server-side where the route table lives.
+      if (Array.isArray(data?.endpoints)) setKnownEndpoints(data.endpoints);
+      // Replaces the bootstrap fallback in place with the backend's
+      // canonical list (config.NOISE_PATH_MARKERS) - the same list the
+      // SQL Client Errors exclusion uses, so "Hide noise" and that stat
+      // can no longer silently disagree the way the old hardcoded copy
+      // eventually did.
+      if (Array.isArray(data?.noise_patterns) && data.noise_patterns.length > 0) {
+        NOISE_PATTERNS = data.noise_patterns;
+        setNoiseListVersion((v) => v + 1);
+      }
+    } catch {
+      // Silent - see comment above.
+    }
+  }, []);
+
   const bootedRef = useRef(false);
   useEffect(() => {
     if (bootedRef.current) return;
     bootedRef.current = true;
     fetchHttp();
     fetchSystem();
+    fetchEndpoints();
+  }, [fetchHttp, fetchSystem, fetchEndpoints]);
 
-    // Fire-and-forget: a failure here just means suggestions fall back
-    // to traffic-derived endpoints only, which is exactly what the page
-    // did before this existed - never worth blocking or erroring the
-    // whole dashboard over.
-    (async () => {
-      try {
-        const res = await fetch("/api/admin/endpoints", { cache: "no-store", signal: signal() });
-        if (!res.ok) return;
-        const data = (await res.json()) as EndpointsApiResponse;
-        // Backend already collapses to one entry per tool and sorts by
-        // label - no client-side dedupe or normalization needed, which is
-        // the point of doing it server-side where the route table lives.
-        if (Array.isArray(data?.endpoints)) setKnownEndpoints(data.endpoints);
-        // Replaces the bootstrap fallback in place with the backend's
-        // canonical list (config.NOISE_PATH_MARKERS) - the same list the
-        // SQL Client Errors exclusion uses, so "Hide noise" and that stat
-        // can no longer silently disagree the way the old hardcoded copy
-        // eventually did.
-        if (Array.isArray(data?.noise_patterns) && data.noise_patterns.length > 0) {
-          NOISE_PATTERNS = data.noise_patterns;
-          setNoiseListVersion((v) => v + 1);
-        }
-      } catch {
-        // Silent - see comment above.
-      }
-    })();
-  }, [fetchHttp, fetchSystem]);
+  // Keeps the tool counts live. Deliberately MUCH slower than the log
+  // poll (30s vs 3s): these are all-time aggregate totals that move
+  // slowly, and each fetch costs a GROUP BY over request_logs on the
+  // backend (cached 10s there, but still). Polling them at log frequency
+  // would be a real cost for numbers that barely change between ticks.
+  //
+  // Respects isPaused like every other automatic fetch on this page, and
+  // skips while the browser tab is hidden - a background tab has nobody
+  // looking at the numbers.
+  useEffect(() => {
+    if (isPaused) return;
+    const id = setInterval(() => {
+      if (document.hidden) return;
+      fetchEndpoints();
+    }, 30000);
+    return () => clearInterval(id);
+  }, [isPaused, fetchEndpoints]);
 
   // ---------------- Scroll anchoring ----------------
   // useLayoutEffect, not useEffect: the scroll write has to land in the
@@ -1169,10 +1194,15 @@ export default function AdminLogsPage() {
       currentDelayRef.current = MIN_POLL_MS;
       if (tab === "http") fetchHttpDelta();
       else fetchSystemDelta();
+      // Counts refresh on a 30s interval, which means they could be up
+      // to 30s stale at the exact moment you look at them after
+      // switching back. Refreshing here too costs one request and makes
+      // what's on screen current when it's actually being read.
+      fetchEndpoints();
     }
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, [tab, isPaused, fetchHttpDelta, fetchSystemDelta]);
+  }, [tab, isPaused, fetchHttpDelta, fetchSystemDelta, fetchEndpoints]);
 
   // ---------------- Filtering ----------------
   // Debounced so typing in the path box doesn't re-filter thousands of
@@ -1403,7 +1433,11 @@ export default function AdminLogsPage() {
     currentDelayRef.current = MIN_POLL_MS;
     const minSpinTime = new Promise((resolve) => setTimeout(resolve, 500));
     try {
-      await Promise.all([fetchHttp(true), fetchSystem(true), minSpinTime]);
+      // Includes the tool counts: clicking Refresh should update
+      // everything on screen, not just the log rows. Leaving the counts
+      // stale after an explicit refresh is exactly the inconsistency
+      // this whole change is fixing.
+      await Promise.all([fetchHttp(true), fetchSystem(true), fetchEndpoints(), minSpinTime]);
     } finally {
       setIsRefreshing(false);
     }
