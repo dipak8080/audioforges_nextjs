@@ -1096,10 +1096,18 @@ export default function AdminLogsPage() {
   // delta polling can do anything useful for a tab that may not have
   // been fetched in a while.
   useEffect(() => {
+    // Same invariant as everywhere else now: paused means no automatic
+    // fetch, full stop, until Resume or manual Refresh is pressed. This
+    // used to fetch unconditionally on every tab switch, which is the
+    // same class of bug as the visibility-change one above - just
+    // triggered by switching HTTP/System instead of switching browser
+    // tabs. Manual Refresh (handleManualRefresh) still works while
+    // paused, since that's an explicit action, not automatic polling.
+    if (isPaused) return;
     if (tab === "http") fetchHttp();
     else fetchSystem();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab]);
+  }, [tab, isPaused]);
 
   // ---------------- Self-adjusting poll ----------------
   // Starts at MIN_POLL_MS; every tick that comes back with nothing new
@@ -1143,13 +1151,22 @@ export default function AdminLogsPage() {
   useEffect(() => {
     function handleVisibilityChange() {
       if (document.hidden) return;
+      // Was missing this check - meant returning to the tab fetched
+      // fresh data unconditionally, ignoring pause. The Pause button
+      // still correctly said "Resume" and isPaused was still true, but
+      // new lines appeared anyway the instant you switched back, which
+      // looks exactly like pause silently turning itself off. Now this
+      // matches the main poll loop below, which already respects
+      // isPaused - the two should never disagree about whether polling
+      // is allowed to happen.
+      if (isPaused) return;
       currentDelayRef.current = MIN_POLL_MS;
       if (tab === "http") fetchHttpDelta();
       else fetchSystemDelta();
     }
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, [tab, fetchHttpDelta, fetchSystemDelta]);
+  }, [tab, isPaused, fetchHttpDelta, fetchSystemDelta]);
 
   // ---------------- Filtering ----------------
   // Debounced so typing in the path box doesn't re-filter thousands of
