@@ -990,6 +990,54 @@ export default function AdminLogsPage() {
     });
   }, [systemLogs, levelFilter, debouncedSystemSearch]);
 
+  // Groups CONSECUTIVE lines sharing a request_id into one visual unit.
+  // A single download can log 20+ lines (attempt retries, cookie
+  // rotation, download progress ticks every ~10%, cache save, complete) -
+  // showing every one of those at full height by default is exactly the
+  // "too much scrolling to find anything" problem the click-through
+  // feature was built to solve, just recreated inside the live feed
+  // itself. The fix isn't hiding the noise, it's showing the two lines
+  // that actually matter (what started, what it ended as) and folding
+  // everything between them behind one "N more lines" toggle.
+  //
+  // Lines with no request_id ("-") never merge into a group, even when
+  // adjacent - sharing "-" doesn't mean two lines are related, it means
+  // neither carries one, so grouping them would visually imply a
+  // connection that isn't real.
+  type SystemGroup = { key: string; entries: SystemLogEntry[] };
+  const systemGroups = useMemo<SystemGroup[]>(() => {
+    const groups: SystemGroup[] = [];
+    for (const entry of filteredSystemLogs) {
+      const prev = groups[groups.length - 1];
+      const prevEntry = prev?.entries[prev.entries.length - 1];
+      if (
+        prevEntry &&
+        entry.request_id &&
+        entry.request_id !== "-" &&
+        entry.request_id === prevEntry.request_id
+      ) {
+        prev.entries.push(entry);
+      } else {
+        groups.push({ key: `g${entry.id}`, entries: [entry] });
+      }
+    }
+    return groups;
+  }, [filteredSystemLogs]);
+
+  // Which groups have their collapsed middle expanded. Keyed by the
+  // group's own key (its first entry's id), not the request_id - a
+  // request_id can recur across separate groups (retrying the same
+  // video later), and those should expand independently.
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  const toggleGroup = useCallback((key: string) => {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
+
   useLayoutEffect(() => {
     const el = sysRef.current;
     if (!el) return;
@@ -1895,18 +1943,13 @@ export default function AdminLogsPage() {
                 className="h-full overflow-y-auto scrollbar-thin font-mono text-xs"
               >
                 <TopSentinel loading={sysLoadingOlder} hasOlder={sysHasOlder} count={systemLogs.length} total={sysTotal} />
-                {filteredSystemLogs.map((entry, index) => (
-                  <SystemRow
-                    key={entry.id}
-                    entry={entry}
-                    // Only draw a divider when this entry's request_id
-                    // differs from the previous one - groups all lines from
-                    // the same request together, with a visible break only
-                    // where a new request's logs actually start. Computed
-                    // against the FILTERED list so a divider never appears
-                    // next to a line that got filtered out and isn't
-                    // actually adjacent on screen.
-                    newGroup={index !== 0 && entry.request_id !== filteredSystemLogs[index - 1]?.request_id}
+                {systemGroups.map((group, index) => (
+                  <SystemGroupBlock
+                    key={group.key}
+                    group={group}
+                    isFirst={index === 0}
+                    expanded={expandedGroups.has(group.key)}
+                    onToggle={() => toggleGroup(group.key)}
                   />
                 ))}
                 <ListState
@@ -2285,6 +2328,65 @@ const SystemRow = memo(
     );
   },
   (prev, next) => prev.entry.id === next.entry.id && prev.newGroup === next.newGroup
+);
+
+const _LEVEL_RANK: Record<string, number> = { INFO: 0, WARNING: 1, ERROR: 2, CRITICAL: 3 };
+
+function worstLevel(entries: SystemLogEntry[]): string {
+  let worst = entries[0]?.level ?? "INFO";
+  for (const e of entries) {
+    if ((_LEVEL_RANK[e.level] ?? 0) > (_LEVEL_RANK[worst] ?? 0)) worst = e.level;
+  }
+  return worst;
+}
+
+const SystemGroupBlock = memo(
+  function SystemGroupBlock({
+    group, isFirst, expanded, onToggle,
+  }: {
+    group: { key: string; entries: SystemLogEntry[] };
+    isFirst: boolean;
+    expanded: boolean;
+    onToggle: () => void;
+  }) {
+    const { entries } = group;
+
+    // A single line (no request_id, or a request that only logged
+    // once) needs no head/tail split - render it exactly as before.
+    if (entries.length === 1) {
+      return <SystemRow entry={entries[0]} newGroup={!isFirst} />;
+    }
+
+    const head = entries[0];
+    const tail = entries[entries.length - 1];
+    const middle = entries.slice(1, -1);
+    const tone = levelTone(worstLevel(middle));
+
+    return (
+      <div className={!isFirst ? "border-t border-t-graphite-700 mt-1 pt-2.5" : ""}>
+        <SystemRow entry={head} newGroup={false} />
+        {middle.length > 0 && (
+          <button
+            onClick={onToggle}
+            className={`w-full flex items-center gap-2 pl-4 pr-4 py-1.5 border-l-2 ${tone.border} text-[11px] ${tone.text} hover:bg-graphite-850/60 transition-colors`}
+          >
+            <ChevronDown className={`h-3 w-3 shrink-0 transition-transform ${expanded ? "rotate-180" : ""}`} />
+            {expanded ? "Hide" : "Show"} {middle.length} more line{middle.length === 1 ? "" : "s"}
+            {" "}for this request
+          </button>
+        )}
+        {expanded && middle.map((entry) => (
+          <SystemRow key={entry.id} entry={entry} newGroup={false} />
+        ))}
+        <SystemRow entry={tail} newGroup={false} />
+      </div>
+    );
+  },
+  (prev, next) =>
+    prev.group.key === next.group.key &&
+    prev.group.entries.length === next.group.entries.length &&
+    prev.isFirst === next.isFirst &&
+    prev.expanded === next.expanded
 );
 
 function ListState({
