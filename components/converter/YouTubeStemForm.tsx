@@ -209,7 +209,7 @@ export function YouTubeStemForm({ hqAvailable = false }: YouTubeStemFormProps) {
       }
       onComplete={() => notifyOnDone("Stems are ready", "Your separated tracks finished processing.")}
       onFailed={(message) => notifyOnDone("Stem separation failed", message || "The job didn't complete.")}
-      renderControls={(disabled) => (
+      renderControls={(videoId, disabled) => (
         <div className="space-y-5">
           {hqAvailable && (
             <fieldset className="space-y-2" disabled={disabled}>
@@ -273,7 +273,7 @@ export function YouTubeStemForm({ hqAvailable = false }: YouTubeStemFormProps) {
             <button
               type="button"
               onClick={handleNotifyToggle}
-              disabled={disabled}
+              disabled={disabled || !videoId}
               className={cn(
                 "flex w-full items-center gap-2.5 rounded-lg border px-3.5 py-2.5 text-left text-sm transition-colors",
                 "focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40 disabled:cursor-not-allowed disabled:opacity-40",

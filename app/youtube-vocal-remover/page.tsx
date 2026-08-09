@@ -84,14 +84,14 @@ export default async function YouTubeVocalRemoverPage() {
     {
       question: "How long does it take?",
       answer:
-        "Usually 2–6 minutes for standard quality — fetching the audio is the fast part, and the AI separation is what takes most of the time.",
+        "Usually 1–3 minutes for standard quality — fetching the audio is the fast part, and the AI separation is what takes most of the time.",
     },
     ...(separationHqEnabled
       ? [
           {
             question: "What is Studio Quality mode?",
             answer:
-              "An optional higher-fidelity separation mode using a larger, ensembled AI model. It produces noticeably cleaner vocal and instrumental tracks, at the cost of a much longer processing time — typically 10 to 20 minutes instead of a few minutes.",
+              "An optional higher-fidelity separation mode using a larger, ensembled AI model. It produces noticeably cleaner vocal and instrumental tracks, at the cost of a longer processing time — typically 4 to 7 minutes instead of 1–3 minutes.",
           },
         ]
       : []),
@@ -187,7 +187,7 @@ export default async function YouTubeVocalRemoverPage() {
           <h2 className="text-2xl font-bold text-text-primary">How to remove vocals from a YouTube video</h2>
           <ol className="list-decimal list-inside space-y-2 text-text-muted leading-relaxed">
             <li>Paste a YouTube video, Shorts, or youtu.be link.</li>
-            <li>The audio is fetched and separated automatically — usually a few minutes.</li>
+            <li>The audio is fetched and separated automatically — usually 1–3 minutes.</li>
             <li>Preview and download the vocals, the instrumental, or both.</li>
           </ol>
         </section>
@@ -279,8 +279,8 @@ export default async function YouTubeVocalRemoverPage() {
                 <tbody className="divide-y divide-graphite-800">
                   <tr>
                     <td className="px-4 py-3 font-medium text-text-primary">Processing time</td>
-                    <td className="px-4 py-3">A few minutes</td>
-                    <td className="px-4 py-3">10–20 minutes</td>
+                    <td className="px-4 py-3">1–3 minutes</td>
+                    <td className="px-4 py-3">4–7 minutes</td>
                   </tr>
                   <tr>
                     <td className="px-4 py-3 font-medium text-text-primary">Separation quality</td>
@@ -302,7 +302,7 @@ export default async function YouTubeVocalRemoverPage() {
             </div>
             <p className="text-text-muted leading-relaxed">
               Studio Quality uses a larger, ensembled model rather than a single
-              pass, which is why it takes considerably longer — the trade-off is
+              pass, which is why it takes longer — the trade-off is
               worth it when the stems are headed into an actual production, not
               just a quick check.
             </p>

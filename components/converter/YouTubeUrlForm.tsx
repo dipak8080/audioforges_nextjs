@@ -97,11 +97,7 @@ interface YouTubeUrlFormProps {
   stages?: ProcessingStage[];
   maxPollMs?: number;
   renderControls?: (disabled: boolean) => ReactNode;
-  /** Fires once when the job completes successfully — side-effect-only
-   * (notifications, analytics), same intent as MultiOutputToolForm's
-   * onComplete. Not called on every render. */
   onComplete?: (title: string | null) => void;
-  /** Fires once when the job fails, expires, or the poll gives up. */
   onFailed?: (message: string) => void;
   renderComplete: (jobId: string, title: string | null) => ReactNode;
 }
@@ -474,8 +470,11 @@ export function YouTubeUrlForm({
           </div>
         )}
 
-        {status !== "complete" && renderControls && renderControls(isBusy)}
-
+        {/* ---------- Video preview ----------
+            Moved above renderControls (Quality/Notify) so it sits
+            immediately below the URL input on every tool, matching the
+            simplest form (Key & BPM Finder) that has no extra controls
+            to push it further down. */}
         {preview && !isBusy && status !== "complete" && (
           <div className="flex items-center gap-4 rounded-lg border border-graphite-800 bg-graphite-850/60 p-3">
             <div className="relative h-14 w-24 shrink-0 overflow-hidden rounded-md bg-graphite-800">
@@ -499,6 +498,8 @@ export function YouTubeUrlForm({
             <CheckCircle2 className="h-4 w-4 shrink-0 text-teal-400" aria-hidden />
           </div>
         )}
+
+        {status !== "complete" && renderControls && renderControls(isBusy)}
 
         {isBusy && (
           <div
