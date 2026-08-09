@@ -11,17 +11,12 @@ import { getJobStatus, ApiError, type JobSubmitResponse } from "@/lib/api/railwa
 
 type UiState = "idle" | "uploading" | "processing" | "complete" | "failed" | "error";
 
-/** A stage label that appears once `at` seconds have elapsed. */
 export interface ProcessingStage {
   at: number;
   label: string;
 }
 
 const DEFAULT_MAX_POLL_MS = 10 * 60 * 1000;
-
-/* ------------------------------------------------------------------ */
-/* Helpers                                                             */
-/* ------------------------------------------------------------------ */
 
 function extractVideoId(input: string): string | null {
   const patterns = [
@@ -59,7 +54,6 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/** Errors say what happened and what to do about it. */
 function humanizeError(raw: string): { title: string; hint: string } {
   const text = raw.toLowerCase();
 
@@ -90,46 +84,27 @@ function humanizeError(raw: string): { title: string; hint: string } {
   return { title: raw, hint: "Run it again. If it keeps failing, the video may not be supported." };
 }
 
-/* ------------------------------------------------------------------ */
-/* Props                                                               */
-/* ------------------------------------------------------------------ */
-
 interface YouTubeUrlFormProps {
-  /** Backend route segment used for status polling, e.g.
-   * "youtube/analyze", "youtube/separate", "youtube/stems". */
   endpoint: string;
-  /** Submits the job for the given URL. Each tool wraps its own
-   * submitYoutube*() function from railway.ts here. */
   onSubmit: (url: string) => Promise<JobSubmitResponse>;
   pollIntervalMs?: number;
   submitLabel: string;
   processingLabel: string;
   expectedRange?: string;
   rateLimitMessage?: string;
-  /** Eyebrow text in the card header. Falls back to the submit label. */
   toolLabel?: string;
-  /** Mono spec text on the right of the header, e.g. "44.1 kHz · stereo". */
   toolMeta?: string;
-  /** Stage labels shown while the job runs, keyed to elapsed seconds.
-   * Describe what the backend is actually doing — leaving this unset
-   * falls back to a single static processingLabel. */
   stages?: ProcessingStage[];
-  /** Give up polling after this long rather than spinning forever. */
   maxPollMs?: number;
-  /**
-   * Renders whatever this specific tool's completed result looks like -
-   * four analysis cards, a vocals/instrumental toggle, or a multi-stem
-   * track list. Each is different enough that forcing them through one
-   * shared result UI would cost more than it saves; only the URL input
-   * and job-lifecycle machinery above is actually common across all
-   * three tools.
-   */
+  renderControls?: (disabled: boolean) => ReactNode;
+  /** Fires once when the job completes successfully — side-effect-only
+   * (notifications, analytics), same intent as MultiOutputToolForm's
+   * onComplete. Not called on every render. */
+  onComplete?: (title: string | null) => void;
+  /** Fires once when the job fails, expires, or the poll gives up. */
+  onFailed?: (message: string) => void;
   renderComplete: (jobId: string, title: string | null) => ReactNode;
 }
-
-/* ------------------------------------------------------------------ */
-/* Component                                                           */
-/* ------------------------------------------------------------------ */
 
 export function YouTubeUrlForm({
   endpoint,
@@ -143,6 +118,9 @@ export function YouTubeUrlForm({
   toolMeta,
   stages,
   maxPollMs = DEFAULT_MAX_POLL_MS,
+  renderControls,
+  onComplete,
+  onFailed,
   renderComplete,
 }: YouTubeUrlFormProps) {
   const [url, setUrl] = useState("");
@@ -176,21 +154,18 @@ export function YouTubeUrlForm({
 
   useEffect(() => stopPolling, [stopPolling]);
 
-  /* --- cooldown ticker -------------------------------------------- */
   useEffect(() => {
     if (cooldownSeconds <= 0) return;
     const id = setTimeout(() => setCooldownSeconds((s) => Math.max(0, s - 1)), 1000);
     return () => clearTimeout(id);
   }, [cooldownSeconds]);
 
-  /* --- elapsed ticker ---------------------------------------------- */
   useEffect(() => {
     if (!isBusy) return;
     const id = setInterval(() => setElapsedSeconds((s) => s + 1), 1000);
     return () => clearInterval(id);
   }, [isBusy]);
 
-  /* --- debounced validation + video preview ------------------------ */
   useEffect(() => {
     const trimmed = url.trim();
     if (!trimmed) {
@@ -213,8 +188,6 @@ export function YouTubeUrlForm({
       setThumbFailed(false);
       setPreview((prev) => (prev?.id === id ? prev : { id, title: null, author: null }));
 
-      // Best-effort metadata. Blocked or offline just means no title —
-      // the thumbnail alone confirms the right track.
       fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${id}&format=json`)
         .then((r) => (r.ok ? r.json() : null))
         .then((data) => {
@@ -229,7 +202,6 @@ export function YouTubeUrlForm({
     return () => clearTimeout(timer);
   }, [url]);
 
-  /* --- polling: recursive timeout, so slow responses never stack --- */
   const poll = useCallback(
     async (id: string) => {
       if (cancelledRef.current) return;
@@ -241,6 +213,7 @@ export function YouTubeUrlForm({
           hint: "The job may be stuck. Paste the link again to start a fresh run.",
         });
         setStatus("failed");
+        onFailed?.("This is taking unusually long");
         return;
       }
 
@@ -252,41 +225,42 @@ export function YouTubeUrlForm({
           stopPolling();
           setResultTitle(result.title);
           setStatus("complete");
+          onComplete?.(result.title);
           return;
         }
         if (result.status === "failed") {
           stopPolling();
-          setError(humanizeError(result.error || "Processing failed."));
+          const humanized = humanizeError(result.error || "Processing failed.");
+          setError(humanized);
           setStatus("failed");
+          onFailed?.(humanized.title);
           return;
         }
       } catch (err) {
         if (cancelledRef.current) return;
         if (err instanceof ApiError && err.status === 404) {
           stopPolling();
-          setError(humanizeError("This job expired."));
+          const humanized = humanizeError("This job expired.");
+          setError(humanized);
           setStatus("failed");
+          onFailed?.(humanized.title);
           return;
         }
-        // Transient network blips just fall through to the next tick.
       }
 
       pollRef.current = setTimeout(() => poll(id), pollIntervalMs);
     },
-    [endpoint, maxPollMs, pollIntervalMs, stopPolling]
+    [endpoint, maxPollMs, pollIntervalMs, stopPolling, onComplete, onFailed]
   );
 
   const startPolling = useCallback(
     (id: string) => {
       stopPolling();
       pollStartedAtRef.current = Date.now();
-      // Check straight away — short jobs shouldn't wait a full interval.
       poll(id);
     },
     [poll, stopPolling]
   );
-
-  /* --- handlers ---------------------------------------------------- */
 
   const handleUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setUrl(sanitizeUserInput(e.target.value, 500));
@@ -393,8 +367,6 @@ export function YouTubeUrlForm({
     }
   };
 
-  /* --- derived display --------------------------------------------- */
-
   const stageLabel = (() => {
     if (status === "uploading") return retryNotice || "Sending the link to the server";
     if (!stages?.length) return processingLabel;
@@ -403,14 +375,10 @@ export function YouTubeUrlForm({
     return label;
   })();
 
-  // Eases toward 92% and only completes when the job actually does.
   const progress = Math.min(92, Math.round((1 - Math.exp(-elapsedSeconds / 20)) * 100));
-
-  /* ------------------------------------------------------------------ */
 
   return (
     <div className="overflow-hidden rounded-2xl border border-graphite-800 bg-graphite-900">
-      {/* Header strip */}
       <div className="flex items-center justify-between border-b border-graphite-800 px-6 py-3.5 sm:px-8">
         <div className="flex items-center gap-2.5">
           <span
@@ -428,7 +396,6 @@ export function YouTubeUrlForm({
       </div>
 
       <div className="space-y-6 p-6 sm:p-8">
-        {/* ---------- URL input ---------- */}
         {status !== "complete" && (
           <div className="space-y-2">
             <label htmlFor="youtube-url" className="text-sm font-medium text-text-primary">
@@ -507,7 +474,8 @@ export function YouTubeUrlForm({
           </div>
         )}
 
-        {/* ---------- Video preview ---------- */}
+        {status !== "complete" && renderControls && renderControls(isBusy)}
+
         {preview && !isBusy && status !== "complete" && (
           <div className="flex items-center gap-4 rounded-lg border border-graphite-800 bg-graphite-850/60 p-3">
             <div className="relative h-14 w-24 shrink-0 overflow-hidden rounded-md bg-graphite-800">
@@ -532,7 +500,6 @@ export function YouTubeUrlForm({
           </div>
         )}
 
-        {/* ---------- Working ---------- */}
         {isBusy && (
           <div
             className="space-y-3 rounded-lg border border-graphite-800 bg-graphite-850/60 p-4"
@@ -573,7 +540,6 @@ export function YouTubeUrlForm({
           </div>
         )}
 
-        {/* ---------- Complete ---------- */}
         {status === "complete" && jobId && (
           <div className="space-y-4" role="status" aria-live="polite">
             {preview && (
@@ -608,7 +574,6 @@ export function YouTubeUrlForm({
           </div>
         )}
 
-        {/* ---------- Failed ---------- */}
         {isFailed && error && (
           <div className="space-y-4">
             <div
@@ -625,7 +590,6 @@ export function YouTubeUrlForm({
           </div>
         )}
 
-        {/* ---------- Action ---------- */}
         {status !== "complete" && (
           <Button
             variant="primary"

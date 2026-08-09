@@ -1,13 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { YouTubeSeparateForm } from "@/components/converter/YouTubeSeparateForm";
-import { FAQSection } from "@/components/faq/FAQSection";
+import { FAQSection, type FAQItem } from "@/components/faq/FAQSection";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
+import { getFeatureFlags } from "@/lib/api/railway";
 
-const PAGE_TITLE = "Free YouTube Vocal Remover — Get Instrumentals";
+const PAGE_TITLE = "Free YouTube Vocal Remover";
 const PAGE_DESCRIPTION =
-  "Paste a YouTube link and split it into vocal and instrumental tracks with AI, free. No download step, no sign-up, no watermark.";
+  "Remove vocals from YouTube videos with AI. Get isolated vocals and instrumental tracks free, with no sign-up.";
 
 export const metadata: Metadata = {
   title: PAGE_TITLE,
@@ -30,7 +31,9 @@ export const metadata: Metadata = {
 };
 
 // WebApplication schema — every claim below is checked against the actual
-// YouTubeSeparateForm/backend behavior.
+// YouTubeSeparateForm/backend behavior. GPU-accelerated is stated because
+// separation genuinely runs on GPU infrastructure; no speed or accuracy
+// numbers are claimed, since none are measured.
 const webAppJsonLd = {
   "@context": "https://schema.org",
   "@type": "WebApplication",
@@ -40,7 +43,7 @@ const webAppJsonLd = {
   operatingSystem: "Any",
   offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
   featureList: [
-    "AI vocal/instrumental separation directly from a YouTube link",
+    "GPU-accelerated AI vocal and instrumental separation from a YouTube link",
     "No manual download step",
     "Separate vocal and instrumental downloads",
     "No sign-up required",
@@ -58,60 +61,94 @@ const breadcrumbJsonLd = {
 // NOTE: No HowTo schema — deprecated by Google (desktop since Sept 2023),
 // no ranking or rich-result benefit remains. Visible how-to steps stay.
 
-const faqs = [
-  {
-    question: "How is this different from the regular Vocal Remover?",
-    answer:
-      "The regular Vocal Remover needs an audio file already on your device. This version takes a YouTube link directly, fetching and separating the audio in one step so you skip the download-then-reupload workflow entirely.",
-  },
-  {
-    question: "How long does it take?",
-    answer:
-      "Usually 2 to 6 minutes — it downloads the audio first, then runs the same AI separation as the file-based tool, which is the slower half of the process.",
-  },
-  {
-    question: "What do I get back?",
-    answer:
-      "Two separate tracks: the isolated vocals, and the instrumental with vocals removed. Each previews and downloads independently.",
-  },
-  {
-    question: "Is there a video length limit?",
-    answer: "Yes, videos longer than 15 minutes aren't supported for this tool.",
-  },
-  {
-    question: "What if the video is private, age-restricted, or region-locked?",
-    answer:
-      "Videos in any of those states may not be accessible to the downloader and can't be processed as a result.",
-  },
-  {
-    question: "How good is the separation quality?",
-    answer:
-      "It uses the same AI separation model as the file-based Vocal Remover. Quality varies with how the track is mixed — dense, heavily layered production is harder to separate cleanly than a sparser arrangement.",
-  },
-  {
-    question: "Can I get drums and bass separately too?",
-    answer:
-      "Yes — the YouTube Stem Splitter produces four separate stems (vocals, drums, bass, other) from the same kind of link.",
-    answerNode: (
-      <>
-        Yes — the{" "}
-        <Link href="/youtube-stem-splitter" className="text-amber-400 hover:underline">
-          YouTube Stem Splitter
-        </Link>{" "}
-        produces four separate stems (vocals, drums, bass, other) from the same
-        kind of link.
-      </>
-    ),
-  },
-  {
-    question: "Is this really free?",
-    answer:
-      "Yes, but usage is rate-limited per person since this chains a YouTube download with CPU-intensive AI separation.",
-  },
-];
-
-export default function YouTubeVocalRemoverPage() {
+export default async function YouTubeVocalRemoverPage() {
   const relatedTools = getRelatedTools("youtube-vocal-remover", 5);
+  const { separationHqEnabled } = await getFeatureFlags();
+
+  const faqs: FAQItem[] = [
+    {
+      question: "What is a YouTube vocal remover?",
+      answer:
+        "A tool that fetches the audio from a YouTube video and uses AI source separation to split it into an isolated vocal track and an instrumental, reconstructing parts that only exist mixed together in the original upload.",
+    },
+    {
+      question: "How do I remove vocals from a YouTube video?",
+      answer:
+        "Paste the video's link into the tool above. The audio is fetched and separated automatically, then the vocals and instrumental are ready to preview and download.",
+    },
+    {
+      question: "How is this different from the regular Vocal Remover?",
+      answer:
+        "The regular Vocal Remover needs an audio file already on your device. This version takes a YouTube link directly, fetching and separating the audio in one step so you skip the download-then-reupload workflow entirely.",
+    },
+    {
+      question: "How long does it take?",
+      answer:
+        "Usually 2–6 minutes for standard quality — fetching the audio is the fast part, and the AI separation is what takes most of the time.",
+    },
+    ...(separationHqEnabled
+      ? [
+          {
+            question: "What is Studio Quality mode?",
+            answer:
+              "An optional higher-fidelity separation mode using a larger, ensembled AI model. It produces noticeably cleaner vocal and instrumental tracks, at the cost of a much longer processing time — typically 10 to 20 minutes instead of a few minutes.",
+          },
+        ]
+      : []),
+    {
+      question: "Can I turn a YouTube song into an acapella?",
+      answer:
+        "Yes. Paste a YouTube link and the tool separates the vocals from the instrumental. The isolated vocal track can then be previewed and downloaded as an acapella.",
+    },
+    {
+      question: "Can I make a karaoke track?",
+      answer:
+        "Yes — the instrumental has the lead vocal removed, which is the standard basis for a karaoke backing track from a YouTube song.",
+    },
+    {
+      question: "What do I get back?",
+      answer:
+        "Two separate tracks: the isolated vocals, and the instrumental with vocals removed. Each previews and downloads independently.",
+    },
+    {
+      question: "What affects separation quality?",
+      answer:
+        "How densely the source track is mixed matters most — sparser arrangements separate more cleanly than dense, heavily layered production. YouTube's own audio compression adds artifacts on top of that, which is why results vary between videos even at the same quality tier.",
+    },
+    {
+      question: "Does it work with YouTube Shorts?",
+      answer: "Yes — watch links, youtu.be links, and Shorts links are all supported.",
+    },
+    {
+      question: "Is there a video length limit?",
+      answer: "Yes, videos longer than 15 minutes aren't supported for this tool.",
+    },
+    {
+      question: "What videos cannot be processed?",
+      answer:
+        "Videos that are private, age-restricted, or region-locked may not be accessible to the downloader and can't be processed as a result, since the audio has to be fetched before separation can run.",
+    },
+    {
+      question: "Can I get drums and bass separately too?",
+      answer:
+        "Yes — the YouTube Stem Splitter produces four separate stems (vocals, drums, bass, other) from the same kind of link.",
+      answerNode: (
+        <>
+          Yes — the{" "}
+          <Link href="/youtube-stem-splitter" className="text-amber-400 hover:underline">
+            YouTube Stem Splitter
+          </Link>{" "}
+          produces four separate stems (vocals, drums, bass, other) from the same
+          kind of link.
+        </>
+      ),
+    },
+    {
+      question: "Is this really free?",
+      answer:
+        "Yes, completely free. Because this chains a YouTube download with GPU-accelerated AI separation, it's rate-limited per person to keep it available for everyone.",
+    },
+  ];
 
   return (
     <>
@@ -124,19 +161,20 @@ export default function YouTubeVocalRemoverPage() {
             Free YouTube Vocal Remover
           </h1>
           <p className="text-lg text-text-muted max-w-xl mx-auto">
-            Paste a YouTube link and split it into vocal and instrumental
-            tracks — no download step, free, no sign-up.
+            AudioForges is an online YouTube vocal remover that separates
+            vocals from a song and gives you a vocal track and instrumental
+            — no download step, free, no sign-up.
           </p>
         </header>
 
         {/* Tool stays first — SEO content supports it, doesn't bury it */}
-        <YouTubeSeparateForm />
+        <YouTubeSeparateForm hqAvailable={separationHqEnabled} />
 
         <section className="grid gap-4 sm:grid-cols-3">
           {[
             { title: "No download step", desc: "Paste a link, skip the save-and-reupload." },
             { title: "Both tracks", desc: "Isolated vocals and the instrumental, downloaded separately." },
-            { title: "No sign-up", desc: "No account, no email, no watermark." },
+            { title: "Free", desc: "No sign-up, no watermark, free for everyone." },
           ].map((f) => (
             <div key={f.title} className="rounded-xl border border-graphite-800 bg-graphite-900 p-5 space-y-2">
               <h3 className="font-semibold text-text-primary">{f.title}</h3>
@@ -152,6 +190,34 @@ export default function YouTubeVocalRemoverPage() {
             <li>The audio is fetched and separated automatically — usually a few minutes.</li>
             <li>Preview and download the vocals, the instrumental, or both.</li>
           </ol>
+        </section>
+
+        <section className="space-y-4">
+          <h2 className="text-2xl font-bold text-text-primary">What you get</h2>
+          <div className="space-y-4">
+            <div>
+              <h3 className="font-semibold text-text-primary">Vocals</h3>
+              <p className="text-text-muted leading-relaxed">
+                Lead and backing vocals, isolated from the instrumentation
+                around them — usable as an acapella on its own.
+              </p>
+            </div>
+            <div>
+              <h3 className="font-semibold text-text-primary">Instrumental</h3>
+              <p className="text-text-muted leading-relaxed">
+                The full mix with vocals removed, ready as a karaoke backing
+                track or a base to build a remix around.
+              </p>
+            </div>
+            <div>
+              <h3 className="font-semibold text-text-primary">Preview and download</h3>
+              <p className="text-text-muted leading-relaxed">
+                Both tracks play directly in the browser once separation
+                finishes, and each downloads independently — grab one, the
+                other, or both.
+              </p>
+            </div>
+          </div>
         </section>
 
         <section className="space-y-4">
@@ -177,13 +243,118 @@ export default function YouTubeVocalRemoverPage() {
         </section>
 
         <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">Common uses</h2>
+          <h2 className="text-2xl font-bold text-text-primary">How AI vocal removal works</h2>
+          <div className="space-y-3 text-text-muted leading-relaxed">
+            <p>
+              AI source separation estimates the vocal and instrumental parts
+              from a single mixed recording — it isn&apos;t undoing a mix with
+              access to the original multitracks, it&apos;s reconstructing an
+              approximation of them from what a voice sounds like versus an
+              instrument. That&apos;s what separates it from an old
+              center-channel filter, which only cuts whatever&apos;s panned
+              dead-center and leaves any off-center vocal element behind.
+            </p>
+            <p>
+              AudioForges processes the AI separation workload on
+              GPU-accelerated infrastructure. Fetching the audio from YouTube
+              is the fast half of this tool; separation is the slower one, and
+              usage is rate-limited per person so it stays free and available
+              for everyone.
+            </p>
+          </div>
+        </section>
+
+        {separationHqEnabled && (
+          <section className="space-y-4">
+            <h2 className="text-2xl font-bold text-text-primary">Standard vs. Studio Quality</h2>
+            <div className="overflow-x-auto rounded-xl border border-graphite-800">
+              <table className="w-full text-sm text-left text-text-muted">
+                <thead className="bg-graphite-900 text-text-primary">
+                  <tr>
+                    <th className="px-4 py-3 font-semibold">&nbsp;</th>
+                    <th className="px-4 py-3 font-semibold">Standard</th>
+                    <th className="px-4 py-3 font-semibold">Studio Quality</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-graphite-800">
+                  <tr>
+                    <td className="px-4 py-3 font-medium text-text-primary">Processing time</td>
+                    <td className="px-4 py-3">A few minutes</td>
+                    <td className="px-4 py-3">10–20 minutes</td>
+                  </tr>
+                  <tr>
+                    <td className="px-4 py-3 font-medium text-text-primary">Separation quality</td>
+                    <td className="px-4 py-3">Good for most tracks</td>
+                    <td className="px-4 py-3">Noticeably cleaner on both stems</td>
+                  </tr>
+                  <tr>
+                    <td className="px-4 py-3 font-medium text-text-primary">Usage limit</td>
+                    <td className="px-4 py-3">3 per hour</td>
+                    <td className="px-4 py-3">1 per hour</td>
+                  </tr>
+                  <tr>
+                    <td className="px-4 py-3 font-medium text-text-primary">Best for</td>
+                    <td className="px-4 py-3">Quick previews, casual use</td>
+                    <td className="px-4 py-3">Sampling, remixing, anything going into a final mix</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p className="text-text-muted leading-relaxed">
+              Studio Quality uses a larger, ensembled model rather than a single
+              pass, which is why it takes considerably longer — the trade-off is
+              worth it when the stems are headed into an actual production, not
+              just a quick check.
+            </p>
+          </section>
+        )}
+
+        <section className="space-y-4">
+          <h2 className="text-2xl font-bold text-text-primary">Separation quality</h2>
           <p className="text-text-muted leading-relaxed">
-            Making a karaoke backing track from a song on YouTube, pulling an
-            acapella for a remix or mashup, isolating an instrumental to
-            practice singing over, and studying how a track is arranged by
-            listening to its parts separately.
+            Results genuinely vary by song. Dense, heavily layered mixes give
+            the model more overlapping frequencies to untangle than a sparser
+            arrangement, so separation is typically cleaner on the latter.
+            Heavy reverb or effects on a vocal blur the boundary between the
+            two stems, and backing vocals stacked against a lead can end up
+            split less cleanly than a single dry vocal line would be.
           </p>
+          <p className="text-text-muted leading-relaxed">
+            YouTube&apos;s own audio compression adds one more variable — the
+            source here is already an encoded stream rather than a master, and
+            that&apos;s part of why the same tool can produce a noticeably
+            cleaner result on one video than another. GPU acceleration changes
+            the infrastructure this runs on, not the difficulty of the
+            underlying problem.
+          </p>
+        </section>
+
+        <section className="space-y-4">
+          <h2 className="text-2xl font-bold text-text-primary">Common uses</h2>
+          <div className="space-y-3 text-text-muted leading-relaxed">
+            <p>
+              <strong className="text-text-primary">Karaoke &amp; practice:</strong>{" "}
+              make a backing track from a song on YouTube to sing or play along with.
+            </p>
+            <p>
+              <strong className="text-text-primary">Remixing &amp; mashups:</strong>{" "}
+              pull an acapella from one track to lay over another&apos;s instrumental.
+            </p>
+            <p>
+              <strong className="text-text-primary">Arrangement analysis:</strong>{" "}
+              study how a track is built by listening to its parts separately. Pair
+              it with the{" "}
+              <Link href="/youtube-key-finder" className="text-amber-400 hover:underline">
+                YouTube Key &amp; BPM Finder
+              </Link>{" "}
+              to get key and tempo from the same link.
+            </p>
+            <p>
+              <strong className="text-text-primary">DJ &amp; reference material:</strong>{" "}
+              prep an instrumental or acapella for a set from a track you only
+              have as a link.
+            </p>
+          </div>
         </section>
 
         {relatedTools.length > 0 && (

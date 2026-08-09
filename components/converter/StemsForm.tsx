@@ -7,15 +7,6 @@ import { submitStems, type SeparationQuality } from "@/lib/api/railway";
 import { cn } from "@/lib/utils/cn";
 
 interface StemsFormProps {
-  /**
-   * Whether the Studio Quality tier is currently available. Passed down
-   * from the server-rendered page (app/stems/page.tsx), which reads this
-   * from the backend at request/cache time via getFeatureFlags() — never
-   * fetched client-side. When false (the default), the toggle below never
-   * renders: not disabled, not hidden with CSS — simply absent from the
-   * component tree, so there's no client-visible trace of the feature
-   * existing when it's turned off.
-   */
   hqAvailable?: boolean;
 }
 
@@ -30,43 +21,36 @@ interface QualitySpec {
 const STANDARD_SPEC: QualitySpec = {
   value: "standard",
   label: "Standard",
-  time: "1–5 min",
+  time: "30 sec–2 min",
   detail: "Vocals, drums, bass, other",
-  rateLimit: "10 per hour",
+  rateLimit: "3 per hour",
 };
 
 const HQ_SPEC: QualitySpec = {
   value: "hq",
   label: "Studio Quality",
-  time: "10–20 min",
+  time: "3–6 min",
   detail: "Cleaner separation, same 4 stems",
   rateLimit: "1 per hour",
 };
 
-// Stage labels stretched across the realistic range for each tier —
-// this is the single longest wait on the site (up to 20 minutes for
-// HQ), so a flat "Separating…" for the whole duration is the worst
-// possible feedback here specifically.
 const STANDARD_STAGES = [
   { at: 0, label: "Uploading and queuing" },
-  { at: 8, label: "Analyzing frequencies" },
-  { at: 30, label: "Isolating vocals" },
-  { at: 70, label: "Isolating drums and bass" },
-  { at: 130, label: "Rendering stems" },
+  { at: 5, label: "Analyzing frequencies" },
+  { at: 20, label: "Isolating vocals" },
+  { at: 45, label: "Isolating drums and bass" },
+  { at: 80, label: "Rendering stems" },
 ];
 
 const HQ_STAGES = [
   { at: 0, label: "Uploading and queuing" },
-  { at: 15, label: "Running the studio-quality model" },
-  { at: 180, label: "Separating vocals" },
-  { at: 420, label: "Separating drums and bass" },
-  { at: 700, label: "Refining and rendering stems" },
+  { at: 10, label: "Running the studio-quality model" },
+  { at: 90, label: "Separating vocals" },
+  { at: 180, label: "Separating drums and bass" },
+  { at: 280, label: "Refining and rendering stems" },
 ];
 
 export function StemsForm({ hqAvailable = false }: StemsFormProps) {
-  // Always starts at "standard" regardless of hqAvailable — toggling HQ
-  // off server-side, then back on later, never causes a returning visitor
-  // to land on HQ by default; they have to actively pick it every time.
   const [quality, setQuality] = useState<SeparationQuality>("standard");
   const [notifyEnabled, setNotifyEnabled] = useState(false);
   const [notifyPermission, setNotifyPermission] = useState<NotificationPermission | "unsupported">("default");
@@ -96,9 +80,6 @@ export function StemsForm({ hqAvailable = false }: StemsFormProps) {
 
   const notifyOnDone = (title: string, body: string) => {
     if (!notifyEnabled || notifyPermission !== "granted") return;
-    // Only worth interrupting someone if they've actually tabbed away —
-    // if they're watching the progress bar, the on-screen state is
-    // already enough.
     if (typeof document !== "undefined" && !document.hidden) return;
     try {
       new Notification(title, { body, icon: "/favicon.ico" });
@@ -113,8 +94,8 @@ export function StemsForm({ hqAvailable = false }: StemsFormProps) {
       endpoint="stems"
       queryParam="stem"
       onSubmit={(file) => submitStems(file, effectiveQuality)}
-      pollIntervalMs={isHq ? 30_000 : 12_000}
-      maxPollMs={isHq ? 25 * 60 * 1000 : 10 * 60 * 1000}
+      pollIntervalMs={isHq ? 20_000 : 8_000}
+      maxPollMs={isHq ? 10 * 60 * 1000 : 4 * 60 * 1000}
       toolLabel="Stem separator"
       toolMeta={`${spec.label} · ${spec.time}`}
       stages={isHq ? HQ_STAGES : STANDARD_STAGES}
@@ -125,7 +106,7 @@ export function StemsForm({ hqAvailable = false }: StemsFormProps) {
       rateLimitMessage={
         isHq
           ? "You've reached the studio quality limit (1 per hour). Try again later."
-          : "You've reached the free limit (10 stem splits per hour). Try again later."
+          : "You've reached the free limit (3 stem splits per hour). Try again later."
       }
       onComplete={() => notifyOnDone("Stems are ready", "Your separated tracks finished processing.")}
       onFailed={(message) => notifyOnDone("Stem separation failed", message || "The job didn't complete.")}
@@ -183,16 +164,13 @@ export function StemsForm({ hqAvailable = false }: StemsFormProps) {
               {isHq && (
                 <p className="flex items-start gap-1.5 text-[11px] text-text-subtle">
                   <Info className="mt-0.5 h-3 w-3 shrink-0" aria-hidden />
-                  Studio Quality can take up to 20 minutes. Worth turning on the notification below so you
+                  Studio Quality can take a few minutes. Worth turning on the notification below so you
                   don&apos;t have to babysit this tab.
                 </p>
               )}
             </fieldset>
           )}
 
-          {/* Given how long this specifically can run, an opt-in browser
-              notification is worth the extra control — nothing else on
-              the site justifies this, but a 20-minute wait does. */}
           {notifyPermission !== "unsupported" && (
             <button
               type="button"

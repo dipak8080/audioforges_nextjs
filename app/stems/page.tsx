@@ -7,9 +7,9 @@ import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
 import { getFeatureFlags } from "@/lib/api/railway";
 
-const PAGE_TITLE = "Free AI Stem Splitter Online – Split Songs Into Stems";
+const PAGE_TITLE = "Free AI Stem Splitter – Split Songs Into Stems";
 const PAGE_DESCRIPTION =
-  "Split a song into vocals, drums, bass, and other stems with AI stem separation. Upload MP3, WAV, FLAC, AAC, M4A, or OGG — free, no sign-up.";
+  "Split songs into vocals, drums, bass, and other stems with AI. Upload MP3, WAV, FLAC, M4A, AAC, or OGG for free. No sign-up.";
 
 export const metadata: Metadata = {
   title: PAGE_TITLE,
@@ -51,7 +51,7 @@ const webAppJsonLd = {
     priceCurrency: "USD",
   },
   featureList: [
-    "AI-powered 4-stem separation: vocals, drums, bass, other",
+    "GPU-accelerated AI 4-stem separation: vocals, drums, bass, other",
     "No sign-up required",
     "No download or software install required",
     "Individually downloadable stems",
@@ -103,7 +103,7 @@ export default async function StemsPage() {
     {
       question: "How long does stem separation take?",
       answer:
-        "Usually 1–5 minutes for standard quality, depending on track length and server load — this runs real AI audio-separation processing, not a simple filter, on CPU rather than expensive GPU infrastructure.",
+        "Usually 1–5 minutes for standard quality, depending on track length and server load — this runs real AI audio-separation processing on GPU-accelerated infrastructure, not a simple filter.",
     },
     ...(separationHqEnabled
       ? [
@@ -117,7 +117,7 @@ export default async function StemsPage() {
     {
       question: "Is this really free?",
       answer:
-        "Yes, completely free. Because separation is CPU-intensive, it's rate-limited per person to keep it available for everyone.",
+        "Yes, completely free. Because separation is processing-intensive, it's rate-limited per person to keep it available for everyone.",
     },
     {
       question: "What are the four stems?",
@@ -216,6 +216,12 @@ export default async function StemsPage() {
             same underlying idea as audio source separation more broadly — it&apos;s
             why producers, remixers, and DJs use it to get usable stems from a
             track they only have as a finished MP3 or WAV.
+          </p>
+          <p className="text-text-muted leading-relaxed">
+            AudioForges lets you split a song online without the original
+            project files or multitrack session. Upload a finished track and
+            the AI separates it into vocals, drums, bass, and other
+            instrumentation that you can preview and download individually.
           </p>
         </section>
 
@@ -354,10 +360,11 @@ export default async function StemsPage() {
               for each stem.
             </p>
             <p>
-              Because this runs on CPU rather than expensive GPU infrastructure,
-              a single track takes a few minutes and usage is rate-limited per
-              person so it stays free and available for everyone. No download,
-              install, or account is needed — everything happens in your browser.
+              AudioForges processes the AI separation workload on GPU-accelerated
+              infrastructure. A single track still takes a few minutes, and usage
+              is rate-limited per person so it stays free and available for
+              everyone. No download, install, or account is needed — everything
+              happens in your browser.
             </p>
             <p>
               Want the fuller technical breakdown — why bass and drums are the
@@ -392,6 +399,11 @@ export default async function StemsPage() {
                     <td className="px-4 py-3 font-medium text-text-primary">Separation quality</td>
                     <td className="px-4 py-3">Good for most tracks</td>
                     <td className="px-4 py-3">Noticeably cleaner across all four stems</td>
+                  </tr>
+                  <tr>
+                    <td className="px-4 py-3 font-medium text-text-primary">Usage limit</td>
+                    <td className="px-4 py-3">3 per hour</td>
+                    <td className="px-4 py-3">1 per hour</td>
                   </tr>
                   <tr>
                     <td className="px-4 py-3 font-medium text-text-primary">Best for</td>
@@ -431,6 +443,11 @@ export default async function StemsPage() {
             separation fail outright — it just tends to leave more audible
             traces behind on a dense or heavily processed mix than on a sparser,
             cleaner one.
+          </p>
+          <p className="text-text-muted leading-relaxed">
+            GPU acceleration changes the infrastructure the separation runs on,
+            not the difficulty of the underlying problem — source quality and
+            arrangement still determine the final result.
           </p>
         </section>
 

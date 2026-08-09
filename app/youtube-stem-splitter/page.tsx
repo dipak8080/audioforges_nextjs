@@ -1,13 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { YouTubeStemForm } from "@/components/converter/YouTubeStemForm";
-import { FAQSection } from "@/components/faq/FAQSection";
+import { FAQSection, type FAQItem } from "@/components/faq/FAQSection";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
+import { getFeatureFlags } from "@/lib/api/railway";
 
-const PAGE_TITLE = "Free YouTube Stem Splitter — Vocals, Drums, Bass";
+const PAGE_TITLE = "Free YouTube Stem Splitter – Split Songs Into Stems";
 const PAGE_DESCRIPTION =
-  "Paste a YouTube link and split it into vocals, drums, bass, and other stems with AI, free. No download step, no sign-up, no watermark.";
+  "Split YouTube songs into vocals, drums, bass, and other stems with AI. Free, no sign-up, no download required.";
 
 export const metadata: Metadata = {
   title: PAGE_TITLE,
@@ -30,7 +31,9 @@ export const metadata: Metadata = {
 };
 
 // WebApplication schema — every claim below is checked against the actual
-// YouTubeStemForm/backend behavior. No "best"/"most accurate" claims.
+// YouTubeStemForm/backend behavior. GPU-accelerated is stated because
+// separation genuinely runs on GPU infrastructure; no speed or accuracy
+// numbers are claimed, since none are measured.
 const webAppJsonLd = {
   "@context": "https://schema.org",
   "@type": "WebApplication",
@@ -40,7 +43,7 @@ const webAppJsonLd = {
   operatingSystem: "Any",
   offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
   featureList: [
-    "AI 4-stem separation directly from a YouTube link",
+    "GPU-accelerated AI 4-stem separation from a YouTube link",
     "No manual download step",
     "Individually downloadable vocals, drums, bass, and other stems",
     "No sign-up required",
@@ -58,55 +61,94 @@ const breadcrumbJsonLd = {
 // NOTE: No HowTo schema — deprecated by Google (desktop since Sept 2023),
 // no ranking or rich-result benefit remains. Visible how-to steps stay.
 
-const faqs = [
-  {
-    question: "How is this different from the regular Stem Splitter?",
-    answer:
-      "The regular Stem Splitter needs an audio file already on your device. This version takes a YouTube link directly, fetching and separating the audio in one step instead of requiring a separate download tool first.",
-  },
-  {
-    question: "How long does it take?",
-    answer:
-      "Usually 2 to 6 minutes — downloading the audio is the fast part; the AI stem separation is what takes most of the time.",
-  },
-  {
-    question: "What stems do I get?",
-    answer:
-      "Four: vocals, drums, bass, and other (everything else — guitars, keys, pads, synths). Each downloads independently.",
-  },
-  {
-    question: "Is there a video length limit?",
-    answer: "Yes, videos longer than 15 minutes aren't supported for this tool.",
-  },
-  {
-    question: "What if the video is private, age-restricted, or region-locked?",
-    answer:
-      "Videos in any of those states may not be accessible to the downloader and can't be processed as a result.",
-  },
-  {
-    question: "I only want vocals and instrumental, not all 4 stems — is there a simpler option?",
-    answer:
-      "Yes — the YouTube Vocal Remover gives you just vocals and a combined instrumental, if you don't need drums and bass split out separately.",
-    answerNode: (
-      <>
-        Yes — the{" "}
-        <Link href="/youtube-vocal-remover" className="text-amber-400 hover:underline">
-          YouTube Vocal Remover
-        </Link>{" "}
-        gives you just vocals and a combined instrumental, if you don&apos;t
-        need drums and bass split out separately.
-      </>
-    ),
-  },
-  {
-    question: "Is this really free?",
-    answer:
-      "Yes, but usage is rate-limited per person since this chains a YouTube download with CPU-intensive 4-stem AI separation.",
-  },
-];
-
-export default function YouTubeStemSplitterPage() {
+export default async function YouTubeStemSplitterPage() {
   const relatedTools = getRelatedTools("youtube-stem-splitter", 5);
+  const { separationHqEnabled } = await getFeatureFlags();
+
+  const faqs: FAQItem[] = [
+    {
+      question: "What is a YouTube stem splitter?",
+      answer:
+        "A YouTube stem splitter takes audio from a YouTube video and uses AI source separation to create four separate tracks: vocals, drums, bass, and other.",
+    },
+    {
+      question: "How do I split a YouTube song into stems?",
+      answer:
+        "Paste the video's link into the tool above. The audio is fetched and separated automatically, then all four stems are ready to preview and download.",
+    },
+    {
+      question: "How is this different from the regular Stem Splitter?",
+      answer:
+        "The regular Stem Splitter needs an audio file already on your device. This version takes a YouTube link directly, fetching and separating the audio in one step instead of requiring a separate download tool first.",
+    },
+    {
+      question: "How long does it take?",
+      answer:
+        "Usually 2–6 minutes for standard quality — fetching the audio is the fast part, and the AI stem separation is what takes most of the time.",
+    },
+    ...(separationHqEnabled
+      ? [
+          {
+            question: "What is Studio Quality mode?",
+            answer:
+              "An optional higher-fidelity separation mode using a larger, ensembled AI model. It produces noticeably cleaner stems across all four tracks, at the cost of a much longer processing time — typically 10 to 20 minutes instead of a few minutes.",
+          },
+        ]
+      : []),
+    {
+      question: "What stems do I get?",
+      answer:
+        "Four: vocals, drums, bass, and other (everything else — guitars, keys, pads, synths). Each downloads independently.",
+    },
+    {
+      question: "Can I download each stem separately?",
+      answer:
+        "Yes — each of the four stems previews and downloads independently, so you only need to grab the ones you actually want.",
+    },
+    {
+      question: "What affects stem separation quality?",
+      answer:
+        "How densely the source track is mixed matters most. Bass and low guitar can bleed into each other since they occupy similar frequency ranges, and heavily processed drums sometimes separate less cleanly than an acoustic kit.",
+    },
+    {
+      question: "Why can AI-separated stems have bleed?",
+      answer:
+        "The model estimates four sources from one mixed recording rather than recovering the original studio multitracks. Instruments sharing a similar frequency range are hardest to fully untangle, which is where bleed between stems tends to show up.",
+    },
+    {
+      question: "Does it work with YouTube Shorts?",
+      answer: "Yes — watch links, youtu.be links, and Shorts links are all supported.",
+    },
+    {
+      question: "Is there a video length limit?",
+      answer: "Yes, videos longer than 15 minutes aren't supported for this tool.",
+    },
+    {
+      question: "What videos cannot be processed?",
+      answer:
+        "Videos that are private, age-restricted, or region-locked may not be accessible to the downloader and can't be processed as a result, since the audio has to be fetched before separation can run.",
+    },
+    {
+      question: "I only want vocals and instrumental, not all 4 stems — is there a simpler option?",
+      answer:
+        "Yes — the YouTube Vocal Remover gives you just vocals and a combined instrumental, if you don't need drums and bass split out separately.",
+      answerNode: (
+        <>
+          Yes — the{" "}
+          <Link href="/youtube-vocal-remover" className="text-amber-400 hover:underline">
+            YouTube Vocal Remover
+          </Link>{" "}
+          gives you just vocals and a combined instrumental, if you don&apos;t
+          need drums and bass split out separately.
+        </>
+      ),
+    },
+    {
+      question: "Is this really free?",
+      answer:
+        "Yes, completely free. Because this chains a YouTube download with GPU-accelerated 4-stem AI separation, it's rate-limited per person to keep it available for everyone.",
+    },
+  ];
 
   return (
     <>
@@ -119,19 +161,20 @@ export default function YouTubeStemSplitterPage() {
             Free YouTube Stem Splitter
           </h1>
           <p className="text-lg text-text-muted max-w-xl mx-auto">
-            Paste a YouTube link and split it into vocals, drums, bass, and
-            other stems — no download step, free, no sign-up.
+            Paste a YouTube link and split a song into vocals, drums, bass,
+            and other stems with AI. No download step, no sign-up, and free
+            to use.
           </p>
         </header>
 
         {/* Tool stays first — SEO content supports it, doesn't bury it */}
-        <YouTubeStemForm />
+        <YouTubeStemForm hqAvailable={separationHqEnabled} />
 
         <section className="grid gap-4 sm:grid-cols-3">
           {[
             { title: "No download step", desc: "Paste a link, skip the save-and-reupload." },
             { title: "4 separate stems", desc: "Vocals, drums, bass, and other, each downloaded individually." },
-            { title: "No sign-up", desc: "No account, no email, no watermark." },
+            { title: "Free", desc: "No sign-up, no watermark, free for everyone." },
           ].map((f) => (
             <div key={f.title} className="rounded-xl border border-graphite-800 bg-graphite-900 p-5 space-y-2">
               <h3 className="font-semibold text-text-primary">{f.title}</h3>
@@ -182,6 +225,11 @@ export default function YouTubeStemSplitterPage() {
               </p>
             </div>
           </div>
+          <p className="text-text-muted leading-relaxed">
+            Each stem previews directly in the browser and downloads
+            independently, so you can grab just the one you need without
+            pulling the rest.
+          </p>
         </section>
 
         <section className="space-y-4">
@@ -213,26 +261,140 @@ export default function YouTubeStemSplitterPage() {
         </section>
 
         <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">Limitations</h2>
+          <h2 className="text-2xl font-bold text-text-primary">Split YouTube Songs Into Stems</h2>
+          <p className="text-text-muted leading-relaxed">
+            This YouTube stem splitter turns a YouTube song into four separate
+            audio tracks: vocals, drums, bass, and other. Instead of
+            downloading the audio first and uploading it to a separate stem
+            separation tool, you can paste the YouTube link directly and let
+            AudioForges handle the audio fetching and AI separation in one
+            workflow.
+          </p>
+          <p className="text-text-muted leading-relaxed">
+            The four stems can be useful for remixing, sampling, mashups,
+            music production, practice, and studying how a song is arranged.
+            Each stem can be previewed and downloaded separately after
+            processing.
+          </p>
+        </section>
+
+        <section className="space-y-4">
+          <h2 className="text-2xl font-bold text-text-primary">How AI stem separation works</h2>
+          <div className="space-y-3 text-text-muted leading-relaxed">
+            <p>
+              AI stem separation estimates four individual sources from a single
+              mixed recording — it isn&apos;t recovering the original studio
+              multitracks, it&apos;s reconstructing an approximation of them
+              based on the learned characteristics of what a voice, a drum kit,
+              a bass line, and everything else each sound like. All four are
+              separated simultaneously in one pass, in full stereo.
+            </p>
+            <p>
+              AudioForges processes the AI separation workload on
+              GPU-accelerated infrastructure. Fetching the audio from YouTube
+              is the fast half of this tool; separation is the slower one, and
+              usage is rate-limited per person so it stays free and available
+              for everyone.
+            </p>
+          </div>
+        </section>
+
+        {separationHqEnabled && (
+          <section className="space-y-4">
+            <h2 className="text-2xl font-bold text-text-primary">Standard vs. Studio Quality</h2>
+            <div className="overflow-x-auto rounded-xl border border-graphite-800">
+              <table className="w-full text-sm text-left text-text-muted">
+                <thead className="bg-graphite-900 text-text-primary">
+                  <tr>
+                    <th className="px-4 py-3 font-semibold">&nbsp;</th>
+                    <th className="px-4 py-3 font-semibold">Standard</th>
+                    <th className="px-4 py-3 font-semibold">Studio Quality</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-graphite-800">
+                  <tr>
+                    <td className="px-4 py-3 font-medium text-text-primary">Processing time</td>
+                    <td className="px-4 py-3">A few minutes</td>
+                    <td className="px-4 py-3">10–20 minutes</td>
+                  </tr>
+                  <tr>
+                    <td className="px-4 py-3 font-medium text-text-primary">Separation quality</td>
+                    <td className="px-4 py-3">Good for most tracks</td>
+                    <td className="px-4 py-3">Noticeably cleaner across all four stems</td>
+                  </tr>
+                  <tr>
+                    <td className="px-4 py-3 font-medium text-text-primary">Usage limit</td>
+                    <td className="px-4 py-3">3 per hour</td>
+                    <td className="px-4 py-3">1 per hour</td>
+                  </tr>
+                  <tr>
+                    <td className="px-4 py-3 font-medium text-text-primary">Best for</td>
+                    <td className="px-4 py-3">Quick previews, casual use</td>
+                    <td className="px-4 py-3">Sampling, remixing, anything going into a final mix</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p className="text-text-muted leading-relaxed">
+              Studio Quality uses a larger, ensembled model rather than a single
+              pass, which is why it takes considerably longer — the trade-off is
+              worth it when the stems are headed into an actual production, not
+              just a quick check.
+            </p>
+          </section>
+        )}
+
+        <section className="space-y-4">
+          <h2 className="text-2xl font-bold text-text-primary">Separation quality</h2>
           <p className="text-text-muted leading-relaxed">
             Separation quality depends on how densely the source track is
             mixed. Bass and low guitar can bleed into each other since they
             occupy similar frequency ranges, and heavily processed or
             programmed drums sometimes separate less cleanly than an
-            acoustic kit. This isn&apos;t specific to pulling audio from
-            YouTube — it&apos;s the same behavior as the file-based Stem
-            Splitter, since both run the same separation model.
+            acoustic kit. Reverb and effects on one source can stay faintly
+            audible across more than one stem. This isn&apos;t specific to
+            pulling audio from YouTube — it&apos;s the same behavior as the
+            file-based Stem Splitter, since both run the same separation
+            model.
+          </p>
+          <p className="text-text-muted leading-relaxed">
+            YouTube&apos;s own audio compression adds one more variable, since
+            the source here is an encoded stream rather than a master. GPU
+            acceleration changes the infrastructure this runs on, not the
+            difficulty of the underlying problem — perfectly clean separation
+            on every track isn&apos;t a realistic expectation at any quality
+            tier.
           </p>
         </section>
 
         <section className="space-y-4">
           <h2 className="text-2xl font-bold text-text-primary">Common uses</h2>
-          <p className="text-text-muted leading-relaxed">
-            Pulling an isolated drum or bass part from a track on YouTube to
-            sample or study, building a remix around specific stems from a
-            reference track, and breaking down an arrangement
-            instrument-by-instrument without needing the original files.
-          </p>
+          <div className="space-y-3 text-text-muted leading-relaxed">
+            <p>
+              <strong className="text-text-primary">Sampling &amp; production:</strong>{" "}
+              pull an isolated drum loop or bassline from a track on YouTube to
+              build something new around.
+            </p>
+            <p>
+              <strong className="text-text-primary">Remixing &amp; mashups:</strong>{" "}
+              build around specific stems from a reference track rather than a
+              full instrumental.
+            </p>
+            <p>
+              <strong className="text-text-primary">Practice &amp; study:</strong>{" "}
+              isolate a bass or drum part to learn it note-for-note. Pair it with
+              the{" "}
+              <Link href="/youtube-key-finder" className="text-amber-400 hover:underline">
+                YouTube Key &amp; BPM Finder
+              </Link>{" "}
+              to get key and tempo from the same link.
+            </p>
+            <p>
+              <strong className="text-text-primary">Arrangement analysis:</strong>{" "}
+              break a track down instrument-by-instrument without needing the
+              original files.
+            </p>
+          </div>
         </section>
 
         {relatedTools.length > 0 && (

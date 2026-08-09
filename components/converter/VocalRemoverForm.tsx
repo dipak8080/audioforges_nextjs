@@ -20,15 +20,6 @@ import { SupportBlock } from "@/components/ui/SupportBlock";
 import { cn } from "@/lib/utils/cn";
 
 interface VocalRemoverFormProps {
-  /**
-   * Whether the HQ tier is currently available. Passed down from the
-   * server-rendered page (see app/vocal-remover/page.tsx), which reads
-   * this from the backend at request/cache time — NOT fetched client-side.
-   * When false (the default), the toggle below simply never renders: no
-   * disabled state, no tooltip, nothing in the DOM. This is the entire
-   * mechanism for disabling HQ without it being noticeable — there is no
-   * client-visible trace of the feature existing when this prop is false.
-   */
   hqAvailable?: boolean;
 }
 
@@ -43,38 +34,35 @@ interface QualitySpec {
 const STANDARD_SPEC: QualitySpec = {
   value: "standard",
   label: "Standard",
-  time: "1–5 min",
+  time: "30 sec–2 min",
   detail: "Vocals and instrumental",
-  rateLimit: "10 per hour",
+  rateLimit: "3 per hour",
 };
 
 const HQ_SPEC: QualitySpec = {
   value: "hq",
   label: "Studio Quality",
-  time: "10–20 min",
+  time: "3–6 min",
   detail: "Cleaner separation, same 2 stems",
   rateLimit: "1 per hour",
 };
 
-// Stage labels stretched across each tier's realistic duration — a flat
-// "Separating…" for up to 20 minutes straight is the worst possible
-// feedback for the single longest wait most people hit on this site.
 const STANDARD_STAGES = [
   { at: 0, label: "Uploading and queuing" },
-  { at: 8, label: "Analyzing frequencies" },
-  { at: 30, label: "Isolating vocals" },
-  { at: 90, label: "Rendering vocals and instrumental" },
+  { at: 5, label: "Analyzing frequencies" },
+  { at: 15, label: "Isolating vocals" },
+  { at: 40, label: "Rendering vocals and instrumental" },
 ];
 
 const HQ_STAGES = [
   { at: 0, label: "Uploading and queuing" },
-  { at: 15, label: "Running the studio-quality model" },
-  { at: 180, label: "Isolating vocals" },
-  { at: 600, label: "Refining and rendering both stems" },
+  { at: 10, label: "Running the studio-quality model" },
+  { at: 90, label: "Isolating vocals" },
+  { at: 240, label: "Refining and rendering both stems" },
 ];
 
-const MAX_POLL_MS_STANDARD = 10 * 60 * 1000;
-const MAX_POLL_MS_HQ = 25 * 60 * 1000;
+const MAX_POLL_MS_STANDARD = 4 * 60 * 1000;
+const MAX_POLL_MS_HQ = 10 * 60 * 1000;
 
 function formatElapsed(seconds: number): string {
   const m = Math.floor(seconds / 60);
@@ -113,8 +101,6 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
   const [cooldownSeconds, setCooldownSeconds] = useState(0);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
-  // Always starts at "standard" regardless of hqAvailable — a returning
-  // visitor never lands on HQ by default, they have to actively pick it.
   const [quality, setQuality] = useState<SeparationQuality>("standard");
   const [notifyEnabled, setNotifyEnabled] = useState(false);
   const [notifyPermission, setNotifyPermission] = useState<NotificationPermission | "unsupported">("default");
@@ -180,7 +166,6 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
     setNotifyEnabled((v) => !v);
   };
 
-  /* --- polling: recursive timeout, capped, tier-aware interval ------ */
   const poll = useCallback(
     (id: string, forQuality: SeparationQuality) => {
       if (cancelledRef.current) return;
@@ -213,7 +198,7 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
             notifyOnDone("Separation failed", humanized.title);
             return;
           }
-          const intervalMs = forQuality === "hq" ? 30_000 : 12_000;
+          const intervalMs = forQuality === "hq" ? 20_000 : 8_000;
           pollRef.current = setTimeout(() => poll(id, forQuality), intervalMs);
         })
         .catch((err) => {
@@ -226,7 +211,7 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
             notifyOnDone("Separation failed", humanized.title);
             return;
           }
-          const intervalMs = forQuality === "hq" ? 30_000 : 12_000;
+          const intervalMs = forQuality === "hq" ? 20_000 : 8_000;
           pollRef.current = setTimeout(() => poll(id, forQuality), intervalMs);
         });
     },
@@ -256,9 +241,6 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
   const handleSubmit = async () => {
     if (!file) return;
 
-    // Belt-and-braces: even if hqAvailable somehow became stale client-side
-    // (e.g. flag flipped mid-session), never actually submit to the HQ
-    // endpoint unless the prop says it's available.
     const effectiveQuality: SeparationQuality = hqAvailable ? quality : "standard";
 
     setStatus("uploading");
@@ -282,7 +264,7 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
           hint:
             effectiveQuality === "hq"
               ? "1 studio-quality separation per hour. Try again later."
-              : "10 separations per hour. Try again later.",
+              : "3 separations per hour. Try again later.",
         });
         setCooldownSeconds(err.retryAfterSeconds ?? 3600);
       } else {
@@ -321,7 +303,7 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
     for (const s of stages) if (elapsedSeconds >= s.at) label = s.label;
     return label;
   })();
-  const progress = Math.min(92, Math.round((1 - Math.exp(-elapsedSeconds / (isHq ? 200 : 25))) * 100));
+  const progress = Math.min(92, Math.round((1 - Math.exp(-elapsedSeconds / (isHq ? 90 : 12))) * 100));
 
   return (
     <div className="overflow-hidden rounded-2xl border border-graphite-800 bg-graphite-900">
@@ -344,10 +326,6 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
           />
         )}
 
-        {/*
-          The entire block below only exists in the rendered tree when
-          hqAvailable is true. When false, it's absent, not disabled.
-        */}
         {hqAvailable && status !== "complete" && (
           <div className="space-y-2">
             <label className="text-sm font-medium text-text-primary">Quality</label>
@@ -389,7 +367,7 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
             {isHq && (
               <p className="flex items-start gap-1.5 text-[11px] text-text-subtle">
                 <Info className="mt-0.5 h-3 w-3 shrink-0" aria-hidden />
-                Studio Quality can take up to 20 minutes — the notification below saves you from babysitting
+                Studio Quality can take a few minutes — the notification below saves you from babysitting
                 this tab.
               </p>
             )}
@@ -488,6 +466,7 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
 
             <AudioPlayer key={activeStem} src={getSeparationPreviewUrl(jobId, activeStem)} />
 
+            
             <a
               href={getSeparationDownloadUrl(jobId, activeStem)}
               download

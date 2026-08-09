@@ -545,8 +545,11 @@ export async function getYoutubeAnalyzeResult(jobId: string): Promise<AnalyzeRes
 // getSeparationPreviewUrl/DownloadUrl via the `endpoint` param rather
 // than duplicating them.
 
-export function submitYoutubeSeparate(url: string): Promise<JobSubmitResponse> {
-  return submitUrlJob("youtube/separate", url);
+export function submitYoutubeSeparate(
+  url: string,
+  quality: SeparationQuality = "standard"
+): Promise<JobSubmitResponse> {
+  return submitUrlJob(quality === "hq" ? "youtube/separate-hq" : "youtube/separate", url);
 }
 
 export function getYoutubeSeparateStatus(jobId: string): Promise<JobStatusResult> {
@@ -565,10 +568,12 @@ export function getYoutubeSeparateDownloadUrl(jobId: string, stem: StemType): st
 // Same multi-output shape as /stems — reuses the generic multi-output
 // functions via the `endpoint` param.
 
-export function submitYoutubeStems(url: string): Promise<JobSubmitResponse> {
-  return submitUrlJob("youtube/stems", url);
+export function submitYoutubeStems(
+  url: string,
+  quality: SeparationQuality = "standard"
+): Promise<JobSubmitResponse> {
+  return submitUrlJob(quality === "hq" ? "youtube/stems-hq" : "youtube/stems", url);
 }
-
 export function getYoutubeStemsStatus(jobId: string): Promise<MultiOutputStatusResult> {
   return getMultiOutputStatus("youtube/stems", jobId);
 }
