@@ -61,8 +61,14 @@ const HQ_STAGES = [
   { at: 240, label: "Refining and rendering both stems" },
 ];
 
-const MAX_POLL_MS_STANDARD = 4 * 60 * 1000;
-const MAX_POLL_MS_HQ = 10 * 60 * 1000;
+// Must cover the BACKEND's actual timeout ceiling (DEMUCS_TIMEOUT_SECONDS
+// / DEMUCS_TIMEOUT_SECONDS_HQ in config.py: 600s / 1800s), not the
+// typical-case time estimate shown in the UI above. A tighter frontend
+// cap here means the poll gives up and shows "stuck" on a job the
+// backend is still correctly processing and will complete — see
+// YouTubeSeparateForm.tsx for the incident that surfaced this bug.
+const MAX_POLL_MS_STANDARD = 12 * 60 * 1000;
+const MAX_POLL_MS_HQ = 32 * 60 * 1000;
 
 function formatElapsed(seconds: number): string {
   const m = Math.floor(seconds / 60);
@@ -465,9 +471,8 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
             </div>
 
             <AudioPlayer key={activeStem} src={getSeparationPreviewUrl(jobId, activeStem)} />
-
+              <a
             
-            <a
               href={getSeparationDownloadUrl(jobId, activeStem)}
               download
               className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-amber-500 px-6 py-3 font-medium text-graphite-950 transition-colors hover:bg-amber-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40"

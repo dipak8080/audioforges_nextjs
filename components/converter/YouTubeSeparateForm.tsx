@@ -148,7 +148,15 @@ export function YouTubeSeparateForm({ hqAvailable = false }: YouTubeSeparateForm
       endpoint="youtube/separate"
       onSubmit={(url) => submitYoutubeSeparate(url, effectiveQuality)}
       pollIntervalMs={isHq ? 20_000 : 8_000}
-      maxPollMs={isHq ? 10 * 60 * 1000 : 5 * 60 * 1000}
+      // Must cover the BACKEND's actual timeout ceiling
+      // (DEMUCS_TIMEOUT_SECONDS_HQ=1800s / DEMUCS_TIMEOUT_SECONDS=600s in
+      // config.py), not the typical-case time estimate shown in the UI.
+      // A tighter frontend cap here means the poll gives up and shows
+      // "stuck" on a job the backend is still correctly processing and
+      // will complete — exactly what happened on 2026-08-09: Demucs
+      // started at 9:25:36pm and was still within its allowed 30-minute
+      // window when the old 10-minute cap gave up on it.
+      maxPollMs={isHq ? 32 * 60 * 1000 : 12 * 60 * 1000}
       toolLabel="Vocal remover"
       toolMeta={`${spec.label} · From YouTube · ${spec.time}`}
       submitLabel={isHq ? "Remove vocals (Studio Quality)" : "Remove vocals"}
@@ -162,7 +170,7 @@ export function YouTubeSeparateForm({ hqAvailable = false }: YouTubeSeparateForm
       }
       onComplete={() => notifyOnDone("Vocals separated", "Your vocal and instrumental tracks are ready.")}
       onFailed={(message) => notifyOnDone("Separation failed", message || "The job didn't complete.")}
-      renderControls={(videoId, disabled) => (
+      renderControls={(disabled) => (
         <div className="space-y-5">
           {hqAvailable && (
             <fieldset className="space-y-2" disabled={disabled}>
@@ -226,7 +234,7 @@ export function YouTubeSeparateForm({ hqAvailable = false }: YouTubeSeparateForm
             <button
               type="button"
               onClick={handleNotifyToggle}
-              disabled={disabled || !videoId}
+              disabled={disabled}
               className={cn(
                 "flex w-full items-center gap-2.5 rounded-lg border px-3.5 py-2.5 text-left text-sm transition-colors",
                 "focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40 disabled:cursor-not-allowed disabled:opacity-40",

@@ -95,7 +95,7 @@ export function StemsForm({ hqAvailable = false }: StemsFormProps) {
       queryParam="stem"
       onSubmit={(file) => submitStems(file, effectiveQuality)}
       pollIntervalMs={isHq ? 20_000 : 8_000}
-      maxPollMs={isHq ? 10 * 60 * 1000 : 4 * 60 * 1000}
+      maxPollMs={isHq ? 32 * 60 * 1000 : 12 * 60 * 1000}
       toolLabel="Stem separator"
       toolMeta={`${spec.label} · ${spec.time}`}
       stages={isHq ? HQ_STAGES : STANDARD_STAGES}
