@@ -391,6 +391,12 @@ export default function AdminLogsPage() {
   const [deleteResult, setDeleteResult] = useState<string | null>(null);
 
   const [httpTotal, setHttpTotal] = useState(0);
+  // How many rows match the CURRENT filters across the whole table,
+  // from the backend. Distinct from httpTotal (all rows) and from
+  // httpLogs.length (rows in memory) - reporting "loaded" as though it
+  // were the match count is exactly what made filtered views look
+  // empty when the matches were simply older than the loaded window.
+  const [httpFilteredTotal, setHttpFilteredTotal] = useState(0);
   const [sysTotal, setSysTotal] = useState(0);
   const [httpLoadingOlder, setHttpLoadingOlder] = useState(false);
   const [sysLoadingOlder, setSysLoadingOlder] = useState(false);
@@ -471,23 +477,95 @@ export default function AdminLogsPage() {
 
   const isAbort = (e: unknown) => (e as Error)?.name === "AbortError";
 
-  // The family filter sent to the backend. Read through a ref because
-  // the fetch callbacks are memoized on [router] and would otherwise
-  // capture a stale value - and re-creating them whenever the filter
-  // changes would retrigger every effect that depends on their identity.
-  //
-  // OTHER_TRAFFIC_KEY is deliberately excluded: "Other" is a CLIENT-side
-  // grouping (everything that isn't a known tool), so there's no single
-  // family the server could filter on. That one stays client-side, which
-  // is correct - unrecognized traffic is inherently defined by what it
-  // isn't.
-  const familyFilterRef = useRef<string | null>(null);
-  familyFilterRef.current =
-    endpointFilter && endpointFilter !== OTHER_TRAFFIC_KEY ? endpointFilter : null;
+  // Debounced filter inputs. Declared HERE, above the filter refs that
+  // read them, because those refs are assigned during render - a
+  // `const` referenced before its declaration line is a temporal-dead-
+  // zone ReferenceError at runtime, not a hoisted undefined. Debouncing
+  // matters more now than it did when filtering was client-side: each
+  // keystroke would otherwise fire a real database query.
+  const [debouncedPath, setDebouncedPath] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedPath(pathFilter), 250);
+    return () => clearTimeout(t);
+  }, [pathFilter]);
 
-  const familyParam = () => {
-    const f = familyFilterRef.current;
-    return f ? `&family=${encodeURIComponent(f)}` : "";
+  const [debouncedSystemSearch, setDebouncedSystemSearch] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSystemSearch(systemSearch), 250);
+    return () => clearTimeout(t);
+  }, [systemSearch]);
+
+  // ALL filters are sent to the backend now. They used to be applied in
+  // the browser over whatever rows were already loaded, which meant
+  // every one of them silently under-reported once the real result set
+  // was larger than the loaded window - a tool with 6 old requests
+  // showed "No requests match", and the 4xx/5xx chips, method dropdown,
+  // date filter and path search all had the same flaw while the stat
+  // boxes above them counted the whole table. Two answers to the same
+  // question on one screen.
+  //
+  // Read through a ref because the fetch callbacks are memoized on
+  // [router]; recreating them on every filter change would retrigger
+  // every effect keyed on their identity.
+  const filterRef = useRef({
+    endpointFilter: "", methodFilter: "", debouncedPath: "",
+    statusClassFilter: "all" as "all" | "4xx" | "5xx",
+    dateFilter: "all" as DateFilter, hideNoise: true,
+  });
+  filterRef.current = {
+    endpointFilter, methodFilter, debouncedPath, statusClassFilter, dateFilter, hideNoise,
+  };
+
+  // Nepal is UTC+5:45 with no DST, so a Nepal calendar day starts at
+  // 18:15 UTC the previous day. Computed here rather than in SQL because
+  // the dashboard already owns Nepal-time rendering - putting the same
+  // offset in two places is how they drift apart.
+  const NEPAL_OFFSET_MS = (5 * 60 + 45) * 60 * 1000;
+
+  function nepalDayBounds(daysAgo: number): { since: string; until: string } {
+    const nowNepal = new Date(Date.now() + NEPAL_OFFSET_MS);
+    const y = nowNepal.getUTCFullYear();
+    const m = nowNepal.getUTCMonth();
+    const d = nowNepal.getUTCDate() - daysAgo;
+    const startUtcMs = Date.UTC(y, m, d) - NEPAL_OFFSET_MS;
+    return {
+      since: new Date(startUtcMs).toISOString().replace("Z", ""),
+      until: new Date(startUtcMs + 86400000).toISOString().replace("Z", ""),
+    };
+  }
+
+  const sysFilterRef = useRef({ levelFilter: "", debouncedSystemSearch: "" });
+  sysFilterRef.current = { levelFilter, debouncedSystemSearch };
+
+  const sysFilterParams = () => {
+    const f = sysFilterRef.current;
+    const p = new URLSearchParams();
+    if (f.levelFilter) p.set("level", f.levelFilter);
+    if (f.debouncedSystemSearch.trim()) p.set("q", f.debouncedSystemSearch.trim());
+    const s = p.toString();
+    return s ? `&${s}` : "";
+  };
+
+  const filterParams = () => {
+    const f = filterRef.current;
+    const p = new URLSearchParams();
+    // OTHER_TRAFFIC_KEY is a CLIENT-side grouping ("not any known
+    // tool"), so there's no single family the server can filter on -
+    // that one case stays client-side by necessity.
+    if (f.endpointFilter && f.endpointFilter !== OTHER_TRAFFIC_KEY) {
+      p.set("family", f.endpointFilter);
+    }
+    if (f.methodFilter) p.set("method", f.methodFilter);
+    if (f.debouncedPath.trim()) p.set("q", f.debouncedPath.trim());
+    if (f.statusClassFilter !== "all") p.set("status_class", f.statusClassFilter);
+    if (f.hideNoise) p.set("hide_noise", "true");
+    if (f.dateFilter === "today" || f.dateFilter === "yesterday") {
+      const { since, until } = nepalDayBounds(f.dateFilter === "today" ? 0 : 1);
+      p.set("since", since);
+      p.set("until", until);
+    }
+    const s = p.toString();
+    return s ? `&${s}` : "";
   };
 
   // ---------------- Click-through correlation ----------------
@@ -591,7 +669,7 @@ export default function AdminLogsPage() {
     if (!force && httpInFlightRef.current) return;
     httpInFlightRef.current = true;
     try {
-      const res = await fetch(`/api/admin/logs?type=http&limit=${PAGE_SIZE}${familyParam()}`, {
+      const res = await fetch(`/api/admin/logs?type=http&limit=${PAGE_SIZE}${filterParams()}`, {
         cache: "no-store",
         signal: signal(),
       });
@@ -605,12 +683,16 @@ export default function AdminLogsPage() {
       // a new (but identical-content) array forces React to re-render
       // every row for zero visual change. A cheap signature comparison
       // lets identical responses become complete no-ops instead.
-      const sig = `${data.total}:${data.success}:${data.client}:${data.server}:${data.logs.length}:${data.logs[0]?.id ?? 0}`;
+      // filtered_total included so a filter change that happens to return
+      // the same row count still registers as a real change - the guard
+      // exists to skip identical polls, not to swallow new queries.
+      const sig = `${data.total}:${data.filtered_total}:${data.success}:${data.client}:${data.server}:${data.logs.length}:${data.logs[0]?.id ?? 0}`;
       if (sig === httpSigRef.current) return;
       httpSigRef.current = sig;
 
       setTotals({ total: data.total, success: data.success, client: data.client, server: data.server });
       setHttpTotal(data.total);
+      if (typeof data.filtered_total === "number") setHttpFilteredTotal(data.filtered_total);
       // Backend returns newest-first (ORDER BY id DESC); reverse so the
       // oldest entry is at the top and the newest lands at the bottom,
       // like a terminal tail.
@@ -659,7 +741,7 @@ export default function AdminLogsPage() {
 
     try {
       const res = await fetch(
-        `/api/admin/logs?type=http&limit=${PAGE_SIZE}&beforeId=${cursor}${familyParam()}`,
+        `/api/admin/logs?type=http&limit=${PAGE_SIZE}&beforeId=${cursor}${filterParams()}`,
         { cache: "no-store", signal: signal() }
       );
       if (res.status === 401) { router.push("/admin/login"); return; }
@@ -698,7 +780,7 @@ export default function AdminLogsPage() {
     if (!force && sysInFlightRef.current) return;
     sysInFlightRef.current = true;
     try {
-      const res = await fetch(`/api/admin/logs?type=system&limit=${PAGE_SIZE}`, {
+      const res = await fetch(`/api/admin/logs?type=system&limit=${PAGE_SIZE}${sysFilterParams()}`, {
         cache: "no-store",
         signal: signal(),
       });
@@ -709,7 +791,7 @@ export default function AdminLogsPage() {
       }
       const data = await res.json();
       const lastId = data.logs.length > 0 ? data.logs[data.logs.length - 1].id : 0;
-      const sig = `${data.total}:${data.logs.length}:${lastId}`;
+      const sig = `${data.total}:${data.filtered_total}:${data.logs.length}:${lastId}`;
       if (sig === sysSigRef.current) return;
       sysSigRef.current = sig;
 
@@ -757,7 +839,7 @@ export default function AdminLogsPage() {
 
     try {
       const res = await fetch(
-        `/api/admin/logs?type=system&limit=${PAGE_SIZE}&beforeId=${cursor}`,
+        `/api/admin/logs?type=system&limit=${PAGE_SIZE}&beforeId=${cursor}${sysFilterParams()}`,
         { cache: "no-store", signal: signal() }
       );
       if (res.status === 401) { router.push("/admin/login"); return; }
@@ -794,7 +876,7 @@ export default function AdminLogsPage() {
     if (httpDeltaInFlightRef.current || httpLastIdRef.current === 0) return false;
     httpDeltaInFlightRef.current = true;
     try {
-      const res = await fetch(`/api/admin/logs?type=http&afterId=${httpLastIdRef.current}${familyParam()}`, {
+      const res = await fetch(`/api/admin/logs?type=http&afterId=${httpLastIdRef.current}${filterParams()}`, {
         cache: "no-store",
         signal: signal(),
       });
@@ -807,6 +889,7 @@ export default function AdminLogsPage() {
       const data = await res.json();
       setTotals({ total: data.total, success: data.success, client: data.client, server: data.server });
       setHttpTotal(data.total);
+      if (typeof data.filtered_total === "number") setHttpFilteredTotal(data.filtered_total);
       setHttpError(null);
       if (!data.logs || data.logs.length === 0) return false;
 
@@ -838,7 +921,7 @@ export default function AdminLogsPage() {
     if (sysDeltaInFlightRef.current || sysLastIdRef.current === 0) return false;
     sysDeltaInFlightRef.current = true;
     try {
-      const res = await fetch(`/api/admin/logs?type=system&afterId=${sysLastIdRef.current}`, {
+      const res = await fetch(`/api/admin/logs?type=system&afterId=${sysLastIdRef.current}${sysFilterParams()}`, {
         cache: "no-store",
         signal: signal(),
       });
@@ -1019,26 +1102,13 @@ export default function AdminLogsPage() {
   // effect below, because that effect depends on it - a `const` used
   // before its declaration line is a temporal-dead-zone ReferenceError
   // at mount, not a hoisted undefined.
-  const [debouncedSystemSearch, setDebouncedSystemSearch] = useState("");
-  useEffect(() => {
-    const t = setTimeout(() => setDebouncedSystemSearch(systemSearch), 120);
-    return () => clearTimeout(t);
-  }, [systemSearch]);
 
-  const filteredSystemLogs = useMemo(() => {
-    const needle = debouncedSystemSearch.toLowerCase();
-    // Same fast path as the HTTP filter: unfiltered means reuse the same
-    // array identity so React can skip reconciling the whole list.
-    if (!levelFilter && !needle) return systemLogs;
-    return systemLogs.filter((entry) => {
-      if (levelFilter && entry.level !== levelFilter) return false;
-      if (needle) {
-        const hay = `${entry.logger} ${entry.message}`.toLowerCase();
-        if (!hay.includes(needle)) return false;
-      }
-      return true;
-    });
-  }, [systemLogs, levelFilter, debouncedSystemSearch]);
+  // Level and search are applied in SQL now (see get_system_logs), so
+  // what came back already matches. Kept as a named binding rather than
+  // using systemLogs directly because the scroll-anchoring effect and
+  // the grouping memo both key on this identity, and renaming them all
+  // would be churn for no behavioural gain.
+  const filteredSystemLogs = systemLogs;
 
   // Groups CONSECUTIVE lines sharing a request_id into one visual unit.
   // A single download can log 20+ lines (attempt retries, cookie
@@ -1159,10 +1229,10 @@ export default function AdminLogsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, isPaused]);
 
-  // Refetch when the tool filter changes. Filtering is now server-side,
-  // so the loaded window is scoped to whichever family was selected -
-  // switching tools has to re-query rather than re-filter rows that were
-  // fetched for a different query. Cursors are reset for the same
+  // Refetch whenever ANY filter changes. Filtering is server-side now,
+  // so the loaded window is scoped to whatever query produced it -
+  // changing a filter has to re-query rather than re-filter rows that
+  // were fetched under different criteria. Cursors reset for the same
   // reason: the old oldest/newest ids belong to the previous result set
   // and would page through the wrong rows.
   //
@@ -1183,7 +1253,26 @@ export default function AdminLogsPage() {
     setShowJumpHttp(false);
     fetchHttp(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [endpointFilter]);
+  }, [endpointFilter, methodFilter, debouncedPath, statusClassFilter, dateFilter, hideNoise]);
+
+  // Same for the System tab's own filters.
+  const sysFilterBootRef = useRef(true);
+  useEffect(() => {
+    if (sysFilterBootRef.current) {
+      sysFilterBootRef.current = false;
+      return;
+    }
+    if (tab !== "system") return;
+    sysSigRef.current = "";
+    sysLastIdRef.current = 0;
+    sysOldestRef.current = 0;
+    sysHasOlderRef.current = true;
+    setSysHasOlder(true);
+    sysPinnedRef.current = true;
+    setShowJumpSys(false);
+    fetchSystem(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [levelFilter, debouncedSystemSearch]);
 
   // ---------------- Self-adjusting poll ----------------
   // Starts at MIN_POLL_MS; every tick that comes back with nothing new
@@ -1253,11 +1342,6 @@ export default function AdminLogsPage() {
   // Debounced so typing in the path box doesn't re-filter thousands of
   // rows on every single keystroke. The input itself stays fully
   // responsive because its value is separate state.
-  const [debouncedPath, setDebouncedPath] = useState("");
-  useEffect(() => {
-    const t = setTimeout(() => setDebouncedPath(pathFilter), 120);
-    return () => clearTimeout(t);
-  }, [pathFilter]);
 
   // The tool list powering both the endpoint picker and the search
   // suggestions. Built from the backend's real route table
@@ -1398,47 +1482,21 @@ export default function AdminLogsPage() {
     setPathFilter("");
   }, []);
 
+  // Everything the server returned already matches the active filters -
+  // method, path search, status class, date and noise are all applied in
+  // SQL now (see get_http_logs in log_stream.py). Re-filtering here
+  // would be redundant at best, and at worst could silently drop rows
+  // the server deliberately returned if the two implementations ever
+  // disagreed.
+  //
+  // The ONE exception is the "Other (unrecognized traffic)" bucket:
+  // it means "not any known tool", which is defined by the client's
+  // knowledge of the tool list, so the server has no single family to
+  // filter on.
   const filtered = useMemo(() => {
-    const needle = debouncedPath.toLowerCase();
-    // Fast path: nothing is filtering, so skip the per-row work entirely
-    // and reuse the same array identity, which lets React skip the whole
-    // list reconciliation too.
-    if (
-      !methodFilter && !endpointFilter && !needle && !hideNoise &&
-      dateFilter === "all" && statusClassFilter === "all"
-    ) return httpLogs;
-
-    const wantKey =
-      dateFilter === "today" ? todayKey() : dateFilter === "yesterday" ? yesterdayKey() : null;
-
-    return httpLogs.filter((log) => {
-      if (methodFilter && log.method !== methodFilter) return false;
-      if (endpointFilter) {
-        // Real tool families are filtered SERVER-side now (see the
-        // family param in fetchHttp), so everything loaded already
-        // belongs to the selected family - no client-side check needed
-        // or wanted here, since re-filtering would only be able to
-        // silently drop rows the server deliberately returned.
-        //
-        // "Other" is the exception: it means "not any known tool", which
-        // is defined by the client's knowledge of the tool list and has
-        // no single family the server could filter on.
-        if (endpointFilter === OTHER_TRAFFIC_KEY) {
-          if (knownPathSet.has(toolFamily(log.path))) return false;
-        }
-      }
-      if (needle && !log.path.toLowerCase().includes(needle)) return false;
-      if (hideNoise && isNoise(log.path)) return false;
-      if (statusClassFilter === "4xx" && !(log.status_code >= 400 && log.status_code < 500)) return false;
-      if (statusClassFilter === "5xx" && log.status_code < 500) return false;
-      if (wantKey) {
-        try {
-          if (npYMD(log.timestamp) !== wantKey) return false;
-        } catch { return false; }
-      }
-      return true;
-    });
-  }, [httpLogs, methodFilter, endpointFilter, debouncedPath, hideNoise, dateFilter, statusClassFilter, noiseListVersion, knownPathSet]);
+    if (endpointFilter !== OTHER_TRAFFIC_KEY) return httpLogs;
+    return httpLogs.filter((log) => !knownPathSet.has(toolFamily(log.path)));
+  }, [httpLogs, endpointFilter, knownPathSet]);
 
   function requestDelete(olderThanDays: number | null) {
     setDeleteResult(null);
@@ -1941,8 +1999,8 @@ export default function AdminLogsPage() {
 
             {/* Footer */}
             <div className="shrink-0 px-4 py-2.5 border-t border-graphite-800 text-xs text-text-subtle tabular-nums">
-              Showing {filtered.length.toLocaleString()} of {httpLogs.length.toLocaleString()} loaded
-              {httpTotal > httpLogs.length && <> · {httpTotal.toLocaleString()} total</>}
+              Showing {filtered.length.toLocaleString()} of {httpFilteredTotal.toLocaleString()} matching
+              {httpFilteredTotal < httpTotal && <> · {httpTotal.toLocaleString()} total unfiltered</>}
             </div>
           </section>
         </>

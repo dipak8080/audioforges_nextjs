@@ -32,6 +32,12 @@ export async function GET(request: NextRequest) {
   // list even though the picker correctly reported a non-zero total.
   const family = searchParams.get("family");
 
+  // Every remaining filter, forwarded straight through. All filtering is
+  // server-side now - doing it in the browser could only ever search the
+  // rows already loaded, so any result older than the loaded window was
+  // invisible while the stat counters above still counted it.
+  const PASSTHROUGH = ["method", "q", "status_class", "hide_noise", "since", "until", "level"];
+
   if (type !== "http" && type !== "system") {
     return NextResponse.json({ error: "Invalid type parameter" }, { status: 400 });
   }
@@ -50,6 +56,10 @@ export async function GET(request: NextRequest) {
   }
   if (family) {
     backendUrl.searchParams.set("family", family);
+  }
+  for (const p of PASSTHROUGH) {
+    const v = searchParams.get(p);
+    if (v) backendUrl.searchParams.set(p, v);
   }
 
   try {
