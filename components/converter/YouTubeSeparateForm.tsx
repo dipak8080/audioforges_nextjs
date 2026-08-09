@@ -91,8 +91,8 @@ function SeparateResult({ jobId, title }: { jobId: string; title: string | null 
       </div>
 
       <AudioPlayer key={activeStem} src={getYoutubeSeparatePreviewUrl(jobId, activeStem)} />
-
-      <a
+        <a
+      
         href={getYoutubeSeparateDownloadUrl(jobId, activeStem)}
         download
         className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-amber-500 px-6 py-3 font-medium text-graphite-950 transition-colors hover:bg-amber-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40"
@@ -153,9 +153,7 @@ export function YouTubeSeparateForm({ hqAvailable = false }: YouTubeSeparateForm
       // config.py), not the typical-case time estimate shown in the UI.
       // A tighter frontend cap here means the poll gives up and shows
       // "stuck" on a job the backend is still correctly processing and
-      // will complete — exactly what happened on 2026-08-09: Demucs
-      // started at 9:25:36pm and was still within its allowed 30-minute
-      // window when the old 10-minute cap gave up on it.
+      // will complete.
       maxPollMs={isHq ? 32 * 60 * 1000 : 12 * 60 * 1000}
       toolLabel="Vocal remover"
       toolMeta={`${spec.label} · From YouTube · ${spec.time}`}
@@ -170,7 +168,7 @@ export function YouTubeSeparateForm({ hqAvailable = false }: YouTubeSeparateForm
       }
       onComplete={() => notifyOnDone("Vocals separated", "Your vocal and instrumental tracks are ready.")}
       onFailed={(message) => notifyOnDone("Separation failed", message || "The job didn't complete.")}
-      renderControls={(disabled) => (
+      renderControls={(disabled, hasUrl) => (
         <div className="space-y-5">
           {hqAvailable && (
             <fieldset className="space-y-2" disabled={disabled}>
@@ -234,7 +232,7 @@ export function YouTubeSeparateForm({ hqAvailable = false }: YouTubeSeparateForm
             <button
               type="button"
               onClick={handleNotifyToggle}
-              disabled={disabled}
+              disabled={disabled || !hasUrl}
               className={cn(
                 "flex w-full items-center gap-2.5 rounded-lg border px-3.5 py-2.5 text-left text-sm transition-colors",
                 "focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40 disabled:cursor-not-allowed disabled:opacity-40",

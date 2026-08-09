@@ -96,7 +96,18 @@ interface YouTubeUrlFormProps {
   toolMeta?: string;
   stages?: ProcessingStage[];
   maxPollMs?: number;
-  renderControls?: (disabled: boolean) => ReactNode;
+  /**
+   * Optional extra controls rendered between the URL input and the
+   * submit button (e.g. a quality tier toggle, a notification opt-in).
+   *
+   * `hasUrl` mirrors MultiOutputToolForm's `file` argument: it's the
+   * "is there actually anything to act on yet?" signal, so a control
+   * like the notify toggle can stay disabled until a real link is
+   * present rather than being togglable on an empty form. Without it,
+   * the two YouTube forms drifted out of sync with the upload-based
+   * forms, which have always gated on `!file`.
+   */
+  renderControls?: (disabled: boolean, hasUrl: boolean) => ReactNode;
   onComplete?: (title: string | null) => void;
   onFailed?: (message: string) => void;
   renderComplete: (jobId: string, title: string | null) => ReactNode;
@@ -499,7 +510,7 @@ export function YouTubeUrlForm({
           </div>
         )}
 
-        {status !== "complete" && renderControls && renderControls(isBusy)}
+        {status !== "complete" && renderControls && renderControls(isBusy, Boolean(videoId))}
 
         {isBusy && (
           <div

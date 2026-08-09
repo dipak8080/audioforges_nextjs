@@ -129,8 +129,8 @@ function StemsResult({ jobId, title }: { jobId: string; title: string | null }) 
                   {formatStemName(name)}
                 </span>
               </button>
-                  <a
-              
+
+                <a
                 href={getYoutubeStemsDownloadUrl(jobId, name)}
                 download
                 onClick={(e) => e.stopPropagation()}
@@ -198,7 +198,6 @@ export function YouTubeStemForm({ hqAvailable = false }: YouTubeStemFormProps) {
       // Must cover the BACKEND's actual timeout ceiling
       // (DEMUCS_TIMEOUT_SECONDS_HQ=1800s / DEMUCS_TIMEOUT_SECONDS=600s in
       // config.py), not the typical-case time estimate shown in the UI.
-      // See YouTubeSeparateForm.tsx for the incident this fixed.
       maxPollMs={isHq ? 32 * 60 * 1000 : 12 * 60 * 1000}
       toolLabel="Stem separator"
       toolMeta={`${spec.label} · From YouTube · ${spec.time}`}
@@ -213,7 +212,7 @@ export function YouTubeStemForm({ hqAvailable = false }: YouTubeStemFormProps) {
       }
       onComplete={() => notifyOnDone("Stems are ready", "Your separated tracks finished processing.")}
       onFailed={(message) => notifyOnDone("Stem separation failed", message || "The job didn't complete.")}
-      renderControls={(disabled) => (
+      renderControls={(disabled, hasUrl) => (
         <div className="space-y-5">
           {hqAvailable && (
             <fieldset className="space-y-2" disabled={disabled}>
@@ -277,7 +276,7 @@ export function YouTubeStemForm({ hqAvailable = false }: YouTubeStemFormProps) {
             <button
               type="button"
               onClick={handleNotifyToggle}
-              disabled={disabled}
+              disabled={disabled || !hasUrl}
               className={cn(
                 "flex w-full items-center gap-2.5 rounded-lg border px-3.5 py-2.5 text-left text-sm transition-colors",
                 "focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40 disabled:cursor-not-allowed disabled:opacity-40",
