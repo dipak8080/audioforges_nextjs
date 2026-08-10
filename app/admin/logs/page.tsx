@@ -121,6 +121,34 @@ const familyCache = new Map<string, string>();
 // Sentinel for the "Other / unrecognized traffic" bucket - deliberately
 // not a real path shape (no leading slash a real route would ever have)
 // so it can never collide with an actual family.
+// Pulls the job id out of a request path, if there is one.
+//   /youtube/stems/status/0aee65ad3d1f4dd88b660c6f4eac5f2a -> 0aee65...
+//   /youtube/stems-hq                                      -> null
+//
+// Uses the same _ID_SEGMENT pattern the family-collapsing logic uses, so
+// the two can never disagree about what counts as an id.
+//
+// Memoised for the same reason toolFamily and the date formatters are:
+// this runs once per visible row inside both row components on EVERY
+// render, and paths repeat heavily - a single job's 40 status polls all
+// share one path string. Uncached, that's a split plus a regex test per
+// segment, per row, per render, for a value that can never change for a
+// given path.
+const jobIdCache = new Map<string, string | null>();
+
+function jobIdFromPath(path: string): string | null {
+  let hit = jobIdCache.get(path);
+  if (hit === undefined) {
+    if (jobIdCache.size > 20000) jobIdCache.clear();
+    hit = null;
+    for (const seg of path.split("/")) {
+      if (seg && _ID_SEGMENT.test(seg)) { hit = seg; break; }
+    }
+    jobIdCache.set(path, hit);
+  }
+  return hit;
+}
+
 const OTHER_TRAFFIC_KEY = "__other__";
 
 function toolFamily(path: string): string {
@@ -378,6 +406,10 @@ export default function AdminLogsPage() {
   // the live system feed by eye. null when not active - the system tab
   // renders its normal live/paginated view in that case.
   const [correlatedRequestId, setCorrelatedRequestId] = useState<string | null>(null);
+  // "job" = every line this whole job produced; "request" = only lines
+  // from one HTTP request. Shown in the banner so it's never ambiguous
+  // which question the view is answering.
+  const [correlatedScope, setCorrelatedScope] = useState<"job" | "request">("request");
   const [correlatedSummary, setCorrelatedSummary] = useState<HttpLogEntry | null>(null);
   const [correlatedLogs, setCorrelatedLogs] = useState<SystemLogEntry[]>([]);
   const [correlatedLoading, setCorrelatedLoading] = useState(false);
@@ -580,17 +612,38 @@ export default function AdminLogsPage() {
   const correlationTokenRef = useRef(0);
 
   const loadCorrelated = useCallback(async (log: HttpLogEntry) => {
-    if (!log.request_id) return; // older rows from before this existed
+    // Prefer JOB-scoped correlation over request-scoped whenever the row
+    // has a job id in its path, because that's what actually answers the
+    // question someone is asking when they click a row.
+    //
+    // A job's ~40 status-poll GETs each have their own request_id but log
+    // nothing at all (the handler is a dict lookup - logging every poll
+    // would flood system_logs with a line every 20s per active job for
+    // zero debugging value). So correlating a status poll by request_id
+    // returns an empty list: technically correct, reads as broken.
+    //
+    // The job id is shared across the whole lifecycle - submit POST,
+    // every poll, preview, download - so it surfaces the real story
+    // (queued -> downloaded -> Demucs -> complete) no matter which row
+    // was clicked. Falls back to request_id for rows with no job id,
+    // like the submit POST itself or a plain page request.
+    const jobId = jobIdFromPath(log.path);
+    if (!jobId && !log.request_id) return; // nothing to correlate on
+
     const token = ++correlationTokenRef.current;
     setCorrelatedSummary(log);
-    setCorrelatedRequestId(log.request_id);
+    setCorrelatedRequestId(jobId ?? log.request_id);
+    setCorrelatedScope(jobId ? "job" : "request");
     setCorrelatedLogs([]);
     setCorrelatedError(null);
     setCorrelatedLoading(true);
     setTab("system");
     try {
+      const param = jobId
+        ? `job_id=${encodeURIComponent(jobId)}`
+        : `requestId=${encodeURIComponent(log.request_id!)}`;
       const res = await fetch(
-        `/api/admin/logs?type=system&requestId=${encodeURIComponent(log.request_id)}`,
+        `/api/admin/logs?type=system&${param}`,
         { cache: "no-store", signal: signal() }
       );
       if (token !== correlationTokenRef.current) return; // superseded by a newer click
@@ -623,6 +676,7 @@ export default function AdminLogsPage() {
   const clearCorrelated = useCallback(() => {
     correlationTokenRef.current++; // invalidate any in-flight response
     setCorrelatedRequestId(null);
+    setCorrelatedScope("request");
     setCorrelatedSummary(null);
     setCorrelatedLogs([]);
     setCorrelatedError(null);
@@ -2084,13 +2138,20 @@ export default function AdminLogsPage() {
               <div className="shrink-0 flex items-start justify-between gap-3 px-4 py-2.5 border-b border-amber-500/30 bg-amber-500/[0.06]">
                 <div className="min-w-0">
                   <p className="text-xs font-medium text-amber-400">
-                    Showing logs for one request
+                    {correlatedScope === "job"
+                      ? "Showing every log line for this job"
+                      : "Showing logs for one request"}
                   </p>
                   {correlatedSummary && (
                     <p className="text-[11px] text-text-subtle font-mono truncate mt-0.5">
                       {correlatedSummary.method} {correlatedSummary.path} → {correlatedSummary.status_code}
                       {" · "}{npDate(correlatedSummary.timestamp)} {npTime(correlatedSummary.timestamp)}
                       {" · "}{correlatedLogs.length} line{correlatedLogs.length === 1 ? "" : "s"}
+                    </p>
+                  )}
+                  {correlatedScope === "job" && correlatedRequestId && (
+                    <p className="text-[10px] text-text-subtle font-mono truncate">
+                      job {correlatedRequestId}
                     </p>
                   )}
                 </div>
@@ -2428,7 +2489,12 @@ function MenuItem({
 // re-render for every row already on screen.
 const HttpTableRow = memo(
   function HttpTableRow({ log, onOpenLogs }: { log: HttpLogEntry; onOpenLogs: (log: HttpLogEntry) => void }) {
-    const clickable = !!log.request_id;
+    // Clickable if EITHER correlation route is available: a job id in
+    // the path (shows the whole job's story) or a request id (shows
+    // just this request). Previously request_id only, which made
+    // status-poll rows look non-interactive even though their job had
+    // plenty to show.
+    const clickable = !!log.request_id || !!jobIdFromPath(log.path);
     return (
       <tr
         onClick={clickable ? () => onOpenLogs(log) : undefined}
@@ -2470,7 +2536,12 @@ const HttpTableRow = memo(
 
 const HttpCardRow = memo(
   function HttpCardRow({ log, onOpenLogs }: { log: HttpLogEntry; onOpenLogs: (log: HttpLogEntry) => void }) {
-    const clickable = !!log.request_id;
+    // Clickable if EITHER correlation route is available: a job id in
+    // the path (shows the whole job's story) or a request id (shows
+    // just this request). Previously request_id only, which made
+    // status-poll rows look non-interactive even though their job had
+    // plenty to show.
+    const clickable = !!log.request_id || !!jobIdFromPath(log.path);
     return (
       <div
         onClick={clickable ? () => onOpenLogs(log) : undefined}

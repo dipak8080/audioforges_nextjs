@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
   // server-side now - doing it in the browser could only ever search the
   // rows already loaded, so any result older than the loaded window was
   // invisible while the stat counters above still counted it.
-  const PASSTHROUGH = ["method", "q", "status_class", "hide_noise", "since", "until", "level"];
+  const PASSTHROUGH = ["method", "q", "status_class", "hide_noise", "since", "until", "level", "job_id"];
 
   if (type !== "http" && type !== "system") {
     return NextResponse.json({ error: "Invalid type parameter" }, { status: 400 });
