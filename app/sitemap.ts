@@ -13,7 +13,7 @@ const CATEGORY_PRIORITY: Record<ToolCategory, number> = {
   convert: 0.8,
   "pitch-tempo": 0.8,
   cleanup: 0.7,
-  ai: 0.7,
+  transcription: 0.7,
   browser: 0.7,
 };
 
