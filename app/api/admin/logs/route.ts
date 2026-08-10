@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 
 // NOTE: reconstructed from the version you pasted. Diff before deploying -
-// the ONLY new addition is the beforeId passthrough block.
+// the ONLY new addition is the beforeId passthrough block, plus (as of
+// 2026-08-10) tool/tier passthrough - see log_stream.py's "SCHEMA CHANGE"
+// note and routes.py's "WHAT CHANGED (2026-08-10)" note for the backend
+// half of this. tool/tier are a separate axis from `family`: family
+// groups by URL shape, tool/tier report what the backend handler actually
+// decided a request/job IS - which stays correct even when a tier (e.g.
+// HQ separation) shares its polling routes with another tier.
 
 const BACKEND_BASE = process.env.NEXT_PUBLIC_RAILWAY_API_BASE;
 const ADMIN_KEY = process.env.BACKEND_ADMIN_KEY;
@@ -36,7 +42,15 @@ export async function GET(request: NextRequest) {
   // server-side now - doing it in the browser could only ever search the
   // rows already loaded, so any result older than the loaded window was
   // invisible while the stat counters above still counted it.
-  const PASSTHROUGH = ["method", "q", "status_class", "hide_noise", "since", "until", "level", "job_id"];
+  //
+  // tool/tier added 2026-08-10: independent of `family`/`job_id` above -
+  // see log_stream.py's get_http_logs()/get_system_logs() docstrings for
+  // why these need to stay a separate filter axis rather than being
+  // folded into family.
+  const PASSTHROUGH = [
+    "method", "q", "status_class", "hide_noise", "since", "until", "level",
+    "job_id", "tool", "tier",
+  ];
 
   if (type !== "http" && type !== "system") {
     return NextResponse.json({ error: "Invalid type parameter" }, { status: 400 });

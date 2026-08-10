@@ -17,6 +17,18 @@
 // "convert"/"cleanup"/etc. rather than mixed in, since "no server
 // round-trip at all" is a genuinely different category of tool, not
 // just a different function within the same category.
+//
+// NOTE ON CATEGORY NAMING (2026-08-10): categories describe what the
+// USER wants to do, never how a tool is implemented under the hood.
+// "AI Tools" was renamed to "transcription" for exactly this reason: it
+// was the one category named after its technology rather than its
+// intent, it held only speech-to-text, and its existence implied every
+// OTHER tool wasn't AI-powered - untrue, since vocal-remover/stems also
+// run on an ML separation model. "Transcription" names what the user is
+// actually trying to do. If more AI-flavored tools are added later that
+// aren't transcription (a voice changer, a lyrics generator), that's the
+// signal to reconsider the taxonomy again then - not a reason to keep a
+// technology-named bucket around now on the chance it might fit later.
 
 export type ToolCategory =
   | "download"
@@ -24,7 +36,7 @@ export type ToolCategory =
   | "pitch-tempo"
   | "cleanup"
   | "vocals"
-  | "ai"
+  | "transcription"
   | "browser";
 
 export type ToolStatus = "live" | "coming-soon";
@@ -48,7 +60,7 @@ export const CATEGORY_LABELS: Record<ToolCategory, string> = {
   "pitch-tempo": "Pitch & Tempo",
   cleanup: "Cleanup & Enhance",
   vocals: "Vocals & Key",
-  ai: "AI Tools",
+  transcription: "Transcription",
   browser: "Browser Tools",
 };
 
@@ -58,7 +70,7 @@ export const CATEGORY_ORDER: ToolCategory[] = [
   "convert",
   "pitch-tempo",
   "cleanup",
-  "ai",
+  "transcription",
   "browser",
 ];
 
@@ -273,12 +285,12 @@ export const TOOLS: Tool[] = [
     related: ["silence-remove", "trim"],
   },
 
-  // ---------- AI TOOLS ----------
+  // ---------- TRANSCRIPTION ----------
   {
     slug: "speech-to-text",
     name: "Speech to Text",
     shortDescription: "Transcribe audio with timestamps, powered by Whisper.",
-    category: "ai",
+    category: "transcription",
     status: "live",
     related: ["voice-clean", "silence-remove"],
   },

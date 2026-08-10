@@ -57,6 +57,13 @@ interface HttpLogEntry {
   duration_ms: number;
   client_ip: string;
   request_id: string | null;
+  // Added 2026-08-10 alongside the tool/tier columns in request_logs -
+  // see log_stream.py's "SCHEMA CHANGE" note. Optional/nullable because
+  // rows written before the migration (or by a request whose handler
+  // never called set_job_context()) won't have it, and older cached
+  // responses in the browser shouldn't crash on a missing field.
+  tool?: string | null;
+  tier?: string | null;
 }
 
 interface SystemLogEntry {
@@ -66,6 +73,8 @@ interface SystemLogEntry {
   logger: string;
   message: string;
   request_id: string;
+  tool?: string | null;
+  tier?: string | null;
 }
 
 // Shape of GET /api/admin/endpoints - proxies routes.py's admin_endpoints(),
@@ -85,8 +94,25 @@ interface ToolEndpoint {
   total_requests?: number;
 }
 
+// Shape of the `tools` array in GET /api/admin/endpoints - the dynamic,
+// DB-backed source for the Tool filter dropdown (see log_stream.py's
+// get_tool_counts() and routes.py's admin_endpoints()). Unlike
+// ToolEndpoint above (path families, includes zero-traffic entries from
+// FastAPI's route table), this only ever lists tags that have actually
+// appeared in the data - there's no registered list of "every possible
+// tag" to merge zero-count entries in against, since tags are just
+// contextvar values, not a structural route table entry.
+interface ToolCount {
+  tool: string;          // exact tag, e.g. "STEMS" - what tool/tier filters send to the backend
+  label: string;         // human label, e.g. "Stems"
+  standard_count: number;
+  hq_count: number;
+  total: number;
+}
+
 interface EndpointsApiResponse {
   endpoints?: ToolEndpoint[];
+  tools?: ToolCount[];
   noise_patterns?: string[];
 }
 
@@ -145,6 +171,34 @@ function jobIdFromPath(path: string): string | null {
       if (seg && _ID_SEGMENT.test(seg)) { hit = seg; break; }
     }
     jobIdCache.set(path, hit);
+  }
+  return hit;
+}
+
+// Pulls a job id out of a LOG MESSAGE, as opposed to a request path.
+// Needed separately because logs write the id in prose, not as a path
+// segment. Both real shapes seen in production are covered:
+//   "[YOUTUBE_STEMS_HQ] job=0aee65ad... queued for ..."   -> job=<id>
+//   "[YOUTUBE_CHAIN] Job 0aee65ad...: accounts_available"  -> Job <id>
+//   "[SEPARATION] Starting Demucs for job 0aee65ad... "    -> job <id>
+// Cached for the same reason as the others: this runs per visible row.
+//
+// NOTE: this is now the SECONDARY correlation path, not the primary one
+// - see loadCorrelatedFromSystemRow() below. request_id is guaranteed to
+// exist on every row (default "-"), so it's tried first; this regex only
+// matters as a fallback for rows where request_id is "-" but the message
+// text still names a job (e.g. a status-poll line has no request_id of
+// its own worth correlating on, but mentions the job).
+const _MSG_JOB_ID = /\bjob[=\s]+([0-9a-f]{6,}(?:-[0-9a-f]{4,}){0,4})\b/i;
+const msgJobIdCache = new Map<string, string | null>();
+
+function jobIdFromMessage(message: string): string | null {
+  let hit = msgJobIdCache.get(message);
+  if (hit === undefined) {
+    if (msgJobIdCache.size > 20000) msgJobIdCache.clear();
+    const m = _MSG_JOB_ID.exec(message);
+    hit = m ? m[1] : null;
+    msgJobIdCache.set(message, hit);
   }
   return hit;
 }
@@ -379,6 +433,21 @@ export default function AdminLogsPage() {
   const [statusClassFilter, setStatusClassFilter] = useState<"all" | "4xx" | "5xx">("all");
   const [hideNoise, setHideNoise] = useState(true);
   const [dateFilter, setDateFilter] = useState<DateFilter>("all");
+  // Tool/tier filter - a SEPARATE axis from endpointFilter (path family).
+  // See ToolCount above and log_stream.py's "SCHEMA CHANGE" note: this
+  // is what actually answers "show me only HQ jobs" or "only STEMS",
+  // correctly, even though HQ and standard share polling routes after
+  // the initial submit and would otherwise be indistinguishable in the
+  // picker.
+  const [toolFilter, setToolFilter] = useState("");
+  const [tierFilter, setTierFilter] = useState<"" | "standard" | "hq">("");
+  // The real, DB-backed tool list for the Tool dropdown - populated by
+  // fetchEndpoints() below alongside knownEndpoints/NOISE_PATTERNS, from
+  // the same /api/admin/endpoints response. See ToolCount's comment and
+  // log_stream.get_tool_counts() for why this can only ever list tags
+  // that have actually appeared in the data, not a hand-maintained
+  // "every tool that could exist" list.
+  const [toolOptions, setToolOptions] = useState<ToolCount[]>([]);
 
   // Typeahead on the path box. highlightIndex is -1 when nothing is
   // keyboard-selected, so Enter falls through to "just use what I typed"
@@ -400,6 +469,12 @@ export default function AdminLogsPage() {
   // the two tabs filter genuinely different data.
   const [levelFilter, setLevelFilter] = useState("");
   const [systemSearch, setSystemSearch] = useState("");
+  // Tool/tier on the System tab too - same axis as the HTTP tab's, kept
+  // as separate state because the two tabs filter independently (picking
+  // a tool over here shouldn't silently re-scope the HTTP list you left
+  // behind, and vice versa).
+  const [sysToolFilter, setSysToolFilter] = useState("");
+  const [sysTierFilter, setSysTierFilter] = useState<"" | "standard" | "hq">("");
 
   // Click-through correlation: viewing every system log line tied to one
   // specific HTTP request, fetched on demand rather than hunting through
@@ -543,9 +618,11 @@ export default function AdminLogsPage() {
     endpointFilter: "", methodFilter: "", debouncedPath: "",
     statusClassFilter: "all" as "all" | "4xx" | "5xx",
     dateFilter: "all" as DateFilter, hideNoise: true,
+    toolFilter: "", tierFilter: "" as "" | "standard" | "hq",
   });
   filterRef.current = {
     endpointFilter, methodFilter, debouncedPath, statusClassFilter, dateFilter, hideNoise,
+    toolFilter, tierFilter,
   };
 
   // Nepal is UTC+5:45 with no DST, so a Nepal calendar day starts at
@@ -566,14 +643,24 @@ export default function AdminLogsPage() {
     };
   }
 
-  const sysFilterRef = useRef({ levelFilter: "", debouncedSystemSearch: "" });
-  sysFilterRef.current = { levelFilter, debouncedSystemSearch };
+  const sysFilterRef = useRef({
+    levelFilter: "", debouncedSystemSearch: "",
+    sysToolFilter: "", sysTierFilter: "" as "" | "standard" | "hq",
+  });
+  sysFilterRef.current = { levelFilter, debouncedSystemSearch, sysToolFilter, sysTierFilter };
 
   const sysFilterParams = () => {
     const f = sysFilterRef.current;
     const p = new URLSearchParams();
     if (f.levelFilter) p.set("level", f.levelFilter);
     if (f.debouncedSystemSearch.trim()) p.set("q", f.debouncedSystemSearch.trim());
+    // Same tool/tier axis the HTTP tab filters on - system_logs carries
+    // the identical tags (set once per request, inherited by every line
+    // that request and its background job emit), so "show me only HQ
+    // separation's log lines" is answerable here too rather than being
+    // an HTTP-tab-only capability.
+    if (f.sysToolFilter) p.set("tool", f.sysToolFilter);
+    if (f.sysTierFilter) p.set("tier", f.sysTierFilter);
     const s = p.toString();
     return s ? `&${s}` : "";
   };
@@ -596,6 +683,11 @@ export default function AdminLogsPage() {
       p.set("since", since);
       p.set("until", until);
     }
+    // tool/tier: a separate axis from `family` above - see ToolCount's
+    // comment and log_stream.py's get_http_logs() for why these can't be
+    // collapsed into the family filter.
+    if (f.toolFilter) p.set("tool", f.toolFilter);
+    if (f.tierFilter) p.set("tier", f.tierFilter);
     const s = p.toString();
     return s ? `&${s}` : "";
   };
@@ -662,6 +754,110 @@ export default function AdminLogsPage() {
       if (token === correlationTokenRef.current) setCorrelatedLoading(false);
     }
   }, [router]);
+
+  // The System tab's click-through: given just a job id (extracted from
+  // a log line), show that whole job's story. Shares all its state with
+  // the HTTP-side loadCorrelated so both directions render through the
+  // same view - the only difference is there's no HttpLogEntry to
+  // summarise in the banner, since the click originated from a log line
+  // rather than a request row.
+  const loadCorrelatedByJobId = useCallback(async (jobId: string) => {
+    const token = ++correlationTokenRef.current;
+    setCorrelatedSummary(null);
+    setCorrelatedRequestId(jobId);
+    setCorrelatedScope("job");
+    setCorrelatedLogs([]);
+    setCorrelatedError(null);
+    setCorrelatedLoading(true);
+    setTab("system");
+    try {
+      const res = await fetch(
+        `/api/admin/logs?type=system&job_id=${encodeURIComponent(jobId)}`,
+        { cache: "no-store", signal: signal() }
+      );
+      if (token !== correlationTokenRef.current) return;
+      if (res.status === 401) { router.push("/admin/login"); return; }
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.error || `Server returned ${res.status}`);
+      }
+      const data = await res.json();
+      if (token !== correlationTokenRef.current) return;
+      setCorrelatedLogs(data.logs ?? []);
+    } catch (e) {
+      if (isAbort(e) || token !== correlationTokenRef.current) return;
+      setCorrelatedError((e as Error).message);
+    } finally {
+      if (token === correlationTokenRef.current) setCorrelatedLoading(false);
+    }
+  }, [router]);
+
+  // The System tab's OTHER click-through target: given a bare request_id
+  // (present on essentially every system log line, default "-"), show
+  // every line that one HTTP request produced. Added alongside the fix
+  // to make search results clickable regardless of whether their message
+  // text happens to spell out a job id - see loadCorrelatedFromSystemRow
+  // below, which decides which of these two to call.
+  const loadCorrelatedByRequestId = useCallback(async (requestId: string) => {
+    const token = ++correlationTokenRef.current;
+    setCorrelatedSummary(null);
+    setCorrelatedRequestId(requestId);
+    setCorrelatedScope("request");
+    setCorrelatedLogs([]);
+    setCorrelatedError(null);
+    setCorrelatedLoading(true);
+    setTab("system");
+    try {
+      const res = await fetch(
+        `/api/admin/logs?type=system&requestId=${encodeURIComponent(requestId)}`,
+        { cache: "no-store", signal: signal() }
+      );
+      if (token !== correlationTokenRef.current) return;
+      if (res.status === 401) { router.push("/admin/login"); return; }
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.error || `Server returned ${res.status}`);
+      }
+      const data = await res.json();
+      if (token !== correlationTokenRef.current) return;
+      setCorrelatedLogs(data.logs ?? []);
+    } catch (e) {
+      if (isAbort(e) || token !== correlationTokenRef.current) return;
+      setCorrelatedError((e as Error).message);
+    } finally {
+      if (token === correlationTokenRef.current) setCorrelatedLoading(false);
+    }
+  }, [router]);
+
+  // Single entry point every System tab row's click goes through now.
+  // Previously a row was only clickable when jobIdFromMessage() found a
+  // "job=<id>" shape in the message TEXT - so a plain ERROR line, a
+  // startup log, or anything else that didn't happen to spell out a job
+  // id was a dead end even though it was still part of a real request.
+  //
+  // request_id is on EVERY line (default "-" when none applies), set by
+  // the backend middleware regardless of what the message says - so it's
+  // the reliable signal, and job id (from the message) is now only a
+  // preference when both are available: a job's full lifecycle is
+  // usually the more useful thing to see than just one request's slice
+  // of it. Tried in that order; falls through to "not clickable" only
+  // when NEITHER is available, which in practice means a line with no
+  // request in flight at all (e.g. a boot-time log).
+  const loadCorrelatedFromSystemRow = useCallback(async (entry: SystemLogEntry) => {
+    const jobId = jobIdFromMessage(entry.message);
+    if (jobId) {
+      await loadCorrelatedByJobId(jobId);
+      return;
+    }
+    if (entry.request_id && entry.request_id !== "-") {
+      await loadCorrelatedByRequestId(entry.request_id);
+      return;
+    }
+    // Nothing to correlate on - SystemRow's own clickable check already
+    // prevents this from being reachable via a real click, but the guard
+    // stays here too since this function may end up called from
+    // elsewhere later.
+  }, [loadCorrelatedByJobId, loadCorrelatedByRequestId]);
 
   // fetchSystem is declared further down (it depends on state that isn't
   // set up yet at this point), so clearCorrelated reaches it through a
@@ -1089,6 +1285,10 @@ export default function AdminLogsPage() {
       // label - no client-side dedupe or normalization needed, which is
       // the point of doing it server-side where the route table lives.
       if (Array.isArray(data?.endpoints)) setKnownEndpoints(data.endpoints);
+      // Dynamic tool/tier list for the Tool filter dropdown - real tags
+      // and real counts, straight from get_tool_counts() on the
+      // backend. No hardcoded list to keep in sync on this side either.
+      if (Array.isArray(data?.tools)) setToolOptions(data.tools);
       // Replaces the bootstrap fallback in place with the backend's
       // canonical list (config.NOISE_PATH_MARKERS) - the same list the
       // SQL Client Errors exclusion uses, so "Hide noise" and that stat
@@ -1307,7 +1507,7 @@ export default function AdminLogsPage() {
     setShowJumpHttp(false);
     fetchHttp(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [endpointFilter, methodFilter, debouncedPath, statusClassFilter, dateFilter, hideNoise]);
+  }, [endpointFilter, methodFilter, debouncedPath, statusClassFilter, dateFilter, hideNoise, toolFilter, tierFilter]);
 
   // Same for the System tab's own filters.
   const sysFilterBootRef = useRef(true);
@@ -1326,7 +1526,7 @@ export default function AdminLogsPage() {
     setShowJumpSys(false);
     fetchSystem(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [levelFilter, debouncedSystemSearch]);
+  }, [levelFilter, debouncedSystemSearch, sysToolFilter, sysTierFilter]);
 
   // ---------------- Self-adjusting poll ----------------
   // Starts at MIN_POLL_MS; every tick that comes back with nothing new
@@ -1525,7 +1725,9 @@ export default function AdminLogsPage() {
     (dateFilter !== "all" ? 1 : 0) +
     (statusClassFilter !== "all" ? 1 : 0) +
     (hideNoise ? 0 : 1) +
-    (pathFilter ? 1 : 0);
+    (pathFilter ? 1 : 0) +
+    (toolFilter ? 1 : 0) +
+    (tierFilter ? 1 : 0);
 
   const resetFilters = useCallback(() => {
     setMethodFilter("");
@@ -1534,6 +1736,8 @@ export default function AdminLogsPage() {
     setStatusClassFilter("all");
     setHideNoise(true);
     setPathFilter("");
+    setToolFilter("");
+    setTierFilter("");
   }, []);
 
   // Everything the server returned already matches the active filters -
@@ -1547,6 +1751,21 @@ export default function AdminLogsPage() {
   // it means "not any known tool", which is defined by the client's
   // knowledge of the tool list, so the server has no single family to
   // filter on.
+  // What the merged tool picker's button shows. Only one of the two
+  // filters can be set at a time (picking from either section clears the
+  // other), so this is a straight precedence check rather than a
+  // combination - and null means "nothing selected", which the button
+  // renders as its placeholder.
+  const activeToolLabel = useMemo(() => {
+    if (toolFilter) {
+      return toolOptions.find((t) => t.tool === toolFilter)?.label ?? toolFilter;
+    }
+    if (endpointFilter) {
+      return endpointOptions.find((e) => e.path === endpointFilter)?.label ?? endpointFilter;
+    }
+    return null;
+  }, [toolFilter, endpointFilter, toolOptions, endpointOptions]);
+
   const filtered = useMemo(() => {
     if (endpointFilter !== OTHER_TRAFFIC_KEY) return httpLogs;
     return httpLogs.filter((log) => !knownPathSet.has(toolFamily(log.path)));
@@ -1831,44 +2050,50 @@ export default function AdminLogsPage() {
               </div>
 
               <div className={`${filtersOpen ? "flex" : "hidden"} sm:flex flex-wrap items-center gap-2`}>
-                <select
+                <Select
                   value={methodFilter}
-                  onChange={(e) => setMethodFilter(e.target.value)}
-                  className="rounded-md border border-graphite-700 bg-graphite-850 px-2.5 py-1.5 text-sm text-text-primary focus:outline-none focus:border-amber-500/60"
-                >
-                  <option value="">All methods</option>
-                  <option value="GET">GET</option>
-                  <option value="POST">POST</option>
-                  <option value="DELETE">DELETE</option>
-                </select>
-                <div className="relative flex-1 sm:flex-none min-w-0 sm:w-[220px]">
+                  onChange={setMethodFilter}
+                  placeholder="Any method"
+                  options={[
+                    { value: "", label: "Any method" },
+                    { value: "GET", label: "GET" },
+                    { value: "POST", label: "POST" },
+                    { value: "DELETE", label: "DELETE" },
+                  ]}
+                />
+
+                {/* ONE tool picker, two sections - not two separate
+                    dropdowns. They previously sat side by side both
+                    reading "All tools", which is genuinely ambiguous:
+                    nothing on screen said one meant "the tool the backend
+                    tagged this as" and the other meant "the URL shape it
+                    hit". Merged, with the tagged tools first (they're
+                    the accurate ones and the reason tagging exists) and
+                    path families below under their own heading for the
+                    cases tags can't cover: legacy rows written before
+                    tagging, and unrecognized/scanner traffic. Picking
+                    from either section clears the other, since filtering
+                    on both axes at once is never what anyone means. */}
+                <div className="relative flex-1 sm:flex-none min-w-0 sm:w-[240px]">
                   <button
                     onClick={() => setToolPickerOpen((o) => !o)}
-                    title={
-                      endpointFilter
-                        ? endpointOptions.find((e) => e.path === endpointFilter)?.label ?? endpointFilter
-                        : "Tools this API serves, read from the backend's own route table"
-                    }
                     aria-expanded={toolPickerOpen}
                     aria-haspopup="listbox"
-                    className={`w-full flex items-center justify-between gap-2 rounded-md border px-2.5 py-1.5 text-sm text-left transition-colors ${
+                    title={activeToolLabel ?? "Filter by tool, or by URL path family"}
+                    className={`w-full flex items-center justify-between gap-2 rounded-md border px-2.5 py-1.5 text-sm text-left transition-colors bg-graphite-850 ${
                       toolPickerOpen
                         ? "border-amber-500/60 text-text-primary"
-                        : "border-graphite-700 text-text-primary hover:border-graphite-600"
-                    } bg-graphite-850`}
+                        : activeToolLabel
+                        ? "border-graphite-600 text-text-primary hover:border-graphite-500"
+                        : "border-graphite-700 text-text-muted hover:border-graphite-600"
+                    }`}
                   >
-                    <span className="truncate">
-                      {endpointFilter
-                        ? endpointOptions.find((e) => e.path === endpointFilter)?.label ?? endpointFilter
-                        : "All tools"}
-                    </span>
+                    <span className="truncate">{activeToolLabel ?? "All tools"}</span>
                     <ChevronDown className={`h-3.5 w-3.5 shrink-0 text-text-subtle transition-transform ${toolPickerOpen ? "rotate-180" : ""}`} />
                   </button>
 
                   {toolPickerOpen && (
                     <>
-                      {/* Invisible backdrop: tap anywhere outside to close,
-                          same pattern as the Delete menu below. */}
                       <button
                         aria-hidden
                         tabIndex={-1}
@@ -1877,84 +2102,115 @@ export default function AdminLogsPage() {
                       />
                       <div
                         role="listbox"
-                        // max-h + overflow-y-auto + scrollbar-thin: a REAL,
-                        // styled scrollbar - impossible on a native <select>,
-                        // whose open dropdown is OS-rendered and reachable
-                        // by no CSS this app owns.
-                        className="absolute top-full left-0 right-0 sm:right-auto mt-1 max-h-72 overflow-y-auto scrollbar-thin rounded-lg border border-graphite-700 bg-graphite-850 shadow-xl z-30"
+                        className="absolute top-full left-0 right-0 sm:right-auto sm:min-w-[280px] mt-1 max-h-80 overflow-y-auto scrollbar-thin rounded-lg border border-graphite-700 bg-graphite-850 shadow-xl z-30 py-1"
                       >
                         <button
                           role="option"
-                          aria-selected={!endpointFilter}
-                          onClick={() => { setEndpointFilter(""); setToolPickerOpen(false); }}
-                          className={`w-full text-left px-3 py-2 text-sm transition-colors ${
-                            !endpointFilter ? "bg-graphite-800 text-text-primary" : "text-text-muted hover:bg-graphite-800 hover:text-text-primary"
+                          aria-selected={!toolFilter && !endpointFilter}
+                          onClick={() => { setToolFilter(""); setEndpointFilter(""); setToolPickerOpen(false); }}
+                          className={`w-full text-left px-3 py-1.5 text-sm transition-colors ${
+                            !toolFilter && !endpointFilter
+                              ? "bg-graphite-800 text-text-primary"
+                              : "text-text-muted hover:bg-graphite-800 hover:text-text-primary"
                           }`}
                         >
                           All tools
                         </button>
-                        <div className="h-px bg-graphite-800" />
+
+                        {toolOptions.length > 0 && (
+                          <>
+                            <SectionLabel>Tools</SectionLabel>
+                            {toolOptions.map((t) => (
+                              <button
+                                key={`tool:${t.tool}`}
+                                role="option"
+                                aria-selected={toolFilter === t.tool}
+                                title={`${t.total.toLocaleString()} requests${t.hq_count > 0 ? ` · ${t.hq_count.toLocaleString()} HQ` : ""}`}
+                                onClick={() => { setToolFilter(t.tool); setEndpointFilter(""); setToolPickerOpen(false); }}
+                                className={`w-full flex items-center justify-between gap-3 px-3 py-1.5 text-left transition-colors ${
+                                  toolFilter === t.tool ? "bg-graphite-800" : "hover:bg-graphite-800"
+                                }`}
+                              >
+                                <span className="text-sm text-text-primary truncate">{t.label}</span>
+                                <span className="shrink-0 flex items-center gap-1.5">
+                                  {t.hq_count > 0 && (
+                                    <span className="rounded px-1 py-px text-[9px] font-semibold uppercase bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                                      HQ
+                                    </span>
+                                  )}
+                                  <span className="text-[11px] text-text-subtle tabular-nums">
+                                    {t.total.toLocaleString()}
+                                  </span>
+                                </span>
+                              </button>
+                            ))}
+                          </>
+                        )}
+
+                        <SectionLabel>By URL path</SectionLabel>
                         {endpointOptions.map((e) => {
                           const isOther = e.path === OTHER_TRAFFIC_KEY;
                           return (
-                          <button
-                            key={e.path}
-                            role="option"
-                            aria-selected={endpointFilter === e.path}
-                            // Real tooltip on hover - the whole reason this
-                            // replaced the native select. Shows the full
-                            // label AND path, useful the moment a label
-                            // gets long enough to truncate. "Other" gets
-                            // an explanatory tooltip instead of its
-                            // internal sentinel value, which would be a
-                            // meaningless string to show anyone.
-                            title={
-                              isOther
-                                ? `${e.count.toLocaleString()} requests to paths that aren't a registered tool - mostly scanner/bot traffic`
-                                : `${e.label}\n${e.path}\n${
-                                    e.count > 0
-                                      ? `${e.count.toLocaleString()} requests all-time`
-                                      : "No traffic yet"
-                                  }${
-                                    e.loaded > 0 && e.loaded !== e.count
-                                      ? ` (${e.loaded.toLocaleString()} currently loaded)`
-                                      : ""
-                                  }`
-                            }
-                            onClick={() => { setEndpointFilter(e.path); setToolPickerOpen(false); }}
-                            className={`w-full flex items-center justify-between gap-3 px-3 py-2 text-left transition-colors ${
-                              endpointFilter === e.path ? "bg-graphite-800" : "hover:bg-graphite-800"
-                            }`}
-                          >
-                            <span className="min-w-0">
-                              <span className={`block text-sm truncate ${isOther ? "text-text-muted italic" : "text-text-primary"}`}>
-                                {e.label}
+                            <button
+                              key={`fam:${e.path}`}
+                              role="option"
+                              aria-selected={endpointFilter === e.path}
+                              title={
+                                isOther
+                                  ? `${e.count.toLocaleString()} requests to paths that aren't a registered tool - mostly scanner/bot traffic`
+                                  : `${e.label}\n${e.path}\n${
+                                      e.count > 0
+                                        ? `${e.count.toLocaleString()} requests all-time`
+                                        : "No traffic yet"
+                                    }`
+                              }
+                              onClick={() => { setEndpointFilter(e.path); setToolFilter(""); setToolPickerOpen(false); }}
+                              className={`w-full flex items-center justify-between gap-3 px-3 py-1.5 text-left transition-colors ${
+                                endpointFilter === e.path ? "bg-graphite-800" : "hover:bg-graphite-800"
+                              }`}
+                            >
+                              <span className="min-w-0">
+                                <span className={`block text-sm truncate ${isOther ? "text-text-muted italic" : "text-text-primary"}`}>
+                                  {e.label}
+                                </span>
+                                {!isOther && (
+                                  <span className="block font-mono text-[10px] text-text-subtle truncate">{e.path}</span>
+                                )}
                               </span>
-                              {!isOther && (
-                                <span className="block font-mono text-[10px] text-text-subtle truncate">{e.path}</span>
+                              {e.count > 0 && (
+                                <span className="shrink-0 text-[11px] text-text-subtle tabular-nums">
+                                  {e.count.toLocaleString()}
+                                </span>
                               )}
-                            </span>
-                            {e.count > 0 && (
-                              <span className="shrink-0 text-[11px] text-text-subtle tabular-nums">
-                                {e.count.toLocaleString()}
-                              </span>
-                            )}
-                          </button>
+                            </button>
                           );
                         })}
                       </div>
                     </>
                   )}
                 </div>
-                <select
+
+                <Select
+                  value={tierFilter}
+                  onChange={setTierFilter}
+                  label="Tier:"
+                  placeholder="Any"
+                  options={[
+                    { value: "" as const, label: "Any" },
+                    { value: "standard" as const, label: "Standard" },
+                    { value: "hq" as const, label: "HQ" },
+                  ]}
+                />
+                <Select
                   value={dateFilter}
-                  onChange={(e) => setDateFilter(e.target.value as DateFilter)}
-                  className="rounded-md border border-graphite-700 bg-graphite-850 px-2.5 py-1.5 text-sm text-text-primary focus:outline-none focus:border-amber-500/60"
-                >
-                  <option value="all">Any date</option>
-                  <option value="today">Today</option>
-                  <option value="yesterday">Yesterday</option>
-                </select>
+                  onChange={setDateFilter}
+                  placeholder="Any date"
+                  options={[
+                    { value: "all" as DateFilter, label: "Any date" },
+                    { value: "today" as DateFilter, label: "Today" },
+                    { value: "yesterday" as DateFilter, label: "Yesterday" },
+                  ]}
+                />
                 <div className="flex rounded-md border border-graphite-700 bg-graphite-850 p-0.5">
                   <StatusChip active={statusClassFilter === "all"} onClick={() => setStatusClassFilter("all")} label="All" />
                   <StatusChip active={statusClassFilter === "4xx"} onClick={() => setStatusClassFilter("4xx")} label="4xx" tone="text-amber-400" />
@@ -2119,17 +2375,53 @@ export default function AdminLogsPage() {
                   </button>
                 )}
               </div>
-              <select
+              <Select
                 value={levelFilter}
-                onChange={(e) => setLevelFilter(e.target.value)}
-                className="shrink-0 rounded-md border border-graphite-700 bg-graphite-850 px-2.5 py-1.5 text-sm text-text-primary focus:outline-none focus:border-amber-500/60"
-              >
-                <option value="">All levels</option>
-                <option value="ERROR">ERROR</option>
-                <option value="CRITICAL">CRITICAL</option>
-                <option value="WARNING">WARNING</option>
-                <option value="INFO">INFO</option>
-              </select>
+                onChange={setLevelFilter}
+                placeholder="Any level"
+                options={[
+                  { value: "", label: "Any level" },
+                  { value: "ERROR", label: "ERROR" },
+                  { value: "CRITICAL", label: "CRITICAL" },
+                  { value: "WARNING", label: "WARNING" },
+                  { value: "INFO", label: "INFO" },
+                ]}
+              />
+              {/* Same tool/tier axis as the HTTP tab - system_logs carries
+                  the identical tags, so "only HQ stems" is answerable in
+                  both places rather than being an HTTP-only feature. */}
+              <Select
+                value={sysToolFilter}
+                onChange={setSysToolFilter}
+                placeholder="All tools"
+                options={[
+                  { value: "", label: "All tools" },
+                  ...toolOptions.map((t) => ({ value: t.tool, label: t.label })),
+                ]}
+              />
+              <Select
+                value={sysTierFilter}
+                onChange={setSysTierFilter}
+                label="Tier:"
+                placeholder="Any"
+                options={[
+                  { value: "" as const, label: "Any" },
+                  { value: "standard" as const, label: "Standard" },
+                  { value: "hq" as const, label: "HQ" },
+                ]}
+              />
+              {(levelFilter || sysToolFilter || sysTierFilter || systemSearch) && (
+                <button
+                  onClick={() => {
+                    setLevelFilter(""); setSysToolFilter("");
+                    setSysTierFilter(""); setSystemSearch("");
+                  }}
+                  className="flex items-center gap-1 rounded-md px-2 py-1.5 text-xs text-text-subtle hover:text-text-primary transition-colors"
+                >
+                  <X className="h-3 w-3" />
+                  Clear
+                </button>
+              )}
             </div>
           )}
 
@@ -2152,6 +2444,16 @@ export default function AdminLogsPage() {
                   {correlatedScope === "job" && correlatedRequestId && (
                     <p className="text-[10px] text-text-subtle font-mono truncate">
                       job {correlatedRequestId}
+                    </p>
+                  )}
+                  {/* Parity with the job-id line above: when this view was
+                      opened from a System-tab click (no HttpLogEntry to
+                      summarise) via request_id rather than job_id, show
+                      the id being correlated on so it's never ambiguous
+                      what's being displayed. */}
+                  {correlatedScope === "request" && !correlatedSummary && correlatedRequestId && (
+                    <p className="text-[10px] text-text-subtle font-mono truncate">
+                      request {correlatedRequestId}
                     </p>
                   )}
                 </div>
@@ -2183,10 +2485,14 @@ export default function AdminLogsPage() {
                     key={entry.id}
                     entry={entry}
                     // Always false here: every line in this view belongs
-                    // to the same request by construction, so there are
-                    // no request boundaries to mark. Passing true would
-                    // draw a divider between every single line.
+                    // to the same request/job by construction, so there
+                    // are no request boundaries to mark. Passing true
+                    // would draw a divider between every single line.
                     newGroup={false}
+                    // onOpenEntry deliberately omitted: this view already
+                    // shows exactly one job/request, so making its own
+                    // lines clickable would just reload the identical
+                    // view.
                   />
                 ))}
               </div>
@@ -2206,6 +2512,7 @@ export default function AdminLogsPage() {
                     isFirst={index === 0}
                     expanded={expandedGroups.has(group.key)}
                     onToggle={() => toggleGroup(group.key)}
+                    onOpenEntry={loadCorrelatedFromSystemRow}
                   />
                 ))}
                 <ListState
@@ -2365,6 +2672,18 @@ function ConfirmDialog({
   );
 }
 
+/** Section heading inside the merged tool picker. Non-interactive - it
+ *  exists purely so "Tools" and "By URL path" read as two different
+ *  kinds of thing rather than one long undifferentiated list, which is
+ *  what made two separate dropdowns feel necessary in the first place. */
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="px-3 pt-2 pb-1 text-[10px] uppercase tracking-wider text-text-subtle border-t border-graphite-800 mt-1 first:border-t-0 first:mt-0">
+      {children}
+    </p>
+  );
+}
+
 function StatusChip({
   active, onClick, label, tone = "",
 }: {
@@ -2484,6 +2803,129 @@ function MenuItem({
   );
 }
 
+
+/** One consistent dropdown for the whole dashboard.
+ *
+ *  Replaces native <select>. The reason is visible rather than academic:
+ *  a native select's OPEN list is drawn by the OS, so no CSS this app
+ *  owns can reach it - its border radius, focus ring, scrollbar and
+ *  hover states are the platform's, not the design system's. Sitting
+ *  next to the custom tool picker (which IS styled), the two read as
+ *  different components at different levels of finish. This gives every
+ *  filter the same border, the same hover, the same open-state accent
+ *  and the same dismissal behaviour.
+ *
+ *  Deliberately minimal API: value/options/onChange plus an optional
+ *  leading label. Anything richer (counts, two-line entries, grouping)
+ *  belongs in a purpose-built picker, not in a general control. */
+function Select<T extends string>({
+  value, options, onChange, placeholder, label, widthClass = "",
+}: {
+  value: T;
+  options: { value: T; label: string }[];
+  onChange: (v: T) => void;
+  placeholder: string;
+  /** Static prefix shown before the value, e.g. "Tier". Keeps the
+   *  control self-describing without needing a separate <label> element
+   *  competing for horizontal space. */
+  label?: string;
+  widthClass?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open]);
+
+  const selected = options.find((o) => o.value === value);
+  const isSet = !!value;
+
+  return (
+    <div className={`relative shrink-0 ${widthClass}`}>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        className={`w-full flex items-center justify-between gap-2 rounded-md border px-2.5 py-1.5 text-sm text-left transition-colors bg-graphite-850 ${
+          open
+            ? "border-amber-500/60 text-text-primary"
+            : isSet
+            ? "border-graphite-600 text-text-primary hover:border-graphite-500"
+            : "border-graphite-700 text-text-muted hover:border-graphite-600"
+        }`}
+      >
+        <span className="truncate">
+          {label && <span className="text-text-subtle">{label} </span>}
+          {selected ? selected.label : placeholder}
+        </span>
+        <ChevronDown className={`h-3.5 w-3.5 shrink-0 text-text-subtle transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <>
+          <button
+            aria-hidden
+            tabIndex={-1}
+            onClick={() => setOpen(false)}
+            className="fixed inset-0 z-20 cursor-default"
+          />
+          <div
+            role="listbox"
+            className="absolute top-full left-0 min-w-full mt-1 max-h-72 overflow-y-auto scrollbar-thin rounded-lg border border-graphite-700 bg-graphite-850 shadow-xl z-30 py-1"
+          >
+            {options.map((o) => (
+              <button
+                key={o.value}
+                role="option"
+                aria-selected={o.value === value}
+                onClick={() => { onChange(o.value); setOpen(false); }}
+                className={`w-full text-left px-3 py-1.5 text-sm whitespace-nowrap transition-colors ${
+                  o.value === value
+                    ? "bg-graphite-800 text-text-primary"
+                    : "text-text-muted hover:bg-graphite-800 hover:text-text-primary"
+                }`}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/** Small inline tag showing which tool/tier actually produced a row.
+ *  Worth the pixels because the PATH frequently can't tell you: a
+ *  /youtube/stems/status/<id> poll looks identical whether its job was
+ *  standard or HQ (they deliberately share that route), so without this
+ *  the only way to know was to click through and read the log text. HQ
+ *  is coloured; standard is deliberately NOT badged at all - tagging
+ *  every ordinary row would be visual noise on the 95% case, and
+ *  "no badge" reading as "standard" is learnable in one glance.
+ *  Renders nothing for untagged rows ("-", or rows written before the
+ *  tool/tier migration). */
+function ToolBadge({ tool, tier }: { tool?: string | null; tier?: string | null }) {
+  const hasTool = !!tool && tool !== "-";
+  if (!hasTool) return null;
+  const isHq = tier === "hq";
+  return (
+    <span
+      title={`Tool: ${tool}${isHq ? " · Studio Quality (HQ)" : " · Standard"}`}
+      className={`shrink-0 rounded px-1 py-px text-[9px] font-semibold uppercase tracking-wide ${
+        isHq
+          ? "bg-amber-500/15 text-amber-400 border border-amber-500/30"
+          : "bg-graphite-800 text-text-subtle border border-graphite-700"
+      }`}
+    >
+      {isHq ? "HQ" : tool}
+    </span>
+  );
+}
+
 // Log rows are immutable once written - same id means identical content,
 // so a fresh fetch producing new (but equal) objects still skips the
 // re-render for every row already on screen.
@@ -2509,7 +2951,10 @@ const HttpTableRow = memo(
           {log.method}
         </td>
         <td className="px-4 py-2 font-mono text-xs text-text-primary max-w-0 truncate" title={log.path}>
-          {log.path}
+          <span className="flex items-center gap-1.5 min-w-0">
+            <span className="truncate">{log.path}</span>
+            <ToolBadge tool={log.tool} tier={log.tier} />
+          </span>
         </td>
         <td className="px-4 py-2">
           <span className="inline-flex items-center gap-1.5 tabular-nums">
@@ -2551,6 +2996,7 @@ const HttpCardRow = memo(
           <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${statusDot(log.status_code)}`} />
           <span className={`text-xs font-semibold shrink-0 ${methodTone(log.method)}`}>{log.method}</span>
           <span className="font-mono text-xs text-text-primary truncate flex-1" title={log.path}>{log.path}</span>
+          <ToolBadge tool={log.tool} tier={log.tier} />
           <span className={`text-xs font-medium tabular-nums shrink-0 ${statusText(log.status_code)}`}>{log.status_code}</span>
           {clickable && <ScrollText className="h-3.5 w-3.5 shrink-0 text-text-subtle" />}
         </div>
@@ -2573,12 +3019,45 @@ const HttpCardRow = memo(
  *  containIntrinsicSize gives the scrollbar a size estimate so skipping
  *  them doesn't make the scroll height jump around. */
 const SystemRow = memo(
-  function SystemRow({ entry, newGroup }: { entry: SystemLogEntry; newGroup: boolean }) {
+  function SystemRow({
+    entry, newGroup, onOpenEntry,
+  }: {
+    entry: SystemLogEntry;
+    newGroup: boolean;
+    onOpenEntry?: (entry: SystemLogEntry) => void;
+  }) {
     const tone = levelTone(entry.level);
+    // The reverse of the HTTP tab's click-through. Previously you could
+    // go HTTP row -> that job's logs, but not the other way: filtering
+    // system logs to ERROR showed you the failure with no way to reach
+    // the rest of that job's story without copying the id by hand.
+    //
+    // Clickability now checks BOTH correlation targets, not just the
+    // message-text job id: a job id in the message (broader - shows the
+    // whole job) OR a real request_id on the row itself (present on
+    // essentially every line, default "-"). Previously only the first
+    // check existed, which meant an ERROR line with no "job=<id>" in its
+    // text - a plain exception, a startup failure - was a dead end even
+    // though it belonged to a real, correlatable request. The actual
+    // decision of which target to use lives in onOpenEntry's caller
+    // (loadCorrelatedFromSystemRow in the page component), not here -
+    // this component only needs to know WHETHER a click would do
+    // anything.
+    const hasJobId = jobIdFromMessage(entry.message) !== null;
+    const hasRequestId = !!entry.request_id && entry.request_id !== "-";
+    const clickable = !!onOpenEntry && (hasJobId || hasRequestId);
     return (
       <div
+        onClick={clickable ? () => onOpenEntry!(entry) : undefined}
+        title={
+          clickable
+            ? (hasJobId ? "View this job's full log" : "View this request's logs")
+            : undefined
+        }
         style={{ contentVisibility: "auto", containIntrinsicSize: "0 56px" }}
         className={`border-l-2 ${tone.border} px-4 py-2 hover:bg-graphite-850/60 transition-colors ${
+          clickable ? "cursor-pointer" : ""
+        } ${
           newGroup ? "border-t border-t-graphite-700 mt-1 pt-2.5" : ""
         }`}
       >
@@ -2593,7 +3072,10 @@ const SystemRow = memo(
       </div>
     );
   },
-  (prev, next) => prev.entry.id === next.entry.id && prev.newGroup === next.newGroup
+  (prev, next) =>
+    prev.entry.id === next.entry.id &&
+    prev.newGroup === next.newGroup &&
+    prev.onOpenEntry === next.onOpenEntry
 );
 
 const _LEVEL_RANK: Record<string, number> = { INFO: 0, WARNING: 1, ERROR: 2, CRITICAL: 3 };
@@ -2608,19 +3090,20 @@ function worstLevel(entries: SystemLogEntry[]): string {
 
 const SystemGroupBlock = memo(
   function SystemGroupBlock({
-    group, isFirst, expanded, onToggle,
+    group, isFirst, expanded, onToggle, onOpenEntry,
   }: {
     group: { key: string; entries: SystemLogEntry[] };
     isFirst: boolean;
     expanded: boolean;
     onToggle: () => void;
+    onOpenEntry?: (entry: SystemLogEntry) => void;
   }) {
     const { entries } = group;
 
     // A single line (no request_id, or a request that only logged
     // once) needs no head/tail split - render it exactly as before.
     if (entries.length === 1) {
-      return <SystemRow entry={entries[0]} newGroup={!isFirst} />;
+      return <SystemRow entry={entries[0]} newGroup={!isFirst} onOpenEntry={onOpenEntry} />;
     }
 
     const head = entries[0];
@@ -2630,7 +3113,7 @@ const SystemGroupBlock = memo(
 
     return (
       <div className={!isFirst ? "border-t border-t-graphite-700 mt-1 pt-2.5" : ""}>
-        <SystemRow entry={head} newGroup={false} />
+        <SystemRow entry={head} newGroup={false} onOpenEntry={onOpenEntry} />
         {middle.length > 0 && (
           <button
             onClick={onToggle}
@@ -2642,9 +3125,9 @@ const SystemGroupBlock = memo(
           </button>
         )}
         {expanded && middle.map((entry) => (
-          <SystemRow key={entry.id} entry={entry} newGroup={false} />
+          <SystemRow key={entry.id} entry={entry} newGroup={false} onOpenEntry={onOpenEntry} />
         ))}
-        <SystemRow entry={tail} newGroup={false} />
+        <SystemRow entry={tail} newGroup={false} onOpenEntry={onOpenEntry} />
       </div>
     );
   },
@@ -2652,7 +3135,8 @@ const SystemGroupBlock = memo(
     prev.group.key === next.group.key &&
     prev.group.entries.length === next.group.entries.length &&
     prev.isFirst === next.isFirst &&
-    prev.expanded === next.expanded
+    prev.expanded === next.expanded &&
+    prev.onOpenEntry === next.onOpenEntry
 );
 
 function ListState({
