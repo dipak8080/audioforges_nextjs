@@ -290,6 +290,12 @@ export default function YouTubeToWavPage() {
             <li>Video editors grabbing a clean audio bed for a project</li>
             <li>Students and musicians studying a performance or arrangement</li>
           </ul>
+          <p className="text-text-muted leading-relaxed">
+            Not sure which reference tracks are actually worth pulling?{" "}
+            <Link href="/guides/finding-reference-tracks" className="text-amber-400 hover:underline">
+              Read How to Find Reference Tracks That Actually Help
+            </Link>.
+          </p>
         </section>
 
         <section className="space-y-4">

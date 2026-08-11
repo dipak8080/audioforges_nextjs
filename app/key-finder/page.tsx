@@ -225,6 +225,14 @@ export default function KeyFinderPage() {
                 Read The Camelot Wheel Explained: Harmonic Mixing for DJs
               </Link>.
             </p>
+            <p>
+              Once you&apos;ve got key and BPM tagged, the next step is
+              grouping tracks by Camelot compatibility and ordering them for
+              energy before you play.{" "}
+              <Link href="/guides/dj-set-prep-checklist" className="text-amber-400 hover:underline">
+                Read the 6-Step DJ Set Prep Checklist
+              </Link>.
+            </p>
           </div>
         </section>
 
