@@ -103,14 +103,14 @@ export default async function StemsPage() {
     {
       question: "How long does stem separation take?",
       answer:
-        "Usually 30 seconds to 2 minutes for standard quality, depending on track length and server load — this runs real AI audio-separation processing on GPU-accelerated infrastructure, not a simple filter.",
+        "Usually 20 seconds to 1 minute for standard quality, depending on track length and server load. This runs real AI audio-separation processing on GPU-accelerated infrastructure, not a simple filter.",
     },
     ...(separationHqEnabled
       ? [
           {
             question: "What is Studio Quality mode?",
             answer:
-              "An optional higher-fidelity separation mode using a larger, ensembled AI model. It produces noticeably cleaner stems across all four tracks, at the cost of a longer processing time — typically 3 to 6 minutes instead of 30 seconds to 2 minutes.",
+              "An optional higher-fidelity separation mode using a larger, ensembled AI model. It produces noticeably cleaner stems across all four tracks, at the cost of a longer processing time, typically 1 to 2 minutes instead of 20 seconds to 1 minute.",
           },
         ]
       : []),
@@ -183,7 +183,7 @@ export default async function StemsPage() {
           <p className="text-lg text-text-muted max-w-xl mx-auto">
             Split a song into separate vocals, drums, bass, and other stems using
             AI source separation. Upload MP3, WAV, FLAC, AAC, M4A, or OGG and
-            download each stem individually — no sign-up, no software install.
+            download each stem individually. No sign-up, no software install.
           </p>
         </header>
 
@@ -332,7 +332,7 @@ export default async function StemsPage() {
           <h2 className="text-2xl font-bold text-text-primary">How to Split a Song Into Stems</h2>
           <ol className="list-decimal list-inside space-y-2 text-text-muted leading-relaxed">
             <li>Upload an MP3, WAV, FLAC, AAC, M4A, or OGG file.</li>
-            <li>AI source separation splits the track into vocals, drums, bass, and other — usually 30 seconds to 2 minutes, depending on length and server load.</li>
+            <li>AI source separation splits the track into vocals, drums, bass, and other, usually 20 seconds to 1 minute, depending on length and server load.</li>
             <li>Preview and download each stem individually, directly in your browser.</li>
           </ol>
           <p className="text-text-muted leading-relaxed">
@@ -361,7 +361,7 @@ export default async function StemsPage() {
             </p>
             <p>
               AudioForges processes the AI separation workload on GPU-accelerated
-              infrastructure. A single track usually takes 30 seconds to 2 minutes,
+              infrastructure. A single track usually takes 20 seconds to 1 minute,
               and usage is rate-limited per person so it stays free and available
               for everyone. No download, install, or account is needed — everything
               happens in your browser.
@@ -392,8 +392,8 @@ export default async function StemsPage() {
                 <tbody className="divide-y divide-graphite-800">
                   <tr>
                     <td className="px-4 py-3 font-medium text-text-primary">Processing time</td>
-                    <td className="px-4 py-3">30 sec–2 minutes</td>
-                    <td className="px-4 py-3">3–6 minutes</td>
+                    <td className="px-4 py-3">20 sec–1 minute</td>
+                    <td className="px-4 py-3">1–2 minutes</td>
                   </tr>
                   <tr>
                     <td className="px-4 py-3 font-medium text-text-primary">Separation quality</td>

@@ -97,14 +97,14 @@ export default async function VocalRemoverPage() {
     {
       question: "How long does vocal removal take?",
       answer:
-        "Usually 30 seconds to 2 minutes for standard quality, depending on track length and server load — this runs real AI audio-separation processing on GPU-accelerated infrastructure, not a simple filter.",
+        "Usually 20 seconds to 1 minute for standard quality, depending on track length and server load. This runs real AI audio-separation processing on GPU-accelerated infrastructure, not a simple filter.",
     },
     ...(separationHqEnabled
       ? [
           {
             question: "What is Studio Quality mode?",
             answer:
-              "An optional higher-fidelity separation mode using a larger, ensembled AI model. It produces noticeably cleaner vocal and instrumental tracks, at the cost of a longer processing time — typically 3 to 6 minutes instead of 30 seconds to 2 minutes.",
+              "An optional higher-fidelity separation mode using a larger, ensembled AI model. It produces noticeably cleaner vocal and instrumental tracks, at the cost of a longer processing time, typically 1 to 2 minutes instead of 20 seconds to 1 minute.",
           },
         ]
       : []),
@@ -196,7 +196,7 @@ export default async function VocalRemoverPage() {
           </h1>
           <p className="text-lg text-text-muted max-w-xl mx-auto">
             Upload a song and remove vocals with AI to create an instrumental
-            or acapella — no sign-up, no download required. Free for karaoke,
+            or acapella, no sign-up, no download required. Free for karaoke,
             practice, remixing, and sampling.
           </p>
         </header>
@@ -260,7 +260,7 @@ export default async function VocalRemoverPage() {
           <h2 className="text-2xl font-bold text-text-primary">How to remove vocals from a song</h2>
           <ol className="list-decimal list-inside space-y-2 text-text-muted leading-relaxed">
             <li>Upload an MP3, WAV, FLAC, AAC, M4A, or OGG file.</li>
-            <li>AI source separation splits the track into vocal and instrumental components — usually 30 seconds to 2 minutes, depending on length and server load.</li>
+            <li>AI source separation splits the track into vocal and instrumental components, usually 20 seconds to 1 minute, depending on length and server load.</li>
             <li>Download the result directly in your browser, no install needed.</li>
           </ol>
           <p className="text-text-muted leading-relaxed">
@@ -317,7 +317,7 @@ export default async function VocalRemoverPage() {
             </p>
             <p>
               AudioForges processes the AI separation workload on GPU-accelerated
-              infrastructure. A single track usually takes 30 seconds to 2 minutes,
+              infrastructure. A single track usually takes 20 seconds to 1 minute,
               and usage is rate-limited per person so it stays free and available
               for everyone. No download, install, or account is needed — everything
               happens in your browser.
@@ -347,8 +347,8 @@ export default async function VocalRemoverPage() {
                 <tbody className="divide-y divide-graphite-800">
                   <tr>
                     <td className="px-4 py-3 font-medium text-text-primary">Processing time</td>
-                    <td className="px-4 py-3">30 sec–2 minutes</td>
-                    <td className="px-4 py-3">3–6 minutes</td>
+                    <td className="px-4 py-3">20 sec–1 minute</td>
+                    <td className="px-4 py-3">1–2 minutes</td>
                   </tr>
                   <tr>
                     <td className="px-4 py-3 font-medium text-text-primary">Separation quality</td>
