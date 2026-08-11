@@ -1,0 +1,208 @@
+diff --git a/app/guides/ai-vocal-removal-explained/page.tsx b/app/guides/ai-vocal-removal-explained/page.tsx
+index 5ef15f8..ba7fd06 100644
+--- a/app/guides/ai-vocal-removal-explained/page.tsx
++++ b/app/guides/ai-vocal-removal-explained/page.tsx
+@@ -41,7 +41,7 @@ const articleJsonLd = {
+   description: guide.description,
+   datePublished: guide.publishedDate,
+   dateModified: guide.updatedDate,
+-  author: { "@type": "Person", name: "AudioForges" },
++  author: { "@type": "Organization", name: "AudioForges" },
+ };
+ 
+ export default function AiVocalRemovalGuidePage() {
+diff --git a/app/guides/camelot-wheel-harmonic-mixing/page.tsx b/app/guides/camelot-wheel-harmonic-mixing/page.tsx
+index 3b2943b..d0ea33d 100644
+--- a/app/guides/camelot-wheel-harmonic-mixing/page.tsx
++++ b/app/guides/camelot-wheel-harmonic-mixing/page.tsx
+@@ -41,7 +41,7 @@ const articleJsonLd = {
+   description: guide.description,
+   datePublished: guide.publishedDate,
+   dateModified: guide.updatedDate,
+-  author: { "@type": "Person", name: "AudioForges" },
++  author: { "@type": "Organization", name: "AudioForges" },
+ };
+ 
+ export default function CamelotWheelGuidePage() {
+diff --git a/app/guides/dj-set-prep-checklist/page.tsx b/app/guides/dj-set-prep-checklist/page.tsx
+index b7a9dce..cd85051 100644
+--- a/app/guides/dj-set-prep-checklist/page.tsx
++++ b/app/guides/dj-set-prep-checklist/page.tsx
+@@ -41,7 +41,7 @@ const articleJsonLd = {
+   description: guide.description,
+   datePublished: guide.publishedDate,
+   dateModified: guide.updatedDate,
+-  author: { "@type": "Person", name: "AudioForges" },
++  author: { "@type": "Organization", name: "AudioForges" },
+ };
+ 
+ export default function DjSetPrepGuidePage() {
+diff --git a/app/guides/dj-tempo-matching-without-pitch-shift/page.tsx b/app/guides/dj-tempo-matching-without-pitch-shift/page.tsx
+index 6dc5bc6..8b2b942 100644
+--- a/app/guides/dj-tempo-matching-without-pitch-shift/page.tsx
++++ b/app/guides/dj-tempo-matching-without-pitch-shift/page.tsx
+@@ -41,7 +41,7 @@ const articleJsonLd = {
+   description: guide.description,
+   datePublished: guide.publishedDate,
+   dateModified: guide.updatedDate,
+-  author: { "@type": "Person", name: "AudioForges" },
++  author: { "@type": "Organization", name: "AudioForges" },
+ };
+ 
+ export default function TempoMatchingGuidePage() {
+diff --git a/app/guides/editing-out-dead-air-podcasts/page.tsx b/app/guides/editing-out-dead-air-podcasts/page.tsx
+index 72568f6..23b3f33 100644
+--- a/app/guides/editing-out-dead-air-podcasts/page.tsx
++++ b/app/guides/editing-out-dead-air-podcasts/page.tsx
+@@ -41,7 +41,7 @@ const articleJsonLd = {
+   description: guide.description,
+   datePublished: guide.publishedDate,
+   dateModified: guide.updatedDate,
+-  author: { "@type": "Person", name: "AudioForges" },
++  author: { "@type": "Organization", name: "AudioForges" },
+ };
+ 
+ export default function DeadAirGuidePage() {
+diff --git a/app/guides/finding-reference-tracks/page.tsx b/app/guides/finding-reference-tracks/page.tsx
+index 7b47875..a3825c5 100644
+--- a/app/guides/finding-reference-tracks/page.tsx
++++ b/app/guides/finding-reference-tracks/page.tsx
+@@ -41,7 +41,7 @@ const articleJsonLd = {
+   description: guide.description,
+   datePublished: guide.publishedDate,
+   dateModified: guide.updatedDate,
+-  author: { "@type": "Person", name: "AudioForges" },
++  author: { "@type": "Organization", name: "AudioForges" },
+ };
+ 
+ export default function FindingReferenceTracksGuidePage() {
+diff --git a/app/guides/fixing-echo-in-home-recordings/page.tsx b/app/guides/fixing-echo-in-home-recordings/page.tsx
+index fd2fcb0..96e34c3 100644
+--- a/app/guides/fixing-echo-in-home-recordings/page.tsx
++++ b/app/guides/fixing-echo-in-home-recordings/page.tsx
+@@ -41,7 +41,7 @@ const articleJsonLd = {
+   description: guide.description,
+   datePublished: guide.publishedDate,
+   dateModified: guide.updatedDate,
+-  author: { "@type": "Person", name: "AudioForges" },
++  author: { "@type": "Organization", name: "AudioForges" },
+ };
+ 
+ export default function FixingEchoGuidePage() {
+diff --git a/app/guides/gain-staging-for-home-studios/page.tsx b/app/guides/gain-staging-for-home-studios/page.tsx
+index 9b534b7..1cb240a 100644
+--- a/app/guides/gain-staging-for-home-studios/page.tsx
++++ b/app/guides/gain-staging-for-home-studios/page.tsx
+@@ -41,7 +41,7 @@ const articleJsonLd = {
+   description: guide.description,
+   datePublished: guide.publishedDate,
+   dateModified: guide.updatedDate,
+-  author: { "@type": "Person", name: "AudioForges" },
++  author: { "@type": "Organization", name: "AudioForges" },
+ };
+ 
+ export default function GainStagingGuidePage() {
+diff --git a/app/guides/how-to-trim-audio-without-losing-quality/page.tsx b/app/guides/how-to-trim-audio-without-losing-quality/page.tsx
+index ec2f642..07c340b 100644
+--- a/app/guides/how-to-trim-audio-without-losing-quality/page.tsx
++++ b/app/guides/how-to-trim-audio-without-losing-quality/page.tsx
+@@ -41,7 +41,7 @@ const articleJsonLd = {
+   description: guide.description,
+   datePublished: guide.publishedDate,
+   dateModified: guide.updatedDate,
+-  author: { "@type": "Person", name: "AudioForges" },
++  author: { "@type": "Organization", name: "AudioForges" },
+ };
+ 
+ export default function HowToTrimAudioGuidePage() {
+diff --git a/app/guides/lossless-vs-lossy-audio-formats/page.tsx b/app/guides/lossless-vs-lossy-audio-formats/page.tsx
+index ca2877e..2c068e0 100644
+--- a/app/guides/lossless-vs-lossy-audio-formats/page.tsx
++++ b/app/guides/lossless-vs-lossy-audio-formats/page.tsx
+@@ -41,7 +41,7 @@ const articleJsonLd = {
+   description: guide.description,
+   datePublished: guide.publishedDate,
+   dateModified: guide.updatedDate,
+-  author: { "@type": "Person", name: "AudioForges" },
++  author: { "@type": "Organization", name: "AudioForges" },
+ };
+ 
+ export default function LosslessVsLossyGuidePage() {
+diff --git a/app/guides/pitch-shifting-vs-key-changing/page.tsx b/app/guides/pitch-shifting-vs-key-changing/page.tsx
+index 01fd44a..4682975 100644
+--- a/app/guides/pitch-shifting-vs-key-changing/page.tsx
++++ b/app/guides/pitch-shifting-vs-key-changing/page.tsx
+@@ -41,7 +41,7 @@ const articleJsonLd = {
+   description: guide.description,
+   datePublished: guide.publishedDate,
+   dateModified: guide.updatedDate,
+-  author: { "@type": "Person", name: "AudioForges" },
++  author: { "@type": "Organization", name: "AudioForges" },
+ };
+ 
+ export default function PitchShiftingGuidePage() {
+diff --git a/app/guides/podcast-audio-cleanup-checklist/page.tsx b/app/guides/podcast-audio-cleanup-checklist/page.tsx
+index bac6ad3..dae4772 100644
+--- a/app/guides/podcast-audio-cleanup-checklist/page.tsx
++++ b/app/guides/podcast-audio-cleanup-checklist/page.tsx
+@@ -41,7 +41,7 @@ const articleJsonLd = {
+   description: guide.description,
+   datePublished: guide.publishedDate,
+   dateModified: guide.updatedDate,
+-  author: { "@type": "Person", name: "AudioForges" },
++  author: { "@type": "Organization", name: "AudioForges" },
+ };
+ 
+ export default function PodcastCleanupChecklistPage() {
+diff --git a/app/guides/removing-background-noise-from-recordings/page.tsx b/app/guides/removing-background-noise-from-recordings/page.tsx
+index eb912e7..5ee04bc 100644
+--- a/app/guides/removing-background-noise-from-recordings/page.tsx
++++ b/app/guides/removing-background-noise-from-recordings/page.tsx
+@@ -41,7 +41,7 @@ const articleJsonLd = {
+   description: guide.description,
+   datePublished: guide.publishedDate,
+   dateModified: guide.updatedDate,
+-  author: { "@type": "Person", name: "AudioForges" },
++  author: { "@type": "Organization", name: "AudioForges" },
+ };
+ 
+ export default function NoiseRemovalGuidePage() {
+diff --git a/app/guides/reversed-audio-in-music-production/page.tsx b/app/guides/reversed-audio-in-music-production/page.tsx
+index 2310930..e4d7774 100644
+--- a/app/guides/reversed-audio-in-music-production/page.tsx
++++ b/app/guides/reversed-audio-in-music-production/page.tsx
+@@ -41,7 +41,7 @@ const articleJsonLd = {
+   description: guide.description,
+   datePublished: guide.publishedDate,
+   dateModified: guide.updatedDate,
+-  author: { "@type": "Person", name: "AudioForges" },
++  author: { "@type": "Organization", name: "AudioForges" },
+ };
+ 
+ export default function ReversedAudioGuidePage() {
+diff --git a/app/guides/transcribing-audio-accurately/page.tsx b/app/guides/transcribing-audio-accurately/page.tsx
+index 9ab55aa..3eb7831 100644
+--- a/app/guides/transcribing-audio-accurately/page.tsx
++++ b/app/guides/transcribing-audio-accurately/page.tsx
+@@ -41,7 +41,7 @@ const articleJsonLd = {
+   description: guide.description,
+   datePublished: guide.publishedDate,
+   dateModified: guide.updatedDate,
+-  author: { "@type": "Person", name: "AudioForges" },
++  author: { "@type": "Organization", name: "AudioForges" },
+ };
+ 
+ export default function TranscribingAccuratelyGuidePage() {
+diff --git a/app/guides/wav-vs-mp3-for-sampling/page.tsx b/app/guides/wav-vs-mp3-for-sampling/page.tsx
+index 99110ce..47c3aaa 100644
+--- a/app/guides/wav-vs-mp3-for-sampling/page.tsx
++++ b/app/guides/wav-vs-mp3-for-sampling/page.tsx
+@@ -41,7 +41,7 @@ const articleJsonLd = {
+   description: guide.description,
+   datePublished: guide.publishedDate,
+   dateModified: guide.updatedDate,
+-  author: { "@type": "Person", name: "AudioForges" },
++  author: { "@type": "Organization", name: "AudioForges" },
+ };
+ 
+ export default function WavVsMp3GuidePage() {

@@ -41,7 +41,7 @@ const articleJsonLd = {
   description: guide.description,
   datePublished: guide.publishedDate,
   dateModified: guide.updatedDate,
-  author: { "@type": "Person", name: "AudioForges" },
+  author: { "@type": "Organization", name: "AudioForges" },
 };
 
 export default function WavVsMp3GuidePage() {
