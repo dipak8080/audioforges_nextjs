@@ -21,7 +21,7 @@ export const guides: Guide[] = [
     slug: "wav-vs-mp3-for-sampling",
     title: "WAV vs MP3 for Sampling: What Actually Changes",
     description:
-      "The real technical differences between WAV and MP3 for sampling, layering, and production — and when the difference actually matters.",
+      "The real technical differences between WAV and MP3 for sampling, layering, and production, and when the difference actually matters.",
     publishedDate: "2026-07-21",
     updatedDate: "2026-07-24",
     category: "production",

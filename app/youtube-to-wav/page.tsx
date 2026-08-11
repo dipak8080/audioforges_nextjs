@@ -197,11 +197,12 @@ export default function YouTubeToWavPage() {
       <main className="mx-auto max-w-3xl px-4 py-12 sm:py-16 space-y-12">
         <header className="text-center space-y-4">
           <h1 className="text-4xl font-bold tracking-tight sm:text-5xl text-text-primary">
-            Free YouTube to WAV Converter
+            Free YouTube to WAV &amp; MP3 Converter
           </h1>
           <p className="text-lg text-text-muted max-w-xl mx-auto">
-            Convert YouTube to WAV or MP3 free — no sign-up, no watermark, no
-            limits. Paste a link and download high-quality audio in seconds.
+            Convert YouTube to WAV or MP3, free. No sign-up, no watermark,
+            no limits. Paste a link and download high-quality audio in
+            seconds.
           </p>
         </header>
 

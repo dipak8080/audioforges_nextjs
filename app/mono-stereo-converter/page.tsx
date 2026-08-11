@@ -7,7 +7,7 @@ import { getRelatedTools } from "@/lib/data/tools";
 
 const PAGE_TITLE = "Free Mono to Stereo & Stereo to Mono Converter";
 const PAGE_DESCRIPTION =
-  "Convert audio between mono and stereo channels online, free. Downmix stereo to mono or duplicate mono to stereo. No sign-up, no watermark.";
+  "Convert audio to stereo or mono, free. Downmix stereo to mono or duplicate mono to stereo — no sign-up, no watermark.";
 
 export const metadata: Metadata = {
   title: PAGE_TITLE,
@@ -147,10 +147,9 @@ export default function ChannelsPage() {
             Free Mono to Stereo &amp; Stereo to Mono Converter
           </h1>
           <p className="text-lg text-text-muted max-w-xl mx-auto">
-            Convert audio between mono and stereo channels — free, no
-            sign-up, no watermark. Going stereo to mono combines both
-            channels into one; going mono to stereo duplicates the single
-            channel across two.
+            Convert audio to stereo or mono — free, no sign-up, no
+            watermark. Downmix stereo to mono, or duplicate mono to stereo,
+            in seconds.
           </p>
         </header>
 
