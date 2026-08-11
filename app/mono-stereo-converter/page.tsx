@@ -164,7 +164,7 @@ export default function ChannelsPage() {
             { title: "No sign-up", desc: "No account, no email, no watermark." },
           ].map((f) => (
             <div key={f.title} className="rounded-xl border border-graphite-800 bg-graphite-900 p-5 space-y-2">
-              <h3 className="font-semibold text-text-primary">{f.title}</h3>
+              <p className="font-semibold text-text-primary">{f.title}</p>
               <p className="text-sm text-text-muted">{f.desc}</p>
             </div>
           ))}

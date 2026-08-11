@@ -197,7 +197,7 @@ export default function SilenceSplitPage() {
             { title: "Up to 50 tracks", desc: "One long recording becomes as many separate, individually downloadable files as it has real gaps." },
           ].map((f) => (
             <div key={f.title} className="rounded-xl border border-graphite-800 bg-graphite-900 p-5 space-y-2">
-              <h3 className="font-semibold text-text-primary">{f.title}</h3>
+              <p className="font-semibold text-text-primary">{f.title}</p>
               <p className="text-sm text-text-muted">{f.desc}</p>
             </div>
           ))}
