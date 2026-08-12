@@ -6,7 +6,7 @@ import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
 
 export const metadata: Metadata = {
-  title: "Free Audio Volume Booster — Increase or Reduce Volume Online",
+  title: "Free Audio Volume Booster",
   description:
     "Increase or reduce audio volume online free. Adjust gain from -30dB to +30dB on MP3, WAV, FLAC, and more. No sign-up, no watermark, fast processing.",
   keywords: [

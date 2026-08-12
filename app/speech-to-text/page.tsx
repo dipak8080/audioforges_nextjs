@@ -6,9 +6,9 @@ import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
 
 export const metadata: Metadata = {
-  title: "Free AI Speech to Text — Transcribe Audio with Timestamps",
+  title: "Free AI Speech to Text",
   description:
-    "Transcribe audio to text free with AI (Whisper), no sign-up. Auto-detects language, includes timestamps, and exports as plain text or SRT captions and subtitles.",
+    "Transcribe audio to text free with AI (Whisper). Auto-detects language, includes timestamps, exports as text or SRT captions.",
   keywords: [
     "speech to text free",
     "audio transcription online",

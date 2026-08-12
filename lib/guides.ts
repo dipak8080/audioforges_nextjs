@@ -282,7 +282,7 @@ export const guides: Guide[] = [
     slug: "why-m4a-extraction-is-instant",
     title: "Why M4A Extraction Is Instant (WAV Isn't)",
     description:
-      "Why pulling M4A/AAC audio from a video is a fast container remux, why WAV or FLAC extraction takes real processing time, and when lossless output is actually worth it.",
+      "Why pulling M4A/AAC audio from a video is a fast container remux, why WAV or FLAC extraction takes real time, and when lossless output is worth it.",
     publishedDate: "2026-08-02",
     updatedDate: "2026-08-02",
     category: "production",

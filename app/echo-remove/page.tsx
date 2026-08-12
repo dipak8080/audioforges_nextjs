@@ -6,7 +6,7 @@ import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
 
 export const metadata: Metadata = {
-  title: "Free Echo Remover — Reduce Echo & Slap-Back in Recordings",
+  title: "Free Echo Remover",
   description:
     "Reduce or remove echo from audio recordings online free. Improve voice recordings, podcasts, and interviews by cutting room echo and slap-back. No sign-up.",
   keywords: [
