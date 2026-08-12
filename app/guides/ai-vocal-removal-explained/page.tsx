@@ -5,7 +5,7 @@ import { SITE_URL } from "@/lib/constants";
 import { getGuideBySlug } from "@/lib/guides";
 import { GuideByline } from "@/components/guides/GuideByline";
 
-const guide = getGuideBySlug("ai-stem-separation-explained")!;
+const guide = getGuideBySlug("ai-vocal-removal-explained")!;
 
 export const metadata: Metadata = {
   title: guide.title,
@@ -47,7 +47,7 @@ const articleJsonLd = {
   mainEntityOfPage: `${SITE_URL}/guides/${guide.slug}`,
 };
 
-export default function AiStemSeparationGuidePage() {
+export default function AiVocalRemovalGuidePage() {
   return (
     <>
       <script
@@ -69,116 +69,111 @@ export default function AiStemSeparationGuidePage() {
 
         <div className="space-y-6 text-text-muted leading-relaxed">
           <p>
-            Splitting a song into vocals and instrumental is a 2-way split.
-            Stem separation goes further — it pulls a full mix apart into{" "}
-            <strong className="text-text-primary">four</strong> independent
-            parts: vocals, drums, bass, and everything else. Same underlying
-            idea as vocal removal, but a meaningfully harder problem, and one
-            that opens up a different set of uses.
+            Older &quot;vocal remover&quot; tools work by cutting whatever&apos;s
+            panned dead-center in a stereo mix. AI vocal removal does something
+            different: it separates a track into vocals and instrumental based on
+            what the audio actually sounds like, not where it sits in the stereo
+            field. That distinction is why the two approaches produce very
+            different results.
           </p>
 
           <section className="space-y-3">
             <h2 className="text-2xl font-bold text-text-primary">
-              From 2 stems to 4 stems
+              Why a center-channel filter falls short
             </h2>
             <p>
-              A vocal remover only has to decide what&apos;s voice and what
-              isn&apos;t — everything non-vocal gets lumped into one
-              instrumental track. A stem splitter has to make that same
-              vocal/non-vocal distinction, and then keep subdividing the
-              non-vocal portion into drums, bass, and other. That&apos;s a
-              harder task for the model: instead of one boundary to draw, it&apos;s
-              drawing three, and some instruments sit closer to each other in
-              character than a voice does to any of them.
+              A center-channel filter removes anything panned to the middle of the
+              stereo image — in many commercial mixes, that catches the lead
+              vocal. But it&apos;s an indiscriminate cut: kick drum, bass, and
+              snare are also frequently centered, so they get damaged along with
+              the vocal. And any vocal element that isn&apos;t perfectly centered
+              — a doubled vocal, a wide harmony, reverb tails — passes straight
+              through untouched. The result is a mix that&apos;s missing pieces it
+              shouldn&apos;t be missing, while still carrying vocal bleed it was
+              supposed to remove.
             </p>
           </section>
 
           <section className="space-y-3">
             <h2 className="text-2xl font-bold text-text-primary">
-              Why bass and drums are the tricky pair
+              What AI source separation does instead
             </h2>
             <p>
-              Vocals tend to separate cleanly regardless of stem count,
-              because a voice has a distinctive harmonic and formant structure
-              that doesn&apos;t closely resemble any instrument. Bass and low
-              guitar are a different story — they often occupy an overlapping
-              low-frequency range, so the model has less to distinguish them
-              by. Programmed or heavily processed drums can also separate less
-              cleanly than an acoustic kit, since processing can blur the
-              transient characteristics the model relies on to identify a hit
-              as &quot;drums&quot; rather than part of the other stem.
+              An AI separation model is trained on the learned characteristics of
+              what a human voice sounds like versus an instrument — harmonic
+              structure, formants, the way pitch and timbre move over time. It
+              uses that to isolate the vocal regardless of where it&apos;s placed
+              in the stereo field, and it processes the full stereo signal rather
+              than collapsing anything to mono in the process. That&apos;s what
+              lets it produce a genuinely cleaner instrumental instead of one with
+              chunks of the rhythm section carved out.
             </p>
           </section>
 
           <section className="space-y-3">
             <h2 className="text-2xl font-bold text-text-primary">
-              What &quot;other&quot; actually contains
+              Instrumental vs. acapella
             </h2>
             <p>
-              The fourth stem isn&apos;t a leftover bucket for separation
-              failures — it&apos;s a genuine category: guitars, keys, pads,
-              synths, strings, anything that isn&apos;t vocals, drums, or bass.
-              In a guitar-driven rock track, &quot;other&quot; might carry most
-              of the melodic content. In an electronic track built around
-              synth bass and drum programming, &quot;other&quot; might be
-              comparatively sparse. What ends up in it depends entirely on how
-              the source track is arranged.
+              The separation produces two stems from the same process:{" "}
+              <strong className="text-text-primary">instrumental</strong> is
+              everything except the vocal, and{" "}
+              <strong className="text-text-primary">acapella</strong> is the
+              isolated vocal on its own. Karaoke and remixing usually call for the
+              instrumental; sampling a vocal hook or building a mashup usually
+              calls for the acapella. Since both come from a single separation
+              pass, you get both stems back regardless of which one you actually
+              need.
             </p>
           </section>
 
           <section className="space-y-3">
             <h2 className="text-2xl font-bold text-text-primary">
-              Standard vs. Studio Quality
+              Where separation still struggles
             </h2>
             <p>
-              Standard mode runs a single pass of the separation model and
-              finishes in under a minute on our GPU-accelerated
-              infrastructure. Studio Quality runs a larger, ensembled model
-              instead of a single pass, which produces noticeably cleaner
-              separation across all four stems, at the cost of 1 to 2
-              minutes instead of 20 seconds to 1 minute. The extra time buys
-              real improvement specifically on the harder cases — bass/guitar
-              overlap and busy drum programming — which is why it&apos;s
-              worth it when a stem is headed into an actual mix rather than
-              just a preview.
+              AI separation isn&apos;t flawless on every track. Choir or group
+              vocals give the model multiple overlapping voice-like sources to
+              untangle instead of one, which tends to leave more audible traces
+              behind. Heavy distortion or screamed vocals can share enough
+              spectral character with distorted instruments that the two separate
+              less cleanly. Live recordings add crowd noise and stage bleed, a
+              messier signal than a controlled studio mix. None of these make
+              separation fail outright — a simpler, cleanly recorded studio track
+              will still separate more completely than any of the cases above.
             </p>
           </section>
 
           <section className="space-y-3">
             <h2 className="text-2xl font-bold text-text-primary">
-              Stems vs. a plain instrumental
+              Vocal removal vs. full stem separation
             </h2>
             <p>
-              If all you need is vocals removed, a full 4-stem split is more
-              than the job requires — a{" "}
-              <Link href="/vocal-remover" className="text-amber-400 hover:underline">
-                Vocal Remover
-              </Link>{" "}
-              does the same underlying separation and hands back one
-              instrumental instead of three additional stems to sort through.
-              Reach for stem separation specifically when you need to isolate
-              or rebuild around drums, bass, or another instrument on its own —
-              sampling a bassline, remixing with someone else&apos;s drum
-              pattern, or studying a part note-for-note without the rest of
-              the mix in the way.
+              If all you need is vocals removed, a 2-stem vocal/instrumental split
+              is the right tool for the job — it&apos;s a narrower separation than
+              splitting a full mix into four stems, so there&apos;s nothing extra
+              to sort through afterward. Reach for full stem separation instead
+              when you need to isolate or rebuild around drums, bass, or another
+              instrument specifically, not just the vocal.
             </p>
             <p>
               Our{" "}
-              <Link href="/stems" className="text-amber-400 hover:underline">
-                AI Stem Splitter
+              <Link href="/vocal-remover" className="text-amber-400 hover:underline">
+                AI Vocal Remover
               </Link>{" "}
-              runs this exact process — upload a track and get back all four
-              stems individually, no account or software install needed.
+              runs this exact process — upload a track and get back both the
+              instrumental and the acapella, no account or software install
+              needed.
             </p>
           </section>
         </div>
 
         <div className="pt-6 border-t border-graphite-800">
           <Link
-            href="/stems"
+            href="/vocal-remover"
             className="inline-flex items-center gap-2 rounded-lg bg-amber-500 text-graphite-950 font-medium px-6 py-3 hover:bg-amber-400 transition-colors"
           >
-            Try the AI Stem Splitter
+            Try the AI Vocal Remover
             <ArrowRight className="h-4 w-4" />
           </Link>
         </div>

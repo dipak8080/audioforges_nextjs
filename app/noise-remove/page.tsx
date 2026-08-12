@@ -1,38 +1,39 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { VoiceCleanForm } from "@/components/converter/VoiceCleanForm";
+import { NoiseRemoveForm } from "@/components/converter/NoiseRemoveForm";
 import { FAQSection } from "@/components/faq/FAQSection";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
 
 export const metadata: Metadata = {
-  title: "Free Voice Cleaner — Clean Up Podcasts & Voice Memos",
+  title: "Free Background Noise Remover — Denoise Any Audio File",
   description:
-    "Clean voice recordings online free. Remove background noise, hiss, hum, and low-frequency rumble from podcasts, interviews, and voice memos. No sign-up.",
+    "Remove background noise from audio online free. Eliminate hiss, hum, fan noise, and static from MP3, WAV, FLAC, AAC, M4A, OGG, and AIFF. No sign-up.",
   keywords: [
-    "voice cleaner",
-    "clean voice recording",
-    "clean podcast audio",
-    "remove background noise from voice",
-    "voice memo cleanup",
-    "podcast audio cleanup free",
-    "speech enhancement online",
-    "voice enhancer",
-    "podcast audio cleaner",
-    "voice recording cleaner",
-    "improve voice recording",
-    "speech cleaner",
-    "voice recording noise removal",
-    "remove hiss from voice recording",
-    "remove hum from voice recording",
-    "speech noise reduction",
+    "remove background noise from audio",
+    "background noise remover",
+    "noise remover online",
+    "audio noise remover",
+    "denoise audio free",
+    "audio denoiser",
+    "remove hiss from audio",
+    "remove static from audio",
+    "remove hum from audio",
+    "audio noise reduction",
+    "remove microphone noise",
+    "remove background hiss",
+    "remove fan noise from audio",
+    "remove white noise",
+    "noise cancellation audio",
+    "audio cleanup tool",
+    "remove buzzing from audio",
   ],
-  alternates: { canonical: `${SITE_URL}/voice-clean` },
+  alternates: { canonical: `${SITE_URL}/noise-remove` },
   openGraph: {
-    title: "Free Voice Cleaner — Clean Up Podcasts & Voice Memos",
+    title: "Free Background Noise Remover — Denoise Any Audio File",
     description:
-      "Clean voice recordings online free. Remove background noise, hiss, hum, and low-frequency rumble from podcasts, interviews, and voice memos. No sign-up.",
-    url: `${SITE_URL}/voice-clean`,
+      "Remove background noise from audio online free. Eliminate hiss, hum, fan noise, and static from MP3, WAV, FLAC, AAC, M4A, OGG, and AIFF. No sign-up.",
+    url: `${SITE_URL}/noise-remove`,
     siteName: SITE_NAME,
     type: "website",
     images: [
@@ -46,9 +47,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Free Voice Cleaner — Clean Up Podcasts & Voice Memos",
+    title: "Free Background Noise Remover — Denoise Any Audio File",
     description:
-      "Clean voice recordings online free. Remove background noise, hiss, hum, and low-frequency rumble from podcasts, interviews, and voice memos. No sign-up.",
+      "Remove background noise from audio online free. Eliminate hiss, hum, fan noise, and static from MP3, WAV, FLAC, AAC, M4A, OGG, and AIFF. No sign-up.",
     images: ["/images/og-default.png"],
   },
 };
@@ -56,15 +57,14 @@ export const metadata: Metadata = {
 const webAppJsonLd = {
   "@context": "https://schema.org",
   "@type": "WebApplication",
-  name: "Voice Cleaner",
-  url: `${SITE_URL}/voice-clean`,
+  name: "Background Noise Remover",
+  url: `${SITE_URL}/noise-remove`,
   applicationCategory: "MultimediaApplication",
   operatingSystem: "Any",
   offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
   featureList: [
-    "Rumble/low-end cut",
-    "Speech-tuned denoise",
-    "Loudness normalization",
+    "Adjustable noise reduction strength",
+    "Works on music or speech",
     "No sign-up required",
     "No watermark",
   ],
@@ -75,55 +75,38 @@ const breadcrumbJsonLd = {
   "@type": "BreadcrumbList",
   itemListElement: [
     { "@type": "ListItem", position: 1, name: "Home", item: SITE_URL },
-    { "@type": "ListItem", position: 2, name: "Voice Cleaner", item: `${SITE_URL}/voice-clean` },
+    { "@type": "ListItem", position: 2, name: "Noise Remover", item: `${SITE_URL}/noise-remove` },
   ],
 };
 
 const howToJsonLd = {
   "@context": "https://schema.org",
   "@type": "HowTo",
-  name: "How to Clean Up a Voice Recording",
+  name: "How to Remove Background Noise from Audio",
   step: [
-    { "@type": "HowToStep", name: "Upload", text: "Upload an MP3, WAV, FLAC, M4A, AAC, OGG, or AIFF speech recording." },
-    { "@type": "HowToStep", name: "Process", text: "The tool automatically cuts rumble, reduces noise, and normalizes loudness — no settings to configure." },
-    { "@type": "HowToStep", name: "Download", text: "Download the cleaned recording." },
+    { "@type": "HowToStep", name: "Upload", text: "Upload an MP3, WAV, FLAC, M4A, AAC, OGG, or AIFF file." },
+    { "@type": "HowToStep", name: "Set strength", text: "Adjust the reduction strength slider — start at the default." },
+    { "@type": "HowToStep", name: "Process", text: "Run the denoiser." },
+    { "@type": "HowToStep", name: "Download", text: "Download the cleaned-up file." },
   ],
 };
 
-// Same content as before, PLUS one fix: "Will it reduce audio quality?"
-// existed in the old faqJsonLd schema but was missing from the old visible
-// JSX section entirely - a real schema/content mismatch. It's included
-// here now, so both the schema and the visible accordion show all 11.
+// Same 6 questions and answers as before, word-for-word.
 const faqs = [
   {
-    question: "What does the Voice Cleaner actually do?",
+    question: "What kind of noise does this remove?",
     answer:
-      "It runs a three-stage chain tuned specifically for speech: cutting low-frequency rumble, applying speech-optimized noise reduction, then normalizing loudness — all in one click.",
+      "Background hiss, hum, and static via an FFT-based denoiser. It's general-purpose, suitable for both music and speech.",
   },
   {
-    question: "Does it work on Zoom recordings or phone recordings?",
+    question: "Does noise reduction affect audio quality?",
     answer:
-      "Yes — any speech-only recording works, including calls, Zoom recordings, phone memos, and narration, since the chain is tuned for the voice frequency range generally, not one specific recording method.",
+      "At moderate strength, quality impact is minimal. Pushed too aggressively, it can introduce a warbling artifact by cutting into frequencies the wanted audio actually needs. Start at the default strength and only raise it if noise is still clearly audible.",
   },
   {
-    question: "Does this remove echo or reverb?",
+    question: "Should I use this or the Voice Cleaner for a podcast?",
     answer:
-      "No — echo and reverb are a different problem from noise, and this chain doesn't address them. Use the Echo Reducer for mild room echo or slap-back.",
-    answerNode: (
-      <>
-        No — echo and reverb are a different problem from noise, and this
-        chain doesn&apos;t address them. Use the{" "}
-        <Link href="/echo-remove" className="text-amber-400 hover:underline">
-          Echo Reducer
-        </Link>{" "}
-        for mild room echo or slap-back.
-      </>
-    ),
-  },
-  {
-    question: "Is this different from a general noise remover?",
-    answer:
-      "Yes. This preset is tuned specifically for speech and has no settings to configure. For music or non-speech audio where you want to control the reduction strength yourself, use the Noise Remover instead.",
+      "For speech-only recordings, the Voice Cleaner's fixed speech-tuned preset (rumble cut, denoise, loudness normalize) generally works better. Use this tool when you want direct control over reduction strength, or for music and non-speech audio.",
   },
   {
     question: "Is this really free?",
@@ -134,33 +117,14 @@ const faqs = [
     answer: "MP3, WAV, FLAC, M4A, AAC, OGG, and AIFF, up to 80MB and 20 minutes long.",
   },
   {
-    question: "Will it change my voice?",
+    question: "Should I denoise before or after boosting volume?",
     answer:
-      "No. It only affects background noise and loudness — it doesn't alter pitch, formants, or anything about how your voice actually sounds.",
-  },
-  {
-    question: "Does it remove keyboard clicks or mouse clicks?",
-    answer:
-      "Not reliably. This chain is built for steady background noise like hiss, hum, and rumble — short, one-off sounds like keyboard clicks don't have a consistent noise profile for it to remove, so some may still come through.",
-  },
-  {
-    question: "Can it remove breathing sounds?",
-    answer:
-      "Not specifically — breaths are close enough to speech frequencies that a general noise-reduction chain isn't built to isolate and remove them the way it removes steady background hiss or hum.",
-  },
-  {
-    question: "Can I clean multiple files at once?",
-    answer: "One file at a time — there's currently no batch upload option.",
-  },
-  {
-    question: "Will it reduce audio quality?",
-    answer:
-      "No — it removes noise and evens out loudness without discarding quality from the rest of the recording.",
+      "Denoise first, then boost volume. Boosting first raises the noise right along with everything else, which just means the denoiser has more to remove — cleaning it up before adjusting levels gives a clearer result.",
   },
 ];
 
-export default function VoiceCleanPage() {
-  const relatedTools = getRelatedTools("voice-clean", 5);
+export default function NoiseRemovePage() {
+  const relatedTools = getRelatedTools("noise-remove", 5);
 
   return (
     <>
@@ -171,20 +135,20 @@ export default function VoiceCleanPage() {
       <main className="mx-auto max-w-3xl px-4 py-12 sm:py-16 space-y-12">
         <header className="text-center space-y-4">
           <h1 className="text-4xl font-bold tracking-tight sm:text-5xl text-text-primary">
-            Free Voice Cleaner
+            Free Background Noise Remover
           </h1>
           <p className="text-lg text-text-muted max-w-xl mx-auto">
-            One click to clean up a podcast, interview, or voice memo: rumble cut,
-            speech-tuned denoise, and loudness normalization, all in one pass.
+            Strip background hiss, hum, and static from any recording, free, no
+            sign-up, no watermark.
           </p>
         </header>
 
-        <VoiceCleanForm />
+        <NoiseRemoveForm />
 
         <section className="grid gap-4 sm:grid-cols-3">
           {[
-            { title: "One click", desc: "No settings to tune — just upload and clean." },
-            { title: "Speech-tuned", desc: "Built specifically for voice, not music." },
+            { title: "Adjustable", desc: "Control exactly how aggressive the cleanup is." },
+            { title: "Works on anything", desc: "Music, speech, or field recordings." },
             { title: "No sign-up", desc: "No account, no email, no watermark." },
           ].map((f) => (
             <div key={f.title} className="rounded-xl border border-graphite-800 bg-graphite-900 p-5 space-y-2">
@@ -195,116 +159,72 @@ export default function VoiceCleanPage() {
         </section>
 
         <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">Why clean up a voice recording?</h2>
-          <p className="text-text-muted leading-relaxed">
-            A clean voice recording is easier to understand and sounds
-            noticeably more professional than one buried under hiss, hum, or
-            rumble — the difference shows up immediately to a listener, even
-            if they couldn&apos;t name what was wrong with the noisy version.
-            Cleaning up background noise and evening out loudness helps
-            podcasts, interviews, meeting recordings, narration, and voice
-            memos all sound like they came from the same consistent setup,
-            without touching how the speaker actually sounds.
-          </p>
-        </section>
-
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">How to clean up a voice recording</h2>
+          <h2 className="text-2xl font-bold text-text-primary">How to remove background noise from audio</h2>
           <ol className="list-decimal list-inside space-y-2 text-text-muted leading-relaxed">
-            <li>Upload an MP3, WAV, FLAC, M4A, AAC, OGG, or AIFF speech recording.</li>
-            <li>The chain runs automatically — rumble cut, denoise, then normalize.</li>
-            <li>Download the cleaned result.</li>
+            <li>Upload an MP3, WAV, FLAC, M4A, AAC, OGG, or AIFF file.</li>
+            <li>Leave the reduction strength at its default, or adjust it manually.</li>
+            <li>Run the denoiser.</li>
+            <li>Download the cleaned-up result.</li>
           </ol>
         </section>
 
         <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">What it fixes</h2>
+          <h2 className="text-2xl font-bold text-text-primary">What kind of noise this handles</h2>
+          <p className="text-text-muted leading-relaxed">
+            The denoiser targets steady, consistent background noise — tape hiss,
+            fan or AC hum, electrical buzz, static, and general microphone
+            self-noise. It works by identifying frequencies where that kind of
+            noise sits consistently and reducing energy there throughout the
+            file. Noise that&apos;s intermittent or highly variable — like gusty
+            wind, a door slamming, or a dog barking — is a harder problem for any
+            denoiser, since there&apos;s no single steady frequency profile to
+            target; strength adjustments can help partially, but this isn&apos;t a
+            tool built to isolate one-off transient sounds.
+          </p>
+          <p className="text-text-muted leading-relaxed">
+            If you&apos;re also planning to adjust the volume, denoise first —
+            boosting volume before cleanup just raises the noise right along
+            with everything else, giving the denoiser more to remove and a
+            messier starting point than cleaning it up first would.
+          </p>
+        </section>
+
+        <section className="space-y-4">
+          <h2 className="text-2xl font-bold text-text-primary">Best uses</h2>
+          <p className="text-text-muted leading-relaxed">
+            Podcasts and voice recordings with hiss or hum, interviews recorded on
+            a phone or in an untreated room, music demos with audible tape or
+            preamp noise, lecture recordings, and any audio pulled from a video
+            call or field recorder where background hum crept in.
+          </p>
+        </section>
+
+        <section className="space-y-4">
+          <h2 className="text-2xl font-bold text-text-primary">This tool vs. Voice Cleaner</h2>
           <div className="space-y-3 text-text-muted leading-relaxed">
             <p>
-              Most rough voice recordings share the same problems: low-frequency
-              rumble from handling noise or AC hum, a hiss or hum sitting under the
-              voice, and inconsistent loudness between takes. This tool runs a fixed
-              chain built to fix exactly those issues — cut the rumble, denoise the
-              rest, then normalize levels — with nothing to configure. Steady
-              background sources like a computer fan, an air conditioner, or a
-              microphone&apos;s own self-noise generally fall into that same
-              hiss/hum/rumble category the chain is built to handle.
+              This is a general-purpose denoiser that works on any audio — music,
+              field recordings, or speech — with a strength slider you control
+              directly.
             </p>
             <p>
-              <strong className="text-text-primary">Best for:</strong> podcasts, phone
-              recordings, interviews, Zoom recordings, voice memos, narration,
-              audiobooks, online courses, dictation, lectures, and any other
-              speech-only audio. For music or general noise reduction with adjustable
-              strength, use the{" "}
-              <Link href="/noise-remove" className="text-amber-400 hover:underline">
-                Noise Remover
+              If your source is specifically speech (a podcast, phone recording, or
+              interview), the{" "}
+              <Link href="/voice-clean" className="text-amber-400 hover:underline">
+                Voice Cleaner
               </Link>{" "}
-              instead.
+              runs a fixed chain tuned just for that — rumble cut, speech-optimized
+              denoise, and loudness normalization in one pass — and will usually
+              outperform manually tuning this tool for voice content.
+            </p>
+            <p>
+              Want the full explanation of how FFT-based denoising works and why
+              pushing strength too high causes warbling?{" "}
+              <Link href="/guides/removing-background-noise-from-recordings" className="text-amber-400 hover:underline">
+                Read How to Remove Background Noise from Audio
+              </Link>.
             </p>
           </div>
-        </section>
-
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">What this doesn&apos;t fix</h2>
-          <p className="text-text-muted leading-relaxed">
-            This chain targets rumble, hiss/hum, and loudness — it doesn&apos;t
-            address echo or reverb, since that&apos;s a different kind of problem
-            entirely (repeated or trailing reflections, rather than steady
-            background noise). It also can&apos;t recover audio that&apos;s
-            severely clipped or distorted at the source, separate two people talking
-            over each other, or remove background music sitting under a voice —
-            cleanup can improve a noisy recording, but it can&apos;t reconstruct
-            data that was never captured or isolate speech from another full audio
-            source layered underneath it. If echo is the issue, the{" "}
-            <Link href="/echo-remove" className="text-amber-400 hover:underline">
-              Echo Reducer
-            </Link>{" "}
-            handles mild room echo and slap-back separately.
-          </p>
-        </section>
-
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">Voice Cleaner vs. Noise Remover</h2>
-          <div className="overflow-x-auto rounded-xl border border-graphite-800">
-            <table className="w-full text-sm text-left text-text-muted">
-              <thead className="bg-graphite-900 text-text-primary">
-                <tr>
-                  <th className="px-4 py-3 font-semibold">&nbsp;</th>
-                  <th className="px-4 py-3 font-semibold">Voice Cleaner</th>
-                  <th className="px-4 py-3 font-semibold">Noise Remover</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-graphite-800">
-                <tr>
-                  <td className="px-4 py-3 font-medium text-text-primary">Best for</td>
-                  <td className="px-4 py-3">Speech only</td>
-                  <td className="px-4 py-3">Any audio — music, field recordings, speech</td>
-                </tr>
-                <tr>
-                  <td className="px-4 py-3 font-medium text-text-primary">Control</td>
-                  <td className="px-4 py-3">One click, fixed chain</td>
-                  <td className="px-4 py-3">Adjustable reduction strength</td>
-                </tr>
-                <tr>
-                  <td className="px-4 py-3 font-medium text-text-primary">What it does</td>
-                  <td className="px-4 py-3">Rumble cut + denoise + normalize</td>
-                  <td className="px-4 py-3">Denoise only</td>
-                </tr>
-                <tr>
-                  <td className="px-4 py-3 font-medium text-text-primary">Typical use case</td>
-                  <td className="px-4 py-3">Podcasts, interviews, voice memos</td>
-                  <td className="px-4 py-3">Music demos, field recordings, mixed content</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          <p className="text-text-muted leading-relaxed">
-            Want the full breakdown of why cleanup order matters and what each stage
-            actually does?{" "}
-            <Link href="/guides/podcast-audio-cleanup-checklist" className="text-amber-400 hover:underline">
-              Read Podcast Audio Cleanup: A Practical Checklist
-            </Link>.
-          </p>
         </section>
 
         {relatedTools.length > 0 && (
