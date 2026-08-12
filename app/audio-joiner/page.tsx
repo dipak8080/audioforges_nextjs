@@ -114,7 +114,7 @@ export default function AudioJoinerPage() {
             Free Audio Joiner
           </h1>
           <p className="text-lg text-text-muted max-w-xl mx-auto">
-            Combine multiple audio files into one track — free, no sign-up,
+            Combine multiple audio files into one track, free, no sign-up,
             no watermark.
           </p>
         </header>

@@ -32,8 +32,7 @@ export const metadata: Metadata = {
   alternates: { canonical: `${SITE_URL}/vocal-remover` },
   openGraph: {
     title: PAGE_TITLE,
-    description:
-      "Remove vocals from songs with AI and get a clean instrumental. Free, fast, and no sign-up required.",
+    description: PAGE_DESCRIPTION,
     url: `${SITE_URL}/vocal-remover`,
     siteName: SITE_NAME,
     type: "website",
@@ -49,8 +48,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: PAGE_TITLE,
-    description:
-      "Remove vocals from any song free with AI — no sign-up, no download required.",
+    description: PAGE_DESCRIPTION,
     images: ["/images/og-default.png"],
   },
 };
@@ -206,7 +204,7 @@ export default async function VocalRemoverPage() {
         <section className="grid gap-4 sm:grid-cols-3">
           {[
             { title: "GPU-accelerated AI", desc: "Real source separation, not a basic center-channel filter." },
-            { title: "No download", desc: "Runs entirely in your browser — upload, process, download." },
+            { title: "No download", desc: "Runs entirely in your browser. Upload, process, download." },
             { title: "Free", desc: "No sign-up, no watermark, free for everyone." },
           ].map((f) => (
             <div key={f.title} className="rounded-xl border border-graphite-800 bg-graphite-900 p-5 space-y-2">

@@ -115,7 +115,7 @@ export default function LoudnessNormalizerPage() {
             Free LUFS Loudness Normalizer
           </h1>
           <p className="text-lg text-text-muted max-w-xl mx-auto">
-            Normalize a track to streaming, club, or broadcast loudness (LUFS) —
+            Normalize a track to streaming, club, or broadcast loudness (LUFS),
             free, no sign-up, no watermark.
           </p>
         </header>

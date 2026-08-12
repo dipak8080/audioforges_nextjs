@@ -192,7 +192,7 @@ export default async function StemsPage() {
         <section className="grid gap-4 sm:grid-cols-3">
           {[
             { title: "4 stems", desc: "Vocals, drums, bass, and other — not just a 2-way split." },
-            { title: "No download", desc: "Runs entirely in your browser — upload, process, download." },
+            { title: "No download", desc: "Runs entirely in your browser. Upload, process, download." },
             { title: "Free", desc: "No sign-up, no watermark, free for everyone." },
           ].map((f) => (
             <div key={f.title} className="rounded-xl border border-graphite-800 bg-graphite-900 p-5 space-y-2">

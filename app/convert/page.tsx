@@ -6,9 +6,9 @@ import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
 
 export const metadata: Metadata = {
-  title: "Free Audio Converter (MP3, WAV, FLAC & More)",
+  title: "Free MP3 to WAV & WAV to MP3 Converter",
   description:
-    "Convert audio files online free between MP3, WAV, FLAC, M4A, AAC, OGG, and AIFF. Fast conversion, no sign-up, no watermark on the output.",
+    "Convert MP3 to WAV, WAV to MP3, and between FLAC, M4A, AAC, OGG, and AIFF, all free. Fast conversion, no sign-up, no watermark on the output.",
   keywords: [
     "audio converter",
     "audio converter online",
@@ -33,9 +33,9 @@ export const metadata: Metadata = {
   ],
   alternates: { canonical: `${SITE_URL}/convert` },
   openGraph: {
-    title: "Free Audio Converter (MP3, WAV, FLAC & More)",
+    title: "Free MP3 to WAV & WAV to MP3 Converter",
     description:
-      "Free audio converter — no sign-up, no limits. Convert between any of 7 major audio formats in seconds.",
+      "Convert MP3 to WAV, WAV to MP3, and between FLAC, M4A, AAC, OGG, and AIFF, all free. Fast conversion, no sign-up, no watermark on the output.",
     url: `${SITE_URL}/convert`,
     siteName: SITE_NAME,
     type: "website",
@@ -50,9 +50,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Free Audio Converter (MP3, WAV, FLAC & More)",
+    title: "Free MP3 to WAV & WAV to MP3 Converter",
     description:
-      "Free audio converter — no sign-up, no limits. Convert between any of 7 major audio formats in seconds.",
+      "Convert MP3 to WAV, WAV to MP3, and between FLAC, M4A, AAC, OGG, and AIFF, all free. Fast conversion, no sign-up, no watermark on the output.",
     images: ["/images/og-default.png"],
   },
 };
@@ -60,7 +60,7 @@ export const metadata: Metadata = {
 const webAppJsonLd = {
   "@context": "https://schema.org",
   "@type": "WebApplication",
-  name: "Audio Format Converter",
+  name: "MP3 to WAV & WAV to MP3 Converter",
   url: `${SITE_URL}/convert`,
   applicationCategory: "MultimediaApplication",
   operatingSystem: "Any",
@@ -145,12 +145,12 @@ export default function ConvertPage() {
       <main className="mx-auto max-w-3xl px-4 py-12 sm:py-16 space-y-12">
         <header className="text-center space-y-4">
           <h1 className="text-4xl font-bold tracking-tight sm:text-5xl text-text-primary">
-            Free Audio Converter
+            Free MP3 to WAV &amp; WAV to MP3 Converter
           </h1>
           <p className="text-lg text-text-muted max-w-xl mx-auto">
-            Convert between MP3, WAV, FLAC, M4A, AAC, OGG and AIFF free — no
-            sign-up, no watermark. Upload a file and download the converted
-            version in seconds.
+            Convert MP3 to WAV, WAV to MP3, or between FLAC, M4A, AAC, OGG
+            and AIFF, free. No sign-up, no watermark. Upload a file and
+            download the converted version in seconds.
           </p>
         </header>
 

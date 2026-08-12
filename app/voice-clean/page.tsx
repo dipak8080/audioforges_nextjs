@@ -5,10 +5,13 @@ import { FAQSection } from "@/components/faq/FAQSection";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
 
+const PAGE_TITLE = "Free Voice Cleaner — Clean Up Podcasts & Voice Memos";
+const PAGE_DESCRIPTION =
+  "Clean voice recordings online free. Remove background noise, hiss, hum, and low-frequency rumble from podcasts, interviews, and voice memos. No sign-up.";
+
 export const metadata: Metadata = {
-  title: "Free Voice Cleaner — Clean Up Podcasts & Voice Memos",
-  description:
-    "Clean voice recordings online free. Remove background noise, hiss, hum, and low-frequency rumble from podcasts, interviews, and voice memos. No sign-up.",
+  title: PAGE_TITLE,
+  description: PAGE_DESCRIPTION,
   keywords: [
     "voice cleaner",
     "clean voice recording",
@@ -29,8 +32,8 @@ export const metadata: Metadata = {
   ],
   alternates: { canonical: `${SITE_URL}/voice-clean` },
   openGraph: {
-    title: "Free Voice Cleaner — Clean Up Podcasts & Voice Memos",
-    description: "Clean up speech recordings free, no sign-up. One click, done.",
+    title: PAGE_TITLE,
+    description: PAGE_DESCRIPTION,
     url: `${SITE_URL}/voice-clean`,
     siteName: SITE_NAME,
     type: "website",
@@ -45,8 +48,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Free Voice Cleaner — Clean Up Podcasts & Voice Memos",
-    description: "Clean up speech recordings free, no sign-up. One click, done.",
+    title: PAGE_TITLE,
+    description: PAGE_DESCRIPTION,
     images: ["/images/og-default.png"],
   },
 };
@@ -106,13 +109,13 @@ const faqs = [
   {
     question: "Does this remove echo or reverb?",
     answer:
-      "No — echo and reverb are a different problem from noise, and this chain doesn't address them. Use the Echo Reducer for mild room echo or slap-back.",
+      "No — echo and reverb are a different problem from noise, and this chain doesn't address them. Use the Echo Remover for mild room echo or slap-back.",
     answerNode: (
       <>
         No — echo and reverb are a different problem from noise, and this
         chain doesn&apos;t address them. Use the{" "}
         <Link href="/echo-remove" className="text-amber-400 hover:underline">
-          Echo Reducer
+          Echo Remover
         </Link>{" "}
         for mild room echo or slap-back.
       </>
@@ -172,7 +175,7 @@ export default function VoiceCleanPage() {
             Free Voice Cleaner
           </h1>
           <p className="text-lg text-text-muted max-w-xl mx-auto">
-            One click to clean up a podcast, interview, or voice memo — rumble cut,
+            One click to clean up a podcast, interview, or voice memo: rumble cut,
             speech-tuned denoise, and loudness normalization, all in one pass.
           </p>
         </header>
@@ -255,7 +258,7 @@ export default function VoiceCleanPage() {
             data that was never captured or isolate speech from another full audio
             source layered underneath it. If echo is the issue, the{" "}
             <Link href="/echo-remove" className="text-amber-400 hover:underline">
-              Echo Reducer
+              Echo Remover
             </Link>{" "}
             handles mild room echo and slap-back separately.
           </p>

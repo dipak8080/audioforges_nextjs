@@ -54,11 +54,14 @@ export default function PrivacyPage() {
             <strong className="text-text-primary">URLs and files you submit:</strong>{" "}
             when you use our converter or analyzer, the YouTube URL or audio file you
             submit is sent to our backend server solely to process your request.
-            Uploaded files and submitted URLs are processed only for the time needed
-            to complete that request. Temporary processing files are automatically
-            deleted after processing finishes, or after a short retention period if
-            required for system reliability. We do not permanently store or
-            distribute the audio files or URLs you submit.
+            Tools that use AI source separation (vocal removal and stem splitting,
+            including the YouTube-linked versions) route that processing to a
+            third-party GPU compute provider, described in Section 4. Uploaded files
+            and submitted URLs are processed only for the time needed to complete
+            that request. Temporary processing files are automatically deleted after
+            processing finishes, or after a short retention period if required for
+            system reliability. We do not permanently store or distribute the audio
+            files or URLs you submit.
           </p>
           <p>
             <strong className="text-text-primary">Microphone input:</strong> some
@@ -104,9 +107,14 @@ export default function PrivacyPage() {
           <h2 className="text-xl font-semibold text-text-primary">4. Third-party services</h2>
           <p>
             We currently use Google Analytics to understand aggregate site usage,
-            and our hosting providers — Vercel for the website, and VPS Dime for
-            backend processing — to run the site and tools. Each of these providers
-            has its own privacy policy governing how they handle data.
+            and the following providers to run the site and tools: Vercel for the
+            website, VPS Dime for general backend processing, and RunPod for the
+            GPU-accelerated compute used by our AI vocal-separation and
+            stem-splitting tools. When you use one of those separation tools, the
+            audio file or fetched YouTube audio is processed on RunPod&apos;s
+            infrastructure for the time needed to complete that job, under the same
+            no-permanent-storage handling described in Section 2. Each of these
+            providers has its own privacy policy governing how they handle data.
           </p>
         </section>
 

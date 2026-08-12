@@ -129,7 +129,7 @@ export default function ResamplePage() {
             Free Audio Sample Rate Converter
           </h1>
           <p className="text-lg text-text-muted max-w-xl mx-auto">
-            Change an audio file&apos;s sample rate and bit depth — free, no
+            Change an audio file&apos;s sample rate and bit depth, free, no
             sign-up, no watermark.
           </p>
         </header>

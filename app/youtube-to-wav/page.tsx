@@ -30,7 +30,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Free YouTube to WAV & MP3 Converter",
     description:
-      "Free YouTube to WAV converter — no sign-up, no watermark, no limits. Paste a link and download high-quality audio in seconds.",
+      "Convert YouTube videos to WAV or 320kbps MP3 online for free. No sign-up, no watermark, supports YouTube Shorts, and downloads high-quality audio in seconds.",
     url: `${SITE_URL}/youtube-to-wav`,
     siteName: "AudioForges",
     type: "website",
@@ -47,7 +47,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Free YouTube to WAV & MP3 Converter",
     description:
-      "Free YouTube to WAV converter — no sign-up, no watermark, no limits. Paste a link and download high-quality audio in seconds.",
+      "Convert YouTube videos to WAV or 320kbps MP3 online for free. No sign-up, no watermark, supports YouTube Shorts, and downloads high-quality audio in seconds.",
     images: ["/images/og-default.png"],
   },
 };
@@ -55,7 +55,7 @@ export const metadata: Metadata = {
 const webAppJsonLd = {
   "@context": "https://schema.org",
   "@type": "WebApplication",
-  name: "YouTube to WAV Converter",
+  name: "YouTube to WAV & MP3 Converter",
   url: `${SITE_URL}/youtube-to-wav`,
   applicationCategory: "MultimediaApplication",
   operatingSystem: "Any",
@@ -100,7 +100,7 @@ const howToJsonLd = {
     { "@type": "HowToStep", name: "Copy the link", text: "Copy a YouTube video, Shorts, or youtu.be URL." },
     { "@type": "HowToStep", name: "Paste it", text: "Paste the link into the converter." },
     { "@type": "HowToStep", name: "Choose a format", text: "Select WAV for lossless audio or MP3 for a smaller file." },
-    { "@type": "HowToStep", name: "Convert and download", text: "Click Convert and download your audio file, usually within 20-40 seconds." },
+    { "@type": "HowToStep", name: "Convert and download", text: "Click Convert and download your audio file, usually within 8-20 seconds." },
   ],
 };
 
@@ -127,7 +127,7 @@ const faqs = [
   {
     question: "How long does conversion take?",
     answer:
-      "Most videos convert to WAV or MP3 in 20–40 seconds, with no queue or wait time.",
+      "Most videos convert to WAV or MP3 in 8–20 seconds, with no queue or wait time.",
   },
   {
     question: "Does it work on mobile?",
@@ -212,7 +212,7 @@ export default function YouTubeToWavPage() {
           {[
             {
               title: "Fast",
-              desc: "Most conversions finish in 20–40 seconds, no queue.",
+              desc: "Most conversions finish in 8–20 seconds, no queue.",
             },
             {
               title: "High quality",
@@ -248,7 +248,7 @@ export default function YouTubeToWavPage() {
             <li>Copy a YouTube video, Shorts, or youtu.be URL.</li>
             <li>Paste it into the converter above.</li>
             <li>Choose WAV for lossless audio or MP3 for a smaller file.</li>
-            <li>Click Convert and download — usually ready in 20–40 seconds.</li>
+            <li>Click Convert and download — usually ready in 8-20 seconds.</li>
           </ol>
           <p className="text-text-muted leading-relaxed">
             If you&apos;re not sure which format to pick: WAV is the better

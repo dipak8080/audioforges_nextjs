@@ -8,7 +8,7 @@ import { getRelatedTools } from "@/lib/data/tools";
 export const metadata: Metadata = {
   title: "Free Audio Speed Changer | Tempo Changer",
   description:
-    "Speed up or slow down audio free, no sign-up — from 50% to 200% speed, pitch stays the same. Works on MP3, WAV, FLAC, and more.",
+    "Speed up or slow down audio free, no sign-up, from 50% to 200% speed, pitch stays the same. Works on MP3, WAV, FLAC, and more.",
   keywords: [
     "audio speed changer",
     "change tempo without pitch",
@@ -25,8 +25,9 @@ export const metadata: Metadata = {
   ],
   alternates: { canonical: `${SITE_URL}/tempo` },
   openGraph: {
-    title: "Free Audio Speed Changer – Change Tempo Without Changing Pitch",
-    description: "Speed up or slow down audio free, no sign-up. Pitch stays the same.",
+    title: "Free Audio Speed Changer | Tempo Changer",
+    description:
+      "Speed up or slow down audio free, no sign-up, from 50% to 200% speed, pitch stays the same. Works on MP3, WAV, FLAC, and more.",
     url: `${SITE_URL}/tempo`,
     siteName: SITE_NAME,
     type: "website",
@@ -41,8 +42,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Free Audio Speed Changer – Change Tempo Without Changing Pitch",
-    description: "Speed up or slow down audio free, no sign-up. Pitch stays the same.",
+    title: "Free Audio Speed Changer | Tempo Changer",
+    description:
+      "Speed up or slow down audio free, no sign-up, from 50% to 200% speed, pitch stays the same. Works on MP3, WAV, FLAC, and more.",
     images: ["/images/og-default.png"],
   },
 };
@@ -150,7 +152,7 @@ export default function TempoPage() {
             Free Audio Speed Changer
           </h1>
           <p className="text-lg text-text-muted max-w-xl mx-auto">
-            Speed up or slow down a track without changing its pitch — free, no
+            Speed up or slow down a track without changing its pitch, free, no
             sign-up, no watermark.
           </p>
         </header>

@@ -5,9 +5,9 @@ import { FAQSection } from "@/components/faq/FAQSection";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
 
-const PAGE_TITLE = "Free Mono to Stereo & Stereo to Mono Converter";
+const PAGE_TITLE = "Free Audio to Stereo & Mono Converter";
 const PAGE_DESCRIPTION =
-  "Convert audio to stereo or mono, free. Downmix stereo to mono or duplicate mono to stereo — no sign-up, no watermark.";
+  "Convert audio to stereo or mono, free. Downmix stereo to mono, or duplicate mono to stereo. No sign-up, no watermark.";
 
 export const metadata: Metadata = {
   title: PAGE_TITLE,
@@ -144,12 +144,11 @@ export default function ChannelsPage() {
       <main className="mx-auto max-w-3xl px-4 py-12 sm:py-16 space-y-12">
         <header className="text-center space-y-4">
           <h1 className="text-4xl font-bold tracking-tight sm:text-5xl text-text-primary">
-            Free Mono to Stereo &amp; Stereo to Mono Converter
+            Free Audio to Stereo &amp; Mono Converter
           </h1>
           <p className="text-lg text-text-muted max-w-xl mx-auto">
-            Convert audio to stereo or mono — free, no sign-up, no
-            watermark. Downmix stereo to mono, or duplicate mono to stereo,
-            in seconds.
+            Convert audio to stereo or mono, free. No sign-up, no watermark.
+            Downmix stereo to mono, or duplicate mono to stereo, in seconds.
           </p>
         </header>
 

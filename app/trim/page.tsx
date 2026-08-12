@@ -26,7 +26,8 @@ export const metadata: Metadata = {
   alternates: { canonical: `${SITE_URL}/trim` },
   openGraph: {
     title: "Free Audio Trimmer — Cut Any Track Online",
-    description: "Trim or cut audio free, no sign-up.",
+    description:
+      "Trim or cut audio files online free. Cut MP3, WAV, FLAC, AAC, M4A, OGG, and AIFF with a precise start and end point. No sign-up, no watermark.",
     url: `${SITE_URL}/trim`,
     siteName: SITE_NAME,
     type: "website",
@@ -42,7 +43,8 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "Free Audio Trimmer — Cut Any Track Online",
-    description: "Trim or cut audio free, no sign-up.",
+    description:
+      "Trim or cut audio files online free. Cut MP3, WAV, FLAC, AAC, M4A, OGG, and AIFF with a precise start and end point. No sign-up, no watermark.",
     images: ["/images/og-default.png"],
   },
 };
@@ -164,7 +166,7 @@ export default function TrimPage() {
             Free Audio Trimmer
           </h1>
           <p className="text-lg text-text-muted max-w-xl mx-auto">
-            Cut any audio file down to just the part you need — free, no sign-up, no
+            Cut any audio file down to just the part you need, free, no sign-up, no
             watermark.
           </p>
         </header>

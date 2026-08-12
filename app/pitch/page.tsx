@@ -29,7 +29,8 @@ export const metadata: Metadata = {
   alternates: { canonical: `${SITE_URL}/pitch` },
   openGraph: {
     title: "Free Pitch Shifter — Change Key Without Changing Speed",
-    description: "Shift audio pitch free, no sign-up, independent of tempo.",
+    description:
+      "Change audio pitch or transpose music online for free. Shift MP3, WAV, FLAC, AAC, M4A, OGG, and AIFF up or down by up to 12 semitones without changing tempo.",
     url: `${SITE_URL}/pitch`,
     siteName: SITE_NAME,
     type: "website",
@@ -45,7 +46,8 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "Free Pitch Shifter — Change Key Without Changing Speed",
-    description: "Shift audio pitch free, no sign-up, independent of tempo.",
+    description:
+      "Change audio pitch or transpose music online for free. Shift MP3, WAV, FLAC, AAC, M4A, OGG, and AIFF up or down by up to 12 semitones without changing tempo.",
     images: ["/images/og-default.png"],
   },
 };
@@ -139,7 +141,7 @@ export default function PitchPage() {
             Free Pitch Shifter
           </h1>
           <p className="text-lg text-text-muted max-w-xl mx-auto">
-            Shift a track&apos;s pitch up or down without touching its tempo — free, no
+            Shift a track&apos;s pitch up or down without touching its tempo, free, no
             sign-up, no watermark.
           </p>
         </header>

@@ -6,9 +6,9 @@ import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
 
 export const metadata: Metadata = {
-  title: "Volume Booster - Increase or Reduce Audio Volume Online",
+  title: "Free Audio Volume Booster — Increase or Reduce Volume Online",
   description:
-    "Increase or reduce audio volume online free — adjust gain from -30dB to +30dB on MP3, WAV, FLAC, and more. No sign-up, no watermark, fast processing.",
+    "Increase or reduce audio volume online free. Adjust gain from -30dB to +30dB on MP3, WAV, FLAC, and more. No sign-up, no watermark, fast processing.",
   keywords: [
     "volume booster",
     "audio volume booster",
@@ -24,8 +24,9 @@ export const metadata: Metadata = {
   ],
   alternates: { canonical: `${SITE_URL}/volume` },
   openGraph: {
-    title: "Volume Booster - Increase or Reduce Audio Volume Online",
-    description: "Increase or reduce audio volume online, free and fast.",
+    title: "Free Audio Volume Booster — Increase or Reduce Volume Online",
+    description:
+      "Increase or reduce audio volume online free. Adjust gain from -30dB to +30dB on MP3, WAV, FLAC, and more. No sign-up, no watermark, fast processing.",
     url: `${SITE_URL}/volume`,
     siteName: SITE_NAME,
     type: "website",
@@ -40,8 +41,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Volume Booster - Increase or Reduce Audio Volume Online",
-    description: "Increase or reduce audio volume online, free and fast.",
+    title: "Free Audio Volume Booster — Increase or Reduce Volume Online",
+    description:
+      "Increase or reduce audio volume online free. Adjust gain from -30dB to +30dB on MP3, WAV, FLAC, and more. No sign-up, no watermark, fast processing.",
     images: ["/images/og-default.png"],
   },
 };
@@ -49,7 +51,7 @@ export const metadata: Metadata = {
 const webAppJsonLd = {
   "@context": "https://schema.org",
   "@type": "WebApplication",
-  name: "Audio Volume Adjuster",
+  name: "Audio Volume Booster",
   url: `${SITE_URL}/volume`,
   applicationCategory: "MultimediaApplication",
   operatingSystem: "Any",
@@ -67,7 +69,7 @@ const breadcrumbJsonLd = {
   "@type": "BreadcrumbList",
   itemListElement: [
     { "@type": "ListItem", position: 1, name: "Home", item: SITE_URL },
-    { "@type": "ListItem", position: 2, name: "Volume Adjuster", item: `${SITE_URL}/volume` },
+    { "@type": "ListItem", position: 2, name: "Volume Booster", item: `${SITE_URL}/volume` },
   ],
 };
 
@@ -157,10 +159,10 @@ export default function VolumePage() {
       <main className="mx-auto max-w-3xl px-4 py-12 sm:py-16 space-y-12">
         <header className="text-center space-y-4">
           <h1 className="text-4xl font-bold tracking-tight sm:text-5xl text-text-primary">
-            Audio Volume Booster
+            Free Audio Volume Booster
           </h1>
           <p className="text-lg text-text-muted max-w-xl mx-auto">
-            Increase or reduce audio volume online, free — no sign-up, no
+            Increase or reduce audio volume online, free, no sign-up, no
             watermark. Adjust gain and download in seconds.
           </p>
         </header>

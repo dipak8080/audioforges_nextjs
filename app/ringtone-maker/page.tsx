@@ -15,7 +15,7 @@ export const metadata: Metadata = {
   alternates: { canonical: `${SITE_URL}/ringtone-maker` },
   openGraph: {
     title: PAGE_TITLE,
-    description: "Turn any song into an iPhone ringtone, free — no iTunes required.",
+    description: PAGE_DESCRIPTION,
     url: `${SITE_URL}/ringtone-maker`,
     siteName: SITE_NAME,
     type: "website",
@@ -24,7 +24,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: PAGE_TITLE,
-    description: "Turn any song into an iPhone ringtone, free — no iTunes required.",
+    description: PAGE_DESCRIPTION,
     images: ["/images/og-default.png"],
   },
 };
@@ -129,7 +129,7 @@ export default function RingtoneMakerPage() {
             Free iPhone Ringtone Maker
           </h1>
           <p className="text-lg text-text-muted max-w-xl mx-auto">
-            Turn any song into an iPhone-ready ringtone (M4R) — free, no
+            Turn any song into an iPhone-ready ringtone (M4R), free, no
             iTunes, no sign-up, no watermark.
           </p>
         </header>

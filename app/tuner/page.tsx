@@ -14,8 +14,7 @@ export const metadata: Metadata = {
   alternates: { canonical: `${SITE_URL}/tuner` },
   openGraph: {
     title: PAGE_TITLE,
-    description:
-      "Tune guitar, bass, ukulele, violin, and other instruments online with your microphone. Free chromatic tuner with real-time pitch detection.",
+    description: PAGE_DESCRIPTION,
     url: `${SITE_URL}/tuner`,
     siteName: SITE_NAME,
     type: "website",
@@ -24,7 +23,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: PAGE_TITLE,
-    description: "Tune guitar, bass, ukulele, violin, and other instruments online with your microphone.",
+    description: PAGE_DESCRIPTION,
     images: ["/images/og-default.png"],
   },
 };
@@ -44,7 +43,7 @@ const webAppJsonLd = {
     "Free online guitar tuner",
     "Chromatic tuner for all 12 notes",
     "Real-time microphone pitch detection",
-    "Tune guitar, bass, ukulele, violin and other instruments",
+    "Tune guitar, bass, ukulele, violin, viola, cello, and other instruments",
     "Sharp and flat cents indicator",
     "Works directly in the browser",
     "No download or sign-up required",
@@ -194,9 +193,9 @@ export default function TunerPage() {
           <p className="text-text-muted leading-relaxed">
             This is a chromatic tuner, so it can detect all twelve notes of
             the musical scale rather than being limited to one instrument or
-            tuning. Use it for guitar, bass, ukulele, violin, cello, brass,
-            woodwinds, vocals, and other instruments that produce a clear
-            pitch.
+            tuning. Use it for guitar, bass, ukulele, violin, viola, cello,
+            flute, clarinet, trumpet, vocals, and other instruments that
+            produce a clear pitch.
           </p>
           <p className="text-text-muted leading-relaxed">
             The tuner shows the detected note, frequency, and cents

@@ -66,7 +66,13 @@ export default function TermsPage() {
             Uploaded files are processed only for the requested operation and are
             not retained longer than necessary to complete processing — you are
             responsible for keeping your own copies of any files you upload or
-            results you generate.
+            results you generate. Some processing, including AI vocal separation
+            and stem splitting, runs on third-party compute infrastructure under
+            the same no-permanent-storage handling; see our{" "}
+            <Link href="/privacy" className="text-amber-400 hover:underline">
+              Privacy Policy
+            </Link>{" "}
+            for the specific providers involved.
           </p>
           <p>
             Some browser-based tools, including the instrument tuner and the online
@@ -81,8 +87,8 @@ export default function TermsPage() {
           <h2 className="text-xl font-semibold text-text-primary">3. Prohibited use</h2>
           <p>
             You may not use AudioForges to infringe copyright, circumvent digital
-            rights protections for commercial resale, or process content you do not
-            have the right to access.
+            rights protections or access restrictions on copyrighted content, or
+            process content you do not have the right to access.
           </p>
         </section>
 

@@ -4,17 +4,19 @@ import { ArrowRight, AudioWaveform, Music4, Zap, LayoutGrid } from "lucide-react
 import { SITE_URL } from "@/lib/constants";
 import { CATEGORY_ORDER, getToolsByCategory, getLiveTools } from "@/lib/data/tools";
 
+const PAGE_TITLE = "Free Audio Tools for Music Producers, DJs & Musicians";
+const PAGE_DESCRIPTION =
+  "Free online audio tools for producers, DJs, and musicians. Convert, edit, clean, analyze, tune instruments, find BPM, and practice with a metronome. No sign-up required.";
+
 export const metadata: Metadata = {
-  title: "Free Audio Tools for Music Producers, DJs & Musicians",
-description:
-  "Free online audio tools for producers, DJs, and musicians - convert, edit, clean, analyze, tune, find BPM, and practice with a metronome.",
+  title: PAGE_TITLE,
+  description: PAGE_DESCRIPTION,
   alternates: {
     canonical: SITE_URL,
   },
   openGraph: {
-    title: "Free Audio Tools for Music Producers, DJs & Musicians",
-    description:
-      "Free online audio tools for producers, DJs, and musicians — convert, edit, clean, analyze, tune instruments, find BPM, and practice with a metronome. No sign-up required.",
+    title: PAGE_TITLE,
+    description: PAGE_DESCRIPTION,
     url: SITE_URL,
     siteName: "AudioForges",
     type: "website",
@@ -29,9 +31,8 @@ description:
   },
   twitter: {
     card: "summary_large_image",
-    title: "Free Audio Tools for Music Producers, DJs & Musicians",
-    description:
-      "Free online audio tools for producers, DJs, and musicians — convert, edit, clean, analyze, tune instruments, find BPM, and practice with a metronome. No sign-up required.",
+    title: PAGE_TITLE,
+    description: PAGE_DESCRIPTION,
     images: ["/images/og-default.png"],
   },
 };
@@ -131,7 +132,7 @@ export default function HomePage() {
           </h1>
           <p className="text-lg text-text-muted max-w-2xl mx-auto">
             No sign-up, no watermark, no artificial limits. Convert, edit,
-            clean up, analyze, tune, and practice — all in one place.
+            clean up, analyze, tune, and practice, all in one place.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
             <Link

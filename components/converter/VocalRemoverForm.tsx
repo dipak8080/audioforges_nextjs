@@ -34,7 +34,7 @@ interface QualitySpec {
 const STANDARD_SPEC: QualitySpec = {
   value: "standard",
   label: "Standard",
-  time: "30 sec–2 min",
+  time: "20 sec–1 min",
   detail: "Vocals and instrumental",
   rateLimit: "3 per hour",
 };
@@ -42,7 +42,7 @@ const STANDARD_SPEC: QualitySpec = {
 const HQ_SPEC: QualitySpec = {
   value: "hq",
   label: "Studio Quality",
-  time: "3–6 min",
+  time: "1–2 min",
   detail: "Cleaner separation, same 2 stems",
   rateLimit: "1 per hour",
 };
@@ -54,11 +54,13 @@ const STANDARD_STAGES = [
   { at: 40, label: "Rendering vocals and instrumental" },
 ];
 
+// Rescaled to fit the current 1–2 min Studio Quality time (previously
+// ran to 240s / 4 min, which no longer fit within the corrected estimate).
 const HQ_STAGES = [
   { at: 0, label: "Uploading and queuing" },
-  { at: 10, label: "Running the studio-quality model" },
-  { at: 90, label: "Isolating vocals" },
-  { at: 240, label: "Refining and rendering both stems" },
+  { at: 5, label: "Running the studio-quality model" },
+  { at: 35, label: "Isolating vocals" },
+  { at: 90, label: "Refining and rendering both stems" },
 ];
 
 // Must cover the BACKEND's actual timeout ceiling (DEMUCS_TIMEOUT_SECONDS
@@ -309,7 +311,10 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
     for (const s of stages) if (elapsedSeconds >= s.at) label = s.label;
     return label;
   })();
-  const progress = Math.min(92, Math.round((1 - Math.exp(-elapsedSeconds / (isHq ? 90 : 12))) * 100));
+  // Progress curve time constants tuned to roughly match each tier's real
+  // expected duration above (HQ constant lowered from 90 to 40 to match
+  // the corrected ~1–2 min HQ time instead of the old ~3–6 min estimate).
+  const progress = Math.min(92, Math.round((1 - Math.exp(-elapsedSeconds / (isHq ? 40 : 12))) * 100));
 
   return (
     <div className="overflow-hidden rounded-2xl border border-graphite-800 bg-graphite-900">
@@ -373,7 +378,7 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
             {isHq && (
               <p className="flex items-start gap-1.5 text-[11px] text-text-subtle">
                 <Info className="mt-0.5 h-3 w-3 shrink-0" aria-hidden />
-                Studio Quality can take a few minutes — the notification below saves you from babysitting
+                Studio Quality can take a minute or two. The notification below saves you from babysitting
                 this tab.
               </p>
             )}

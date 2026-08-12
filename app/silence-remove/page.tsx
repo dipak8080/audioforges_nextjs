@@ -24,7 +24,8 @@ export const metadata: Metadata = {
   alternates: { canonical: `${SITE_URL}/silence-remove` },
   openGraph: {
     title: "Free Silence Remover — Cut Dead Air From Any Recording",
-    description: "Strip silent gaps from a recording free, no sign-up.",
+    description:
+      "Strip silent gaps from a podcast, audiobook, or recording online free. Removes dead air throughout, not just the ends. No sign-up, download in seconds.",
     url: `${SITE_URL}/silence-remove`,
     siteName: SITE_NAME,
     type: "website",
@@ -40,7 +41,8 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "Free Silence Remover — Cut Dead Air From Any Recording",
-    description: "Strip silent gaps from a recording free, no sign-up.",
+    description:
+      "Strip silent gaps from a podcast, audiobook, or recording online free. Removes dead air throughout, not just the ends. No sign-up, download in seconds.",
     images: ["/images/og-default.png"],
   },
 };
@@ -130,8 +132,8 @@ export default function SilenceRemovePage() {
             Free Silence Remover
           </h1>
           <p className="text-lg text-text-muted max-w-xl mx-auto">
-            Cut dead air throughout a recording — not just the start and end — free,
-            no sign-up, no watermark.
+            Cut dead air throughout a recording, not just the start and end,
+            free, no sign-up, no watermark.
           </p>
         </header>
 

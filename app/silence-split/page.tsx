@@ -183,7 +183,7 @@ export default function SilenceSplitPage() {
           <p className="text-lg text-text-muted max-w-xl mx-auto">
             Upload one long recording and split it automatically at every
             silent gap. Adjust the silence threshold and minimum gap length to
-            control exactly where it cuts — free, no sign-up, no watermark.
+            control exactly where it cuts, free, no sign-up, no watermark.
           </p>
         </header>
 

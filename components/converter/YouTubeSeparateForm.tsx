@@ -28,7 +28,7 @@ interface QualitySpec {
 const STANDARD_SPEC: QualitySpec = {
   value: "standard",
   label: "Standard",
-  time: "1–3 min",
+  time: "30 sec–1 min",
   detail: "Vocals and instrumental",
   rateLimit: "3 per hour",
 };
@@ -36,23 +36,27 @@ const STANDARD_SPEC: QualitySpec = {
 const HQ_SPEC: QualitySpec = {
   value: "hq",
   label: "Studio Quality",
-  time: "4–7 min",
+  time: "1–2 min",
   detail: "Cleaner separation, same 2 stems",
   rateLimit: "1 per hour",
 };
 
+// Stage timestamps (seconds elapsed) are proportional progress-indicator
+// cues, rescaled to match the current GPU-era processing times above —
+// NOT the backend timeout ceiling (see maxPollMs below, which intentionally
+// stays much higher as a safety margin).
 const STANDARD_STAGES = [
   { at: 0, label: "Downloading the audio" },
-  { at: 10, label: "Analyzing frequencies" },
-  { at: 30, label: "Isolating vocals" },
-  { at: 80, label: "Rendering vocals and instrumental" },
+  { at: 5, label: "Analyzing frequencies" },
+  { at: 15, label: "Isolating vocals" },
+  { at: 40, label: "Rendering vocals and instrumental" },
 ];
 
 const HQ_STAGES = [
   { at: 0, label: "Downloading the audio" },
-  { at: 15, label: "Running the studio-quality model" },
-  { at: 120, label: "Isolating vocals" },
-  { at: 300, label: "Rendering vocals and instrumental" },
+  { at: 5, label: "Running the studio-quality model" },
+  { at: 30, label: "Isolating vocals" },
+  { at: 90, label: "Rendering vocals and instrumental" },
 ];
 
 function SeparateResult({ jobId, title }: { jobId: string; title: string | null }) {
@@ -222,7 +226,7 @@ export function YouTubeSeparateForm({ hqAvailable = false }: YouTubeSeparateForm
               {isHq && (
                 <p className="flex items-start gap-1.5 text-[11px] text-text-subtle">
                   <Info className="mt-0.5 h-3 w-3 shrink-0" aria-hidden />
-                  Studio Quality can take a few minutes, plus the download. Keep this tab open.
+                  Studio Quality can take a minute or two, plus the download. Keep this tab open.
                 </p>
               )}
             </fieldset>

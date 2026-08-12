@@ -21,7 +21,7 @@ interface QualitySpec {
 const STANDARD_SPEC: QualitySpec = {
   value: "standard",
   label: "Standard",
-  time: "30 sec–2 min",
+  time: "20 sec–1 min",
   detail: "Vocals, drums, bass, other",
   rateLimit: "3 per hour",
 };
@@ -29,25 +29,28 @@ const STANDARD_SPEC: QualitySpec = {
 const HQ_SPEC: QualitySpec = {
   value: "hq",
   label: "Studio Quality",
-  time: "3–6 min",
+  time: "1–2 min",
   detail: "Cleaner separation, same 4 stems",
   rateLimit: "1 per hour",
 };
 
+// Stage timestamps rescaled to fit the corrected times above — previously
+// ran to 80s (standard) and 280s (HQ), well beyond the current ~1 min and
+// ~2 min estimates.
 const STANDARD_STAGES = [
   { at: 0, label: "Uploading and queuing" },
   { at: 5, label: "Analyzing frequencies" },
-  { at: 20, label: "Isolating vocals" },
-  { at: 45, label: "Isolating drums and bass" },
-  { at: 80, label: "Rendering stems" },
+  { at: 10, label: "Isolating vocals" },
+  { at: 20, label: "Isolating drums and bass" },
+  { at: 40, label: "Rendering stems" },
 ];
 
 const HQ_STAGES = [
   { at: 0, label: "Uploading and queuing" },
-  { at: 10, label: "Running the studio-quality model" },
-  { at: 90, label: "Separating vocals" },
-  { at: 180, label: "Separating drums and bass" },
-  { at: 280, label: "Refining and rendering stems" },
+  { at: 5, label: "Running the studio-quality model" },
+  { at: 30, label: "Separating vocals" },
+  { at: 65, label: "Separating drums and bass" },
+  { at: 95, label: "Refining and rendering stems" },
 ];
 
 export function StemsForm({ hqAvailable = false }: StemsFormProps) {
@@ -164,7 +167,7 @@ export function StemsForm({ hqAvailable = false }: StemsFormProps) {
               {isHq && (
                 <p className="flex items-start gap-1.5 text-[11px] text-text-subtle">
                   <Info className="mt-0.5 h-3 w-3 shrink-0" aria-hidden />
-                  Studio Quality can take a few minutes. Worth turning on the notification below so you
+                  Studio Quality can take a minute or two. Worth turning on the notification below so you
                   don&apos;t have to babysit this tab.
                 </p>
               )}

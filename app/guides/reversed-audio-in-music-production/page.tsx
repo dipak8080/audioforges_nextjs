@@ -42,6 +42,9 @@ const articleJsonLd = {
   datePublished: guide.publishedDate,
   dateModified: guide.updatedDate,
   author: { "@type": "Organization", name: "AudioForges" },
+  publisher: { "@type": "Organization", name: "AudioForges" },
+  image: `${SITE_URL}/images/og-default.png`,
+  mainEntityOfPage: `${SITE_URL}/guides/${guide.slug}`,
 };
 
 export default function ReversedAudioGuidePage() {

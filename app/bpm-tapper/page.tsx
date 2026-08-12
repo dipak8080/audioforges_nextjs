@@ -116,7 +116,7 @@ export default function BpmTapperPage() {
             Free BPM Tapper
           </h1>
           <p className="text-lg text-text-muted max-w-xl mx-auto">
-            Tap along to a beat and find its BPM and tempo in seconds — free,
+            Tap along to a beat and find its BPM and tempo in seconds, free,
             no sign-up, right in your browser.
           </p>
         </header>

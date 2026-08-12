@@ -93,11 +93,11 @@ export default function RingtoneGuidePage() {
 
           <section className="space-y-3">
             <h2 className="text-2xl font-bold text-text-primary">
-              Why the 40-second limit exists
+              Why the 30-second limit exists
             </h2>
             <p>
               This isn&apos;t an arbitrary restriction — it&apos;s Apple&apos;s
-              own maximum length for a ringtone. A clip longer than 40
+              own maximum length for a ringtone. A clip longer than 30
               seconds isn&apos;t a valid ringtone on iOS no matter how it was
               created or what tool made it, so any ringtone maker worth using
               caps length at that limit rather than handing you a file that
@@ -110,7 +110,7 @@ export default function RingtoneGuidePage() {
               Picking a good section of a song
             </h2>
             <p>
-              With 40 seconds to work with, the chorus or hook of a song
+              With 30 seconds to work with, the chorus or hook of a song
               usually makes a better ringtone than the intro, since intros
               are often quieter or slower to get going — not ideal for
               something that needs to grab attention immediately when a call
@@ -149,7 +149,7 @@ export default function RingtoneGuidePage() {
               Ringtones on Android
             </h2>
             <p>
-              Android doesn&apos;t require the .m4r extension or the 40-second
+              Android doesn&apos;t require the .m4r extension or the 30-second
               cap the way iOS does — a standard MP3 works as a notification
               or ringtone sound without any special formatting. The{" "}
               <Link href="/convert" className="text-amber-400 hover:underline">

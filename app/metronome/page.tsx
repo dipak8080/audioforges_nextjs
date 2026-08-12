@@ -122,7 +122,7 @@ export default async function MetronomePage({ searchParams }: MetronomePageProps
             Free Online Metronome
           </h1>
           <p className="text-lg text-text-muted max-w-xl mx-auto">
-            Adjustable BPM and time signature, right in your browser — free,
+            Adjustable BPM and time signature, right in your browser, free,
             no sign-up, no app.
           </p>
         </header>
@@ -188,6 +188,13 @@ export default async function MetronomePage({ searchParams }: MetronomePageProps
             rhythm are secure. A tempo like 60 BPM gives one beat per
             second, while 120 BPM gives two beats per second. Use the BPM
             controls above to find the tempo that fits your practice.
+          </p>
+          <p className="text-text-muted leading-relaxed">
+            Practicing an instrument and need to check pitch too? The{" "}
+            <Link href="/tuner" className="text-amber-400 hover:underline">
+              Online Tuner
+            </Link>{" "}
+            runs the same way, directly in your browser.
           </p>
         </section>
 

@@ -146,7 +146,7 @@ export default function VideoToAudioPage() {
             Free Video to Audio Converter
           </h1>
           <p className="text-lg text-text-muted max-w-xl mx-auto">
-            Extract audio from MP4, MOV, MKV, and other video files — free, no
+            Extract audio from MP4, MOV, MKV, and other video files, free, no
             sign-up, no watermark.
           </p>
         </header>

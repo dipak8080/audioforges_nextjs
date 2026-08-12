@@ -156,7 +156,7 @@ export default function FixingEchoGuidePage() {
               inconsistent loudness, tackle those together rather than in
               isolation. Our{" "}
               <Link href="/echo-remove" className="text-amber-400 hover:underline">
-                Echo Reducer
+                Echo Remover
               </Link>{" "}
               targets mild room echo and slap-back specifically. If your
               recording is speech with noise or level problems on top of the
@@ -174,7 +174,7 @@ export default function FixingEchoGuidePage() {
             href="/echo-remove"
             className="inline-flex items-center gap-2 rounded-lg bg-amber-500 text-graphite-950 font-medium px-6 py-3 hover:bg-amber-400 transition-colors"
           >
-            Try the Echo Reducer
+            Try the Echo Remover
             <ArrowRight className="h-4 w-4" />
           </Link>
           <Link

@@ -30,7 +30,8 @@ export const metadata: Metadata = {
   alternates: { canonical: `${SITE_URL}/reverse` },
   openGraph: {
     title: "Free Audio Reverser — Play a Track Backwards",
-    description: "Reverse any audio file free, no sign-up.",
+    description:
+      "Reverse MP3, WAV, FLAC, AAC, M4A, OGG, and AIFF files online for free. Create backwards audio instantly with no sign-up, no watermark, and no software required.",
     url: `${SITE_URL}/reverse`,
     siteName: SITE_NAME,
     type: "website",
@@ -46,7 +47,8 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "Free Audio Reverser — Play a Track Backwards",
-    description: "Reverse any audio file free, no sign-up.",
+    description:
+      "Reverse MP3, WAV, FLAC, AAC, M4A, OGG, and AIFF files online for free. Create backwards audio instantly with no sign-up, no watermark, and no software required.",
     images: ["/images/og-default.png"],
   },
 };
@@ -139,7 +141,7 @@ export default function ReversePage() {
             Free Audio Reverser
           </h1>
           <p className="text-lg text-text-muted max-w-xl mx-auto">
-            Upload a track and get it back flipped backwards — free, no sign-up, no
+            Upload a track and get it back flipped backwards, free, no sign-up, no
             watermark.
           </p>
         </header>

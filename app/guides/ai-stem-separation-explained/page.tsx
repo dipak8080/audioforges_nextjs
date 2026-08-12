@@ -132,14 +132,15 @@ export default function AiStemSeparationGuidePage() {
             </h2>
             <p>
               Standard mode runs a single pass of the separation model and
-              finishes in a few minutes — good for a quick check or casual
-              use. Studio Quality runs a larger, ensembled model instead of a
-              single pass, which produces noticeably cleaner separation across
-              all four stems, at the cost of 10–20 minutes instead of a few.
-              The extra time buys real improvement specifically on the
-              harder cases — bass/guitar overlap and busy drum programming —
-              which is why it&apos;s worth it when a stem is headed into an
-              actual mix rather than just a preview.
+              finishes in under a minute on our GPU-accelerated
+              infrastructure. Studio Quality runs a larger, ensembled model
+              instead of a single pass, which produces noticeably cleaner
+              separation across all four stems, at the cost of 1 to 2
+              minutes instead of 20 seconds to 1 minute. The extra time buys
+              real improvement specifically on the harder cases — bass/guitar
+              overlap and busy drum programming — which is why it&apos;s
+              worth it when a stem is headed into an actual mix rather than
+              just a preview.
             </p>
           </section>
 
@@ -153,8 +154,13 @@ export default function AiStemSeparationGuidePage() {
               <Link href="/vocal-remover" className="text-amber-400 hover:underline">
                 Vocal Remover
               </Link>{" "}
-              does the same underlying separation and hands back one
-              instrumental instead of three additional stems to sort through.
+              (or the{" "}
+              <Link href="/youtube-vocal-remover" className="text-amber-400 hover:underline">
+                YouTube Vocal Remover
+              </Link>{" "}
+              if you're starting from a link) does the same underlying
+              separation and hands back one instrumental instead of three
+              additional stems to sort through.
               Reach for stem separation specifically when you need to isolate
               or rebuild around drums, bass, or another instrument on its own —
               sampling a bassline, remixing with someone else&apos;s drum
@@ -168,17 +174,30 @@ export default function AiStemSeparationGuidePage() {
               </Link>{" "}
               runs this exact process — upload a track and get back all four
               stems individually, no account or software install needed.
+              Working from a YouTube link instead of a file already saved on
+              your device? The{" "}
+              <Link href="/youtube-stem-splitter" className="text-amber-400 hover:underline">
+                YouTube Stem Splitter
+              </Link>{" "}
+              runs the identical separation, just starting from a pasted
+              link instead of an upload.
             </p>
           </section>
         </div>
 
-        <div className="pt-6 border-t border-graphite-800">
+        <div className="pt-6 border-t border-graphite-800 flex flex-wrap gap-3">
           <Link
             href="/stems"
             className="inline-flex items-center gap-2 rounded-lg bg-amber-500 text-graphite-950 font-medium px-6 py-3 hover:bg-amber-400 transition-colors"
           >
             Try the AI Stem Splitter
             <ArrowRight className="h-4 w-4" />
+          </Link>
+          <Link
+            href="/youtube-stem-splitter"
+            className="inline-flex items-center gap-2 rounded-lg border border-graphite-700 text-text-primary font-medium px-6 py-3 hover:border-amber-500/40 transition-colors"
+          >
+            Try the YouTube Stem Splitter
           </Link>
         </div>
       </main>

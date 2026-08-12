@@ -162,7 +162,7 @@ export default function FadePage() {
           </h1>
           <p className="text-lg text-text-muted max-w-xl mx-auto">
             Add a smooth fade in and/or fade out to an MP3, WAV, FLAC, M4A,
-            AAC, OGG, or AIFF file — free, no sign-up, no watermark.
+            AAC, OGG, or AIFF file, free, no sign-up, no watermark.
           </p>
         </header>
 

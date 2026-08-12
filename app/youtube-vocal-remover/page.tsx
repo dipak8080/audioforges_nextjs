@@ -84,14 +84,14 @@ export default async function YouTubeVocalRemoverPage() {
     {
       question: "How long does it take?",
       answer:
-        "Usually 1–3 minutes for standard quality — fetching the audio is the fast part, and the AI separation is what takes most of the time.",
+        "Usually 30 seconds to 1 minute for standard quality. Fetching the audio is the fast part, and the AI separation is what takes most of the time.",
     },
     ...(separationHqEnabled
       ? [
           {
             question: "What is Studio Quality mode?",
             answer:
-              "An optional higher-fidelity separation mode using a larger, ensembled AI model. It produces noticeably cleaner vocal and instrumental tracks, at the cost of a longer processing time — typically 4 to 7 minutes instead of 1–3 minutes.",
+              "An optional higher-fidelity separation mode using a larger, ensembled AI model. It produces noticeably cleaner vocal and instrumental tracks, at the cost of a longer processing time, typically 1 to 2 minutes instead of 30 seconds to 1 minute.",
           },
         ]
       : []),
@@ -162,8 +162,8 @@ export default async function YouTubeVocalRemoverPage() {
           </h1>
           <p className="text-lg text-text-muted max-w-xl mx-auto">
             AudioForges is an online YouTube vocal remover that separates
-            vocals from a song and gives you a vocal track and instrumental
-            — no download step, free, no sign-up.
+            vocals from a song and gives you a vocal track and instrumental,
+            no download step, free, no sign-up.
           </p>
         </header>
 
@@ -187,7 +187,7 @@ export default async function YouTubeVocalRemoverPage() {
           <h2 className="text-2xl font-bold text-text-primary">How to remove vocals from a YouTube video</h2>
           <ol className="list-decimal list-inside space-y-2 text-text-muted leading-relaxed">
             <li>Paste a YouTube video, Shorts, or youtu.be link.</li>
-            <li>The audio is fetched and separated automatically — usually 1–3 minutes.</li>
+            <li>The audio is fetched and separated automatically, usually 30 seconds to 1 minute.</li>
             <li>Preview and download the vocals, the instrumental, or both.</li>
           </ol>
         </section>
@@ -279,8 +279,8 @@ export default async function YouTubeVocalRemoverPage() {
                 <tbody className="divide-y divide-graphite-800">
                   <tr>
                     <td className="px-4 py-3 font-medium text-text-primary">Processing time</td>
-                    <td className="px-4 py-3">1–3 minutes</td>
-                    <td className="px-4 py-3">4–7 minutes</td>
+                    <td className="px-4 py-3">30 sec–1 minute</td>
+                    <td className="px-4 py-3">1–2 minutes</td>
                   </tr>
                   <tr>
                     <td className="px-4 py-3 font-medium text-text-primary">Separation quality</td>

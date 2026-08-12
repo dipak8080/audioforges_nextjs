@@ -2,15 +2,17 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { SITE_URL } from "@/lib/constants";
 
+const PAGE_TITLE = "About AudioForges — Free Online Audio Tools";
+const PAGE_DESCRIPTION =
+  "Learn about AudioForges and our mission to build free audio tools for producers, DJs, musicians, and creators.";
+
 export const metadata: Metadata = {
-  title: "About AudioForges — Free Online Audio Tools",
-description:
-"Learn about AudioForges and our mission to build free audio tools for producers, DJs, musicians, and creators.",
+  title: PAGE_TITLE,
+  description: PAGE_DESCRIPTION,
   alternates: { canonical: `${SITE_URL}/about` },
   openGraph: {
-    title: "About AudioForges — Free Audio Tools for Musicians & Creators",
-    description:
-      "Learn about AudioForges and our mission to build free audio tools for music producers, DJs, musicians, and creators — from audio editing and analysis to tuning, BPM, and metronome tools.",
+    title: PAGE_TITLE,
+    description: PAGE_DESCRIPTION,
     url: `${SITE_URL}/about`,
     siteName: "AudioForges",
     type: "website",
@@ -25,9 +27,8 @@ description:
   },
   twitter: {
     card: "summary_large_image",
-    title: "About AudioForges — Free Audio Tools for Musicians & Creators",
-    description:
-      "Learn about AudioForges and our mission to build free audio tools for music producers, DJs, musicians, and creators — from audio editing and analysis to tuning, BPM, and metronome tools.",
+    title: PAGE_TITLE,
+    description: PAGE_DESCRIPTION,
     images: ["/images/og-default.png"],
   },
 };
@@ -79,9 +80,10 @@ export default function AboutPage() {
           <strong className="text-text-primary">Vocal Remover</strong> uses real
           source-separation processing to split a track into vocal and instrumental
           stems — not a simple center-channel filter, which only partially removes
-          vocals and often damages the mix. Because this runs on CPU rather than
-          paid GPU infrastructure, it&apos;s limited to ten separations per hour per
-          person so it stays free and available for everyone.
+          vocals and often damages the mix. Separation runs on GPU-accelerated
+          infrastructure and is rate-limited per person to keep it available for
+          everyone: 3 separations per hour at standard quality, 1 per hour at
+          Studio Quality.
         </p>
         <p>
           <Link href="/bpm-tapper" className="text-amber-400 hover:underline">
@@ -105,12 +107,12 @@ export default function AboutPage() {
           format conversion, trimming, volume adjustment, reversing, pitch shifting,
           and tempo changes — plus cleanup tools purpose-built for different jobs:
           a general-purpose noise remover with adjustable strength, a one-click
-          Voice Cleaner tuned specifically for speech, an echo reducer for mild
+          Voice Cleaner tuned specifically for speech, an echo remover for mild
           room echo, a silence remover that strips dead air throughout a whole
-          recording, and a speech-to-text transcriber with timestamped SRT export.
-          Every tool follows the same rule as the original three: it exists because
-          it solved a real problem in an actual production or editing session, not
-          because it filled a gap in a feature list.
+          recording, and a Whisper-based speech-to-text transcriber with
+          timestamped SRT export. Every tool follows the same rule as the original
+          three: it exists because it solved a real problem in an actual production
+          or editing session, not because it filled a gap in a feature list.
         </p>
       </section>
 

@@ -36,7 +36,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Free Song Key & BPM Finder",
     description:
-      "Find any song's key, BPM, and Camelot notation free, instantly — no sign-up.",
+      "Find the musical key, BPM, tempo, and Camelot notation of any song online for free. Upload MP3, WAV, FLAC, AAC, M4A, or OGG. No sign-up required.",
     url: `${SITE_URL}/key-finder`,
     siteName: "AudioForges",
     type: "website",
@@ -53,7 +53,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Free Song Key & BPM Finder",
     description:
-      "Find any song's key, BPM, and Camelot notation free, instantly — no sign-up.",
+      "Find the musical key, BPM, tempo, and Camelot notation of any song online for free. Upload MP3, WAV, FLAC, AAC, M4A, or OGG. No sign-up required.",
     images: ["/images/og-default.png"],
   },
 };
@@ -151,7 +151,7 @@ export default function KeyFinderPage() {
             Free Song Key &amp; BPM Finder
           </h1>
           <p className="text-lg text-text-muted max-w-xl mx-auto">
-            Upload any song and instantly detect its musical key and tempo —
+            Upload any song and instantly detect its musical key and tempo,
             free, no sign-up, 100% web-based.
           </p>
         </header>
@@ -160,9 +160,9 @@ export default function KeyFinderPage() {
 
         <section className="grid gap-4 sm:grid-cols-3">
           {[
-            { title: "Instant", desc: "Results in a few seconds — no queue, no waiting." },
+            { title: "Instant", desc: "Results in a few seconds. No queue, no waiting." },
             { title: "Accurate", desc: "Key, BPM, and Camelot notation for confident mixing." },
-            { title: "Web-based", desc: "No install, no account — upload and go." },
+            { title: "Web-based", desc: "No install, no account. Upload and go." },
           ].map((f) => (
             <div key={f.title} className="rounded-xl border border-graphite-800 bg-graphite-900 p-5 space-y-2">
               <p className="font-semibold text-text-primary">{f.title}</p>

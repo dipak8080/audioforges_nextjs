@@ -29,6 +29,13 @@
 // aren't transcription (a voice changer, a lyrics generator), that's the
 // signal to reconsider the taxonomy again then - not a reason to keep a
 // technology-named bucket around now on the chance it might fit later.
+//
+// NOTE ON "Echo Remover" (2026-08-12): renamed from "Echo Reducer" to
+// match the actual page (title/H1/schema/breadcrumb) after keyword data
+// showed "echo remover" carries real, Easy-difficulty search volume while
+// "echo reducer" carries essentially none. This is category naming (like
+// "vocal remover"), not a claim of 100% removal — the page body copy still
+// accurately says "reduces mild echo," only the product name changed.
 
 export type ToolCategory =
   | "download"
@@ -262,7 +269,7 @@ export const TOOLS: Tool[] = [
   },
   {
     slug: "echo-remove",
-    name: "Echo Reducer",
+    name: "Echo Remover",
     shortDescription: "Reduce mild echo and slap-back in a recording.",
     category: "cleanup",
     status: "live",

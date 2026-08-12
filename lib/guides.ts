@@ -30,7 +30,7 @@ export const guides: Guide[] = [
     slug: "dj-set-prep-checklist",
     title: "DJ Set Prep Checklist: 6 Steps to a Set That Flows",
     description:
-      "A 6-step DJ set prep workflow: gather tracks, tag key and BPM, group by Camelot compatibility, and order for energy — before you play.",
+      "A 6-step DJ set prep workflow: gather tracks, tag key and BPM, group by Camelot compatibility, and order for energy before you play.",
     publishedDate: "2026-07-21",
     updatedDate: "2026-07-24",
     category: "dj-mixing",
@@ -57,7 +57,7 @@ export const guides: Guide[] = [
     slug: "lossless-vs-lossy-audio-formats",
     title: "Lossless vs Lossy Audio: Which Format to Use",
     description:
-      "The real difference between lossless and lossy audio — and why converting MP3 to WAV won't recover quality you've already lost.",
+      "The real difference between lossless and lossy audio, and why converting MP3 to WAV won't recover quality you've already lost.",
     publishedDate: "2026-07-24",
     updatedDate: "2026-07-24",
     category: "production",
@@ -120,7 +120,7 @@ export const guides: Guide[] = [
     slug: "podcast-audio-cleanup-checklist",
     title: "Podcast Audio Cleanup: A Practical Checklist",
     description:
-      "A step-by-step order for cleaning up a podcast recording — rumble, noise, and loudness — and why doing them in the wrong order gives a worse result.",
+      "A step-by-step order for cleaning up a podcast recording: rumble, noise, and loudness, and why doing them in the wrong order gives a worse result.",
     publishedDate: "2026-07-24",
     updatedDate: "2026-07-24",
     category: "podcast-cleanup",
@@ -147,7 +147,7 @@ export const guides: Guide[] = [
     slug: "transcribing-audio-accurately",
     title: "How to Get Accurate Audio Transcripts",
     description:
-      "What actually affects transcription accuracy — audio quality, overlapping speech, background noise — and how to prep a file before transcribing it.",
+      "What actually affects transcription accuracy: audio quality, overlapping speech, background noise, and how to prep a file before transcribing it.",
     publishedDate: "2026-07-24",
     updatedDate: "2026-07-24",
     category: "podcast-cleanup",
@@ -190,9 +190,9 @@ export const guides: Guide[] = [
   },
   {
     slug: "sample-rate-and-bit-depth-explained",
-    title: "Sample Rate and Bit Depth: What They Actually Change",
+    title: "What Is Sample Rate? Sample Rate and Bit Depth Explained",
     description:
-      "Why converting to a higher sample rate doesn't add quality, what bit depth actually controls, and when you genuinely need to change either.",
+      "What sample rate and bit depth actually measure, why converting to a higher sample rate doesn't add quality, and when you genuinely need to change either.",
     publishedDate: "2026-08-01",
     updatedDate: "2026-08-01",
     category: "production",
@@ -210,7 +210,7 @@ export const guides: Guide[] = [
     slug: "what-is-an-m4r-file-explained",
     title: "What Is an M4R File? iPhone Ringtone Explained",
     description:
-      "Why an M4R file is just AAC audio with a different extension, why iPhone ringtones cap at 40 seconds, and how to pick a good clip.",
+      "Why an M4R file is just AAC audio with a different extension, why iPhone ringtones cap at 30 seconds, and how to pick a good clip.",
     publishedDate: "2026-08-01",
     updatedDate: "2026-08-01",
     category: "production",

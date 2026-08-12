@@ -64,9 +64,6 @@ export default function TempoMatchingGuidePage() {
 
         <GuideByline publishedDate={guide.publishedDate} updatedDate={guide.updatedDate} />
 
-        <section className="space-y-3">
-        </section>
-
         <div className="space-y-6 text-text-muted leading-relaxed">
           <p>
             Matching two tracks&apos; tempos used to mean living with a side

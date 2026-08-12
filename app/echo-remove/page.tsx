@@ -6,7 +6,7 @@ import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
 
 export const metadata: Metadata = {
-  title: "Free Echo Reducer — Tame Echo & Slap-Back in Recordings",
+  title: "Free Echo Remover — Reduce Echo & Slap-Back in Recordings",
   description:
     "Reduce or remove echo from audio recordings online free. Improve voice recordings, podcasts, and interviews by cutting room echo and slap-back. No sign-up.",
   keywords: [
@@ -27,8 +27,9 @@ export const metadata: Metadata = {
   ],
   alternates: { canonical: `${SITE_URL}/echo-remove` },
   openGraph: {
-    title: "Free Echo Reducer — Tame Echo & Slap-Back in Recordings",
-    description: "Reduce echo in speech or music recordings free, no sign-up.",
+    title: "Free Echo Remover — Reduce Echo & Slap-Back in Recordings",
+    description:
+      "Reduce or remove echo from audio recordings online free. Improve voice recordings, podcasts, and interviews by cutting room echo and slap-back. No sign-up.",
     url: `${SITE_URL}/echo-remove`,
     siteName: SITE_NAME,
     type: "website",
@@ -43,8 +44,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Free Echo Reducer — Tame Echo & Slap-Back in Recordings",
-    description: "Reduce echo in speech or music recordings free, no sign-up.",
+    title: "Free Echo Remover — Reduce Echo & Slap-Back in Recordings",
+    description:
+      "Reduce or remove echo from audio recordings online free. Improve voice recordings, podcasts, and interviews by cutting room echo and slap-back. No sign-up.",
     images: ["/images/og-default.png"],
   },
 };
@@ -52,7 +54,7 @@ export const metadata: Metadata = {
 const webAppJsonLd = {
   "@context": "https://schema.org",
   "@type": "WebApplication",
-  name: "Echo Reducer",
+  name: "Echo Remover",
   url: `${SITE_URL}/echo-remove`,
   applicationCategory: "MultimediaApplication",
   operatingSystem: "Any",
@@ -70,7 +72,7 @@ const breadcrumbJsonLd = {
   "@type": "BreadcrumbList",
   itemListElement: [
     { "@type": "ListItem", position: 1, name: "Home", item: SITE_URL },
-    { "@type": "ListItem", position: 2, name: "Echo Reducer", item: `${SITE_URL}/echo-remove` },
+    { "@type": "ListItem", position: 2, name: "Echo Remover", item: `${SITE_URL}/echo-remove` },
   ],
 };
 
@@ -129,10 +131,10 @@ export default function EchoRemovePage() {
       <main className="mx-auto max-w-3xl px-4 py-12 sm:py-16 space-y-12">
         <header className="text-center space-y-4">
           <h1 className="text-4xl font-bold tracking-tight sm:text-5xl text-text-primary">
-            Free Echo Reducer
+            Free Echo Remover
           </h1>
           <p className="text-lg text-text-muted max-w-xl mx-auto">
-            Tame mild room echo and slap-back in a recording — free, no sign-up, no
+            Reduce mild room echo and slap-back in a recording, free, no sign-up, no
             watermark.
           </p>
         </header>

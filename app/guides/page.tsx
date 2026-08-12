@@ -3,15 +3,17 @@ import { SITE_URL } from "@/lib/constants";
 import { guides } from "@/lib/guides";
 import { GuidesExplorer } from "@/components/guides/GuidesExplorer";
 
+const PAGE_TITLE = "Guides for Producers & DJs | AudioForges";
+const PAGE_DESCRIPTION =
+  "Practical guides on harmonic mixing, sampling, set prep, and production workflow, written from real studio and DJ experience.";
+
 export const metadata: Metadata = {
-  title: "Guides for Producers & DJs | AudioForges",
-  description:
-    "Practical guides on harmonic mixing, sampling, set prep, and production workflow — written from real studio and DJ experience.",
+  title: PAGE_TITLE,
+  description: PAGE_DESCRIPTION,
   alternates: { canonical: `${SITE_URL}/guides` },
   openGraph: {
-    title: "Guides for Producers & DJs | AudioForges",
-    description:
-      "Practical guides on harmonic mixing, sampling, set prep, and production workflow.",
+    title: PAGE_TITLE,
+    description: PAGE_DESCRIPTION,
     url: `${SITE_URL}/guides`,
     siteName: "AudioForges",
     type: "website",
@@ -26,9 +28,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Guides for Producers & DJs | AudioForges",
-    description:
-      "Practical guides on harmonic mixing, sampling, set prep, and production workflow.",
+    title: PAGE_TITLE,
+    description: PAGE_DESCRIPTION,
     images: ["/images/og-default.png"],
   },
 };
@@ -37,6 +38,7 @@ const collectionJsonLd = {
   "@context": "https://schema.org",
   "@type": "CollectionPage",
   name: "AudioForges Guides",
+  description: PAGE_DESCRIPTION,
   url: `${SITE_URL}/guides`,
 };
 
@@ -79,11 +81,11 @@ export default function GuidesIndexPage() {
       <main className="mx-auto max-w-3xl px-4 py-12 sm:py-16 space-y-12">
         <header className="text-center space-y-4">
           <h1 className="text-4xl font-bold tracking-tight sm:text-5xl text-text-primary">
-            Guides
+            Guides for Producers &amp; DJs
           </h1>
           <p className="text-lg text-text-muted max-w-xl mx-auto">
             Practical, from-the-studio guides on mixing, sampling, and production
-            workflow — search or browse by category.
+            workflow. Search or browse by category.
           </p>
         </header>
 

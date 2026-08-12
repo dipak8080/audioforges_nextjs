@@ -143,7 +143,7 @@ export default function GainStagingGuidePage() {
             <p>
               Our{" "}
               <Link href="/volume" className="text-amber-400 hover:underline">
-                Volume Adjuster
+                Volume Booster
               </Link>{" "}
               gives you the full -30dB to +30dB range on any upload, so you can
               set a clean starting level before doing anything else to a
@@ -157,7 +157,7 @@ export default function GainStagingGuidePage() {
             href="/volume"
             className="inline-flex items-center gap-2 rounded-lg bg-amber-500 text-graphite-950 font-medium px-6 py-3 hover:bg-amber-400 transition-colors"
           >
-            Try the Volume Adjuster
+            Try the Volume Booster
             <ArrowRight className="h-4 w-4" />
           </Link>
           <Link

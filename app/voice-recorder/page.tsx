@@ -115,7 +115,7 @@ export default function VoiceRecorderPage() {
             Free Online Voice Recorder
           </h1>
           <p className="text-lg text-text-muted max-w-xl mx-auto">
-            Record audio from your microphone right in your browser — free,
+            Record audio from your microphone right in your browser, free,
             no sign-up, and nothing is ever uploaded.
           </p>
         </header>

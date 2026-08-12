@@ -6,9 +6,9 @@ import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
 
 export const metadata: Metadata = {
-  title: "Free Speech to Text — Transcribe Audio with Timestamps",
+  title: "Free AI Speech to Text — Transcribe Audio with Timestamps",
   description:
-    "Transcribe audio to text free, no sign-up. Auto-detects language, includes timestamps, and exports as plain text or SRT captions and subtitles.",
+    "Transcribe audio to text free with AI (Whisper), no sign-up. Auto-detects language, includes timestamps, and exports as plain text or SRT captions and subtitles.",
   keywords: [
     "speech to text free",
     "audio transcription online",
@@ -27,8 +27,9 @@ export const metadata: Metadata = {
   ],
   alternates: { canonical: `${SITE_URL}/speech-to-text` },
   openGraph: {
-    title: "Free Speech to Text — Transcribe Audio with Timestamps",
-    description: "Transcribe audio to text free, no sign-up. Includes timestamps.",
+    title: "Free AI Speech to Text — Transcribe Audio with Timestamps",
+    description:
+      "Transcribe audio to text free with AI (Whisper), no sign-up. Auto-detects language, includes timestamps, and exports as plain text or SRT captions and subtitles.",
     url: `${SITE_URL}/speech-to-text`,
     siteName: SITE_NAME,
     type: "website",
@@ -43,8 +44,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Free Speech to Text — Transcribe Audio with Timestamps",
-    description: "Transcribe audio to text free, no sign-up. Includes timestamps.",
+    title: "Free AI Speech to Text — Transcribe Audio with Timestamps",
+    description:
+      "Transcribe audio to text free with AI (Whisper), no sign-up. Auto-detects language, includes timestamps, and exports as plain text or SRT captions and subtitles.",
     images: ["/images/og-default.png"],
   },
 };
@@ -52,7 +54,7 @@ export const metadata: Metadata = {
 const webAppJsonLd = {
   "@context": "https://schema.org",
   "@type": "WebApplication",
-  name: "Speech to Text Transcriber",
+  name: "AI Speech to Text Transcriber",
   url: `${SITE_URL}/speech-to-text`,
   applicationCategory: "MultimediaApplication",
   operatingSystem: "Any",
@@ -146,10 +148,10 @@ export default function SpeechToTextPage() {
       <main className="mx-auto max-w-3xl px-4 py-12 sm:py-16 space-y-12">
         <header className="text-center space-y-4">
           <h1 className="text-4xl font-bold tracking-tight sm:text-5xl text-text-primary">
-            Free Speech to Text
+            Free AI Speech to Text
           </h1>
           <p className="text-lg text-text-muted max-w-xl mx-auto">
-            Upload audio and get a full transcript with timestamps — free, no
+            Upload audio and get a full transcript with timestamps, free, no
             sign-up, exportable as text or SRT captions.
           </p>
         </header>
@@ -193,9 +195,11 @@ export default function SpeechToTextPage() {
         <section className="rounded-xl border border-graphite-800 bg-graphite-900 p-5 space-y-2">
           <h2 className="font-semibold text-text-primary">Set your expectations on wait time</h2>
           <p className="text-sm text-text-muted leading-relaxed">
-            Unlike the other tools on this site, transcription runs on a CPU-based
-            model that processes one file at a time. Longer files can take several
-            minutes to finish — this is the slowest tool here by design, not a bug.
+            This tool runs on Whisper, an AI speech-recognition model, processing
+            on a CPU-based backend one file at a time rather than the near-instant
+            way a format conversion or a simple effect can run. Longer files can
+            take several minutes to finish — this is the slowest tool here by
+            design, not a bug.
           </p>
         </section>
 
