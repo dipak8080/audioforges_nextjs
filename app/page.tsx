@@ -6,7 +6,7 @@ import { CATEGORY_ORDER, getToolsByCategory, getLiveTools } from "@/lib/data/too
 
 const PAGE_TITLE = "Free Audio Tools for Music Producers, DJs & Musicians";
 const PAGE_DESCRIPTION =
-  "Free online audio tools for producers, DJs, and musicians. Convert, edit, clean, analyze, tune instruments, find BPM, and practice with a metronome. No sign-up required.";
+  "Free online audio tools for producers and DJs. Convert, edit, analyze, tune instruments, find BPM, and practice with a metronome. No sign-up required.";
 
 export const metadata: Metadata = {
   title: PAGE_TITLE,

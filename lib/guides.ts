@@ -10,7 +10,7 @@ export interface Guide {
 export const guides: Guide[] = [
   {
     slug: "camelot-wheel-harmonic-mixing",
-    title: "The Camelot Wheel Explained: Harmonic Mixing for DJs",
+    title: "Camelot Wheel: Harmonic Mixing for DJs",
     description:
       "How the Camelot Wheel works, why harmonic mixing makes sets flow, and how to use key compatibility when building a set.",
     publishedDate: "2026-07-21",
@@ -163,7 +163,7 @@ export const guides: Guide[] = [
   },
   {
     slug: "splitting-a-recording-into-separate-tracks",
-    title: "How to Split a Recording Into Separate Tracks by Silence",
+    title: "How to Split a Recording by Silence",
     description:
       "How splitting a recording at silent gaps works, how to tune the threshold and gap length, and when to use manual cutting instead.",
     publishedDate: "2026-08-01",
@@ -190,7 +190,7 @@ export const guides: Guide[] = [
   },
   {
     slug: "sample-rate-and-bit-depth-explained",
-    title: "What Is Sample Rate? Sample Rate and Bit Depth Explained",
+    title: "Sample Rate and Bit Depth Explained",
     description:
       "What sample rate and bit depth actually measure, why converting to a higher sample rate doesn't add quality, and when you genuinely need to change either.",
     publishedDate: "2026-08-01",
@@ -199,7 +199,7 @@ export const guides: Guide[] = [
   },
   {
     slug: "what-is-lufs-loudness-explained",
-    title: "What Is LUFS, and Why Does Streaming Loudness Matter?",
+    title: "What Is LUFS Loudness, Explained",
     description:
       "Why LUFS measures perceived loudness differently than peak level, why streaming platforms normalize playback, and why two-pass measurement matters.",
     publishedDate: "2026-08-01",
@@ -235,7 +235,7 @@ export const guides: Guide[] = [
   },
   {
     slug: "how-youtube-tools-fetch-then-process",
-    title: "How AudioForges' YouTube Tools Work: Fetch, Then Process",
+    title: "How AudioForges' YouTube Tools Work",
     description:
       "Why pasting a YouTube link takes longer than uploading a file, why private or restricted videos can't be processed, and what determines wait time.",
     publishedDate: "2026-08-01",
@@ -244,7 +244,7 @@ export const guides: Guide[] = [
   },
   {
     slug: "why-your-browser-can-record-without-uploading",
-    title: "Why Your Browser Can Record Audio Without Uploading It",
+    title: "Why Your Browser Records Without Uploading",
     description:
       "How browser-based recording works entirely on your device, why the output format depends on your browser, and how to get a cleaner recording.",
     publishedDate: "2026-08-01",
