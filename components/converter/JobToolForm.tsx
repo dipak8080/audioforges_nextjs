@@ -188,6 +188,13 @@ interface JobToolFormProps {
   buildExtraFields?: (file: File) => Record<string, string> | null;
   /** Message shown if buildExtraFields returns null */
   missingFieldsMessage?: string;
+  /**
+   * Hint text shown on a 429 rate-limit hit. Falls back to the generic
+   * "wait for the timer" hint if omitted — set this per-tool when the
+   * limit window/shape is unusual enough to be worth spelling out
+   * (e.g. "3 per 5 minutes" vs every other tool's per-hour limits).
+   */
+  rateLimitMessage?: string;
   /** Suggested download filename or extension, e.g. "wav" — falls back to backend's header if omitted */
   downloadFilename?: string;
   /**
@@ -198,6 +205,13 @@ interface JobToolFormProps {
    * retrying a genuinely invalid request would just fail again immediately.
    */
   maxSubmitRetries?: number;
+  /**
+   * Skips rendering <AudioPlayer> in the complete state. Needed for tools
+   * whose output isn't browser-playable audio (currently only
+   * audio-to-midi, which outputs a raw .mid file) — every other existing
+   * tool leaves this unset and keeps its player exactly as before.
+   */
+  hidePreview?: boolean;
 }
 
 /* ------------------------------------------------------------------ */
@@ -223,8 +237,10 @@ export function JobToolForm({
   renderControls,
   buildExtraFields,
   missingFieldsMessage = "Choose an option above before running this.",
+  rateLimitMessage,
   downloadFilename,
   maxSubmitRetries = 1,
+  hidePreview = false,
 }: JobToolFormProps) {
   const [file, setFile] = useState<File | null>(null);
   const [status, setStatus] = useState<UiState>("idle");
@@ -414,7 +430,7 @@ export function JobToolForm({
         if (err instanceof ApiError && err.isRateLimit) {
           setError({
             title: "You're going a little fast",
-            hint: "Wait for the timer, then run it again.",
+            hint: rateLimitMessage || "Wait for the timer, then run it again.",
           });
           setCooldownSeconds(err.retryAfterSeconds ?? 60);
         } else {
@@ -542,7 +558,7 @@ export function JobToolForm({
               </p>
             </div>
 
-            <AudioPlayer src={getJobPreviewUrl(endpoint, jobId)} />
+            {!hidePreview && <AudioPlayer src={getJobPreviewUrl(endpoint, jobId)} />}
 
             <a
               href={getJobDownloadUrl(endpoint, jobId)}

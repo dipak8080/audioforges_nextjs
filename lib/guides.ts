@@ -287,7 +287,16 @@ export const guides: Guide[] = [
     updatedDate: "2026-08-02",
     category: "production",
   },
-];
+  {
+    slug: "how-audio-to-midi-transcription-works",
+    title: "How Audio to MIDI Transcription Actually Works",
+    description:
+      "How audio-to-MIDI transcription detects pitch and timing, why single melodies convert cleaner than chords, and what onset and frame thresholds control.",
+    publishedDate: "2026-08-13",
+    updatedDate: "2026-08-13",
+    category: "production",
+  },
+]; 
 
 export function getGuideBySlug(slug: string): Guide | undefined {
   return guides.find((g) => g.slug === slug);

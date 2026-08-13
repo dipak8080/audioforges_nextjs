@@ -335,6 +335,14 @@ export const TOOLS: Tool[] = [
   status: "live",
   related: ["metronome", "key-finder"],
 },
+{
+  slug: "audio-to-midi",
+  name: "Audio to MIDI Converter",
+  shortDescription: "Transcribe a melody or vocal line into a downloadable MIDI file.",
+  category: "transcription",
+  status: "live",
+  related: ["speech-to-text", "key-finder", "vocal-remover"],
+},
 ];
 
 export function getLiveTools(): Tool[] {

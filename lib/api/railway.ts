@@ -613,3 +613,39 @@ export async function getTranscriptResult(jobId: string): Promise<TranscriptResu
   if (!res.ok) throw await toApiError(res, "job");
   return (await res.json()) as TranscriptResult;
 }
+
+// ---- /audio-to-midi ----
+// Single-output job, same submit -> poll -> download shape as every
+// /convert-style tool, but with tool-specific tunable params instead of
+// just a file. No preview wrapper — MIDI isn't browser-playable audio,
+// so nothing in the UI calls /audio-to-midi/preview.
+
+export interface AudioToMidiParams {
+  onsetThreshold?: number;
+  frameThreshold?: number;
+  minimumNoteLength?: number;
+  minimumFrequency?: number;
+  maximumFrequency?: number;
+}
+
+export function submitAudioToMidi(
+  file: File,
+  params: AudioToMidiParams = {}
+): Promise<JobSubmitResponse> {
+  const fd = new FormData();
+  fd.append("file", file);
+  if (params.onsetThreshold !== undefined) fd.append("onset_threshold", String(params.onsetThreshold));
+  if (params.frameThreshold !== undefined) fd.append("frame_threshold", String(params.frameThreshold));
+  if (params.minimumNoteLength !== undefined) fd.append("minimum_note_length", String(params.minimumNoteLength));
+  if (params.minimumFrequency !== undefined) fd.append("minimum_frequency", String(params.minimumFrequency));
+  if (params.maximumFrequency !== undefined) fd.append("maximum_frequency", String(params.maximumFrequency));
+  return submitJob("audio-to-midi", fd, 60_000);
+}
+
+export function getAudioToMidiStatus(jobId: string): Promise<JobStatusResult> {
+  return getJobStatus("audio-to-midi", jobId);
+}
+
+export function getAudioToMidiDownloadUrl(jobId: string): string {
+  return getJobDownloadUrl("audio-to-midi", jobId);
+}
