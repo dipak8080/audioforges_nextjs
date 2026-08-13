@@ -514,7 +514,6 @@ export function AudioToMidiForm() {
       hidePreview
       pollIntervalMs={3000}
       submitTimeoutMs={90_000}
-      downloadFilename="mid"
       rateLimitMessage={rateLimitHint}
       buildExtraFields={() => {
         const fields: Record<string, string> = {

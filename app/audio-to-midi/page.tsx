@@ -5,9 +5,9 @@ import { FAQSection, type FAQItem } from "@/components/faq/FAQSection";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
 
-const PAGE_TITLE = "Audio to MIDI Converter – MP3 & WAV to MIDI | AudioForges";
+const PAGE_TITLE = "Free Audio to MIDI Converter — MP3 & WAV to MIDI";
 const PAGE_DESCRIPTION =
-  "Convert MP3, WAV, FLAC, M4A and more to MIDI online for free. Transcribe melodies, vocals, bass, piano, and guitar into editable MIDI notes. No sign-up or software install.";
+  "Free audio to MIDI converter online. Convert MP3 and WAV to MIDI with automatic note transcription. No sign-up or software install.";
 
 export const metadata: Metadata = {
   title: PAGE_TITLE,
@@ -240,7 +240,7 @@ export default function AudioToMidiPage() {
       <main className="mx-auto max-w-3xl px-4 py-12 sm:py-16 space-y-12">
         <header className="text-center space-y-4">
           <h1 className="text-4xl font-bold tracking-tight sm:text-5xl text-text-primary">
-            Audio to MIDI Converter
+            Free Audio to MIDI Converter
           </h1>
           <p className="text-lg text-text-muted max-w-xl mx-auto">
             Upload an MP3, WAV, FLAC, M4A, AAC, OGG, AIFF, Opus, or WebM file
@@ -325,7 +325,7 @@ export default function AudioToMidiPage() {
             understand exactly how note detection, onset detection, and
             frequency filtering work, see our guide to{" "}
             <Link href="/guides/how-audio-to-midi-transcription-works" className="text-amber-400 hover:underline">
-              How Audio to MIDI Transcription Works
+              How Audio to MIDI Transcription Actually Works
             </Link>
             .
           </p>
@@ -406,7 +406,7 @@ export default function AudioToMidiPage() {
             deeper look at why isolated melodies transcribe more reliably
             than dense mixes, see{" "}
             <Link href="/guides/how-audio-to-midi-transcription-works" className="text-amber-400 hover:underline">
-              How Audio to MIDI Transcription Works
+              How Audio to MIDI Transcription Actually Works
             </Link>
             .
           </p>
