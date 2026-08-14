@@ -7,7 +7,7 @@ import { getRelatedTools } from "@/lib/data/tools";
 
 const PAGE_TITLE = "Audio to MIDI Converter – MP3 & WAV to MIDI | AudioForges";
 const PAGE_DESCRIPTION =
-  "Free Audio to MIDI Converter - convert MP3, WAV, FLAC, M4A and more to MIDI. Automatically detect notes, pitch and timing for vocals, piano, bass and guitar.";
+  "Free online audio to MIDI converter. Convert MP3, WAV, FLAC & more into editable MIDI notes — presets for vocals, piano, bass & guitar. No sign-up.";
 
 export const metadata: Metadata = {
   title: PAGE_TITLE,
@@ -243,11 +243,9 @@ export default function AudioToMidiPage() {
             Audio to MIDI Converter
           </h1>
           <p className="text-lg text-text-muted max-w-xl mx-auto">
-            Upload an MP3, WAV, FLAC, M4A, AAC, OGG, AIFF, Opus, or WebM file
-            and automatically transcribe its notes, pitch, and timing into a
-            standard MIDI file. Choose a preset for vocals, piano, bass, or
-            guitar, or fine-tune the detection yourself. No sign-up or
-            software install required.
+            Convert MP3, WAV, FLAC, M4A and more to MIDI, free. Automatic
+            note, pitch, and timing detection — with presets for vocals,
+            piano, bass, and guitar.
           </p>
         </header>
 

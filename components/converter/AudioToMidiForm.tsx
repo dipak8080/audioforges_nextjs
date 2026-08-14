@@ -453,7 +453,7 @@ function Toggle({ checked, disabled, label, onChange }: ToggleProps) {
       disabled={disabled}
       onClick={() => onChange(!checked)}
       className={cn(
-        "relative h-5 w-9 shrink-0 rounded-full transition-colors",
+        "relative inline-flex h-5 w-9 shrink-0 items-center rounded-full p-0.5 transition-colors",
         "focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50",
         checked ? "bg-amber-500" : "bg-graphite-700",
         disabled && "cursor-not-allowed opacity-40",
@@ -461,8 +461,8 @@ function Toggle({ checked, disabled, label, onChange }: ToggleProps) {
     >
       <span
         className={cn(
-          "absolute top-0.5 h-4 w-4 rounded-full bg-graphite-850 transition-transform",
-          checked ? "translate-x-[1.125rem]" : "translate-x-0.5",
+          "h-4 w-4 rounded-full bg-white shadow-sm transition-transform motion-reduce:transition-none",
+          checked ? "translate-x-4" : "translate-x-0",
         )}
       />
     </button>
