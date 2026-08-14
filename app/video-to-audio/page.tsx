@@ -5,9 +5,9 @@ import { FAQSection } from "@/components/faq/FAQSection";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
 
-const PAGE_TITLE = "Free Video to Audio Converter — MP4 to MP3, M4A & More";
+const PAGE_TITLE = "Free MP4 to WAV & MOV to MP3 Converter";
 const PAGE_DESCRIPTION =
-  "Extract audio from MP4, MOV, MKV, and other video files online, free. Convert to MP3, WAV, FLAC, M4A, and more. No sign-up, no watermark.";
+  "Extract audio from MP4, MOV, MKV, and other video files online, free. Convert video to WAV, MP3, FLAC, M4A, and more. No sign-up, no watermark.";
 
 export const metadata: Metadata = {
   title: PAGE_TITLE,
@@ -53,7 +53,7 @@ const webAppJsonLd = {
   },
   featureList: [
     "Extract audio from MP4, MOV, MKV, AVI, WebM, and more",
-    "Output as MP3, WAV, FLAC, M4A, AAC, OGG, or AIFF",
+    "Output as WAV, MP3, FLAC, M4A, AAC, OGG, or AIFF",
     "Direct audio extraction for compatible M4A/AAC sources",
     "No sign-up required",
     "No watermark",
@@ -81,11 +81,41 @@ const breadcrumbJsonLd = {
 // NOTE: No HowTo schema — deprecated by Google (desktop since Sept 2023),
 // no ranking or rich-result benefit remains. Visible how-to steps stay.
 
+const FORMAT_PAIRS = [
+  { from: "MP4", to: "WAV" },
+  { from: "MP4", to: "MP3" },
+  { from: "MP4", to: "M4A" },
+  { from: "MOV", to: "MP3" },
+  { from: "MOV", to: "WAV" },
+  { from: "MKV", to: "MP3" },
+  { from: "WebM", to: "MP3" },
+];
+
 const faqs = [
   {
     question: "What video formats can I upload?",
     answer:
       "MP4, MOV, MKV, AVI, WebM, FLV, WMV, M4V, 3GP, MPEG, and MPG.",
+  },
+  {
+    question: "Can I convert MP4 to WAV?",
+    answer:
+      "Yes — upload the MP4 and choose WAV as the output format for a lossless (assuming the source audio itself is lossless) extracted file.",
+  },
+  {
+    question: "Can I convert MP4 to MP3?",
+    answer:
+      "Yes — MP3 is one of the seven output formats available, alongside WAV, FLAC, M4A, AAC, OGG, and AIFF.",
+  },
+  {
+    question: "Can I convert MOV to MP3?",
+    answer:
+      "Yes — MOV is fully supported as an input format, and MP3 is one of the output options.",
+  },
+  {
+    question: "Can I convert MOV to WAV?",
+    answer:
+      "Yes — upload the MOV file and select WAV as the target output format.",
   },
   {
     question: "Why is M4A/AAC output faster than MP3 or WAV?",
@@ -102,9 +132,14 @@ const faqs = [
     answer: "Up to 200MB per upload, and up to 60 minutes of video.",
   },
   {
-    question: "Will this work on a screen recording or phone video?",
+    question: "Does the converter work on phone videos and screen recordings?",
     answer:
       "Yes — as long as the video is in a supported format and contains an audio track. A silent recording with no audio can't produce an extracted audio file.",
+  },
+  {
+    question: "Do I need to install software?",
+    answer:
+      "No — the converter runs entirely online in your browser. Upload a file, choose an output format, and download the result. No app or plugin required.",
   },
   {
     question: "Is this really free?",
@@ -146,8 +181,9 @@ export default function VideoToAudioPage() {
             Free Video to Audio Converter
           </h1>
           <p className="text-lg text-text-muted max-w-xl mx-auto">
-            Extract audio from MP4, MOV, MKV, and other video files, free, no
-            sign-up, no watermark.
+            Extract audio from MP4, MOV, MKV, and other video files online.
+            Convert video to WAV, MP3, M4A, FLAC and more, free, no sign-up,
+            no watermark.
           </p>
         </header>
 
@@ -157,7 +193,7 @@ export default function VideoToAudioPage() {
         <section className="grid gap-4 sm:grid-cols-3">
           {[
             { title: "Any video format", desc: "MP4, MOV, MKV, AVI, WebM, and more." },
-            { title: "7 audio formats", desc: "MP3, WAV, FLAC, M4A, AAC, OGG, AIFF." },
+            { title: "7 audio formats", desc: "WAV, MP3, FLAC, M4A, AAC, OGG, AIFF." },
             { title: "No sign-up", desc: "No account, no email, no watermark." },
           ].map((f) => (
             <div key={f.title} className="rounded-xl border border-graphite-800 bg-graphite-900 p-5 space-y-2">
@@ -168,12 +204,44 @@ export default function VideoToAudioPage() {
         </section>
 
         <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">How to extract audio from a video</h2>
+          <h2 className="text-2xl font-bold text-text-primary">How to extract audio from a video online</h2>
           <ol className="list-decimal list-inside space-y-2 text-text-muted leading-relaxed">
             <li>Upload an MP4, MOV, MKV, AVI, WebM, or other supported video file.</li>
             <li>Choose an output format. M4A or AAC can be the fastest option when the source already contains compatible AAC audio.</li>
             <li>Download the extracted audio file.</li>
           </ol>
+        </section>
+
+        <section className="space-y-4">
+          <h2 className="text-2xl font-bold text-text-primary">Convert MP4 to WAV, MOV to MP3, and More</h2>
+          <p className="text-text-muted leading-relaxed">
+            The same converter handles any combination of supported video and
+            audio formats — upload once, then pick whichever output your
+            project needs:
+          </p>
+          <div className="overflow-x-auto rounded-xl border border-graphite-800">
+            <table className="w-full text-sm text-left text-text-muted">
+              <thead className="bg-graphite-900 text-text-primary">
+                <tr>
+                  <th className="px-4 py-3 font-semibold">From</th>
+                  <th className="px-4 py-3 font-semibold">To</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-graphite-800">
+                {FORMAT_PAIRS.map((pair) => (
+                  <tr key={`${pair.from}-${pair.to}`}>
+                    <td className="px-4 py-3 font-mono">{pair.from}</td>
+                    <td className="px-4 py-3 font-mono">{pair.to}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="text-text-muted leading-relaxed">
+            These are just examples — every supported video format converts
+            to any of the seven audio output formats, not only the pairs
+            shown here.
+          </p>
         </section>
 
         <section className="space-y-4">
@@ -187,7 +255,7 @@ export default function VideoToAudioPage() {
               and can make the extraction substantially faster.
             </p>
             <p>
-              Other output formats such as MP3, WAV, FLAC, OGG, and AIFF
+              Other output formats such as WAV, MP3, FLAC, OGG, and AIFF
               generally require the audio to be decoded and processed into
               the new format, which takes additional processing time.
             </p>
