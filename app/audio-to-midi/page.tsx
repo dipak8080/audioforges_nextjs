@@ -7,7 +7,7 @@ import { getRelatedTools } from "@/lib/data/tools";
 
 const PAGE_TITLE = "Audio to MIDI Converter – MP3 & WAV to MIDI | AudioForges";
 const PAGE_DESCRIPTION =
-  "Free online audio to MIDI converter. Convert MP3, WAV, FLAC & more into editable MIDI notes — presets for vocals, piano, bass & guitar. No sign-up.";
+  "Free Audio to MIDI Converter - convert MP3, WAV, FLAC, M4A and more to MIDI. Automatically detect notes, pitch and timing for vocals, piano, bass and guitar.";
 
 export const metadata: Metadata = {
   title: PAGE_TITLE,
