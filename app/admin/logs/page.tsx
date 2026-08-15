@@ -596,13 +596,36 @@ export default function AdminLogsPage() {
   // unmount, so navigating away mid-fetch doesn't leave promises
   // resolving into a dead component - and the response body isn't fully
   // downloaded and parsed for nothing.
+  //
+  // Created through a getter that REPLACES an already-aborted
+  // controller, which the previous `if (abortRef.current === null)`
+  // version could not do. That version broke the entire page under React
+  // 18 StrictMode: dev mounts, runs effects, tears them down, and mounts
+  // again - so the cleanup below fired abort() on the one and only
+  // controller, and because the ref was then non-null it was never
+  // replaced. Every subsequent fetch, forever, was issued against an
+  // aborted signal and bailed out in the isAbort() branch. The list sat
+  // empty, Refresh appeared to do nothing, and only a full browser
+  // reload recovered it. A controller that has already fired is not a
+  // usable controller, so `aborted` has to be part of the "do I need a
+  // new one?" test, not just null-ness.
   const abortRef = useRef<AbortController | null>(null);
-  if (abortRef.current === null) abortRef.current = new AbortController();
+  const getController = () => {
+    if (!abortRef.current || abortRef.current.signal.aborted) {
+      abortRef.current = new AbortController();
+    }
+    return abortRef.current;
+  };
+  const signal = () => getController().signal;
   useEffect(() => {
-    const ctrl = abortRef.current;
-    return () => ctrl?.abort();
+    getController(); // ensure this mount owns a live controller
+    return () => {
+      abortRef.current?.abort();
+      // Null it out too, so the next mount is guaranteed a fresh one
+      // even if getController's aborted-check were ever weakened.
+      abortRef.current = null;
+    };
   }, []);
-  const signal = () => abortRef.current?.signal;
 
   const MIN_POLL_MS = 3000;
   // Was 20s. The backoff is per-visible-tab and only resets when THAT
@@ -1393,10 +1416,17 @@ export default function AdminLogsPage() {
     }
   }, []);
 
-  const bootedRef = useRef(false);
+  // Runs once per MOUNT. There used to be a bootedRef guard here to make
+  // it once-per-page-load instead, but a ref survives StrictMode's
+  // unmount/remount cycle while the aborted fetches from the first mount
+  // do not - so the guard turned "the first mount's requests got
+  // cancelled" into "and no request is ever issued again", which is the
+  // other half of the blank-until-you-reload bug described on the
+  // AbortController above. The guard was never load-bearing anyway: the
+  // callbacks are memoized on [router], so this effect can't re-fire on
+  // its own, and the in-flight refs already collapse any genuine
+  // duplicate into a no-op.
   useEffect(() => {
-    if (bootedRef.current) return;
-    bootedRef.current = true;
     fetchHttp();
     fetchSystem();
     fetchEndpoints();
@@ -2010,7 +2040,14 @@ export default function AdminLogsPage() {
                       setHighlightIndex(-1);
                     }
                   }}
-                  placeholder="Filter by path…"
+                  // Global search now, not path-only - the backend's `q`
+                  // spans path, client IP, method, request id, tool tag
+                  // and (for a bare 3-digit value) status code. The old
+                  // "Filter by path…" was an accurate label for a box
+                  // that could only ever answer one question, and typing
+                  // an IP into it returned nothing with no hint as to
+                  // why. See get_http_logs' q handling in log_stream.py.
+                  placeholder="Search path, IP, status, tool…"
                   role="combobox"
                   aria-expanded={suggestOpen && pathSuggestions.length > 0}
                   aria-autocomplete="list"
@@ -2457,7 +2494,7 @@ export default function AdminLogsPage() {
                   type="text"
                   value={systemSearch}
                   onChange={(e) => setSystemSearch(e.target.value)}
-                  placeholder="Search logger or message…"
+                  placeholder="Search message, logger, request id, tool…"
                   className="w-full rounded-md border border-graphite-700 bg-graphite-850 py-1.5 pl-9 pr-9 text-sm text-text-primary placeholder:text-text-subtle focus:outline-none focus:border-amber-500/60"
                 />
                 {systemSearch && (
@@ -2605,7 +2642,6 @@ export default function AdminLogsPage() {
                     key={group.key}
                     group={group}
                     isFirst={index === 0}
-                    isLast={index === systemGroups.length - 1}
                     expanded={expandedGroups.has(group.key)}
                     onToggle={() => toggleGroup(group.key)}
                     onOpenEntry={loadCorrelatedFromSystemRow}
@@ -3184,15 +3220,26 @@ function worstLevel(entries: SystemLogEntry[]): string {
   return worst;
 }
 
+// EVERY group folds, including the newest/live one.
+//
+// A previous pass exempted the live group from folding, on the theory
+// that head+tail with a ticking "N more lines" counter between them
+// reads as a stuck feed. That theory was wrong, and the result was
+// worse: an in-flight download emits 40+ progress lines into the last
+// group, so the exemption dumped all of them at full height and the
+// grouping that makes this feed readable simply stopped applying to the
+// one request you're actually watching.
+//
+// The tail is `entries[entries.length - 1]` - recomputed on every
+// render - so it IS the newest line and updates live on its own. Nothing
+// needed exempting. What actually made the feed feel frozen was the poll
+// backoff (MAX_POLL_MS), fixed separately.
 const SystemGroupBlock = memo(
   function SystemGroupBlock({
-    group, isFirst, isLast, expanded, onToggle, onOpenEntry,
+    group, isFirst, expanded, onToggle, onOpenEntry,
   }: {
     group: { key: string; entries: SystemLogEntry[] };
     isFirst: boolean;
-    /** The newest group in the list - in the live view, the request
-     *  still actively emitting lines. Never folded. */
-    isLast: boolean;
     expanded: boolean;
     onToggle: () => void;
     onOpenEntry?: (entry: SystemLogEntry) => void;
@@ -3205,15 +3252,6 @@ const SystemGroupBlock = memo(
       return <SystemRow entry={entries[0]} newGroup={!isFirst} onOpenEntry={onOpenEntry} />;
     }
 
-    // The LIVE group is never collapsed. Head/tail folding is right for
-    // a finished request, but for the one still running it hides
-    // precisely the lines that are arriving: head and tail sit frozen
-    // while a "N more lines" counter quietly ticks upward between them.
-    // That reads as a stuck feed even though it's updating every poll,
-    // and it was the single biggest reason the System tab FELT laggy
-    // beyond the actual polling delay.
-    const showAll = expanded || isLast;
-
     const head = entries[0];
     const tail = entries[entries.length - 1];
     const middle = entries.slice(1, -1);
@@ -3222,10 +3260,7 @@ const SystemGroupBlock = memo(
     return (
       <div className={!isFirst ? "border-t border-t-graphite-700 mt-1 pt-2.5" : ""}>
         <SystemRow entry={head} newGroup={false} onOpenEntry={onOpenEntry} />
-        {/* No toggle on the live group - there's nothing hidden to
-            reveal, and offering a "Hide" that does nothing is worse than
-            offering nothing. */}
-        {middle.length > 0 && !isLast && (
+        {middle.length > 0 && (
           <button
             onClick={onToggle}
             className={`w-full flex items-center gap-2 pl-4 pr-4 py-1.5 border-l-2 ${tone.border} text-[11px] ${tone.text} hover:bg-graphite-850/60 transition-colors`}
@@ -3235,7 +3270,7 @@ const SystemGroupBlock = memo(
             {" "}for this request
           </button>
         )}
-        {showAll && middle.map((entry) => (
+        {expanded && middle.map((entry) => (
           <SystemRow key={entry.id} entry={entry} newGroup={false} onOpenEntry={onOpenEntry} />
         ))}
         <SystemRow entry={tail} newGroup={false} onOpenEntry={onOpenEntry} />
@@ -3246,7 +3281,6 @@ const SystemGroupBlock = memo(
     prev.group.key === next.group.key &&
     prev.group.entries.length === next.group.entries.length &&
     prev.isFirst === next.isFirst &&
-    prev.isLast === next.isLast &&
     prev.expanded === next.expanded &&
     prev.onOpenEntry === next.onOpenEntry
 );
