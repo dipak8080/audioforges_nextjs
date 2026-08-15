@@ -5,7 +5,7 @@ import { FAQSection, type FAQItem } from "@/components/faq/FAQSection";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
 
-const PAGE_TITLE = "Audio to MIDI Converter – MP3 & WAV to MIDI | AudioForges";
+const PAGE_TITLE = "Audio to MIDI Converter – MP3 & WAV to MIDI";
 const PAGE_DESCRIPTION =
   "Free online audio to MIDI converter. Convert MP3, WAV, FLAC & more into editable MIDI notes — presets for vocals, piano, bass & guitar. No sign-up.";
 
