@@ -380,6 +380,30 @@ function prependUnique<T extends { id: number }>(older: T[], current: T[]): T[] 
   return fresh.length === 0 ? current : [...fresh, ...current];
 }
 
+// ---------------------------------------------------------------------
+// Click vs. select.
+//
+// Every log row is a `<tr>`/`<div>` with its own onClick (opens the
+// correlated system-log view), and every log row also contains text
+// people legitimately want to select-and-copy: a client IP, a path, a
+// request id. Those two things collide by default - a browser's click
+// event fires on mouseup regardless of whether that mouseup ended a drag
+// selection, so highlighting an IP address and releasing the mouse over
+// the row ALSO fired the row's onClick, which reset selection and swapped
+// the whole panel over to the correlated log view out from under the
+// user. There was no way to copy anything out of a row.
+//
+// The fix checks, at the moment the click actually fires, whether the
+// user is walking away from that click holding a non-empty text
+// selection. If so, this was a copy gesture, not a navigation click, and
+// the row handler is skipped entirely - the selection is left alone and
+// nothing navigates. A plain click (no drag) never has a selection at
+// click-time, so ordinary row-opening behavior is completely unaffected.
+function isTextSelected(): boolean {
+  const sel = window.getSelection();
+  return !!sel && sel.toString().length > 0;
+}
+
 type DateFilter = "all" | "today" | "yesterday";
 type Tab = "http" | "system";
 
@@ -3071,7 +3095,12 @@ const HttpTableRow = memo(
     const clickable = !!log.request_id || !!jobIdFromPath(log.path);
     return (
       <tr
-        onClick={clickable ? () => onOpenLogs(log) : undefined}
+        // See isTextSelected() above: a drag-select that ends over this
+        // row (e.g. highlighting the client IP to copy it) still fires
+        // a click on mouseup. Bailing out when a selection exists lets
+        // that click be a no-op instead of yanking the user into the
+        // correlated-logs view and losing their selection.
+        onClick={clickable ? () => { if (isTextSelected()) return; onOpenLogs(log); } : undefined}
         className={`group transition-colors ${clickable ? "hover:bg-graphite-850/60 cursor-pointer" : "opacity-70"}`}
         title={clickable ? "View this request's system logs" : "No request id recorded for this row"}
       >
@@ -3121,7 +3150,10 @@ const HttpCardRow = memo(
     const clickable = !!log.request_id || !!jobIdFromPath(log.path);
     return (
       <div
-        onClick={clickable ? () => onOpenLogs(log) : undefined}
+        // Same selection guard as HttpTableRow above - a copy-gesture
+        // release inside this card must not also open the correlated
+        // log view.
+        onClick={clickable ? () => { if (isTextSelected()) return; onOpenLogs(log); } : undefined}
         className={`px-4 py-2.5 ${clickable ? "active:bg-graphite-850/60 cursor-pointer" : "opacity-70"}`}
       >
         <div className="flex items-center gap-2">
@@ -3180,7 +3212,11 @@ const SystemRow = memo(
     const clickable = !!onOpenEntry && (hasJobId || hasRequestId);
     return (
       <div
-        onClick={clickable ? () => onOpenEntry!(entry) : undefined}
+        // Same selection guard as the HTTP rows: system log lines are
+        // full of text people want to copy (messages, request ids, job
+        // ids), and a drag-select release inside this row must not also
+        // trigger the correlated-view navigation.
+        onClick={clickable ? () => { if (isTextSelected()) return; onOpenEntry!(entry); } : undefined}
         title={
           clickable
             ? (hasJobId ? "View this job's full log" : "View this request's logs")
