@@ -6,13 +6,13 @@ import {
   RefreshCw,
   Upload,
   Loader2,
-  CheckCircle2,
   XCircle,
   Clock,
   FileText,
   X,
   AlertTriangle,
   ShieldAlert,
+  Info,
 } from "lucide-react";
 
 interface CookieSlot {
@@ -20,10 +20,10 @@ interface CookieSlot {
   path: string;
   size_bytes?: number;
   last_modified?: number;
-  // Added 2026-08-15. `exists` was never the useful question - a file can
-  // sit on disk at full size with a session that died months ago, which
-  // is exactly how slot 3 read as healthy while its SID had already
-  // lapsed. These come from _parse_cookie_expiry() on the backend.
+  // From _parse_cookie_expiry() on the backend. NOTE what this is and
+  // isn't - see EXPIRY_PRESENTATION below and the footnote rendered near
+  // the bottom of the page: it is the expiry DATE written into the file
+  // at export time, nothing more.
   expires_at?: number | null;
   expires_in_days?: number | null;
   expiry_status?: ExpiryStatus;
@@ -48,51 +48,87 @@ const SLOT_LABELS: Record<string, string> = {
   slot_3: "Slot 3 · Backup",
 };
 
-// Single source of truth for how each state renders. Keeping the copy
-// here rather than inline in JSX means the banner, the card badge and
-// the upload result all describe the same state identically - the
-// alternative is three near-copies that drift.
+/**
+ * WORDING IS DELIBERATE - an earlier version of this page labelled a
+ * future-dated file "Session valid" in green with a checkmark. That
+ * claims more than the data supports, in the one direction that
+ * actually costs something.
+ *
+ * The expiry date is a STATIC string written into cookies.txt at export
+ * time. If Google revokes the session server-side - password change,
+ * security event, too many IPs on one account - that date does not
+ * change. The file still reads Aug 2027. A green "valid" badge on a
+ * dead cookie is worse than no badge at all, because it actively argues
+ * against investigating.
+ *
+ * So: only states that are DEFINITIVE get a colour and a verdict.
+ *
+ *   expired / no_auth_cookies -> red. Certain. The file cannot work.
+ *   everything else           -> neutral. Reports the date, claims nothing.
+ *
+ * Server-side revocation is caught by the Discord alert instead (see
+ * _maybe_alert_cookie_expiry in youtube.py), which fires on yt-dlp's own
+ * "cookies are no longer valid" warning during a real download - the
+ * only thing that can actually confirm a session works. This page covers
+ * the half of the problem that alert structurally cannot: an account
+ * whose clock ran out while sitting unused in a backup slot.
+ */
 const EXPIRY_PRESENTATION: Record<
   ExpiryStatus,
-  { label: string; tone: "good" | "warn" | "bad" | "muted"; detail: string }
+  { label: string; tone: "warn" | "bad" | "muted"; detail: string }
 > = {
-  ok: { label: "Session valid", tone: "good", detail: "Authentication cookies are current." },
+  ok: {
+    label: "Expires",
+    tone: "muted",
+    detail:
+      "The expiry date on this file hasn't passed. This does not confirm the session still works - Google can revoke it server-side without changing this date.",
+  },
   warning: {
-    label: "Expiring soon",
+    label: "Expires soon",
     tone: "warn",
-    detail: "Re-export this account when convenient.",
+    detail: "Under two weeks left. Re-export this account when convenient.",
   },
   critical: {
-    label: "Expiring imminently",
+    label: "Expires imminently",
     tone: "bad",
-    detail: "Re-export this account now — it has days left, not weeks.",
+    detail: "Days left, not weeks. Re-export this account now.",
   },
   expired: {
     label: "Expired",
     tone: "bad",
     detail:
-      "This account will fail the moment it's used. Downloads won't visibly break while another slot is healthy, which is why this needs watching rather than waiting for an alert.",
+      "The expiry date has passed. This account will fail the moment it's used. Re-export from a logged-in browser session.",
   },
   no_auth_cookies: {
     label: "No auth cookies",
     tone: "bad",
-    detail: "The file parsed but contains no session cookies — most likely a logged-out export.",
+    detail:
+      "The file parsed but contains no session cookies at all - most likely a logged-out export.",
   },
   session_only: {
-    label: "Session-scoped",
+    label: "No expiry set",
     tone: "warn",
-    detail: "Auth cookies present but with no expiry set. They die whenever the browser session did.",
+    detail:
+      "Auth cookies are present but session-scoped, so there's no date to check. They died whenever the exporting browser session did.",
   },
-  unknown: { label: "Unreadable", tone: "muted", detail: "Couldn't parse this file's expiry." },
+  unknown: {
+    label: "Unreadable",
+    tone: "muted",
+    detail: "Couldn't parse an expiry date out of this file.",
+  },
   missing: { label: "Not uploaded", tone: "muted", detail: "No file in this slot." },
 };
 
 const TONE_CLASSES = {
-  good: "border-teal-400/30 bg-teal-400/5 text-teal-400",
   warn: "border-amber-500/30 bg-amber-500/5 text-amber-500",
   bad: "border-red-500/30 bg-red-500/5 text-red-500",
-  muted: "border-graphite-700 bg-graphite-850 text-text-subtle",
+  muted: "border-graphite-700 bg-graphite-850 text-text-muted",
 } as const;
+
+// States where the file is definitively unusable. Only these drive the
+// red banner and the header count - everything else is unknown, not
+// good, and shouldn't be counted in either direction.
+const DEFINITELY_BROKEN: ExpiryStatus[] = ["expired", "no_auth_cookies"];
 
 function formatRelativeTime(unixSeconds: number): string {
   const diffMs = Date.now() - unixSeconds * 1000;
@@ -124,11 +160,11 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / 1024).toFixed(1)} KB`;
 }
 
-// "364.6 days" is noise; "12 months" is what you actually reason about.
-// Negative values render as elapsed time, since an expired account's
-// "how long ago" is the operationally interesting number.
+// "364.6 days" is noise; "12mo" is what you reason about. Negative
+// values render as elapsed time, since for an expired account "how long
+// ago" is the operationally interesting number.
 function formatExpiryWindow(days: number | null | undefined): string {
-  if (days == null) return "—";
+  if (days == null) return "-";
   const abs = Math.abs(days);
   let text: string;
   if (abs < 1) text = `${Math.round(abs * 24)}h`;
@@ -258,31 +294,31 @@ export default function AdminCookiesPage() {
         throw new Error(data?.error || `Server returned ${status}`);
       }
 
-      // The backend parses expiry at upload time and returns it, so a
-      // logged-out or already-dead export is caught here rather than
-      // discovered weeks later during an outage. Surfaced as a warning,
-      // not a failure - the upload genuinely did succeed.
+      // Backend parses expiry at upload time, so an already-dead or
+      // logged-out export is caught here rather than during an outage.
+      // Phrased as a date, not a verdict - same reasoning as
+      // EXPIRY_PRESENTATION above.
       let suffix = "";
       const st = data?.expiry_status as ExpiryStatus | undefined;
       if (st === "expired") {
-        suffix = " — but this export is already expired. Re-export from a logged-in session.";
+        suffix =
+          " - but this export is already past its expiry date. Re-export from a logged-in session.";
       } else if (st === "no_auth_cookies") {
-        suffix = " — but no auth cookies were found. This looks like a logged-out export.";
-      } else if (st === "critical" || st === "warning") {
-        suffix = ` — session valid for ${formatExpiryWindow(data?.expires_in_days)} only.`;
+        suffix = " - but no auth cookies were found. This looks like a logged-out export.";
       } else if (data?.expires_in_days != null) {
-        suffix = ` — session valid for ${formatExpiryWindow(data.expires_in_days)}.`;
+        suffix = ` - expires in ${formatExpiryWindow(data.expires_in_days)}.`;
       }
 
+      const isBroken = st != null && DEFINITELY_BROKEN.includes(st);
       setUploadResult({
-        ok: st !== "expired" && st !== "no_auth_cookies",
+        ok: !isBroken,
         message: `Uploaded ${formatFileSize(data.bytes_written)} to slot ${data.slot}${suffix}`,
       });
       setFile(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
       await load();
-      // Problems stay on screen; clean successes auto-dismiss.
-      if (st !== "expired" && st !== "no_auth_cookies") {
+      // Problems stay on screen; clean uploads auto-dismiss.
+      if (!isBroken) {
         dismissTimer.current = setTimeout(() => setUploadResult(null), 6000);
       }
     } catch (e) {
@@ -295,17 +331,8 @@ export default function AdminCookiesPage() {
 
   const slotEntries = slots ? Object.entries(slots) : [];
   const presentCount = slotEntries.filter(([, s]) => s.exists).length;
-  // The number that actually matters: slots that would authenticate if
-  // reached. `presentCount` counts files; this counts working accounts.
-  const usableCount = slotEntries.filter(
-    ([, s]) => s.exists && s.expiry_status !== "expired" && s.expiry_status !== "no_auth_cookies"
-  ).length;
-  const problemSlots = slotEntries.filter(
-    ([, s]) =>
-      s.exists &&
-      (s.expiry_status === "expired" ||
-        s.expiry_status === "critical" ||
-        s.expiry_status === "no_auth_cookies")
+  const brokenSlots = slotEntries.filter(
+    ([, s]) => s.exists && s.expiry_status != null && DEFINITELY_BROKEN.includes(s.expiry_status)
   );
 
   return (
@@ -322,33 +349,39 @@ export default function AdminCookiesPage() {
             <span className="hidden sm:inline">Refresh</span>
           </button>
         </div>
+        {/* Counts files, and files past expiry. Deliberately does NOT
+            say "valid" - see EXPIRY_PRESENTATION. */}
         <p className="text-xs sm:text-sm text-text-muted">
           {loading
             ? "Loading…"
-            : usableCount === presentCount
-              ? `${presentCount} of 3 cookie accounts configured and valid.`
-              : `${presentCount} of 3 configured, but only ${usableCount} would actually authenticate.`}
+            : brokenSlots.length === 0
+              ? `${presentCount} of 3 slots filled · none past expiry`
+              : `${presentCount} of 3 slots filled · ${brokenSlots.length} past expiry`}
         </p>
       </div>
 
-      {/* Problem banner. Slots 2 and 3 are standby failover - they're
-          only reached once the primary is disabled, so a dead backup
-          causes no visible symptom until the exact moment it's needed.
-          Nothing else on this page would tell you. */}
-      {!loading && problemSlots.length > 0 && (
+      {/* Only fires on definitive states. Backup slots are reached only
+          after the primary is disabled, so an expired one causes no
+          visible symptom until the moment it's needed. */}
+      {!loading && brokenSlots.length > 0 && (
         <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-3.5 flex gap-2.5">
           <ShieldAlert className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
           <div className="text-xs text-text-primary leading-relaxed">
             <p className="font-medium text-red-500 mb-1">
-              {problemSlots.length === 1 ? "1 account needs" : `${problemSlots.length} accounts need`}{" "}
+              {brokenSlots.length === 1 ? "1 account needs" : `${brokenSlots.length} accounts need`}{" "}
               re-exporting
             </p>
             <p className="text-text-muted">
-              {problemSlots
-                .map(([name, s]) => `${SLOT_LABELS[name] ?? name} (${EXPIRY_PRESENTATION[s.expiry_status ?? "unknown"].label.toLowerCase()})`)
+              {brokenSlots
+                .map(
+                  ([name, s]) =>
+                    `${SLOT_LABELS[name] ?? name} (${EXPIRY_PRESENTATION[
+                      s.expiry_status ?? "unknown"
+                    ].label.toLowerCase()})`
+                )
                 .join(", ")}
               . Backup slots are only used after the primary is disabled, so a dead one stays
-              silent until the moment it's needed — it won't trigger a failure alert on its own.
+              silent until the moment it&apos;s needed.
             </p>
           </div>
         </div>
@@ -366,9 +399,7 @@ export default function AdminCookiesPage() {
       ) : slots ? (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {slotEntries.map(([slotName, info]) => {
-            const status: ExpiryStatus = info.exists
-              ? (info.expiry_status ?? "unknown")
-              : "missing";
+            const status: ExpiryStatus = info.exists ? (info.expiry_status ?? "unknown") : "missing";
             const presentation = EXPIRY_PRESENTATION[status];
             const isBad = presentation.tone === "bad";
 
@@ -394,17 +425,17 @@ export default function AdminCookiesPage() {
                       {SLOT_LABELS[slotName] ?? slotName.replace("_", " ")}
                     </span>
                   </div>
+                  {/* No green tick for a merely future-dated file - a
+                      checkmark reads as "verified working", which is
+                      exactly the claim this page cannot make. Only
+                      definitive problems get an icon. */}
                   {isBad ? (
                     <AlertTriangle className="h-4 w-4 text-red-500 shrink-0" />
-                  ) : info.exists ? (
-                    <CheckCircle2 className="h-4 w-4 text-teal-400 shrink-0" />
-                  ) : (
-                    <XCircle className="h-4 w-4 text-red-500/70 shrink-0" />
-                  )}
+                  ) : !info.exists ? (
+                    <XCircle className="h-4 w-4 text-text-subtle shrink-0" />
+                  ) : null}
                 </div>
 
-                {/* Session state badge - the field that answers "will
-                    this work?", as opposed to "is there a file here?" */}
                 <div
                   className={`rounded border px-2 py-1 text-[11px] font-medium inline-flex items-center gap-1.5 self-start ${
                     TONE_CLASSES[presentation.tone]
@@ -424,19 +455,16 @@ export default function AdminCookiesPage() {
                     {info.expires_at != null && (
                       <div
                         className="flex items-center gap-1.5 text-xs text-text-subtle"
-                        title={`Auth cookies expire ${formatAbsoluteTime(info.expires_at)}`}
+                        title={`Auth cookies carry an expiry of ${formatAbsoluteTime(info.expires_at)}`}
                       >
                         <Clock className="h-3 w-3" />
-                        <span>
-                          {(info.expires_in_days ?? 0) < 0 ? "Expired " : "Expires "}
-                          {formatAbsoluteTime(info.expires_at)}
-                        </span>
+                        <span>{formatAbsoluteTime(info.expires_at)}</span>
                       </div>
                     )}
                     <div className="flex items-baseline gap-1.5">
                       <span className="text-xs text-text-subtle">Size</span>
                       <span className="text-xs text-text-primary tabular-nums font-medium">
-                        {info.size_bytes ? formatFileSize(info.size_bytes) : "—"}
+                        {info.size_bytes ? formatFileSize(info.size_bytes) : "-"}
                       </span>
                     </div>
                     {info.last_modified && (
@@ -458,13 +486,29 @@ export default function AdminCookiesPage() {
         </div>
       ) : null}
 
+      {/* States plainly what this page can and cannot tell you, so the
+          absence of a red badge is never mistaken for a health check. */}
+      {!loading && !error && (
+        <div className="rounded-lg border border-graphite-800 bg-graphite-900/50 p-3 flex gap-2.5">
+          <Info className="h-3.5 w-3.5 text-text-subtle shrink-0 mt-0.5" />
+          <p className="text-[11px] text-text-subtle leading-relaxed">
+            These dates come from the cookie files themselves and only tell you whether the clock
+            has run out. Google can revoke a session server-side - password change, security event,
+            too many IPs on one account - without the date changing, so a slot with time left is
+            not confirmed working. A revoked <span className="text-text-muted">primary</span> shows
+            up as a Discord alert the next time it&apos;s used; a revoked{" "}
+            <span className="text-text-muted">backup</span> stays silent until failover happens.
+          </p>
+        </div>
+      )}
+
       {/* Upload form */}
       <div className="rounded-lg border border-graphite-800 bg-graphite-900 p-4 sm:p-5">
         <p className="text-sm font-medium mb-1">Upload cookies.txt</p>
         <p className="text-xs text-text-muted mb-3">
-          Export from your browser&apos;s cookie extension and upload here — no SSH needed. Use a{" "}
-          <span className="text-text-primary">different Google account per slot</span>: three
-          exports of the same login all die together, which defeats the point of having backups.
+          Export from your browser&apos;s cookie extension and upload here - no SSH needed. Use a{" "}
+          <span className="text-text-primary">different Google account per slot</span> so a single
+          revoked account can&apos;t take all three down at once.
         </p>
 
         <form onSubmit={handleUpload} className="flex flex-col gap-3">
@@ -547,7 +591,11 @@ export default function AdminCookiesPage() {
             disabled={!file || uploading}
             className="self-start flex items-center gap-1.5 rounded-md bg-amber-500 text-graphite-950 px-3.5 py-2 text-xs font-semibold hover:bg-amber-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+            {uploading ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Upload className="h-3.5 w-3.5" />
+            )}
             {uploading ? `Uploading… ${uploadProgress}%` : "Upload"}
           </button>
 
@@ -555,12 +603,12 @@ export default function AdminCookiesPage() {
             <div
               className={`flex items-start gap-2 rounded-md border px-3 py-2 text-xs transition-opacity ${
                 uploadResult.ok
-                  ? "border-teal-400/30 bg-teal-400/5 text-teal-400"
+                  ? "border-graphite-700 bg-graphite-850 text-text-muted"
                   : "border-red-500/30 bg-red-500/5 text-red-500"
               }`}
             >
               {uploadResult.ok ? (
-                <CheckCircle2 className="h-3.5 w-3.5 shrink-0 mt-px" />
+                <Info className="h-3.5 w-3.5 shrink-0 mt-px" />
               ) : (
                 <XCircle className="h-3.5 w-3.5 shrink-0 mt-px" />
               )}

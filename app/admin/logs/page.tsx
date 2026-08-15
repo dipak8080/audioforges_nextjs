@@ -505,6 +505,11 @@ export default function AdminLogsPage() {
   // empty when the matches were simply older than the loaded window.
   const [httpFilteredTotal, setHttpFilteredTotal] = useState(0);
   const [sysTotal, setSysTotal] = useState(0);
+  // Same distinction as httpFilteredTotal, for the System tab - which
+  // was still reporting "N of <unfiltered total>" while its list was
+  // filtered in SQL. Exactly the two-answers-to-one-question problem
+  // the HTTP side already fixed.
+  const [sysFilteredTotal, setSysFilteredTotal] = useState(0);
   const [httpLoadingOlder, setHttpLoadingOlder] = useState(false);
   const [sysLoadingOlder, setSysLoadingOlder] = useState(false);
   // "Is there anything older left?" Derived from whether the last page
@@ -549,7 +554,15 @@ export default function AdminLogsPage() {
   const [showJumpHttp, setShowJumpHttp] = useState(false);
   const [showJumpSys, setShowJumpSys] = useState(false);
 
-  const NEAR_BOTTOM_PX = 48;
+  // 48px was smaller than the error in the scroll height itself.
+  // SystemRow uses contentVisibility:auto with containIntrinsicSize
+  // "0 56px", but real messages wrap to arbitrary heights, so
+  // scrollHeight shifts as off-screen rows get measured for real. A few
+  // tall exception traces and the pinned view drifts >48px from the
+  // bottom on its own, silently flipping sysPinnedRef to false - the
+  // feed stops following and looks frozen with no user action. 120px is
+  // comfortably wider than that estimation error.
+  const NEAR_BOTTOM_PX = 120;
 
   const httpInFlightRef = useRef(false);
   const sysInFlightRef = useRef(false);
@@ -566,6 +579,19 @@ export default function AdminLogsPage() {
   const httpDeltaInFlightRef = useRef(false);
   const sysDeltaInFlightRef = useRef(false);
 
+  // "Has a full fetch landed, so the delta cursor means something?"
+  // Replaces using `lastId === 0` as that signal, which conflated three
+  // different states: never fetched, fetched-but-empty-table, and
+  // fetched-but-filter-matched-nothing. Only the first should block a
+  // delta poll; the other two are perfectly valid cursors (the backend
+  // now returns max_id precisely so they always have one - see
+  // log_stream.py's RELIABILITY PASS note). Using `lastId === 0` as the
+  // sentinel also happened to make the after_id branch reachable with
+  // afterId=0, which is now capped server-side via _DELTA_MAX as a
+  // second line of defense.
+  const httpSeededRef = useRef(false);
+  const sysSeededRef = useRef(false);
+
   // Every in-flight request shares this controller and is aborted on
   // unmount, so navigating away mid-fetch doesn't leave promises
   // resolving into a dead component - and the response body isn't fully
@@ -579,7 +605,13 @@ export default function AdminLogsPage() {
   const signal = () => abortRef.current?.signal;
 
   const MIN_POLL_MS = 3000;
-  const MAX_POLL_MS = 20000;
+  // Was 20s. The backoff is per-visible-tab and only resets when THAT
+  // tab sees new rows, so the sparse System feed reliably drifted to the
+  // ceiling while idle - then a job would start and the first line took
+  // up to 20 seconds to appear. 10s keeps the "quiet dashboard left open
+  // all day" saving while halving the worst-case wait on the feed where
+  // it's actually noticeable.
+  const MAX_POLL_MS = 10000;
   const currentDelayRef = useRef(MIN_POLL_MS);
 
   const isAbort = (e: unknown) => (e as Error)?.name === "AbortError";
@@ -929,6 +961,31 @@ export default function AdminLogsPage() {
         throw new Error(body?.error || `Server returned ${res.status}`);
       }
       const data = await res.json();
+
+      // Seed the delta cursor HERE - before the signature guard below,
+      // and regardless of whether this query matched anything.
+      //
+      // Two separate bugs converged on this line. The cursor used to be
+      // set only inside `if (reversed.length > 0)`, so a filter matching
+      // zero rows left it at 0, and fetchHttpDelta() bails on 0 - delta
+      // polling was permanently dead for that filter, and rows arriving
+      // later that DID match never showed up. Only a manual Refresh, a
+      // tab switch, or another filter change revived it.
+      //
+      // Separately, the signature guard `return`s early on an unchanged
+      // response, which skipped seeding entirely - so a fetch running
+      // right after a filter change reset the cursor to 0 could leave it
+      // there. Seeding first makes that guard purely about rendering,
+      // which is all it was ever meant to be.
+      //
+      // data.logs is newest-first here (ORDER BY id DESC), so [0] is the
+      // newest matching row; max_id is the newest row that exists at
+      // all. Math.max rather than a plain `??` so this degrades safely
+      // against a backend that predates max_id.
+      const newestMatching = data.logs.length > 0 ? data.logs[0].id : 0;
+      httpLastIdRef.current = Math.max(newestMatching, data.max_id ?? 0);
+      httpSeededRef.current = true;
+
       // Most polls return exactly what we already have. Setting state with
       // a new (but identical-content) array forces React to re-render
       // every row for zero visual change. A cheap signature comparison
@@ -949,7 +1006,8 @@ export default function AdminLogsPage() {
       const reversed = [...data.logs].reverse();
       setHttpLogs(reversed);
       if (reversed.length > 0) {
-        httpLastIdRef.current = reversed[reversed.length - 1].id;
+        // lastId is seeded above, unconditionally - only the oldest
+        // cursor depends on having actually received rows.
         httpOldestRef.current = reversed[0].id;
       }
       // A full page back means there is almost certainly more behind it.
@@ -1041,14 +1099,25 @@ export default function AdminLogsPage() {
       }
       const data = await res.json();
       const lastId = data.logs.length > 0 ? data.logs[data.logs.length - 1].id : 0;
+
+      // See the long comment in fetchHttp: seed before the signature
+      // guard, and seed from max_id when this filter matched nothing, or
+      // delta polling stays dead for that filter until something else
+      // forces a full refetch. This tab is where it bit hardest - its
+      // filters (level=ERROR, a tool tag, a search term) routinely match
+      // nothing at the moment they're applied, which is precisely when
+      // you're sitting there waiting for the next matching line.
+      sysLastIdRef.current = Math.max(lastId, data.max_id ?? 0);
+      sysSeededRef.current = true;
+
       const sig = `${data.total}:${data.filtered_total}:${data.logs.length}:${lastId}`;
       if (sig === sysSigRef.current) return;
       sysSigRef.current = sig;
 
       setSysTotal(data.total);
+      if (typeof data.filtered_total === "number") setSysFilteredTotal(data.filtered_total);
       setSystemLogs(data.logs); // already oldest -> newest from the backend
       if (data.logs.length > 0) {
-        sysLastIdRef.current = lastId;
         sysOldestRef.current = data.logs[0].id;
       }
       const more = data.logs.length >= PAGE_SIZE;
@@ -1123,7 +1192,7 @@ export default function AdminLogsPage() {
 
   // ---------------- Delta polling: appends only ----------------
   const fetchHttpDelta = useCallback(async (): Promise<boolean> => {
-    if (httpDeltaInFlightRef.current || httpLastIdRef.current === 0) return false;
+    if (httpDeltaInFlightRef.current || !httpSeededRef.current) return false;
     httpDeltaInFlightRef.current = true;
     try {
       const res = await fetch(`/api/admin/logs?type=http&afterId=${httpLastIdRef.current}${filterParams()}`, {
@@ -1137,6 +1206,18 @@ export default function AdminLogsPage() {
         return false;
       }
       const data = await res.json();
+
+      // The backend caps this branch (_DELTA_MAX in log_stream.py).
+      // Hitting the cap means we're too far behind to catch up
+      // incrementally - splicing a truncated middle onto the list would
+      // leave a silent hole in the middle of the log. Re-seed from a
+      // normal page instead.
+      if (data.truncated) {
+        httpSigRef.current = "";
+        fetchHttp(true);
+        return true;
+      }
+
       setTotals({ total: data.total, success: data.success, client: data.client, server: data.server });
       setHttpTotal(data.total);
       if (typeof data.filtered_total === "number") setHttpFilteredTotal(data.filtered_total);
@@ -1165,10 +1246,10 @@ export default function AdminLogsPage() {
     } finally {
       httpDeltaInFlightRef.current = false;
     }
-  }, [router]);
+  }, [router, fetchHttp]);
 
   const fetchSystemDelta = useCallback(async (): Promise<boolean> => {
-    if (sysDeltaInFlightRef.current || sysLastIdRef.current === 0) return false;
+    if (sysDeltaInFlightRef.current || !sysSeededRef.current) return false;
     sysDeltaInFlightRef.current = true;
     try {
       const res = await fetch(`/api/admin/logs?type=system&afterId=${sysLastIdRef.current}${sysFilterParams()}`, {
@@ -1182,7 +1263,16 @@ export default function AdminLogsPage() {
         return false;
       }
       const data = await res.json();
+
+      // Same recovery as fetchHttpDelta above - see that comment.
+      if (data.truncated) {
+        sysSigRef.current = "";
+        fetchSystem(true);
+        return true;
+      }
+
       setSysTotal(data.total);
+      if (typeof data.filtered_total === "number") setSysFilteredTotal(data.filtered_total);
       setSystemError(null);
       if (!data.logs || data.logs.length === 0) return false;
 
@@ -1205,7 +1295,7 @@ export default function AdminLogsPage() {
     } finally {
       sysDeltaInFlightRef.current = false;
     }
-  }, [router]);
+  }, [router, fetchSystem]);
 
   // ---------------- Scroll handling ----------------
   // Desktop table and mobile card list are separate elements, so each
@@ -1500,6 +1590,7 @@ export default function AdminLogsPage() {
     if (tab !== "http") return;
     httpSigRef.current = "";        // force the signature guard to accept the new result
     httpLastIdRef.current = 0;
+    httpSeededRef.current = false;  // cursor is meaningless until the coming fetch lands
     httpOldestRef.current = 0;
     httpHasOlderRef.current = true;
     setHttpHasOlder(true);
@@ -1519,6 +1610,7 @@ export default function AdminLogsPage() {
     if (tab !== "system") return;
     sysSigRef.current = "";
     sysLastIdRef.current = 0;
+    sysSeededRef.current = false;   // cursor is meaningless until the coming fetch lands
     sysOldestRef.current = 0;
     sysHasOlderRef.current = true;
     setSysHasOlder(true);
@@ -1795,6 +1887,8 @@ export default function AdminLogsPage() {
       sysSigRef.current = "";
       httpLastIdRef.current = 0;
       sysLastIdRef.current = 0;
+      httpSeededRef.current = false;
+      sysSeededRef.current = false;
       httpOldestRef.current = 0;
       sysOldestRef.current = 0;
       httpPinnedRef.current = true;
@@ -2245,7 +2339,7 @@ export default function AdminLogsPage() {
                   onScroll={(e) => handleHttpScroll(e.currentTarget)}
                   className="h-full overflow-y-auto scrollbar-thin"
                 >
-                  <TopSentinel loading={httpLoadingOlder} hasOlder={httpHasOlder} count={httpLogs.length} total={httpTotal} />
+                  <TopSentinel loading={httpLoadingOlder} hasOlder={httpHasOlder} count={httpLogs.length} total={httpFilteredTotal} />
                   <table className="w-full text-sm border-collapse">
                     <thead className="sticky top-0 z-10 bg-graphite-900 border-b border-graphite-800">
                       <tr className="text-left">
@@ -2286,7 +2380,7 @@ export default function AdminLogsPage() {
                   onScroll={(e) => handleHttpScroll(e.currentTarget)}
                   className="h-full overflow-y-auto scrollbar-thin"
                 >
-                  <TopSentinel loading={httpLoadingOlder} hasOlder={httpHasOlder} count={httpLogs.length} total={httpTotal} />
+                  <TopSentinel loading={httpLoadingOlder} hasOlder={httpHasOlder} count={httpLogs.length} total={httpFilteredTotal} />
                   <div className="divide-y divide-graphite-800/70">
                     {filtered.map((log) => (
                       <HttpCardRow key={log.id} log={log} onOpenLogs={loadCorrelated} />
@@ -2321,7 +2415,8 @@ export default function AdminLogsPage() {
               Application log buffer
               {sysTotal > 0 && (
                 <span className="text-text-subtle tabular-nums">
-                  {" "}({systemLogs.length.toLocaleString()} of {sysTotal.toLocaleString()})
+                  {" "}({systemLogs.length.toLocaleString()} of {sysFilteredTotal.toLocaleString()} matching
+                  {sysFilteredTotal < sysTotal && <> · {sysTotal.toLocaleString()} total</>})
                 </span>
               )}
             </span>
@@ -2504,12 +2599,13 @@ export default function AdminLogsPage() {
                 onScroll={handleSysScroll}
                 className="h-full overflow-y-auto scrollbar-thin font-mono text-xs"
               >
-                <TopSentinel loading={sysLoadingOlder} hasOlder={sysHasOlder} count={systemLogs.length} total={sysTotal} />
+                <TopSentinel loading={sysLoadingOlder} hasOlder={sysHasOlder} count={systemLogs.length} total={sysFilteredTotal} />
                 {systemGroups.map((group, index) => (
                   <SystemGroupBlock
                     key={group.key}
                     group={group}
                     isFirst={index === 0}
+                    isLast={index === systemGroups.length - 1}
                     expanded={expandedGroups.has(group.key)}
                     onToggle={() => toggleGroup(group.key)}
                     onOpenEntry={loadCorrelatedFromSystemRow}
@@ -3090,10 +3186,13 @@ function worstLevel(entries: SystemLogEntry[]): string {
 
 const SystemGroupBlock = memo(
   function SystemGroupBlock({
-    group, isFirst, expanded, onToggle, onOpenEntry,
+    group, isFirst, isLast, expanded, onToggle, onOpenEntry,
   }: {
     group: { key: string; entries: SystemLogEntry[] };
     isFirst: boolean;
+    /** The newest group in the list - in the live view, the request
+     *  still actively emitting lines. Never folded. */
+    isLast: boolean;
     expanded: boolean;
     onToggle: () => void;
     onOpenEntry?: (entry: SystemLogEntry) => void;
@@ -3106,6 +3205,15 @@ const SystemGroupBlock = memo(
       return <SystemRow entry={entries[0]} newGroup={!isFirst} onOpenEntry={onOpenEntry} />;
     }
 
+    // The LIVE group is never collapsed. Head/tail folding is right for
+    // a finished request, but for the one still running it hides
+    // precisely the lines that are arriving: head and tail sit frozen
+    // while a "N more lines" counter quietly ticks upward between them.
+    // That reads as a stuck feed even though it's updating every poll,
+    // and it was the single biggest reason the System tab FELT laggy
+    // beyond the actual polling delay.
+    const showAll = expanded || isLast;
+
     const head = entries[0];
     const tail = entries[entries.length - 1];
     const middle = entries.slice(1, -1);
@@ -3114,7 +3222,10 @@ const SystemGroupBlock = memo(
     return (
       <div className={!isFirst ? "border-t border-t-graphite-700 mt-1 pt-2.5" : ""}>
         <SystemRow entry={head} newGroup={false} onOpenEntry={onOpenEntry} />
-        {middle.length > 0 && (
+        {/* No toggle on the live group - there's nothing hidden to
+            reveal, and offering a "Hide" that does nothing is worse than
+            offering nothing. */}
+        {middle.length > 0 && !isLast && (
           <button
             onClick={onToggle}
             className={`w-full flex items-center gap-2 pl-4 pr-4 py-1.5 border-l-2 ${tone.border} text-[11px] ${tone.text} hover:bg-graphite-850/60 transition-colors`}
@@ -3124,7 +3235,7 @@ const SystemGroupBlock = memo(
             {" "}for this request
           </button>
         )}
-        {expanded && middle.map((entry) => (
+        {showAll && middle.map((entry) => (
           <SystemRow key={entry.id} entry={entry} newGroup={false} onOpenEntry={onOpenEntry} />
         ))}
         <SystemRow entry={tail} newGroup={false} onOpenEntry={onOpenEntry} />
@@ -3135,6 +3246,7 @@ const SystemGroupBlock = memo(
     prev.group.key === next.group.key &&
     prev.group.entries.length === next.group.entries.length &&
     prev.isFirst === next.isFirst &&
+    prev.isLast === next.isLast &&
     prev.expanded === next.expanded &&
     prev.onOpenEntry === next.onOpenEntry
 );
