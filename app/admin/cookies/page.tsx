@@ -22,6 +22,13 @@ interface CookieSlot {
   expires_in_days?: number | null;
   expiry_status?: ExpiryStatus;
   critical_cookies_found?: number;
+  // ADDED 2026-08-16: the runtime's own verdict, layered on top of the
+  // static expiry date by cookie_health.apply_to() on the backend. See
+  // ExpiryStatus's "revoked" case below for why the date alone was never
+  // enough - Google can kill a session server-side without touching the
+  // file, so a future date proves nothing once revoked_at is present.
+  revoked_at?: number | null;
+  revoked_reason?: string | null;
 }
 
 type ExpiryStatus =
@@ -32,7 +39,17 @@ type ExpiryStatus =
   | "missing"
   | "no_auth_cookies"
   | "session_only"
-  | "unknown";
+  | "unknown"
+  // ADDED 2026-08-16: the runtime confirmed YouTube rejected this
+  // session (yt-dlp's "cookies are no longer valid" warning, repeated
+  // enough times to rule out a one-off flaky check - see
+  // cookie_health.py). Distinct from every other status here because
+  // it's the only one NOT derived from the file's own expiry date: a
+  // slot can show "revoked" while expires_in_days still reads 365.
+  // Never overrides "expired" or "no_auth_cookies" - both of those are
+  // already terminal and more specific about what's wrong with the file
+  // itself.
+  | "revoked";
 
 type SlotMap = Record<string, CookieSlot>;
 type Tone = "warn" | "bad" | "muted";
@@ -48,9 +65,11 @@ const SLOT_LABELS: Record<string, string> = {
 /**
  * The expiry date is a static string written into cookies.txt at export time.
  * If Google revokes the session server-side the date does not change, so a
- * future date proves nothing. Only definitive failures get colour; everything
- * else reports the date and claims nothing. Chip text is self-contained, which
- * is why there is no separate "status label" — one element, one job.
+ * future date proves nothing on its own - that gap is exactly what "revoked"
+ * exists to close (see cookie_health.py on the backend). Only definitive
+ * failures get colour; everything else reports the date and claims nothing.
+ * Chip text is self-contained, which is why there is no separate "status
+ * label" - one element, one job.
  */
 const TONE: Record<ExpiryStatus, Tone> = {
   ok: "muted",
@@ -61,9 +80,10 @@ const TONE: Record<ExpiryStatus, Tone> = {
   session_only: "warn",
   unknown: "muted",
   missing: "muted",
+  revoked: "bad",
 };
 
-const DEFINITELY_BROKEN: ExpiryStatus[] = ["expired", "no_auth_cookies"];
+const DEFINITELY_BROKEN: ExpiryStatus[] = ["expired", "no_auth_cookies", "revoked"];
 
 const CHIP_CLASSES: Record<Tone, string> = {
   warn: "border-amber-500/30 bg-amber-500/10 text-amber-400",
@@ -104,11 +124,29 @@ function formatWindow(days: number | null | undefined): string {
   return `${Math.round(abs / 30)}mo`;
 }
 
-/** One chip, one sentence fragment. No label + value duplication. */
-function chipText(status: ExpiryStatus, days: number | null | undefined): string {
+/**
+ * One chip, one sentence fragment. No label + value duplication.
+ *
+ * UPDATED 2026-08-16: takes the whole slot instead of (status, days) - the
+ * "revoked" case needs revoked_at, which lives alongside expires_in_days on
+ * the same object, and threading a third positional param through every
+ * call site was worse than just passing what's already in hand.
+ */
+function chipText(info: CookieSlot): string {
+  const status = info.expiry_status ?? "unknown";
   switch (status) {
+    case "revoked":
+      // Deliberately says WHEN it was revoked, not "13mo left" - the date
+      // is still visible lower in the card (see the Expires row) so
+      // nothing is hidden, but the chip's one job is to say what actually
+      // happened, and "revoked" outranks a clock that never stopped.
+      return info.revoked_at != null
+        ? `Revoked ${formatRelativeTime(info.revoked_at)}`
+        : "Revoked";
     case "expired":
-      return days != null ? `Expired ${formatWindow(days)} ago` : "Expired";
+      return info.expires_in_days != null
+        ? `Expired ${formatWindow(info.expires_in_days)} ago`
+        : "Expired";
     case "no_auth_cookies":
       return "No auth cookies";
     case "session_only":
@@ -116,7 +154,9 @@ function chipText(status: ExpiryStatus, days: number | null | undefined): string
     case "unknown":
       return "Date unreadable";
     default:
-      return days != null ? `${formatWindow(days)} left` : "Expiry unknown";
+      return info.expires_in_days != null
+        ? `${formatWindow(info.expires_in_days)} left`
+        : "Expiry unknown";
   }
 }
 
@@ -195,6 +235,11 @@ export default function AdminCookiesPage() {
   const brokenSlots = slotEntries.filter(
     ([, s]) => s.exists && s.expiry_status != null && DEFINITELY_BROKEN.includes(s.expiry_status)
   );
+  // Split out purely for the header sentence below, so "revoked" and
+  // "past expiry" aren't conflated into one misleading word - a slot the
+  // runtime killed didn't necessarily run out of time, and a slot that
+  // ran out of time wasn't necessarily ever confirmed dead in use.
+  const revokedCount = slotEntries.filter(([, s]) => s.expiry_status === "revoked").length;
 
   async function handleRefresh() {
     setRefreshing(true);
@@ -263,6 +308,11 @@ export default function AdminCookiesPage() {
       } else {
         message = `Slot ${data.slot} saved.`;
       }
+      // NOTE: "revoked" deliberately isn't reachable here. cookie_health
+      // is cleared as part of every successful upload (see
+      // cookie_upload.py), so a just-uploaded slot can never come back
+      // revoked in the same response - if it somehow did, the generic
+      // branches above still produce a sane message rather than crashing.
 
       setUploadResult({ ok: !isBroken, message });
       setFile(null);
@@ -289,7 +339,7 @@ export default function AdminCookiesPage() {
             {loading
               ? "Loading…"
               : brokenSlots.length > 0
-                ? `${presentCount} of 3 filled · ${brokenSlots.length} past expiry`
+                ? `${presentCount} of 3 filled · ${brokenSlots.length} need re-export`
                 : `${presentCount} of 3 filled`}
           </p>
         </div>
@@ -312,8 +362,10 @@ export default function AdminCookiesPage() {
             <span className="font-medium text-red-400">
               {brokenSlots.map(([name]) => SLOT_LABELS[name] ?? name).join(", ")}
             </span>{" "}
-            {brokenSlots.length === 1 ? "needs" : "need"} re-exporting. Backups only take over after
-            the primary fails, so a dead one stays silent until you need it.
+            {brokenSlots.length === 1 ? "needs" : "need"} re-exporting.{" "}
+            {revokedCount > 0
+              ? "A revoked slot was confirmed dead by an actual download attempt, not just its expiry date - re-export replaces it immediately."
+              : "Backups only take over after the primary fails, so a dead one stays silent until you need it."}
           </p>
         </div>
       )}
@@ -382,7 +434,7 @@ export default function AdminCookiesPage() {
                 <span
                   className={`self-start rounded border px-2 py-1 text-[11px] font-medium tabular-nums ${CHIP_CLASSES[tone]}`}
                 >
-                  {chipText(status, info.expires_in_days)}
+                  {chipText(info)}
                 </span>
 
                 <dl className="mt-auto flex flex-col gap-1 text-[11px]">
@@ -391,6 +443,18 @@ export default function AdminCookiesPage() {
                       <dt className="text-text-subtle">Expires</dt>
                       <dd className="text-text-muted tabular-nums">
                         {formatDate(info.expires_at)}
+                      </dd>
+                    </div>
+                  )}
+                  {/* ADDED 2026-08-16: the count backing the expiry/revoked
+                      read above. A 1.8 KB file with 3 auth cookies against
+                      siblings at 3+ KB / 8 cookies is visible at a glance
+                      instead of only discoverable by diffing file sizes. */}
+                  {info.critical_cookies_found != null && (
+                    <div className="flex items-baseline justify-between gap-2">
+                      <dt className="text-text-subtle">Auth cookies</dt>
+                      <dd className="text-text-muted tabular-nums">
+                        {info.critical_cookies_found}
                       </dd>
                     </div>
                   )}
@@ -409,6 +473,18 @@ export default function AdminCookiesPage() {
                     </div>
                   )}
                 </dl>
+
+                {/* ADDED 2026-08-16: the actual yt-dlp warning text that
+                    triggered the revocation, when the backend captured
+                    one. Kept OUT of the <dl> above (which is a fixed
+                    label/value grid) since this is prose, not a field,
+                    and can run longer than a value column comfortably
+                    holds. */}
+                {status === "revoked" && info.revoked_reason && (
+                  <p className="text-[11px] text-red-400/80 leading-snug line-clamp-2">
+                    {info.revoked_reason}
+                  </p>
+                )}
               </div>
             );
           })}
@@ -557,10 +633,13 @@ export default function AdminCookiesPage() {
             Why no slot is marked &ldquo;valid&rdquo;
           </summary>
           <p className="px-3.5 pb-3 pl-8 text-[11px] text-text-subtle leading-relaxed">
-            These dates are read from the files themselves, so they only tell you whether the clock
-            has run out. Google can revoke a session server-side without changing the date. A
+            The expiry date is read from the file itself, so it only tells you whether the clock
+            has run out — Google can revoke a session server-side without changing that date.{" "}
+            <span className="text-text-muted">Revoked</span> means the opposite kind of
+            evidence: an actual download attempt confirmed YouTube rejected the session, which is
+            stronger than any date but only ever found out about a slot after it was used. A
             revoked primary shows up as a Discord alert the next time it runs; a revoked backup
-            stays silent until failover.
+            can still stay silent until failover, since standby slots are rarely used at all.
           </p>
         </details>
       )}
