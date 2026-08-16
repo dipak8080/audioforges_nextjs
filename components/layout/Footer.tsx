@@ -9,6 +9,21 @@ const FOOTER_LINKS = [
   { href: "/dmca", label: "DMCA" },
 ];
 
+/**
+ * PREFETCH DISABLED (2026-08-16).
+ *
+ * Only six links, but this footer renders on EVERY page, so the cost is
+ * six routes x four App Router segments (_head, _tree, route, __PAGE__)
+ * = 24 edge requests on every single page view, for pages almost nobody
+ * clicks. Privacy, Terms and DMCA exist because they have to exist, not
+ * because they get traffic.
+ *
+ * Sitewide components are where prefetch is most expensive and least
+ * useful: the multiplier is every visitor x every page, and the links
+ * are utility navigation rather than the thing anyone came for. Guides
+ * is the one plausible click here, and it is already prefetched from the
+ * main nav.
+ */
 export function Footer() {
   const year = new Date().getFullYear();
 
@@ -23,6 +38,7 @@ export function Footer() {
             <Link
               key={link.href}
               href={link.href}
+              prefetch={false}
               className="text-sm text-text-muted hover:text-text-primary transition-colors"
             >
               {link.label}

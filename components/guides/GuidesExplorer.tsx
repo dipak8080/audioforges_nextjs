@@ -54,6 +54,24 @@ interface GuidesExplorerProps {
   guides: Guide[];
 }
 
+/**
+ * PREFETCH DISABLED ON THE GUIDE LIST (2026-08-16).
+ *
+ * All 31 guides render at once, grouped by category with no pagination.
+ * Next.js prefetches each link as it scrolls into view, and each route
+ * costs four App Router segments (_head, _tree, route, __PAGE__) - so
+ * reading down this page fetches roughly 124 requests worth of guides
+ * that will not be read.
+ *
+ * Vercel's usage breakdown made this visible: /guides.segments/* carried
+ * the highest counts on the whole site (216-252 per segment), above every
+ * individual tool. That is not readership, it is the index page fetching
+ * its own contents on every visit.
+ *
+ * A guide index is a decision surface, not a funnel - the visitor is
+ * scanning titles, not queued to open a specific one - so there is no
+ * next page worth guessing at. Clicking still works identically.
+ */
 export function GuidesExplorer({ guides }: GuidesExplorerProps) {
   const [query, setQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState<CategoryFilter>("all");
@@ -237,6 +255,7 @@ export function GuidesExplorer({ guides }: GuidesExplorerProps) {
                   <Link
                     key={guide.slug}
                     href={`/guides/${guide.slug}`}
+                    prefetch={false}
                     className="group block rounded-xl border border-graphite-800 bg-graphite-900 p-4 transition-colors hover:border-amber-500/40"
                   >
                     <div className="flex items-center justify-between gap-2">

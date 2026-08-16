@@ -56,6 +56,31 @@ const websiteJsonLd = {
     "Free, fast audio tools built for producers and DJs — no sign-up required.",
 };
 
+/**
+ * PREFETCH IS SELECTIVE ON THIS PAGE (2026-08-16), not blanket-disabled.
+ *
+ * This is the highest-traffic page on the site, so it is also where a
+ * link prefetched needlessly costs the most - four App Router segments
+ * per route, on every visit. But it is equally where a prefetch actually
+ * earns its keep, because a homepage visitor genuinely is about to click
+ * something.
+ *
+ * So the split is by INTENT, not by count:
+ *
+ *   PREFETCHED - the two hero buttons. They are the primary path off
+ *   this page, sit above the fold, and are what most visitors click.
+ *   Two routes is a rounding error against the saving below, and this is
+ *   exactly the click prefetch exists to make instant.
+ *
+ *   NOT PREFETCHED - the Popular tools grid and every inline prose link.
+ *   Together that is ~15 routes (~60 requests) for a reader who is still
+ *   deciding. The prose links in particular read as a menu of options
+ *   rather than a next step; someone reading paragraph three is
+ *   browsing, not queued to open the Noise Remover.
+ *
+ * Nothing about navigation changes either way - an un-prefetched link
+ * loads on click instead of having been fetched in advance.
+ */
 export default function HomePage() {
   const liveTools = getLiveTools();
 
@@ -135,6 +160,8 @@ export default function HomePage() {
             clean up, analyze, tune, and practice, all in one place.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+            {/* Prefetched deliberately: the primary call to action, above
+                the fold, and the single most-clicked link on the site. */}
             <Link
               href="/youtube-to-wav"
               className="inline-flex items-center gap-2 rounded-lg bg-amber-500 text-graphite-950 font-medium px-6 py-3 hover:bg-amber-400 transition-colors shadow-[0_0_0_1px_rgba(232,162,61,0.3)] hover:shadow-[0_0_24px_-4px_rgba(232,162,61,0.5)]"
@@ -142,6 +169,8 @@ export default function HomePage() {
               Try YouTube to WAV converter
               <ArrowRight className="h-4 w-4" />
             </Link>
+            {/* Also prefetched: the secondary CTA, and the other half of
+                what a first-time visitor does from here. */}
             <Link
               href="/tools"
               className="inline-flex items-center gap-2 rounded-lg border border-graphite-700 text-text-primary font-medium px-6 py-3 hover:border-amber-500/40 hover:text-amber-400 transition-colors"
@@ -186,6 +215,7 @@ export default function HomePage() {
             <h2 className="text-2xl font-bold text-text-primary">Popular tools</h2>
             <Link
               href="/tools"
+              prefetch={false}
               className="text-sm text-amber-400 hover:text-amber-300 transition-colors"
             >
               View all →
@@ -196,6 +226,7 @@ export default function HomePage() {
               <Link
                 key={tool.slug}
                 href={`/${tool.slug}`}
+                prefetch={false}
                 className="group block rounded-xl border border-graphite-800 bg-graphite-900 p-5 hover:border-amber-500/40 transition-colors"
               >
                 <h3 className="font-semibold text-text-primary group-hover:text-amber-400 transition-colors">
@@ -240,48 +271,48 @@ export default function HomePage() {
             </p>
             <p>
               Start with{" "}
-              <Link href="/youtube-to-wav" className="text-amber-400 hover:text-amber-300 underline underline-offset-2">
+              <Link href="/youtube-to-wav" prefetch={false} className="text-amber-400 hover:text-amber-300 underline underline-offset-2">
                 YouTube to WAV / MP3
               </Link>{" "}
               or the{" "}
-              <Link href="/convert" className="text-amber-400 hover:text-amber-300 underline underline-offset-2">
+              <Link href="/convert" prefetch={false} className="text-amber-400 hover:text-amber-300 underline underline-offset-2">
                 Format Converter
               </Link>{" "}
               to get a source file. From there, check its{" "}
-              <Link href="/key-finder" className="text-amber-400 hover:text-amber-300 underline underline-offset-2">
+              <Link href="/key-finder" prefetch={false} className="text-amber-400 hover:text-amber-300 underline underline-offset-2">
                 key and BPM
               </Link>
               , use the{" "}
-              <Link href="/bpm-tapper" className="text-amber-400 hover:text-amber-300 underline underline-offset-2">
+              <Link href="/bpm-tapper" prefetch={false} className="text-amber-400 hover:text-amber-300 underline underline-offset-2">
                 BPM Tapper
               </Link>{" "}
               to tap along and find a song&apos;s tempo, set that BPM in the{" "}
-              <Link href="/metronome" className="text-amber-400 hover:text-amber-300 underline underline-offset-2">
+              <Link href="/metronome" prefetch={false} className="text-amber-400 hover:text-amber-300 underline underline-offset-2">
                 Online Metronome
               </Link>
               , or tune an instrument with the{" "}
-              <Link href="/tuner" className="text-amber-400 hover:text-amber-300 underline underline-offset-2">
+              <Link href="/tuner" prefetch={false} className="text-amber-400 hover:text-amber-300 underline underline-offset-2">
                 Online Instrument Tuner
               </Link>
               . Pull out an{" "}
-              <Link href="/vocal-remover" className="text-amber-400 hover:text-amber-300 underline underline-offset-2">
+              <Link href="/vocal-remover" prefetch={false} className="text-amber-400 hover:text-amber-300 underline underline-offset-2">
                 instrumental or acapella
               </Link>
               , clean up noise with the{" "}
-              <Link href="/noise-remove" className="text-amber-400 hover:text-amber-300 underline underline-offset-2">
+              <Link href="/noise-remove" prefetch={false} className="text-amber-400 hover:text-amber-300 underline underline-offset-2">
                 Noise Remover
               </Link>{" "}
               or{" "}
-              <Link href="/voice-clean" className="text-amber-400 hover:text-amber-300 underline underline-offset-2">
+              <Link href="/voice-clean" prefetch={false} className="text-amber-400 hover:text-amber-300 underline underline-offset-2">
                 Voice Cleaner
               </Link>
               , or get a full transcript with{" "}
-              <Link href="/speech-to-text" className="text-amber-400 hover:text-amber-300 underline underline-offset-2">
+              <Link href="/speech-to-text" prefetch={false} className="text-amber-400 hover:text-amber-300 underline underline-offset-2">
                 Speech to Text
               </Link>
               . Every tool is built to be used together, in whatever order your
               workflow needs — browse the{" "}
-              <Link href="/tools" className="text-amber-400 hover:text-amber-300 underline underline-offset-2">
+              <Link href="/tools" prefetch={false} className="text-amber-400 hover:text-amber-300 underline underline-offset-2">
                 full list
               </Link>{" "}
               to see everything available.

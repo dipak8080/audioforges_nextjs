@@ -7,6 +7,41 @@ import { AudioWaveform, Heart, Menu, X, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { TOOLS, CATEGORY_ORDER, CATEGORY_LABELS, getToolsByCategory } from "@/lib/data/tools";
 
+/**
+ * PREFETCH IS DISABLED ON THE BULK TOOL LINKS BELOW (2026-08-16).
+ *
+ * Next.js <Link> prefetches whenever a link enters the viewport, using
+ * an IntersectionObserver. IntersectionObserver does not care about
+ * `opacity: 0` or `pointer-events: none` - an element with those styles
+ * still occupies layout and still intersects. The mega panel is
+ * rendered on every page and only HIDDEN by opacity, so all ~25 tool
+ * links were being prefetched on every single page load whether or not
+ * the menu was ever opened.
+ *
+ * Each prefetched route costs FOUR edge requests in the App Router
+ * (_head.segment, _tree.segment, <route>.segment, __PAGE__.segment), so
+ * one visitor landing anywhere on the site fired roughly 100 requests
+ * before clicking a thing. Vercel's usage breakdown showed exactly this:
+ * every tool's four segment paths sitting at a near-identical ~190-200
+ * hits, which is the signature of uniform prefetching rather than real
+ * navigation.
+ *
+ * They also read as ~99% cached, which is worse than it sounds: a cached
+ * edge request still counts against the plan's request quota. The quota
+ * was being spent on pages nobody visited.
+ *
+ * WHY prefetch={false} RATHER THAN CONDITIONALLY RENDERING THE PANEL:
+ * conditional rendering would fix this too, and more completely - but it
+ * would also drop the open/close transition, since there is no element
+ * to animate from. This keeps the interaction exactly as designed and
+ * changes only what happens in the background. Navigation is unaffected;
+ * a clicked link simply loads on click instead of having been fetched in
+ * advance, which on a tools site is the right trade: a visitor uses one
+ * tool, not twenty-five.
+ *
+ * DELIBERATELY STILL PREFETCHED: the logo (/), Guides, and View all
+ * tools. Three links, genuinely likely to be clicked, negligible cost.
+ */
 export function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isToolsOpen, setIsToolsOpen] = useState(false);
@@ -158,6 +193,11 @@ export function Navbar() {
                             <Link
                               key={tool.slug}
                               href={`/${tool.slug}`}
+                              // See the note at the top of this file. This
+                              // panel renders on every page and is hidden
+                              // by opacity alone, so without this every
+                              // tool was prefetched on every page load.
+                              prefetch={false}
                               aria-current={isActive ? "page" : undefined}
                               className={cn(
                                 "block rounded-md px-2 py-[5px] text-[13px] leading-snug transition-colors",
@@ -234,6 +274,17 @@ export function Navbar() {
                       <Link
                         key={tool.slug}
                         href={`/${tool.slug}`}
+                        // max-h-0 + overflow-hidden clips these to zero
+                        // height, so IntersectionObserver probably never
+                        // fires for them while the menu is closed - but
+                        // "probably" is doing real work in that sentence,
+                        // and it depends on browser behaviour this code
+                        // does not control. Set explicitly so the answer
+                        // doesn't rest on a clipping side effect. Once
+                        // the menu IS open these are all on screen at
+                        // once anyway, which is exactly the case worth
+                        // not prefetching.
+                        prefetch={false}
                         onClick={() => setIsMenuOpen(false)}
                         className={cn(
                           "flex items-center justify-between rounded-xl px-4 py-3 text-sm font-medium transition-all duration-200",
