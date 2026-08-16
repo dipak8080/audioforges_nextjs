@@ -4,6 +4,7 @@ import { YouTubeSeparateForm } from "@/components/converter/YouTubeSeparateForm"
 import { FAQSection, type FAQItem } from "@/components/faq/FAQSection";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
+import { getRateLimitLabel } from "@/lib/data/rate-limits";
 import { getFeatureFlags } from "@/lib/api/railway";
 
 const PAGE_TITLE = "Free YouTube Vocal Remover";
@@ -60,6 +61,15 @@ const breadcrumbJsonLd = {
 };
 // NOTE: No HowTo schema — deprecated by Google (desktop since Sept 2023),
 // no ranking or rich-result benefit remains. Visible how-to steps stay.
+
+// Rate-limit numbers shown in the "Standard vs. Studio Quality" table below
+// are read from lib/data/rate-limits.ts rather than hardcoded here — same
+// source YouTubeSeparateForm.tsx uses, so the tool UI and this SEO copy can
+// never quietly drift apart. Fallback text only fires if a key is ever
+// missing/renamed in rate-limits.ts.
+const FALLBACK_RATE_LIMIT_LABEL = "rate limited";
+const standardLimitLabel = getRateLimitLabel("youtube/separate") ?? FALLBACK_RATE_LIMIT_LABEL;
+const hqLimitLabel = getRateLimitLabel("youtube/separate-hq") ?? FALLBACK_RATE_LIMIT_LABEL;
 
 export default async function YouTubeVocalRemoverPage() {
   const relatedTools = getRelatedTools("youtube-vocal-remover", 5);
@@ -288,9 +298,11 @@ export default async function YouTubeVocalRemoverPage() {
                     <td className="px-4 py-3">Noticeably cleaner on both stems</td>
                   </tr>
                   <tr>
+                    {/* Pulled from lib/data/rate-limits.ts (getRateLimitLabel) —
+                        do not hardcode these two cells again. */}
                     <td className="px-4 py-3 font-medium text-text-primary">Usage limit</td>
-                    <td className="px-4 py-3">3 per hour</td>
-                    <td className="px-4 py-3">1 per hour</td>
+                    <td className="px-4 py-3">{standardLimitLabel}</td>
+                    <td className="px-4 py-3">{hqLimitLabel}</td>
                   </tr>
                   <tr>
                     <td className="px-4 py-3 font-medium text-text-primary">Best for</td>

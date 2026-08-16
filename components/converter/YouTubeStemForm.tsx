@@ -11,6 +11,7 @@ import {
   getYoutubeStemsDownloadUrl,
   type SeparationQuality,
 } from "@/lib/api/railway";
+import { getRateLimitLabel } from "@/lib/data/rate-limits";
 import { cn } from "@/lib/utils/cn";
 
 interface YouTubeStemFormProps {
@@ -22,15 +23,19 @@ interface QualitySpec {
   label: string;
   time: string;
   detail: string;
-  rateLimit: string;
+  /** Key into RATE_LIMITS (lib/data/rate-limits.ts) — NOT a hardcoded string. */
+  rateLimitKey: string;
 }
 
+// rateLimit strings are intentionally NOT hardcoded here — they're
+// looked up from RATE_LIMITS via rateLimitKey below, so a backend limit
+// change only needs updating in lib/data/rate-limits.ts.
 const STANDARD_SPEC: QualitySpec = {
   value: "standard",
   label: "Standard",
   time: "30 sec–1 min",
   detail: "Vocals, drums, bass, other",
-  rateLimit: "3 per hour",
+  rateLimitKey: "youtube/stems",
 };
 
 const HQ_SPEC: QualitySpec = {
@@ -38,8 +43,13 @@ const HQ_SPEC: QualitySpec = {
   label: "Studio Quality",
   time: "1–2 min",
   detail: "Cleaner separation, same 4 stems",
-  rateLimit: "1 per hour",
+  rateLimitKey: "youtube/stems-hq",
 };
+
+// Fallback shown only if a key is ever missing from RATE_LIMITS (e.g.
+// someone renames a key in rate-limits.ts without updating this file) —
+// keeps the UI from rendering "undefined" instead of failing loudly in dev.
+const FALLBACK_RATE_LIMIT_LABEL = "rate limited";
 
 // Stage timestamps (seconds elapsed) are proportional progress-indicator
 // cues, rescaled to match the current GPU-era processing times above —
@@ -164,6 +174,12 @@ export function YouTubeStemForm({ hqAvailable = false }: YouTubeStemFormProps) {
   const isHq = effectiveQuality === "hq";
   const spec = isHq ? HQ_SPEC : STANDARD_SPEC;
 
+  // Looked up here (not hardcoded) so both the quality-picker cards and
+  // the rate-limit-exceeded message below always agree with each other
+  // and with lib/data/rate-limits.ts.
+  const standardLimitLabel = getRateLimitLabel(STANDARD_SPEC.rateLimitKey) ?? FALLBACK_RATE_LIMIT_LABEL;
+  const hqLimitLabel = getRateLimitLabel(HQ_SPEC.rateLimitKey) ?? FALLBACK_RATE_LIMIT_LABEL;
+
   useEffect(() => {
     if (typeof window === "undefined" || !("Notification" in window)) {
       setNotifyPermission("unsupported");
@@ -211,8 +227,8 @@ export function YouTubeStemForm({ hqAvailable = false }: YouTubeStemFormProps) {
       stages={isHq ? HQ_STAGES : STANDARD_STAGES}
       rateLimitMessage={
         isHq
-          ? "You've reached the studio quality limit (1 per hour). Try again later."
-          : "You've reached the free limit (3 stem splits per hour). Try again later."
+          ? `You've reached the studio quality limit (${hqLimitLabel}). Try again later.`
+          : `You've reached the free limit (${standardLimitLabel}). Try again later.`
       }
       onComplete={() => notifyOnDone("Stems are ready", "Your separated tracks finished processing.")}
       onFailed={(message) => notifyOnDone("Stem separation failed", message || "The job didn't complete.")}
@@ -224,6 +240,7 @@ export function YouTubeStemForm({ hqAvailable = false }: YouTubeStemFormProps) {
               <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Separation quality">
                 {[STANDARD_SPEC, HQ_SPEC].map((option) => {
                   const selected = quality === option.value;
+                  const rateLimitLabel = getRateLimitLabel(option.rateLimitKey) ?? FALLBACK_RATE_LIMIT_LABEL;
                   return (
                     <button
                       key={option.value}
@@ -261,7 +278,7 @@ export function YouTubeStemForm({ hqAvailable = false }: YouTubeStemFormProps) {
                         </span>
                       </div>
                       <p className="mt-1 text-[11px] leading-snug text-text-muted">{option.detail}</p>
-                      <p className="mt-1 font-mono text-[10px] text-text-subtle">{option.rateLimit}</p>
+                      <p className="mt-1 font-mono text-[10px] text-text-subtle">{rateLimitLabel}</p>
                     </button>
                   );
                 })}

@@ -5,6 +5,7 @@ import { StemsForm } from "@/components/converter/StemsForm";
 import { FAQSection, type FAQItem } from "@/components/faq/FAQSection";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
+import { getRateLimitLabel } from "@/lib/data/rate-limits";
 import { getFeatureFlags } from "@/lib/api/railway";
 
 const PAGE_TITLE = "Free AI Stem Splitter – Split Songs Into Stems";
@@ -68,6 +69,14 @@ const breadcrumbJsonLd = {
 };
 
 const SUPPORTED_FORMATS = ["MP3", "WAV", "FLAC", "M4A", "AAC", "OGG"];
+
+// Rate-limit numbers shown in the "Standard vs. Studio Quality" table below
+// are read from lib/data/rate-limits.ts rather than hardcoded here — same
+// source StemsForm.tsx uses ("stems"/"stems-hq"). Fallback text only fires
+// if a key is ever missing/renamed in rate-limits.ts.
+const FALLBACK_RATE_LIMIT_LABEL = "rate limited";
+const standardLimitLabel = getRateLimitLabel("stems") ?? FALLBACK_RATE_LIMIT_LABEL;
+const hqLimitLabel = getRateLimitLabel("stems-hq") ?? FALLBACK_RATE_LIMIT_LABEL;
 
 /** Same style as the convert page — clean mono badges, no check icons */
 function FormatBadges() {
@@ -401,9 +410,11 @@ export default async function StemsPage() {
                     <td className="px-4 py-3">Noticeably cleaner across all four stems</td>
                   </tr>
                   <tr>
+                    {/* Pulled from lib/data/rate-limits.ts (getRateLimitLabel) —
+                        do not hardcode these two cells again. */}
                     <td className="px-4 py-3 font-medium text-text-primary">Usage limit</td>
-                    <td className="px-4 py-3">3 per hour</td>
-                    <td className="px-4 py-3">1 per hour</td>
+                    <td className="px-4 py-3">{standardLimitLabel}</td>
+                    <td className="px-4 py-3">{hqLimitLabel}</td>
                   </tr>
                   <tr>
                     <td className="px-4 py-3 font-medium text-text-primary">Best for</td>

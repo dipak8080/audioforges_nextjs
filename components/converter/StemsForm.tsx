@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Sparkles, Bell, BellOff, Info } from "lucide-react";
 import { MultiOutputToolForm } from "@/components/converter/MultiOutputToolForm";
 import { submitStems, type SeparationQuality } from "@/lib/api/railway";
+import { getRateLimitLabel } from "@/lib/data/rate-limits";
 import { cn } from "@/lib/utils/cn";
 
 interface StemsFormProps {
@@ -15,7 +16,8 @@ interface QualitySpec {
   label: string;
   time: string;
   detail: string;
-  rateLimit: string;
+  /** Key into RATE_LIMITS (lib/data/rate-limits.ts). */
+  rateLimitKey: string;
 }
 
 const STANDARD_SPEC: QualitySpec = {
@@ -23,7 +25,7 @@ const STANDARD_SPEC: QualitySpec = {
   label: "Standard",
   time: "20 sec–1 min",
   detail: "Vocals, drums, bass, other",
-  rateLimit: "3 per hour",
+  rateLimitKey: "stems",
 };
 
 const HQ_SPEC: QualitySpec = {
@@ -31,8 +33,10 @@ const HQ_SPEC: QualitySpec = {
   label: "Studio Quality",
   time: "1–2 min",
   detail: "Cleaner separation, same 4 stems",
-  rateLimit: "1 per hour",
+  rateLimitKey: "stems-hq",
 };
+
+const FALLBACK_RATE_LIMIT_LABEL = "rate limited";
 
 // Stage timestamps rescaled to fit the corrected times above — previously
 // ran to 80s (standard) and 280s (HQ), well beyond the current ~1 min and
@@ -61,6 +65,9 @@ export function StemsForm({ hqAvailable = false }: StemsFormProps) {
   const effectiveQuality: SeparationQuality = hqAvailable ? quality : "standard";
   const isHq = effectiveQuality === "hq";
   const spec = isHq ? HQ_SPEC : STANDARD_SPEC;
+
+  const standardLimitLabel = getRateLimitLabel(STANDARD_SPEC.rateLimitKey) ?? FALLBACK_RATE_LIMIT_LABEL;
+  const hqLimitLabel = getRateLimitLabel(HQ_SPEC.rateLimitKey) ?? FALLBACK_RATE_LIMIT_LABEL;
 
   useEffect(() => {
     if (typeof window === "undefined" || !("Notification" in window)) {
@@ -108,8 +115,8 @@ export function StemsForm({ hqAvailable = false }: StemsFormProps) {
       resultVerb="Split"
       rateLimitMessage={
         isHq
-          ? "You've reached the studio quality limit (1 per hour). Try again later."
-          : "You've reached the free limit (3 stem splits per hour). Try again later."
+          ? `You've reached the studio quality limit (${hqLimitLabel}). Try again later.`
+          : `You've reached the free limit (${standardLimitLabel}). Try again later.`
       }
       onComplete={() => notifyOnDone("Stems are ready", "Your separated tracks finished processing.")}
       onFailed={(message) => notifyOnDone("Stem separation failed", message || "The job didn't complete.")}
@@ -121,6 +128,7 @@ export function StemsForm({ hqAvailable = false }: StemsFormProps) {
               <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Separation quality">
                 {[STANDARD_SPEC, HQ_SPEC].map((option) => {
                   const selected = quality === option.value;
+                  const rateLimitLabel = getRateLimitLabel(option.rateLimitKey) ?? FALLBACK_RATE_LIMIT_LABEL;
                   return (
                     <button
                       key={option.value}
@@ -158,7 +166,7 @@ export function StemsForm({ hqAvailable = false }: StemsFormProps) {
                         </span>
                       </div>
                       <p className="mt-1 text-[11px] leading-snug text-text-muted">{option.detail}</p>
-                      <p className="mt-1 font-mono text-[10px] text-text-subtle">{option.rateLimit}</p>
+                      <p className="mt-1 font-mono text-[10px] text-text-subtle">{rateLimitLabel}</p>
                     </button>
                   );
                 })}

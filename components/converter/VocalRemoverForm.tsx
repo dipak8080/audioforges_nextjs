@@ -15,6 +15,7 @@ import {
   ApiError,
   type SeparationQuality,
 } from "@/lib/api/railway";
+import { getRateLimitLabel } from "@/lib/data/rate-limits";
 import type { SeparationUiState, StemType } from "@/lib/types/converter";
 import { SupportBlock } from "@/components/ui/SupportBlock";
 import { cn } from "@/lib/utils/cn";
@@ -28,15 +29,22 @@ interface QualitySpec {
   label: string;
   time: string;
   detail: string;
-  rateLimit: string;
+  /** Key into RATE_LIMITS (lib/data/rate-limits.ts) — NOT a hardcoded string. */
+  rateLimitKey: string;
 }
 
+// rateLimit strings are intentionally NOT hardcoded here — they're
+// looked up from RATE_LIMITS via rateLimitKey below, so a backend limit
+// change only needs updating in lib/data/rate-limits.ts. This is the
+// file-upload Vocal Remover, keyed as "separate"/"separate-hq" — a
+// distinct backend endpoint from the 4-stem Stem Splitter ("stems") and
+// from the YouTube Vocal Remover ("youtube/separate").
 const STANDARD_SPEC: QualitySpec = {
   value: "standard",
   label: "Standard",
   time: "20 sec–1 min",
   detail: "Vocals and instrumental",
-  rateLimit: "3 per hour",
+  rateLimitKey: "separate",
 };
 
 const HQ_SPEC: QualitySpec = {
@@ -44,8 +52,13 @@ const HQ_SPEC: QualitySpec = {
   label: "Studio Quality",
   time: "1–2 min",
   detail: "Cleaner separation, same 2 stems",
-  rateLimit: "1 per hour",
+  rateLimitKey: "separate-hq",
 };
+
+// Fallback shown only if a key is ever missing from RATE_LIMITS (e.g.
+// someone renames a key in rate-limits.ts without updating this file) —
+// keeps the UI from rendering "undefined" instead of failing loudly in dev.
+const FALLBACK_RATE_LIMIT_LABEL = "rate limited";
 
 const STANDARD_STAGES = [
   { at: 0, label: "Uploading and queuing" },
@@ -122,6 +135,12 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
   const isHq = hqAvailable && quality === "hq";
   const spec = isHq ? HQ_SPEC : STANDARD_SPEC;
   const canSubmit = Boolean(file) && !isBusy && status !== "complete" && cooldownSeconds === 0;
+
+  // Looked up here (not hardcoded) so the quality cards and the
+  // rate-limit-exceeded error hint always agree with each other and with
+  // lib/data/rate-limits.ts.
+  const standardLimitLabel = getRateLimitLabel(STANDARD_SPEC.rateLimitKey) ?? FALLBACK_RATE_LIMIT_LABEL;
+  const hqLimitLabel = getRateLimitLabel(HQ_SPEC.rateLimitKey) ?? FALLBACK_RATE_LIMIT_LABEL;
 
   useEffect(() => {
     if (typeof window === "undefined" || !("Notification" in window)) {
@@ -269,10 +288,12 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
       if (err instanceof ApiError && err.isRateLimit) {
         setError({
           title: effectiveQuality === "hq" ? "Studio quality limit reached" : "You've reached the free limit",
+          // Pulled from lib/data/rate-limits.ts — do not hardcode this
+          // hint again; it must match the quality-card labels above.
           hint:
             effectiveQuality === "hq"
-              ? "1 studio-quality separation per hour. Try again later."
-              : "3 separations per hour. Try again later.",
+              ? `${hqLimitLabel}. Try again later.`
+              : `${standardLimitLabel}. Try again later.`,
         });
         setCooldownSeconds(err.retryAfterSeconds ?? 3600);
       } else {
@@ -343,6 +364,7 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
             <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Separation quality">
               {[STANDARD_SPEC, HQ_SPEC].map((option) => {
                 const selected = quality === option.value;
+                const rateLimitLabel = getRateLimitLabel(option.rateLimitKey) ?? FALLBACK_RATE_LIMIT_LABEL;
                 return (
                   <button
                     key={option.value}
@@ -370,7 +392,7 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
                       </span>
                     </div>
                     <p className="mt-1 text-[11px] leading-snug text-text-muted">{option.detail}</p>
-                    <p className="mt-1 font-mono text-[10px] text-text-subtle">{option.rateLimit}</p>
+                    <p className="mt-1 font-mono text-[10px] text-text-subtle">{rateLimitLabel}</p>
                   </button>
                 );
               })}
