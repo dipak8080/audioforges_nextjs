@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Download, AlertTriangle, Wand2, RotateCcw, type LucideIcon } from "lucide-react";
-import { Button } from "@/components/ui/Button";
+import { Button, buttonStyles } from "@/components/ui/Button";
 import { FileDropZone } from "@/components/ui/FileDropZone";
 import { Waveform } from "@/components/ui/Waveform";
 import { AudioPlayer } from "@/components/ui/AudioPlayer";
@@ -530,6 +530,11 @@ export function JobToolForm({
               <div className="opacity-60 motion-reduce:hidden">
                 <Waveform />
               </div>
+              {/* Left as a plain button on purpose: this is an underlined
+                  text link, not a button shape. Running it through Button
+                  would mean overriding the padding, height, radius and
+                  every variant colour — at which point nothing of the
+                  component is left. */}
               <button
                 type="button"
                 onClick={handleCancel}
@@ -560,19 +565,25 @@ export function JobToolForm({
 
             {!hidePreview && <AudioPlayer src={getJobPreviewUrl(endpoint, jobId)} />}
 
+            {/* Stays an <a> - it's a real download URL, and a button can't
+                be middle-clicked, opened in a new tab, or copied. It now
+                borrows the Button's styles rather than repeating them:
+                this was the last hand-rolled amber surface in the tool
+                flow, and it had already drifted (no press state, no inset
+                highlight, its own focus ring). */}
             <a
               href={getJobDownloadUrl(endpoint, jobId)}
               download={downloadName || true}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-amber-500 px-6 py-3 font-medium text-graphite-950 transition-colors hover:bg-amber-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40"
+              className={buttonStyles({ variant: "primary", size: "lg", className: "w-full" })}
             >
-              <Download className="h-4 w-4" />
+              <Download />
               Download
             </a>
 
             <SupportBlock />
 
             <Button variant="outline" size="md" className="w-full" onClick={handleReset}>
-              <RotateCcw className="h-4 w-4" />
+              <RotateCcw />
               Process another file
             </Button>
           </div>
@@ -602,10 +613,10 @@ export function JobToolForm({
             size="lg"
             className="w-full"
             onClick={handleSubmit}
-            disabled={!canSubmit}
+            disabled={!canSubmit && !isBusy}
             loading={isBusy}
           >
-            {!isBusy && <Icon className="h-5 w-5" />}
+            {!isBusy && <Icon />}
             {isBusy
               ? "Working"
               : cooldownSeconds > 0

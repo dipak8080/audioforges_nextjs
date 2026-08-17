@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Play, Square, Loader2, ChevronUp, ChevronDown } from "lucide-react";
 import { JobToolForm } from "@/components/converter/JobToolForm";
 import { WaveformCanvas, WAVEFORM_RULER_HEIGHT } from "@/components/ui/WaveformCanvas";
+import { Button } from "@/components/ui/Button";
 import { computeWaveformEnvelopeAsync, type WaveformEnvelope } from "@/lib/utils/waveform";
 
 const KEY_STEP = 0.1;
@@ -516,15 +517,33 @@ function TrimControls({ file, disabled, start: committedStart, onChange }: TrimC
               onChange={(v) => commit({ start: clamp(v, 0, end - MIN_SELECTION), end })}
             />
 
-            <button
-              type="button"
-              onClick={isPreviewing ? stopPreview : startPreview}
+            {/* Was a hand-rolled <button> until 2026-08-17. Moving to the
+                shared Button brings the press state and, more usefully,
+                `disabled:pointer-events-none` - the old one dimmed to 40%
+                but still ran its hover styles, so a disabled control lit
+                up amber under the cursor.
+
+                aria-pressed was missing entirely: this is a toggle, and a
+                screen reader had no way to know which state it was in.
+
+                rounded-full and the amber hover are kept as overrides -
+                it's a pill sitting between two steppers, not a standard
+                action button. */}
+            <Button
+              variant="outline"
+              size="sm"
               disabled={disabled || end <= start}
-              className="flex items-center gap-1.5 rounded-full border border-graphite-700 bg-graphite-850 px-3.5 py-1.5 text-text-muted transition-colors hover:border-amber-500/40 hover:text-amber-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40 disabled:opacity-40"
+              aria-pressed={isPreviewing}
+              onClick={isPreviewing ? stopPreview : startPreview}
+              className="rounded-full hover:border-amber-500/40 hover:text-amber-400"
             >
-              {isPreviewing ? <Square className="h-3 w-3" fill="currentColor" /> : <Play className="h-3 w-3" fill="currentColor" />}
+              {isPreviewing ? (
+                <Square className="h-3 w-3" fill="currentColor" />
+              ) : (
+                <Play className="h-3 w-3" fill="currentColor" />
+              )}
               {isPreviewing ? "Stop" : "Preview"}
-            </button>
+            </Button>
 
             <Stepper
               label="End"
@@ -575,6 +594,11 @@ function Stepper({
           onChange={(e) => onChange(Number(e.target.value))}
           className="w-16 bg-transparent px-2 py-1 text-right font-mono text-text-primary [appearance:textfield] focus:outline-none disabled:opacity-40 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
         />
+        {/* NOT converted to <Button> deliberately: these are h-3.5 segments
+            sharing a border with the number input, i.e. parts of a compound
+            control rather than standalone buttons. Button's smallest size is
+            h-8, so fitting them would take enough overrides that nothing of
+            the component would survive. */}
         <span className="flex flex-col border-l border-graphite-700">
           <button
             type="button"

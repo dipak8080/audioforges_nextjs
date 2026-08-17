@@ -1,3 +1,5 @@
+// → app/guides/page.tsx
+
 import type { Metadata } from "next";
 import { SITE_URL } from "@/lib/constants";
 import { guides } from "@/lib/guides";
@@ -17,14 +19,7 @@ export const metadata: Metadata = {
     url: `${SITE_URL}/guides`,
     siteName: "AudioForges",
     type: "website",
-    images: [
-      {
-        url: "/images/og-default.png",
-        width: 1200,
-        height: 630,
-        alt: "AudioForges",
-      },
-    ],
+    images: [{ url: "/images/og-default.png", width: 1200, height: 630, alt: "AudioForges" }],
   },
   twitter: {
     card: "summary_large_image",
@@ -42,15 +37,25 @@ const collectionJsonLd = {
   url: `${SITE_URL}/guides`,
 };
 
+/**
+ * Newest first, and carrying description + date rather than just a URL and
+ * a title. Same shape as the ItemList on /tools, so both index pages
+ * describe their contents the same way.
+ */
 const itemListJsonLd = {
   "@context": "https://schema.org",
   "@type": "ItemList",
-  itemListElement: guides.map((guide, index) => ({
-    "@type": "ListItem",
-    position: index + 1,
-    url: `${SITE_URL}/guides/${guide.slug}`,
-    name: guide.title,
-  })),
+  name: "AudioForges guides",
+  numberOfItems: guides.length,
+  itemListElement: [...guides]
+    .sort((a, b) => new Date(b.publishedDate).getTime() - new Date(a.publishedDate).getTime())
+    .map((guide, index) => ({
+      "@type": "ListItem",
+      position: index + 1,
+      url: `${SITE_URL}/guides/${guide.slug}`,
+      name: guide.title,
+      description: guide.description,
+    })),
 };
 
 const breadcrumbJsonLd = {
@@ -78,18 +83,28 @@ export default function GuidesIndexPage() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
       />
 
-      <main className="mx-auto max-w-3xl px-4 py-12 sm:py-16 space-y-12">
-        <header className="text-center space-y-4">
-          <h1 className="text-4xl font-bold tracking-tight sm:text-5xl text-text-primary">
-            Guides for Producers &amp; DJs
+      {/* max-w-6xl matches the nav, footer, homepage and /tools. At
+          max-w-3xl this page was half the width of the header above it,
+          and the guide list had no room to be anything but one long
+          column. */}
+      <main id="main" className="mx-auto max-w-6xl px-4 py-12 sm:py-16">
+        <header className="text-center">
+          <p className="font-mono text-xs uppercase tracking-[0.16em] text-amber-500">
+            {guides.length} guides · free to read
+          </p>
+          {/* Sentence case, matching the h1 on the homepage and /tools. */}
+          <h1 className="mx-auto mt-4 max-w-3xl text-4xl font-bold tracking-tight text-text-primary sm:text-5xl">
+            Guides for producers &amp; DJs
           </h1>
-          <p className="text-lg text-text-muted max-w-xl mx-auto">
-            Practical, from-the-studio guides on mixing, sampling, and production
-            workflow. Search or browse by category.
+          <p className="mx-auto mt-4 max-w-xl text-lg text-text-muted">
+            Practical, from-the-studio writing on harmonic mixing, sampling, set prep and cleanup.
+            Search by topic or filter by category.
           </p>
         </header>
 
-        <GuidesExplorer guides={guides} />
+        <div className="mt-12">
+          <GuidesExplorer guides={guides} />
+        </div>
       </main>
     </>
   );

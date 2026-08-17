@@ -28,8 +28,21 @@ export interface FAQItem {
  * only one place the content is written. Replaces the old pattern of a
  * hand-written `faqJsonLd` object plus a separately hand-written JSX block
  * repeating the same questions and answers.
+ *
+ * HEADING (2026-08-17): `eyebrow` and `title` are optional, so every
+ * existing call site keeps its current output. Pass an eyebrow on pages
+ * that use the mono-eyebrow section heading and the FAQ stops reading as
+ * if it belongs to a different page.
  */
-export function FAQSection({ faqs }: { faqs: FAQItem[] }) {
+export function FAQSection({
+  faqs,
+  eyebrow,
+  title = "Frequently asked questions",
+}: {
+  faqs: FAQItem[];
+  eyebrow?: string;
+  title?: string;
+}) {
   const faqJsonLd = {
     "@context": "https://schema.org",
     "@type": "FAQPage",
@@ -49,10 +62,21 @@ export function FAQSection({ faqs }: { faqs: FAQItem[] }) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
       />
-      <section className="space-y-4">
-        <h2 className="text-2xl font-bold text-text-primary">
-          Frequently asked questions
-        </h2>
+      <section className="space-y-6">
+        <div>
+          {eyebrow && (
+            <p className="font-mono text-xs uppercase tracking-[0.16em] text-amber-500">
+              {eyebrow}
+            </p>
+          )}
+          <h2
+            className={`text-2xl font-bold tracking-tight text-text-primary sm:text-3xl ${
+              eyebrow ? "mt-3" : ""
+            }`}
+          >
+            {title}
+          </h2>
+        </div>
         <div className="space-y-2">
           {faqs.map((faq, i) => (
             <FAQItemRow key={i} faq={faq} />

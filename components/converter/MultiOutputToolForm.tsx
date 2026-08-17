@@ -15,7 +15,7 @@ import {
   Play,
   RotateCcw,
 } from "lucide-react";
-import { Button } from "@/components/ui/Button";
+import { Button, buttonStyles } from "@/components/ui/Button";
 import { FileDropZone } from "@/components/ui/FileDropZone";
 import { Waveform } from "@/components/ui/Waveform";
 import { AudioPlayer } from "@/components/ui/AudioPlayer";
@@ -473,6 +473,8 @@ export function MultiOutputToolForm({
               <div className="opacity-60 motion-reduce:hidden">
                 <Waveform />
               </div>
+              {/* Plain button on purpose: an underlined text link, not a
+                  button shape — see the matching note in JobToolForm. */}
               <button
                 type="button"
                 onClick={handleCancel}
@@ -522,9 +524,14 @@ export function MultiOutputToolForm({
                         isActive ? "bg-amber-500/[0.06]" : "hover:bg-graphite-850/60"
                       )}
                     >
+                      {/* Not a <Button>: this is the row's select target,
+                          full-width and left-aligned with its own icon
+                          treatment. Button would have to be stripped of
+                          height, padding, radius and centring to fit. */}
                       <button
                         type="button"
                         onClick={() => setActiveOutput(name)}
+                        aria-pressed={isActive}
                         className="flex min-w-0 flex-1 items-center gap-3 text-left focus:outline-none"
                       >
                         <span
@@ -545,14 +552,21 @@ export function MultiOutputToolForm({
                         </span>
                       </button>
 
+                      {/* Borrows the ghost icon-button styling, sized down
+                          to h-8 so the row height doesn't grow. Stays an
+                          <a> because it's a real download URL. */}
                       <a
                         href={getMultiOutputDownloadUrl(endpoint, jobId, name, queryParam)}
                         download
                         onClick={(e) => e.stopPropagation()}
                         aria-label={`Download ${formatOutputName(name)}`}
-                        className="shrink-0 rounded-lg p-2 text-text-muted transition-colors hover:bg-graphite-800 hover:text-amber-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40"
+                        className={buttonStyles({
+                          variant: "ghost",
+                          size: "icon",
+                          className: "h-8 w-8 shrink-0 hover:bg-graphite-800 hover:text-amber-400",
+                        })}
                       >
-                        <Download className="h-4 w-4" />
+                        <Download />
                       </a>
                     </div>
                   );
@@ -567,7 +581,7 @@ export function MultiOutputToolForm({
             <SupportBlock />
 
             <Button variant="outline" size="md" className="w-full" onClick={handleReset}>
-              <RotateCcw className="h-4 w-4" />
+              <RotateCcw />
               Process another file
             </Button>
           </div>
@@ -592,10 +606,10 @@ export function MultiOutputToolForm({
             size="lg"
             className="w-full"
             onClick={handleSubmit}
-            disabled={!canSubmit}
+            disabled={!canSubmit && !isBusy}
             loading={isBusy}
           >
-            {!isBusy && <Wand2 className="h-5 w-5" />}
+            {!isBusy && <Wand2 />}
             {isBusy
               ? "Working"
               : cooldownSeconds > 0
