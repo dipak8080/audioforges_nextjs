@@ -3,14 +3,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Play, Pause, Volume2, Volume1, VolumeX, AlertTriangle, Gauge } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
-import { decodeWaveformPeaksFromUrl } from "@/lib/utils/waveform";
+import { WaveformCanvas } from "@/components/ui/WaveformCanvas";
+import { decodeWaveformEnvelopeFromUrl, type WaveformEnvelope } from "@/lib/utils/waveform";
 
 interface AudioPlayerProps {
   src: string;
   className?: string;
 }
 
-const WAVEFORM_BUCKETS = 160;
 const PLAYBACK_RATES = [0.5, 0.75, 1, 1.25, 1.5, 2];
 const SEEK_STEP = 5;
 const SEEK_STEP_LARGE = 15;
@@ -33,7 +33,17 @@ function VolumeIcon({ volume, muted }: { volume: number; muted: boolean }) {
   return <Volume2 className="h-4 w-4" />;
 }
 
+/**
+ * Keyed on `src` so a new source remounts the whole player with fresh
+ * state, rather than resetting six useState values by hand inside an
+ * effect. Parents can't pass the key themselves, so the split happens
+ * here — the public component stays a plain <AudioPlayer src=... />.
+ */
 export function AudioPlayer({ src, className }: AudioPlayerProps) {
+  return <AudioPlayerInstance key={src} src={src} className={className} />;
+}
+
+function AudioPlayerInstance({ src, className }: AudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const waveformRef = useRef<HTMLDivElement>(null);
   const rateMenuRef = useRef<HTMLDivElement>(null);
@@ -49,25 +59,18 @@ export function AudioPlayer({ src, className }: AudioPlayerProps) {
   const [playbackRate, setPlaybackRate] = useState(1);
   const [rateMenuOpen, setRateMenuOpen] = useState(false);
 
-  const [peaks, setPeaks] = useState<number[] | null>(null);
+  const [envelope, setEnvelope] = useState<WaveformEnvelope | null>(null);
   const [scrubbing, setScrubbing] = useState(false);
   const [hoverFraction, setHoverFraction] = useState<number | null>(null);
 
-  /* --- reset + decode waveform whenever the source changes --------- */
+  /* --- decode the waveform for this source ------------------------- */
   useEffect(() => {
-    setIsPlaying(false);
-    setCurrentTime(0);
-    setDuration(0);
-    setIsLoading(true);
-    setHasError(false);
-    setPeaks(null);
-
     const controller = new AbortController();
     // Waveform is cosmetic — if this fails (CORS, unsupported codec,
     // network blip) the player still works fully via the plain track,
-    // it just loses the bars.
-    decodeWaveformPeaksFromUrl(src, WAVEFORM_BUCKETS, controller.signal).then((result) => {
-      if (!controller.signal.aborted) setPeaks(result);
+    // it just loses the drawing.
+    decodeWaveformEnvelopeFromUrl(src, controller.signal).then((result) => {
+      if (!controller.signal.aborted) setEnvelope(result);
     });
 
     return () => controller.abort();
@@ -140,19 +143,36 @@ export function AudioPlayer({ src, className }: AudioPlayerProps) {
     return clamp((clientX - rect.left) / rect.width, 0, 1);
   }, []);
 
+  /* Pointer events fire faster than the display refreshes (120Hz+ on a
+     trackpad). Each one seeks the media element and re-renders — which
+     now also redraws the canvas — so they're coalesced into one update
+     per animation frame. */
   useEffect(() => {
     if (!scrubbing) return;
-    const onMove = (e: PointerEvent) => {
-      const fraction = fractionFromClientX(e.clientX);
+    let frame = 0;
+    let pendingX = 0;
+
+    const apply = () => {
+      frame = 0;
+      const fraction = fractionFromClientX(pendingX);
       setHoverFraction(fraction);
       seekToFraction(fraction);
     };
+
+    const onMove = (e: PointerEvent) => {
+      pendingX = e.clientX;
+      if (!frame) frame = requestAnimationFrame(apply);
+    };
     const onUp = () => setScrubbing(false);
+
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
     return () => {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+      if (frame) cancelAnimationFrame(frame);
     };
   }, [scrubbing, fractionFromClientX, seekToFraction]);
 
@@ -195,8 +215,16 @@ export function AudioPlayer({ src, className }: AudioPlayerProps) {
         src={src}
         preload="metadata"
         onLoadedMetadata={(e) => {
-          setDuration(e.currentTarget.duration);
+          // Guarded against Infinity/NaN: some MP3s report an unknown
+          // duration until the browser has buffered further, and
+          // accepting that turns every fraction below into NaN.
+          const reported = e.currentTarget.duration;
+          if (Number.isFinite(reported) && reported > 0) setDuration(reported);
           setIsLoading(false);
+        }}
+        onDurationChange={(e) => {
+          const reported = e.currentTarget.duration;
+          if (Number.isFinite(reported) && reported > 0) setDuration(reported);
         }}
         onTimeUpdate={(e) => {
           if (!scrubbing) setCurrentTime(e.currentTarget.currentTime);
@@ -273,32 +301,29 @@ export function AudioPlayer({ src, className }: AudioPlayerProps) {
                 </div>
               ) : (
                 <>
-                  {/* Bars, or a plain track if waveform decode failed */}
-                  <div className="absolute inset-0 flex items-center gap-px px-0.5">
-                    {peaks ? (
-                      peaks.map((p, i) => {
-                        const barFraction = i / peaks.length;
-                        const played = barFraction <= displayFraction;
-                        return (
-                          <div
-                            key={i}
-                            className={cn(
-                              "flex-1 rounded-sm transition-colors",
-                              played ? "bg-amber-500" : "bg-graphite-600"
-                            )}
-                            style={{ height: `${Math.max(p * 100, 8)}%` }}
-                          />
-                        );
-                      })
-                    ) : (
+                  {/* Waveform, or a plain progress track if the decode
+                      failed for this result. The played portion is the
+                      highlighted region, so the boundary between amber
+                      and grey IS the playhead. */}
+                  {envelope ? (
+                    <WaveformCanvas
+                      envelope={envelope}
+                      duration={duration}
+                      start={0}
+                      end={displayFraction * duration}
+                      showRuler={false}
+                      className="absolute inset-0 block"
+                    />
+                  ) : (
+                    <div className="absolute inset-0 flex items-center px-0.5">
                       <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-graphite-700">
                         <div
                           className="h-full bg-amber-500"
                           style={{ width: `${displayFraction * 100}%` }}
                         />
                       </div>
-                    )}
-                  </div>
+                    </div>
+                  )}
 
                   {/* Playhead */}
                   <div

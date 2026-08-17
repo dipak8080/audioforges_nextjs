@@ -1,11 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, ChevronUp, ChevronDown, Loader2, ListMusic } from "lucide-react";
 import { MultiOutputToolForm } from "@/components/converter/MultiOutputToolForm";
 import { ThresholdMeter } from "@/components/converter/ThresholdMeter";
-import { computeWaveformPeaks } from "@/lib/utils/waveform";
-import { computeDbTimeline, findQuietRanges, findAudibleSegments, type DbTimeline } from "@/lib/utils/silenceDetection";
+import { WaveformCanvas } from "@/components/ui/WaveformCanvas";
+import { computeWaveformEnvelopeAsync, type WaveformEnvelope } from "@/lib/utils/waveform";
+import {
+  computeDbTimelineAsync,
+  findQuietRanges,
+  findAudibleSegments,
+  type DbTimeline,
+} from "@/lib/utils/silenceDetection";
 import { submitJob } from "@/lib/api/railway";
 import { cn } from "@/lib/utils/cn";
 
@@ -37,7 +43,6 @@ const THRESHOLD_DEFAULT = -30;
 const MIN_DURATION_MIN = 0.1;
 const MIN_DURATION_MAX = 10;
 const MIN_DURATION_DEFAULT = 0.5;
-const WAVEFORM_BUCKETS = 200;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
@@ -56,16 +61,13 @@ function formatTime(seconds: number): string {
 
 function SplitPreview({ file, thresholdDb, minDuration }: { file: File; thresholdDb: number; minDuration: number }) {
   const [duration, setDuration] = useState<number | null>(null);
-  const [peaks, setPeaks] = useState<number[] | null>(null);
+  const [envelope, setEnvelope] = useState<WaveformEnvelope | null>(null);
   const [timeline, setTimeline] = useState<DbTimeline | null>(null);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-    setDuration(null);
-    setPeaks(null);
-    setTimeline(null);
-    setFailed(false);
+    const abort = new AbortController();
 
     (async () => {
       try {
@@ -77,20 +79,47 @@ function SplitPreview({ file, thresholdDb, minDuration }: { file: File; threshol
           const buffer = await ctx.decodeAudioData(arrayBuffer);
           if (cancelled) return;
           setDuration(buffer.duration);
-          setPeaks(computeWaveformPeaks(buffer, WAVEFORM_BUCKETS));
-          setTimeline(computeDbTimeline(buffer));
+          // Both passes are sliced so a long file can't block the page
+          // — see lib/utils/scheduling. The waveform lands first so
+          // there's something to look at while the dB scan finishes.
+          const nextEnvelope = await computeWaveformEnvelopeAsync(buffer, undefined, abort.signal);
+          if (!cancelled) setEnvelope(nextEnvelope);
+          const nextTimeline = await computeDbTimelineAsync(buffer, abort.signal);
+          if (!cancelled) setTimeline(nextTimeline);
         } finally {
           ctx.close();
         }
       } catch {
+        // An abort lands here too, and is silent: cancelled is already
+        // true, so nothing is written.
         if (!cancelled) setFailed(true);
       }
     })();
 
     return () => {
       cancelled = true;
+      abort.abort();
     };
   }, [file]);
+
+  /* Memoized so the isSelected callback below stays referentially
+     stable — an inline recompute would hand the canvas a new function
+     every render and redraw the whole waveform for nothing. */
+  const quietRanges = useMemo(
+    () => (timeline ? findQuietRanges(timeline, thresholdDb, minDuration) : []),
+    [timeline, thresholdDb, minDuration]
+  );
+  const segments = useMemo(
+    () => (duration !== null ? findAudibleSegments(duration, quietRanges) : []),
+    [duration, quietRanges]
+  );
+
+  /* Audio that survives as a track is highlighted; the gaps that get
+     cut away render grey. */
+  const isKept = useCallback(
+    (time: number) => !quietRanges.some((gap) => time >= gap.startSeconds && time <= gap.endSeconds),
+    [quietRanges]
+  );
 
   if (failed) {
     return (
@@ -99,9 +128,6 @@ function SplitPreview({ file, thresholdDb, minDuration }: { file: File; threshol
       </p>
     );
   }
-
-  const quietRanges = timeline ? findQuietRanges(timeline, thresholdDb, minDuration) : [];
-  const segments = duration !== null ? findAudibleSegments(duration, quietRanges) : [];
 
   return (
     <div className="space-y-2">
@@ -112,7 +138,7 @@ function SplitPreview({ file, thresholdDb, minDuration }: { file: File; threshol
         )}
       </div>
 
-      <div className="relative h-16 overflow-hidden rounded-lg border border-graphite-700 bg-graphite-850">
+      <div className="relative h-24 overflow-hidden rounded-lg border border-graphite-700 bg-graphite-850">
         {duration === null ? (
           <div className="flex h-full items-center justify-center gap-2 text-xs text-text-subtle">
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -120,28 +146,14 @@ function SplitPreview({ file, thresholdDb, minDuration }: { file: File; threshol
           </div>
         ) : (
           <>
-            <div className="absolute inset-0 flex items-center gap-px px-1 opacity-70">
-              {peaks ? (
-                peaks.map((p, i) => (
-                  <div key={i} className="flex-1 rounded-sm bg-graphite-600" style={{ height: `${Math.max(p * 100, 4)}%` }} />
-                ))
-              ) : (
-                <div className="h-px w-full bg-graphite-700" />
-              )}
-            </div>
-
-            {/* Dim the gaps that will be cut away between segments */}
-            {quietRanges.map((gap, i) => {
-              const leftPercent = (gap.startSeconds / duration) * 100;
-              const widthPercent = ((gap.endSeconds - gap.startSeconds) / duration) * 100;
-              return (
-                <div
-                  key={i}
-                  className="pointer-events-none absolute inset-y-0 bg-graphite-950/70"
-                  style={{ left: `${leftPercent}%`, width: `${widthPercent}%` }}
-                />
-              );
-            })}
+            <WaveformCanvas
+              envelope={envelope}
+              duration={duration}
+              start={0}
+              end={duration}
+              isSelected={timeline ? isKept : undefined}
+              className="absolute inset-0 block"
+            />
 
             {/* Split-point markers at each gap boundary */}
             {quietRanges.map((gap, i) => (
@@ -151,6 +163,12 @@ function SplitPreview({ file, thresholdDb, minDuration }: { file: File; threshol
                 style={{ left: `${(gap.startSeconds / duration) * 100}%` }}
               />
             ))}
+
+            {!timeline && (
+              <div className="pointer-events-none absolute inset-x-0 bottom-2 text-center text-[11px] text-text-subtle">
+                Scanning for silence gaps…
+              </div>
+            )}
           </>
         )}
       </div>
@@ -228,6 +246,12 @@ export function SilenceSplitForm() {
       rateLimitMessage="You've reached the limit (3 splits per 5 minutes). Try again shortly."
       renderControls={(file, disabled) => (
         <div className="space-y-5">
+          {file ? (
+            <SplitPreview file={file} thresholdDb={thresholdDb} minDuration={minDurationSeconds} />
+          ) : (
+            <p className="text-xs text-text-subtle">Upload a file to preview exactly where it would split.</p>
+          )}
+
           <fieldset className="space-y-2" disabled={disabled}>
             <legend className="mb-2 text-sm font-medium text-text-primary">Output format</legend>
             <div className="grid grid-cols-3 gap-2 sm:grid-cols-4" role="radiogroup" aria-label="Output format">
@@ -341,11 +365,6 @@ export function SilenceSplitForm() {
             </p>
           </div>
 
-          {file ? (
-            <SplitPreview file={file} thresholdDb={thresholdDb} minDuration={minDurationSeconds} />
-          ) : (
-            <p className="text-xs text-text-subtle">Upload a file to preview exactly where it would split.</p>
-          )}
         </div>
       )}
     />

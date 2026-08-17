@@ -1,16 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, ChevronUp, ChevronDown, Loader2 } from "lucide-react";
 import { JobToolForm } from "@/components/converter/JobToolForm";
 import { ThresholdMeter } from "@/components/converter/ThresholdMeter";
 import { cn } from "@/lib/utils/cn";
-import { computeWaveformPeaks } from "@/lib/utils/waveform";
-import { computeDbTimeline, findQuietRanges, type DbTimeline } from "@/lib/utils/silenceDetection";
+import { WaveformCanvas } from "@/components/ui/WaveformCanvas";
+import { computeWaveformEnvelopeAsync, type WaveformEnvelope } from "@/lib/utils/waveform";
+import { computeDbTimelineAsync, findQuietRanges, type DbTimeline } from "@/lib/utils/silenceDetection";
 
 const DEFAULT_THRESHOLD_DB = -30;
 const DEFAULT_MIN_DURATION = 0.5;
-const WAVEFORM_BUCKETS = 220;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
@@ -37,16 +37,13 @@ function CutPreview({
   minDuration: number;
 }) {
   const [duration, setDuration] = useState<number | null>(null);
-  const [peaks, setPeaks] = useState<number[] | null>(null);
+  const [envelope, setEnvelope] = useState<WaveformEnvelope | null>(null);
   const [timeline, setTimeline] = useState<DbTimeline | null>(null);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-    setDuration(null);
-    setPeaks(null);
-    setTimeline(null);
-    setFailed(false);
+    const abort = new AbortController();
 
     (async () => {
       try {
@@ -58,18 +55,26 @@ function CutPreview({
           const buffer = await ctx.decodeAudioData(arrayBuffer);
           if (cancelled) return;
           setDuration(buffer.duration);
-          setPeaks(computeWaveformPeaks(buffer, WAVEFORM_BUCKETS));
-          setTimeline(computeDbTimeline(buffer));
+          // Both passes are sliced so a long file can't block the page
+          // — see lib/utils/scheduling. The waveform lands first so
+          // there's something to look at while the dB scan finishes.
+          const nextEnvelope = await computeWaveformEnvelopeAsync(buffer, undefined, abort.signal);
+          if (!cancelled) setEnvelope(nextEnvelope);
+          const nextTimeline = await computeDbTimelineAsync(buffer, abort.signal);
+          if (!cancelled) setTimeline(nextTimeline);
         } finally {
           ctx.close();
         }
       } catch {
+        // An abort lands here too, and is silent: cancelled is already
+        // true, so nothing is written.
         if (!cancelled) setFailed(true);
       }
     })();
 
     return () => {
       cancelled = true;
+      abort.abort();
     };
   }, [file]);
 
@@ -77,6 +82,11 @@ function CutPreview({
     if (!timeline) return [];
     return findQuietRanges(timeline, thresholdDb, minDuration);
   }, [timeline, thresholdDb, minDuration]);
+
+  const isKept = useCallback(
+    (time: number) => !quietRanges.some((r) => time >= r.startSeconds && time <= r.endSeconds),
+    [quietRanges]
+  );
 
   const removedSeconds = quietRanges.reduce((sum, r) => sum + (r.endSeconds - r.startSeconds), 0);
   const removedPercent = duration ? Math.round((removedSeconds / duration) * 100) : 0;
@@ -98,7 +108,7 @@ function CutPreview({
         )}
       </div>
 
-      <div className="relative h-16 overflow-hidden rounded-lg border border-graphite-700 bg-graphite-850">
+      <div className="relative h-24 overflow-hidden rounded-lg border border-graphite-700 bg-graphite-850">
         {duration === null ? (
           <div className="flex h-full items-center justify-center gap-2 text-xs text-text-subtle">
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -106,15 +116,14 @@ function CutPreview({
           </div>
         ) : (
           <>
-            <div className="absolute inset-0 flex items-center gap-px px-1 opacity-70">
-              {peaks ? (
-                peaks.map((p, i) => (
-                  <div key={i} className="flex-1 rounded-sm bg-graphite-600" style={{ height: `${Math.max(p * 100, 4)}%` }} />
-                ))
-              ) : (
-                <div className="h-px w-full bg-graphite-700" />
-              )}
-            </div>
+            <WaveformCanvas
+              envelope={envelope}
+              duration={duration}
+              start={0}
+              end={duration}
+              isSelected={timeline ? isKept : undefined}
+              className="absolute inset-0 block"
+            />
 
             {quietRanges.map((range, i) => {
               const leftPercent = (range.startSeconds / duration) * 100;
@@ -122,11 +131,17 @@ function CutPreview({
               return (
                 <div
                   key={i}
-                  className="pointer-events-none absolute inset-y-0 bg-red-500/25"
+                  className="pointer-events-none absolute inset-y-0 bg-red-500/20"
                   style={{ left: `${leftPercent}%`, width: `${widthPercent}%` }}
                 />
               );
             })}
+
+            {!timeline && (
+              <div className="pointer-events-none absolute inset-x-0 bottom-2 text-center text-[11px] text-text-subtle">
+                Scanning for quiet gaps…
+              </div>
+            )}
           </>
         )}
       </div>
@@ -209,6 +224,15 @@ function SilenceControls({
 }: SilenceControlsProps) {
   return (
     <div className={cn("space-y-5", !file && "opacity-60")}>
+      {file ? (
+        <CutPreview file={file} thresholdDb={thresholdDb} minDuration={minDuration} />
+      ) : (
+        <p className="text-xs text-text-subtle">
+          Both settings have sensible defaults — they work well for most podcast and voice-memo cleanup
+          without any adjustment. Upload a file to preview exactly what would be cut.
+        </p>
+      )}
+
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <label className="text-sm font-medium text-text-primary">Silence threshold</label>
@@ -281,14 +305,6 @@ function SilenceControls({
         </div>
       </div>
 
-      {file ? (
-        <CutPreview file={file} thresholdDb={thresholdDb} minDuration={minDuration} />
-      ) : (
-        <p className="text-xs text-text-subtle">
-          Both settings have sensible defaults — they work well for most podcast and voice-memo cleanup
-          without any adjustment. Upload a file to preview exactly what would be cut.
-        </p>
-      )}
     </div>
   );
 }

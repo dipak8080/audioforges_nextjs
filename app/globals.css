@@ -7,16 +7,23 @@
   --graphite-850: #1c1c20;
   --graphite-800: #232326;
   --graphite-700: #34343a;
+  --graphite-600: #45454d;
+  --graphite-500: #5a5a63;
+  /* Near-white, used only as a low-opacity overlay on dark surfaces */
+  --graphite-100: #e8e7e4;
 
   /* Amber — the primary accent, like a VU meter needle at rest */
   --amber-500: #e8a23d;
   --amber-400: #f0b862;
+  --amber-300: #f5cd8e;
 
   /* Teal — success / completion state */
+  --teal-500: #2fb896;
   --teal-400: #4dd8b8;
 
   /* Red — error state */
   --red-500: #e5484d;
+  --red-400: #f2686c;
 
   /* Text */
   --text-primary: #f2f1ee;
@@ -35,10 +42,16 @@
   --color-graphite-850: var(--graphite-850);
   --color-graphite-800: var(--graphite-800);
   --color-graphite-700: var(--graphite-700);
+  --color-graphite-600: var(--graphite-600);
+  --color-graphite-500: var(--graphite-500);
+  --color-graphite-100: var(--graphite-100);
   --color-amber-500: var(--amber-500);
   --color-amber-400: var(--amber-400);
+  --color-amber-300: var(--amber-300);
+  --color-teal-500: var(--teal-500);
   --color-teal-400: var(--teal-400);
   --color-red-500: var(--red-500);
+  --color-red-400: var(--red-400);
   --color-text-primary: var(--text-primary);
   --color-text-muted: var(--text-muted);
   --color-text-subtle: var(--text-subtle);

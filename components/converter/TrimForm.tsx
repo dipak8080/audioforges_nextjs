@@ -3,12 +3,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Play, Square, Loader2, ChevronUp, ChevronDown } from "lucide-react";
 import { JobToolForm } from "@/components/converter/JobToolForm";
-import { cn } from "@/lib/utils/cn";
-import { computeWaveformPeaks } from "@/lib/utils/waveform";
+import { WaveformCanvas, WAVEFORM_RULER_HEIGHT } from "@/components/ui/WaveformCanvas";
+import { computeWaveformEnvelopeAsync, type WaveformEnvelope } from "@/lib/utils/waveform";
 
-const WAVEFORM_BUCKETS = 220;
 const KEY_STEP = 0.1;
 const KEY_STEP_LARGE = 1;
+/** Shortest selection the backend will accept, and the gap the handles
+ *  keep between each other so they can never cross. */
+const MIN_SELECTION = 0.1;
 
 function formatTime(seconds: number): string {
   if (!Number.isFinite(seconds)) return "0:00";
@@ -17,15 +19,21 @@ function formatTime(seconds: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
+function formatPrecise(seconds: number): string {
+  if (!Number.isFinite(seconds)) return "0:00.0";
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${s.toFixed(1).padStart(4, "0")}`;
+}
+
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
 
 /* ------------------------------------------------------------------ */
-/* Form — start/end now live in real React state, not a module-level   */
-/* mutable variable. buildExtraFields closes over the current render's */
-/* values directly, so a submit can never read a stale trim range from */
-/* a previous file or a previous render.                               */
+/* Form — start/end live in real React state, so buildExtraFields       */
+/* closes over the current render's values and a submit can never read  */
+/* a stale trim range from a previous file.                             */
 /* ------------------------------------------------------------------ */
 
 export function TrimForm() {
@@ -54,7 +62,11 @@ export function TrimForm() {
       }}
       renderControls={(file, disabled) =>
         file ? (
+          /* Keyed per file: selecting a different file remounts the
+             controls with fresh state, instead of resetting half a
+             dozen useState values by hand inside an effect. */
           <TrimControls
+            key={`${file.name}:${file.size}:${file.lastModified}`}
             file={file}
             disabled={disabled}
             start={start}
@@ -71,8 +83,8 @@ export function TrimForm() {
 }
 
 /* ------------------------------------------------------------------ */
-/* Controls — purely driven by props; all file probing/decoding lives  */
-/* here, but the actual start/end values are owned by the parent.      */
+/* Controls — props-driven; file probing and decoding live here, but    */
+/* the start/end values are owned by the parent.                        */
 /* ------------------------------------------------------------------ */
 
 interface TrimControlsProps {
@@ -83,36 +95,64 @@ interface TrimControlsProps {
   onChange: (start: number, end: number) => void;
 }
 
-type DragTarget = "start" | "end" | null;
+type DragTarget = "start" | "end" | "range" | null;
 
-function TrimControls({ file, disabled, start, end, onChange }: TrimControlsProps) {
+interface Range {
+  start: number;
+  end: number;
+}
+
+function TrimControls({ file, disabled, start: committedStart, onChange }: TrimControlsProps) {
   const [duration, setDuration] = useState<number | null>(null);
-  const [peaks, setPeaks] = useState<number[] | null>(null);
+  const [envelope, setEnvelope] = useState<WaveformEnvelope | null>(null);
+  const [decodeFailed, setDecodeFailed] = useState(false);
   const [isPreviewing, setIsPreviewing] = useState(false);
-  const [dragging, setDragging] = useState<DragTarget>(null);
+
+  /* The live selection is owned here, not by the parent form. Pushing
+     every pointermove up to TrimForm re-rendered the whole JobToolForm
+     tree — dropzone, header, submit button — to move one handle. The
+     parent is told once, when the gesture ends. */
+  const [range, setRange] = useState<Range>({ start: committedStart, end: 0 });
+  /* end === 0 means "not touched yet" — the selection shows the whole
+     track as soon as the duration lands, without an effect writing
+     state on mount. Any real selection has end >= MIN_SELECTION. */
+  const start = range.end > 0 ? range.start : 0;
+  const end = range.end > 0 ? range.end : (duration ?? 0);
 
   const audioElRef = useRef<HTMLAudioElement | null>(null);
-  const objectUrlRef = useRef<string | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const playheadRef = useRef<HTMLDivElement | null>(null);
   const previewStopRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  /* --- new file: reset, probe duration, decode waveform ------------- */
-  useEffect(() => {
-    if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
-    const url = URL.createObjectURL(file);
-    objectUrlRef.current = url;
+  const dragRef = useRef<DragTarget>(null);
+  /** Fixed edge of a selection being swept across the waveform. */
+  const anchorRef = useRef(0);
+  const durationRef = useRef<number | null>(null);
+  const rangeRef = useRef<Range>({ start, end });
+  const onChangeRef = useRef(onChange);
+  const defaultSentRef = useRef(false);
 
-    setDuration(null);
-    setPeaks(null);
-    setIsPreviewing(false);
+  /* Mirrors of values the window-level pointer listeners need. Written
+     in an effect rather than during render so the listeners can be
+     attached once and still read current values. */
+  useEffect(() => {
+    rangeRef.current = { start, end };
+    durationRef.current = duration;
+    onChangeRef.current = onChange;
+  });
+
+  /* --- load the file into <audio> and decode the envelope ---------- */
+  useEffect(() => {
+    const url = URL.createObjectURL(file);
 
     if (audioElRef.current) {
-      audioElRef.current.pause();
       audioElRef.current.src = url;
       audioElRef.current.load();
     }
 
     let cancelled = false;
+    const abort = new AbortController();
+
     (async () => {
       try {
         const arrayBuffer = await file.arrayBuffer();
@@ -121,75 +161,74 @@ function TrimControls({ file, disabled, start, end, onChange }: TrimControlsProp
         const ctx = new Ctx();
         try {
           const buffer = await ctx.decodeAudioData(arrayBuffer);
-          if (!cancelled) setPeaks(computeWaveformPeaks(buffer, WAVEFORM_BUCKETS));
+          // Scanned in slices so a long file can't block the main
+          // thread in one go — see computeWaveformEnvelopeAsync.
+          const next = await computeWaveformEnvelopeAsync(buffer, undefined, abort.signal);
+          if (!cancelled) setEnvelope(next);
         } finally {
           ctx.close();
         }
       } catch {
-        // Decode not supported for this format — plain track, the tool
-        // still fully works via <audio>'s own (broader) format support.
-        if (!cancelled) setPeaks(null);
+        // decodeAudioData supports fewer formats than <audio> does, so a
+        // failure here costs the drawing only — duration, handles and
+        // preview all still work off the media element below. An abort
+        // lands here too, and is silent: cancelled is already true.
+        if (!cancelled) setDecodeFailed(true);
       }
     })();
 
     return () => {
       cancelled = true;
+      abort.abort();
+      URL.revokeObjectURL(url);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [file]);
 
-  /* --- READ THE REAL DURATION FROM THE <audio> ELEMENT --------------
-     This is the one piece that was missing: nothing previously ever
-     called setDuration() with a real number, so the component stayed
-     on its "duration === null" branch (rendered as "Reading audio…")
-     forever, regardless of whether the file was valid, tiny, or fully
-     decodable - and regardless of what the waveform decode above did,
-     since decodeAudioData() only produces PEAKS, not duration state.
-
-     loadedmetadata fires once the browser has read the file's headers
-     enough to know its length - normally well under a second, even for
-     a file the Web Audio API can't fully decode (which is exactly the
-     "Preview unavailable for this format" case the peaks branch below
-     already handles gracefully). Listening for it is what actually
-     turns "Reading audio…" into working controls.
-
-     Guarded against Infinity/NaN: some MP3s report an unseekable/unknown
-     duration until the browser has buffered further, which surfaces as
-     Infinity on first fire - accepting that would break every math.min/
-     clamp call below. */
+  /* --- real duration comes from the media element ------------------
+     Guarded against Infinity/NaN: some MP3s report an unknown duration
+     until the browser has buffered further, and accepting that would
+     turn every clamp below into NaN. */
   useEffect(() => {
     const audio = audioElRef.current;
     if (!audio) return;
 
-    const handleLoadedMetadata = () => {
-      if (Number.isFinite(audio.duration) && audio.duration > 0) {
-        setDuration(audio.duration);
-      }
+    const readDuration = () => {
+      if (Number.isFinite(audio.duration) && audio.duration > 0) setDuration(audio.duration);
     };
 
-    // In case metadata is already available by the time this effect
-    // runs (e.g. a cached file reselected) - readyState >= 1 means
-    // HAVE_METADATA has already fired and the event won't come again.
-    if (audio.readyState >= 1 && Number.isFinite(audio.duration) && audio.duration > 0) {
-      setDuration(audio.duration);
-    }
+    // readyState >= 1 means HAVE_METADATA already fired (e.g. a cached
+    // file reselected) and the event won't come again.
+    if (audio.readyState >= 1) readDuration();
 
-    audio.addEventListener("loadedmetadata", handleLoadedMetadata);
-    return () => audio.removeEventListener("loadedmetadata", handleLoadedMetadata);
+    audio.addEventListener("loadedmetadata", readDuration);
+    audio.addEventListener("durationchange", readDuration);
+    return () => {
+      audio.removeEventListener("loadedmetadata", readDuration);
+      audio.removeEventListener("durationchange", readDuration);
+    };
   }, [file]);
 
   useEffect(() => {
     return () => {
-      if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
       if (previewStopRef.current) clearTimeout(previewStopRef.current);
     };
   }, []);
 
-  /* --- once real duration is known, default to the full track ------ */
+  /** Update the visible selection and tell the parent — used for
+   *  discrete edits (steppers, keyboard, reset) that end immediately. */
+  const commit = useCallback((next: Range) => {
+    setRange(next);
+    onChangeRef.current(next.start, next.end);
+  }, []);
+
+  /* --- once real duration is known, hand the full track to the form
+     as the default selection. Only local state is derived from
+     duration, so this pushes to the parent and nothing else. Guarded
+     so a late durationchange can't wipe a selection already made. */
   useEffect(() => {
-    if (duration === null) return;
-    onChange(0, duration);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (duration === null || defaultSentRef.current) return;
+    defaultSentRef.current = true;
+    onChangeRef.current(0, duration);
   }, [duration]);
 
   const stopPreview = useCallback(() => {
@@ -223,48 +262,129 @@ function TrimControls({ file, disabled, start, end, onChange }: TrimControlsProp
     };
   }, []);
 
-  /* --- drag handling -------------------------------------------------*/
-  const fractionFromClientX = useCallback((clientX: number) => {
-    if (!containerRef.current) return 0;
-    const rect = containerRef.current.getBoundingClientRect();
-    return clamp((clientX - rect.left) / rect.width, 0, 1);
+  /* --- playhead --------------------------------------------------
+     Driven imperatively off requestAnimationFrame. Holding the play
+     position in React state would re-render this subtree — and redraw
+     the canvas — sixty times a second for one moving line. */
+  useEffect(() => {
+    const line = playheadRef.current;
+    if (!line) return;
+
+    if (!isPreviewing || duration === null) {
+      line.style.opacity = "0";
+      return;
+    }
+
+    let frame = 0;
+    const tick = () => {
+      const audio = audioElRef.current;
+      if (audio && duration > 0) {
+        line.style.opacity = "1";
+        line.style.left = `${clamp((audio.currentTime / duration) * 100, 0, 100)}%`;
+      }
+      frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => {
+      cancelAnimationFrame(frame);
+      line.style.opacity = "0";
+    };
+  }, [isPreviewing, duration]);
+
+  /* --- drag handling ----------------------------------------------
+     Listeners are attached once and read from refs. Pointer events fire
+     faster than the display refreshes (120Hz+ on a trackpad), so moves
+     are coalesced into one state update per animation frame — without
+     this every event triggered its own React render and canvas redraw,
+     which is what made dragging feel heavy. */
+  const timeFromClientX = useCallback((clientX: number) => {
+    const el = containerRef.current;
+    const dur = durationRef.current;
+    if (!el || dur === null) return 0;
+    const rect = el.getBoundingClientRect();
+    return clamp((clientX - rect.left) / rect.width, 0, 1) * dur;
   }, []);
 
-  const handlePointerMove = useCallback(
-    (clientX: number) => {
-      if (duration === null || !dragging) return;
-      const timeAtX = fractionFromClientX(clientX) * duration;
-      if (dragging === "start") {
-        onChange(clamp(timeAtX, 0, end - 0.1), end);
-      } else {
-        onChange(start, clamp(timeAtX, start + 0.1, duration));
-      }
-    },
-    [dragging, duration, start, end, fractionFromClientX, onChange]
-  );
-
   useEffect(() => {
-    if (!dragging) return;
-    const onMove = (e: PointerEvent) => handlePointerMove(e.clientX);
-    const onUp = () => setDragging(null);
+    let frame = 0;
+    let pendingX = 0;
+
+    const apply = () => {
+      frame = 0;
+      const target = dragRef.current;
+      const dur = durationRef.current;
+      if (!target || dur === null) return;
+
+      const time = timeFromClientX(pendingX);
+      const current = rangeRef.current;
+
+      if (target === "start") {
+        setRange({ start: clamp(time, 0, current.end - MIN_SELECTION), end: current.end });
+      } else if (target === "end") {
+        setRange({ start: current.start, end: clamp(time, current.start + MIN_SELECTION, dur) });
+      } else {
+        const anchor = anchorRef.current;
+        if (time >= anchor) {
+          setRange({ start: anchor, end: clamp(time, anchor + MIN_SELECTION, dur) });
+        } else {
+          setRange({ start: clamp(time, 0, anchor - MIN_SELECTION), end: anchor });
+        }
+      }
+    };
+
+    const onMove = (e: PointerEvent) => {
+      if (!dragRef.current) return;
+      pendingX = e.clientX;
+      if (!frame) frame = requestAnimationFrame(apply);
+    };
+
+    const onUp = () => {
+      if (!dragRef.current) return;
+      dragRef.current = null;
+      if (frame) {
+        cancelAnimationFrame(frame);
+        frame = 0;
+      }
+      // One parent update per gesture, on release.
+      const finalRange = rangeRef.current;
+      onChangeRef.current(finalRange.start, finalRange.end);
+    };
+
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
     return () => {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+      if (frame) cancelAnimationFrame(frame);
     };
-  }, [dragging, handlePointerMove]);
+  }, [timeFromClientX]);
 
-  const startDrag = (target: DragTarget) => {
+  const beginDrag = (target: Exclude<DragTarget, null>) => {
     if (disabled) return;
     if (isPreviewing) stopPreview();
-    setDragging(target);
+    dragRef.current = target;
+  };
+
+  /** Press anywhere on the waveform and drag to sweep out a new
+   *  selection, the way you would select a region in a DAW. */
+  const handleTrackPointerDown = (e: React.PointerEvent) => {
+    if (disabled || duration === null) return;
+    if (isPreviewing) stopPreview();
+    const time = timeFromClientX(e.clientX);
+    anchorRef.current = time;
+    dragRef.current = "range";
+    setRange({
+      start: clamp(time, 0, duration - MIN_SELECTION),
+      end: clamp(time + MIN_SELECTION, MIN_SELECTION, duration),
+    });
   };
 
   const nudge = (which: "start" | "end", delta: number) => {
     if (duration === null) return;
-    if (which === "start") onChange(clamp(start + delta, 0, end - 0.1), end);
-    else onChange(start, clamp(end + delta, start + 0.1, duration));
+    if (which === "start") commit({ start: clamp(start + delta, 0, end - MIN_SELECTION), end });
+    else commit({ start, end: clamp(end + delta, start + MIN_SELECTION, duration) });
   };
 
   const handleKeyDown = (target: "start" | "end") => (e: React.KeyboardEvent) => {
@@ -278,32 +398,27 @@ function TrimControls({ file, disabled, start, end, onChange }: TrimControlsProp
       nudge(target, step);
     } else if (e.key === "Home" && target === "start") {
       e.preventDefault();
-      onChange(0, end);
+      commit({ start: 0, end });
     } else if (e.key === "End" && target === "end") {
       e.preventDefault();
-      onChange(start, duration);
+      commit({ start, end: duration });
     }
   };
 
   const startPercent = duration ? (start / duration) * 100 : 0;
   const endPercent = duration ? (end / duration) * 100 : 0;
 
-  // The <audio> element is ALWAYS mounted, regardless of whether
-  // duration is known yet. This is the fix: the earlier version
-  // returned the "Reading audio…" spinner BEFORE reaching the JSX
-  // that rendered <audio>, so audioElRef.current was null, the
-  // loadedmetadata listener above never had an element to attach to,
-  // setDuration() was never called, and the component was stuck on
-  // the spinner permanently - regardless of the file, the browser,
-  // or anything else. Keeping <audio> mounted unconditionally and
-  // branching only on what's rendered NEXT TO it is what lets
-  // loadedmetadata actually fire.
+  // The <audio> element is mounted unconditionally, before the branch
+  // below: it's what reports the duration, so returning early on
+  // `duration === null` would mean the element never exists, the
+  // listener never attaches, and the control sits on its spinner
+  // forever.
   return (
     <div className="space-y-3">
       <audio ref={audioElRef} preload="metadata" />
 
       {duration === null ? (
-        <div className="flex h-20 items-center justify-center gap-2 rounded-lg border border-graphite-700 bg-graphite-850 text-xs text-text-subtle">
+        <div className="flex h-28 items-center justify-center gap-2 rounded-lg border border-graphite-700 bg-graphite-850 text-xs text-text-subtle">
           <Loader2 className="h-3.5 w-3.5 animate-spin" />
           Reading audio…
         </div>
@@ -312,28 +427,39 @@ function TrimControls({ file, disabled, start, end, onChange }: TrimControlsProp
           <div className="flex items-center justify-between">
             <label className="text-sm font-medium text-text-primary">Clip range</label>
             <span className="font-mono text-sm text-amber-400">
-              {formatTime(start)} – {formatTime(end)}
+              {formatPrecise(start)} – {formatPrecise(end)}
             </span>
           </div>
 
           <div
             ref={containerRef}
-            className="relative h-20 select-none overflow-hidden rounded-lg border border-graphite-700 bg-graphite-850 touch-none"
+            onPointerDown={handleTrackPointerDown}
+            onDoubleClick={() => !disabled && commit({ start: 0, end: duration })}
+            className="relative h-28 touch-none select-none overflow-hidden rounded-lg border border-graphite-700 bg-graphite-850"
           >
-            <div className="absolute inset-0 flex items-center gap-px px-1 opacity-70">
-              {peaks ? (
-                peaks.map((p, i) => (
-                  <div key={i} className="flex-1 rounded-sm bg-graphite-600" style={{ height: `${Math.max(p * 100, 4)}%` }} />
-                ))
-              ) : (
-                <div className="flex h-full w-full items-center justify-center text-xs text-text-subtle">
-                  Preview unavailable for this format — drag the handles below
-                </div>
-              )}
-            </div>
+            <WaveformCanvas
+              envelope={envelope}
+              duration={duration}
+              start={start}
+              end={end}
+              className="absolute inset-0 block"
+            />
 
-            <div className="pointer-events-none absolute inset-y-0 left-0 bg-graphite-950/60" style={{ width: `${startPercent}%` }} />
-            <div className="pointer-events-none absolute inset-y-0 right-0 bg-graphite-950/60" style={{ width: `${100 - endPercent}%` }} />
+            {!envelope && (
+              <div className="pointer-events-none absolute inset-x-0 bottom-3 text-center text-[11px] text-text-subtle">
+                {decodeFailed
+                  ? "No waveform for this format — the handles still trim exactly"
+                  : "Drawing waveform…"}
+              </div>
+            )}
+
+            {/* Playhead — moved by rAF, not by React */}
+            <div
+              ref={playheadRef}
+              aria-hidden="true"
+              className="pointer-events-none absolute bottom-0 w-px bg-amber-400 opacity-0 transition-opacity"
+              style={{ top: WAVEFORM_RULER_HEIGHT, left: 0 }}
+            />
 
             {/* Start handle */}
             <div
@@ -342,19 +468,19 @@ function TrimControls({ file, disabled, start, end, onChange }: TrimControlsProp
               aria-valuemin={0}
               aria-valuemax={duration}
               aria-valuenow={start}
-              aria-valuetext={formatTime(start)}
+              aria-valuetext={formatPrecise(start)}
               tabIndex={disabled ? -1 : 0}
               onPointerDown={(e) => {
                 e.preventDefault();
-                e.currentTarget.setPointerCapture(e.pointerId);
-                startDrag("start");
+                e.stopPropagation();
+                beginDrag("start");
               }}
               onKeyDown={handleKeyDown("start")}
-              className="absolute inset-y-0 -ml-2.5 flex w-5 cursor-ew-resize touch-none items-center justify-center focus:outline-none"
-              style={{ left: `${startPercent}%` }}
+              className="group absolute bottom-0 -ml-2.5 flex w-5 cursor-ew-resize touch-none justify-center focus:outline-none"
+              style={{ top: WAVEFORM_RULER_HEIGHT, left: `${startPercent}%` }}
             >
-              <div className="h-full w-0.5 bg-amber-500" />
-              <div className="absolute h-3 w-3 rounded-full border-2 border-amber-500 bg-graphite-900 shadow-sm transition-transform hover:scale-110" />
+              <div className="h-full w-0.5 bg-amber-500 transition-colors group-focus-visible:bg-amber-400" />
+              <div className="absolute top-0 h-2.5 w-2.5 rounded-b-sm bg-amber-500 transition-transform group-hover:scale-125 group-focus-visible:scale-125" />
             </div>
 
             {/* End handle */}
@@ -364,25 +490,22 @@ function TrimControls({ file, disabled, start, end, onChange }: TrimControlsProp
               aria-valuemin={0}
               aria-valuemax={duration}
               aria-valuenow={end}
-              aria-valuetext={formatTime(end)}
+              aria-valuetext={formatPrecise(end)}
               tabIndex={disabled ? -1 : 0}
               onPointerDown={(e) => {
                 e.preventDefault();
-                e.currentTarget.setPointerCapture(e.pointerId);
-                startDrag("end");
+                e.stopPropagation();
+                beginDrag("end");
               }}
               onKeyDown={handleKeyDown("end")}
-              className="absolute inset-y-0 -ml-2.5 flex w-5 cursor-ew-resize touch-none items-center justify-center focus:outline-none"
-              style={{ left: `${endPercent}%` }}
+              className="group absolute bottom-0 -ml-2.5 flex w-5 cursor-ew-resize touch-none justify-center focus:outline-none"
+              style={{ top: WAVEFORM_RULER_HEIGHT, left: `${endPercent}%` }}
             >
-              <div className="h-full w-0.5 bg-amber-500" />
-              <div className="absolute h-3 w-3 rounded-full border-2 border-amber-500 bg-graphite-900 shadow-sm transition-transform hover:scale-110" />
+              <div className="h-full w-0.5 bg-amber-500 transition-colors group-focus-visible:bg-amber-400" />
+              <div className="absolute top-0 h-2.5 w-2.5 rounded-b-sm bg-amber-500 transition-transform group-hover:scale-125 group-focus-visible:scale-125" />
             </div>
           </div>
 
-          {/* Numeric entry + preview — replaces the old duplicate pair of
-              range sliders below the waveform, which could visually drift
-              from the drag handles despite sharing the same state. */}
           <div className="flex items-center justify-between gap-3">
             <Stepper
               label="Start"
@@ -390,7 +513,7 @@ function TrimControls({ file, disabled, start, end, onChange }: TrimControlsProp
               disabled={disabled}
               onIncrement={() => nudge("start", KEY_STEP_LARGE)}
               onDecrement={() => nudge("start", -KEY_STEP_LARGE)}
-              onChange={(v) => onChange(clamp(v, 0, end - 0.1), end)}
+              onChange={(v) => commit({ start: clamp(v, 0, end - MIN_SELECTION), end })}
             />
 
             <button
@@ -409,12 +532,13 @@ function TrimControls({ file, disabled, start, end, onChange }: TrimControlsProp
               disabled={disabled}
               onIncrement={() => nudge("end", KEY_STEP_LARGE)}
               onDecrement={() => nudge("end", -KEY_STEP_LARGE)}
-              onChange={(v) => onChange(start, clamp(v, start + 0.1, duration))}
+              onChange={(v) => commit({ start, end: clamp(v, start + MIN_SELECTION, duration) })}
             />
           </div>
 
           <p className="text-center text-xs text-text-subtle">
-            Full length: {formatTime(duration)} — selected clip: {formatTime(Math.max(0, end - start))}
+            Full length: {formatTime(duration)} — selected clip: {formatTime(Math.max(0, end - start))}. Drag across the
+            waveform to select, double-click to reset.
           </p>
         </>
       )}

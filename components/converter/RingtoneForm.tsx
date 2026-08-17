@@ -3,13 +3,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Play, Square, Loader2, ChevronUp, ChevronDown } from "lucide-react";
 import { JobToolForm } from "@/components/converter/JobToolForm";
+import { WaveformCanvas, WAVEFORM_RULER_HEIGHT } from "@/components/ui/WaveformCanvas";
 import { cn } from "@/lib/utils/cn";
-import { computeWaveformPeaks } from "@/lib/utils/waveform";
+import { computeWaveformEnvelopeAsync, type WaveformEnvelope } from "@/lib/utils/waveform";
 
 const RINGTONE_MAX_SECONDS = 40;
-const WAVEFORM_BUCKETS = 220;
 const KEY_STEP = 1;
 const KEY_STEP_LARGE = 5;
+/** Shortest ringtone worth producing, and the gap the two handles keep
+ *  between each other so they can never cross. */
+const MIN_WINDOW = 1;
 
 function formatTime(seconds: number): string {
   if (!Number.isFinite(seconds)) return "0:00";
@@ -24,6 +27,11 @@ function clamp(value: number, min: number, max: number): number {
 
 type DragTarget = "start" | "end" | "move" | null;
 
+interface Window {
+  start: number;
+  duration: number;
+}
+
 interface SelectionWindowProps {
   file: File;
   disabled: boolean;
@@ -32,37 +40,72 @@ interface SelectionWindowProps {
   onChange: (start: number, duration: number) => void;
 }
 
-function SelectionWindow({ file, disabled, start, duration, onChange }: SelectionWindowProps) {
+function SelectionWindow({
+  file,
+  disabled,
+  start: committedStart,
+  duration: committedDuration,
+  onChange,
+}: SelectionWindowProps) {
   const [fileDuration, setFileDuration] = useState<number | null>(null);
-  const [peaks, setPeaks] = useState<number[] | null>(null);
+  const [envelope, setEnvelope] = useState<WaveformEnvelope | null>(null);
+  const [decodeFailed, setDecodeFailed] = useState(false);
   const [isPreviewing, setIsPreviewing] = useState(false);
-  const [dragging, setDragging] = useState<DragTarget>(null);
-  const [dragMoveAnchor, setDragMoveAnchor] = useState<{ pointerFraction: number; start: number } | null>(null);
 
-  const audioElRef = useRef<HTMLAudioElement | null>(null);
-  const objectUrlRef = useRef<string | null>(null);
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const previewStopRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /* The live window is owned here, not by the parent form. Pushing every
+     pointermove up to RingtoneForm re-rendered the whole JobToolForm
+     tree — dropzone, header, submit button — to move one handle. The
+     parent is told once, when the gesture ends.
 
+     null means "untouched": the window shown is derived from the props
+     clamped to the real track length, so nothing has to write state in
+     an effect on mount. */
+  const [local, setLocal] = useState<Window | null>(null);
+
+  const maxWindow = fileDuration ? Math.min(RINGTONE_MAX_SECONDS, fileDuration) : RINGTONE_MAX_SECONDS;
+  const fallbackDuration = clamp(committedDuration, MIN_WINDOW, maxWindow);
+  const fallback: Window = {
+    start: clamp(committedStart, 0, Math.max(0, (fileDuration ?? 0) - fallbackDuration)),
+    duration: fallbackDuration,
+  };
+  const { start, duration } = local ?? fallback;
   const end = start + duration;
 
-  /* --- new file: reset, probe duration, decode waveform ------------- */
-  useEffect(() => {
-    if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
-    const url = URL.createObjectURL(file);
-    objectUrlRef.current = url;
+  const audioElRef = useRef<HTMLAudioElement | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const playheadRef = useRef<HTMLDivElement | null>(null);
+  const previewStopRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    setFileDuration(null);
-    setPeaks(null);
-    setIsPreviewing(false);
+  const dragRef = useRef<DragTarget>(null);
+  /** Where the pointer grabbed the window, so a move drag keeps its
+   *  offset instead of snapping the window's start to the cursor. */
+  const moveAnchorRef = useRef<{ pointerTime: number; start: number } | null>(null);
+  const windowRef = useRef<Window>({ start, duration });
+  const fileDurationRef = useRef<number | null>(null);
+  const onChangeRef = useRef(onChange);
+  const defaultSentRef = useRef(false);
+
+  /* Mirrors of the values the window-level pointer listeners need.
+     Written in an effect rather than during render so the listeners can
+     be attached once and still read current values. */
+  useEffect(() => {
+    windowRef.current = { start, duration };
+    fileDurationRef.current = fileDuration;
+    onChangeRef.current = onChange;
+  });
+
+  /* --- load the file into <audio> and decode the envelope ---------- */
+  useEffect(() => {
+    const url = URL.createObjectURL(file);
 
     if (audioElRef.current) {
-      audioElRef.current.pause();
       audioElRef.current.src = url;
       audioElRef.current.load();
     }
 
     let cancelled = false;
+    const abort = new AbortController();
+
     (async () => {
       try {
         const arrayBuffer = await file.arrayBuffer();
@@ -71,39 +114,77 @@ function SelectionWindow({ file, disabled, start, duration, onChange }: Selectio
         const ctx = new Ctx();
         try {
           const buffer = await ctx.decodeAudioData(arrayBuffer);
-          if (!cancelled) setPeaks(computeWaveformPeaks(buffer, WAVEFORM_BUCKETS));
+          // Scanned in slices so a long file can't block the main
+          // thread in one go — see computeWaveformEnvelopeAsync.
+          const next = await computeWaveformEnvelopeAsync(buffer, undefined, abort.signal);
+          if (!cancelled) setEnvelope(next);
         } finally {
           ctx.close();
         }
       } catch {
-        // Decode not supported for this format — plain track, tool still
-        // fully works via <audio>'s own (broader) format support.
-        if (!cancelled) setPeaks(null);
+        // decodeAudioData supports fewer formats than <audio> does, so a
+        // failure here costs the drawing only — duration, handles and
+        // preview all still work off the media element below. An abort
+        // lands here too, and is silent: cancelled is already true.
+        if (!cancelled) setDecodeFailed(true);
       }
     })();
 
     return () => {
       cancelled = true;
+      abort.abort();
+      URL.revokeObjectURL(url);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [file]);
+
+  /* --- real duration comes from the media element ------------------
+     Guarded against Infinity/NaN: some MP3s report an unknown duration
+     until the browser has buffered further, and accepting that would
+     turn every clamp below into NaN. */
+  useEffect(() => {
+    const audio = audioElRef.current;
+    if (!audio) return;
+
+    const readDuration = () => {
+      if (Number.isFinite(audio.duration) && audio.duration > 0) setFileDuration(audio.duration);
+    };
+
+    // readyState >= 1 means HAVE_METADATA already fired (e.g. a cached
+    // file reselected) and the event won't come again.
+    if (audio.readyState >= 1) readDuration();
+
+    audio.addEventListener("loadedmetadata", readDuration);
+    audio.addEventListener("durationchange", readDuration);
+    return () => {
+      audio.removeEventListener("loadedmetadata", readDuration);
+      audio.removeEventListener("durationchange", readDuration);
+    };
   }, [file]);
 
   useEffect(() => {
     return () => {
-      if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
       if (previewStopRef.current) clearTimeout(previewStopRef.current);
     };
   }, []);
 
-  /* --- clamp start/duration down once real duration is known -------- */
+  /* --- once the real length is known, hand the clamped window to the
+     form. A 30s default against a 12s upload has to come back down, and
+     the parent is the one that submits it. Guarded so a late
+     durationchange can't overwrite a window the user already set. */
   useEffect(() => {
-    if (fileDuration === null) return;
-    const maxDuration = Math.min(RINGTONE_MAX_SECONDS, fileDuration);
-    const nextDuration = clamp(duration, 1, maxDuration);
-    const nextStart = clamp(start, 0, Math.max(0, fileDuration - nextDuration));
-    if (nextStart !== start || nextDuration !== duration) onChange(nextStart, nextDuration);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fileDuration]);
+    if (fileDuration === null || defaultSentRef.current) return;
+    defaultSentRef.current = true;
+    const cappedDuration = clamp(committedDuration, MIN_WINDOW, Math.min(RINGTONE_MAX_SECONDS, fileDuration));
+    const cappedStart = clamp(committedStart, 0, Math.max(0, fileDuration - cappedDuration));
+    onChangeRef.current(cappedStart, cappedDuration);
+  }, [fileDuration, committedStart, committedDuration]);
+
+  /** Update the visible window and tell the parent — used for discrete
+   *  edits (steppers, keyboard) that end immediately. */
+  const commit = useCallback((next: Window) => {
+    setLocal(next);
+    onChangeRef.current(next.start, next.duration);
+  }, []);
 
   const stopPreview = useCallback(() => {
     audioElRef.current?.pause();
@@ -136,68 +217,142 @@ function SelectionWindow({ file, disabled, start, duration, onChange }: Selectio
     };
   }, []);
 
-  /* --- drag handling: start handle, end handle, or move whole window - */
-  const fractionFromClientX = useCallback((clientX: number) => {
-    if (!containerRef.current) return 0;
-    const rect = containerRef.current.getBoundingClientRect();
-    return clamp((clientX - rect.left) / rect.width, 0, 1);
+  /* --- playhead --------------------------------------------------
+     Driven imperatively off requestAnimationFrame. Holding the play
+     position in React state would re-render this subtree — and redraw
+     the canvas — sixty times a second for one moving line. */
+  useEffect(() => {
+    const line = playheadRef.current;
+    if (!line) return;
+
+    if (!isPreviewing || fileDuration === null) {
+      line.style.opacity = "0";
+      return;
+    }
+
+    let frame = 0;
+    const tick = () => {
+      const audio = audioElRef.current;
+      if (audio && fileDuration > 0) {
+        line.style.opacity = "1";
+        line.style.left = `${clamp((audio.currentTime / fileDuration) * 100, 0, 100)}%`;
+      }
+      frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => {
+      cancelAnimationFrame(frame);
+      line.style.opacity = "0";
+    };
+  }, [isPreviewing, fileDuration]);
+
+  /* --- drag handling ----------------------------------------------
+     Listeners are attached once and read from refs. Pointer events fire
+     faster than the display refreshes (120Hz+ on a trackpad), so moves
+     are coalesced into one state update per animation frame — without
+     this every event triggered its own React render and canvas redraw,
+     which is what made dragging feel heavy. */
+  const timeFromClientX = useCallback((clientX: number) => {
+    const el = containerRef.current;
+    const total = fileDurationRef.current;
+    if (!el || total === null) return 0;
+    const rect = el.getBoundingClientRect();
+    return clamp((clientX - rect.left) / rect.width, 0, 1) * total;
   }, []);
 
-  const handlePointerMove = useCallback(
-    (clientX: number) => {
-      if (fileDuration === null || !dragging) return;
-      const fraction = fractionFromClientX(clientX);
-      const timeAtX = fraction * fileDuration;
-      const maxDuration = Math.min(RINGTONE_MAX_SECONDS, fileDuration);
-
-      if (dragging === "start") {
-        const nextStart = clamp(timeAtX, 0, end - 1);
-        const nextDuration = clamp(end - nextStart, 1, maxDuration);
-        onChange(clamp(end - nextDuration, 0, fileDuration), nextDuration);
-      } else if (dragging === "end") {
-        const nextEnd = clamp(timeAtX, start + 1, Math.min(fileDuration, start + maxDuration));
-        onChange(start, nextEnd - start);
-      } else if (dragging === "move" && dragMoveAnchor) {
-        const deltaFraction = fraction - dragMoveAnchor.pointerFraction;
-        const deltaSeconds = deltaFraction * fileDuration;
-        const nextStart = clamp(dragMoveAnchor.start + deltaSeconds, 0, fileDuration - duration);
-        onChange(nextStart, duration);
-      }
-    },
-    [dragging, dragMoveAnchor, fileDuration, start, end, duration, fractionFromClientX, onChange]
-  );
-
   useEffect(() => {
-    if (!dragging) return;
-    const onMove = (e: PointerEvent) => handlePointerMove(e.clientX);
-    const onUp = () => {
-      setDragging(null);
-      setDragMoveAnchor(null);
-    };
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onUp);
-    return () => {
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
-    };
-  }, [dragging, handlePointerMove]);
+    let frame = 0;
+    let pendingX = 0;
 
-  const startDrag = (target: DragTarget, clientX: number) => {
-    if (disabled) return;
+    const apply = () => {
+      frame = 0;
+      const target = dragRef.current;
+      const total = fileDurationRef.current;
+      if (!target || total === null) return;
+
+      const time = timeFromClientX(pendingX);
+      const current = windowRef.current;
+      const cap = Math.min(RINGTONE_MAX_SECONDS, total);
+      const currentEnd = current.start + current.duration;
+
+      if (target === "start") {
+        // The end edge stays put; the start edge moves, and the window
+        // shrinks or grows against the 40s cap rather than dragging the
+        // end along with it.
+        const nextStart = clamp(time, Math.max(0, currentEnd - cap), currentEnd - MIN_WINDOW);
+        setLocal({ start: nextStart, duration: currentEnd - nextStart });
+      } else if (target === "end") {
+        const nextEnd = clamp(time, current.start + MIN_WINDOW, Math.min(total, current.start + cap));
+        setLocal({ start: current.start, duration: nextEnd - current.start });
+      } else {
+        const anchor = moveAnchorRef.current;
+        if (!anchor) return;
+        const nextStart = clamp(anchor.start + (time - anchor.pointerTime), 0, total - current.duration);
+        setLocal({ start: nextStart, duration: current.duration });
+      }
+    };
+
+    const onMove = (e: PointerEvent) => {
+      if (!dragRef.current) return;
+      pendingX = e.clientX;
+      if (!frame) frame = requestAnimationFrame(apply);
+    };
+
+    const onUp = () => {
+      if (!dragRef.current) return;
+      dragRef.current = null;
+      moveAnchorRef.current = null;
+      if (frame) {
+        cancelAnimationFrame(frame);
+        frame = 0;
+      }
+      // One parent update per gesture, on release.
+      const finalWindow = windowRef.current;
+      onChangeRef.current(finalWindow.start, finalWindow.duration);
+    };
+
+    globalThis.addEventListener("pointermove", onMove);
+    globalThis.addEventListener("pointerup", onUp);
+    globalThis.addEventListener("pointercancel", onUp);
+    return () => {
+      globalThis.removeEventListener("pointermove", onMove);
+      globalThis.removeEventListener("pointerup", onUp);
+      globalThis.removeEventListener("pointercancel", onUp);
+      if (frame) cancelAnimationFrame(frame);
+    };
+  }, [timeFromClientX]);
+
+  const beginDrag = (target: Exclude<DragTarget, null>, clientX: number) => {
+    if (disabled || fileDuration === null) return;
     if (isPreviewing) stopPreview();
-    if (target === "move") setDragMoveAnchor({ pointerFraction: fractionFromClientX(clientX), start });
-    setDragging(target);
+    if (target === "move") {
+      moveAnchorRef.current = { pointerTime: timeFromClientX(clientX), start };
+    }
+    dragRef.current = target;
+  };
+
+  /** Press anywhere on the waveform outside the window and the window
+   *  jumps there, centred on the cursor, then follows it. */
+  const handleTrackPointerDown = (e: React.PointerEvent) => {
+    if (disabled || fileDuration === null) return;
+    if (isPreviewing) stopPreview();
+    const time = timeFromClientX(e.clientX);
+    const nextStart = clamp(time - duration / 2, 0, Math.max(0, fileDuration - duration));
+    moveAnchorRef.current = { pointerTime: time, start: nextStart };
+    dragRef.current = "move";
+    setLocal({ start: nextStart, duration });
   };
 
   const nudge = (which: "start" | "duration", delta: number) => {
     if (fileDuration === null) return;
-    const maxDuration = Math.min(RINGTONE_MAX_SECONDS, fileDuration);
+    const cap = Math.min(RINGTONE_MAX_SECONDS, fileDuration);
     if (which === "start") {
-      const nextStart = clamp(start + delta, 0, fileDuration - duration);
-      onChange(nextStart, duration);
+      commit({ start: clamp(start + delta, 0, fileDuration - duration), duration });
     } else {
-      const nextDuration = clamp(duration + delta, 1, Math.min(maxDuration, fileDuration - start));
-      onChange(start, nextDuration);
+      commit({
+        start,
+        duration: clamp(duration + delta, MIN_WINDOW, Math.min(cap, fileDuration - start)),
+      });
     }
   };
 
@@ -206,68 +361,80 @@ function SelectionWindow({ file, disabled, start, duration, onChange }: Selectio
     const step = e.shiftKey ? KEY_STEP_LARGE : KEY_STEP;
     if (e.key === "ArrowLeft") {
       e.preventDefault();
-      target === "start" ? nudge("start", -step) : nudge("duration", -step);
+      nudge(target === "start" ? "start" : "duration", -step);
     } else if (e.key === "ArrowRight") {
       e.preventDefault();
-      target === "start" ? nudge("start", step) : nudge("duration", step);
+      nudge(target === "start" ? "start" : "duration", step);
     }
   };
 
   const startPercent = fileDuration ? (start / fileDuration) * 100 : 0;
   const endPercent = fileDuration ? (end / fileDuration) * 100 : 0;
-  const maxDuration = fileDuration ? Math.min(RINGTONE_MAX_SECONDS, fileDuration) : RINGTONE_MAX_SECONDS;
 
+  // The <audio> element is mounted unconditionally, before the branch
+  // below: it's what reports the duration, so returning early on
+  // `fileDuration === null` would mean the element never exists, the
+  // listener never attaches, and the control sits on its spinner
+  // forever.
   return (
     <div className="space-y-3">
-      <audio
-        ref={audioElRef}
-        preload="metadata"
-        onLoadedMetadata={(e) => setFileDuration(e.currentTarget.duration)}
-      />
+      <audio ref={audioElRef} preload="metadata" />
 
       <div className="flex items-center justify-between">
         <label className="text-sm font-medium text-text-primary">Ringtone window</label>
-        {fileDuration !== null && (
-          <span className="font-mono text-xs tabular-nums text-text-subtle">{formatTime(fileDuration)} total</span>
-        )}
+        <span className="font-mono text-sm text-amber-400">
+          {formatTime(start)} – {formatTime(end)}
+        </span>
       </div>
 
-      {/* Timeline: waveform + draggable selection window, anchored to the
-          real track length — this is what the old 0–600s slider had no
-          relationship to at all. */}
-      <div
-        ref={containerRef}
-        className="relative h-20 select-none overflow-hidden rounded-lg border border-graphite-700 bg-graphite-850"
-      >
-        {fileDuration === null ? (
-          <div className="flex h-full items-center justify-center gap-2 text-xs text-text-subtle">
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            Reading track…
-          </div>
-        ) : (
-          <>
-            <div className="absolute inset-0 flex items-center gap-px px-1 opacity-70">
-              {peaks ? (
-                peaks.map((p, i) => (
-                  <div key={i} className="flex-1 rounded-sm bg-graphite-600" style={{ height: `${Math.max(p * 100, 4)}%` }} />
-                ))
-              ) : (
-                <div className="h-px w-full bg-graphite-700" />
-              )}
-            </div>
+      {fileDuration === null ? (
+        <div className="flex h-28 items-center justify-center gap-2 rounded-lg border border-graphite-700 bg-graphite-850 text-xs text-text-subtle">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          Reading track…
+        </div>
+      ) : (
+        <>
+          <div
+            ref={containerRef}
+            onPointerDown={handleTrackPointerDown}
+            className="relative h-28 touch-none select-none overflow-hidden rounded-lg border border-graphite-700 bg-graphite-850"
+          >
+            <WaveformCanvas
+              envelope={envelope}
+              duration={fileDuration}
+              start={start}
+              end={end}
+              className="absolute inset-0 block"
+            />
 
-            {/* Dimmed regions outside the selection */}
-            <div className="pointer-events-none absolute inset-y-0 left-0 bg-graphite-950/60" style={{ width: `${startPercent}%` }} />
-            <div className="pointer-events-none absolute inset-y-0 right-0 bg-graphite-950/60" style={{ width: `${100 - endPercent}%` }} />
+            {!envelope && (
+              <div className="pointer-events-none absolute inset-x-0 bottom-3 text-center text-[11px] text-text-subtle">
+                {decodeFailed
+                  ? "No waveform for this format — the handles still cut exactly"
+                  : "Drawing waveform…"}
+              </div>
+            )}
 
-            {/* The selection window itself — draggable to move both edges together */}
+            {/* Playhead — moved by rAF, not by React */}
             <div
-              onPointerDown={(e) => startDrag("move", e.clientX)}
-              className={cn(
-                "absolute inset-y-0 border-x-2 border-amber-500/70 bg-amber-500/10",
-                !disabled && "cursor-grab active:cursor-grabbing"
-              )}
-              style={{ left: `${startPercent}%`, width: `${endPercent - startPercent}%` }}
+              ref={playheadRef}
+              aria-hidden="true"
+              className="pointer-events-none absolute bottom-0 w-px bg-amber-400 opacity-0 transition-opacity"
+              style={{ top: WAVEFORM_RULER_HEIGHT, left: 0 }}
+            />
+
+            {/* The window body — drag to slide both edges together */}
+            <div
+              onPointerDown={(e) => {
+                e.stopPropagation();
+                beginDrag("move", e.clientX);
+              }}
+              className={cn("absolute bottom-0", !disabled && "cursor-grab active:cursor-grabbing")}
+              style={{
+                top: WAVEFORM_RULER_HEIGHT,
+                left: `${startPercent}%`,
+                width: `${endPercent - startPercent}%`,
+              }}
             />
 
             {/* Start handle */}
@@ -280,15 +447,16 @@ function SelectionWindow({ file, disabled, start, duration, onChange }: Selectio
               aria-valuetext={formatTime(start)}
               tabIndex={disabled ? -1 : 0}
               onPointerDown={(e) => {
+                e.preventDefault();
                 e.stopPropagation();
-                startDrag("start", e.clientX);
+                beginDrag("start", e.clientX);
               }}
               onKeyDown={handleKeyDown("start")}
-              className="absolute inset-y-0 -ml-2.5 flex w-5 cursor-ew-resize touch-none items-center justify-center focus:outline-none"
-              style={{ left: `${startPercent}%` }}
+              className="group absolute bottom-0 -ml-2.5 flex w-5 cursor-ew-resize touch-none justify-center focus:outline-none"
+              style={{ top: WAVEFORM_RULER_HEIGHT, left: `${startPercent}%` }}
             >
-              <div className="h-full w-0.5 bg-amber-500" />
-              <div className="absolute h-3 w-3 rounded-full border-2 border-amber-500 bg-graphite-900" />
+              <div className="h-full w-0.5 bg-amber-500 transition-colors group-focus-visible:bg-amber-400" />
+              <div className="absolute top-0 h-2.5 w-2.5 rounded-b-sm bg-amber-500 transition-transform group-hover:scale-125 group-focus-visible:scale-125" />
             </div>
 
             {/* End handle */}
@@ -301,63 +469,69 @@ function SelectionWindow({ file, disabled, start, duration, onChange }: Selectio
               aria-valuetext={formatTime(end)}
               tabIndex={disabled ? -1 : 0}
               onPointerDown={(e) => {
+                e.preventDefault();
                 e.stopPropagation();
-                startDrag("end", e.clientX);
+                beginDrag("end", e.clientX);
               }}
               onKeyDown={handleKeyDown("end")}
-              className="absolute inset-y-0 -ml-2.5 flex w-5 cursor-ew-resize touch-none items-center justify-center focus:outline-none"
-              style={{ left: `${endPercent}%` }}
+              className="group absolute bottom-0 -ml-2.5 flex w-5 cursor-ew-resize touch-none justify-center focus:outline-none"
+              style={{ top: WAVEFORM_RULER_HEIGHT, left: `${endPercent}%` }}
             >
-              <div className="h-full w-0.5 bg-amber-500" />
-              <div className="absolute h-3 w-3 rounded-full border-2 border-amber-500 bg-graphite-900" />
+              <div className="h-full w-0.5 bg-amber-500 transition-colors group-focus-visible:bg-amber-400" />
+              <div className="absolute top-0 h-2.5 w-2.5 rounded-b-sm bg-amber-500 transition-transform group-hover:scale-125 group-focus-visible:scale-125" />
             </div>
-          </>
-        )}
-      </div>
+          </div>
 
-      {/* Numeric entry + preview */}
-      <div className="flex items-center justify-between gap-3">
-        <label className="flex items-center gap-1.5 text-xs text-text-muted">
-          Start
-          <Stepper
-            value={start}
-            disabled={disabled || fileDuration === null}
-            onIncrement={() => nudge("start", KEY_STEP)}
-            onDecrement={() => nudge("start", -KEY_STEP)}
-            onChange={(v) => fileDuration !== null && onChange(clamp(v, 0, fileDuration - duration), duration)}
-            max={fileDuration ?? 0}
-          />
-          s
-        </label>
+          {/* Numeric entry + preview */}
+          <div className="flex items-center justify-between gap-3">
+            <label className="flex items-center gap-1.5 text-xs text-text-muted">
+              Start
+              <Stepper
+                value={start}
+                disabled={disabled}
+                onIncrement={() => nudge("start", KEY_STEP)}
+                onDecrement={() => nudge("start", -KEY_STEP)}
+                onChange={(v) => commit({ start: clamp(v, 0, fileDuration - duration), duration })}
+                max={fileDuration}
+              />
+              s
+            </label>
 
-        <button
-          type="button"
-          onClick={isPreviewing ? stopPreview : startPreview}
-          disabled={disabled || fileDuration === null}
-          className="flex items-center gap-1.5 rounded-full border border-graphite-700 bg-graphite-850 px-3.5 py-1.5 text-text-muted transition-colors hover:border-amber-500/40 hover:text-amber-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40 disabled:opacity-40"
-        >
-          {isPreviewing ? <Square className="h-3 w-3" fill="currentColor" /> : <Play className="h-3 w-3" fill="currentColor" />}
-          {isPreviewing ? "Stop" : "Preview"}
-        </button>
+            <button
+              type="button"
+              onClick={isPreviewing ? stopPreview : startPreview}
+              disabled={disabled}
+              className="flex items-center gap-1.5 rounded-full border border-graphite-700 bg-graphite-850 px-3.5 py-1.5 text-text-muted transition-colors hover:border-amber-500/40 hover:text-amber-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40 disabled:opacity-40"
+            >
+              {isPreviewing ? <Square className="h-3 w-3" fill="currentColor" /> : <Play className="h-3 w-3" fill="currentColor" />}
+              {isPreviewing ? "Stop" : "Preview"}
+            </button>
 
-        <label className="flex items-center gap-1.5 text-xs text-text-muted">
-          Length
-          <Stepper
-            value={duration}
-            disabled={disabled || fileDuration === null}
-            onIncrement={() => nudge("duration", KEY_STEP)}
-            onDecrement={() => nudge("duration", -KEY_STEP)}
-            onChange={(v) => onChange(start, clamp(v, 1, maxDuration))}
-            max={maxDuration}
-          />
-          s
-        </label>
-      </div>
+            <label className="flex items-center gap-1.5 text-xs text-text-muted">
+              Length
+              <Stepper
+                value={duration}
+                disabled={disabled}
+                onIncrement={() => nudge("duration", KEY_STEP)}
+                onDecrement={() => nudge("duration", -KEY_STEP)}
+                onChange={(v) =>
+                  commit({
+                    start,
+                    duration: clamp(v, MIN_WINDOW, Math.min(maxWindow, fileDuration - start)),
+                  })
+                }
+                max={maxWindow}
+              />
+              s
+            </label>
+          </div>
 
-      <p className="text-center text-xs text-text-subtle">
-        Drag the window or its edges — iPhone ringtones max out at {RINGTONE_MAX_SECONDS}s, capped
-        automatically to your track&apos;s length.
-      </p>
+          <p className="text-center text-xs text-text-subtle">
+            Drag the window or its edges — iPhone ringtones max out at {RINGTONE_MAX_SECONDS}s, capped
+            automatically to your track&apos;s length.
+          </p>
+        </>
+      )}
     </div>
   );
 }
@@ -443,7 +617,11 @@ export function RingtoneForm() {
       })}
       renderControls={(file, disabled) =>
         file ? (
+          /* Keyed per file: selecting a different file remounts the
+             controls with fresh state, instead of resetting half a
+             dozen useState values by hand inside an effect. */
           <SelectionWindow
+            key={`${file.name}:${file.size}:${file.lastModified}`}
             file={file}
             disabled={disabled}
             start={start}
