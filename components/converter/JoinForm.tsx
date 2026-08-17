@@ -12,7 +12,7 @@ import {
   Layers,
   RotateCcw,
 } from "lucide-react";
-import { Button } from "@/components/ui/Button";
+import { Button, buttonStyles } from "@/components/ui/Button";
 import { Waveform } from "@/components/ui/Waveform";
 import { AudioPlayer } from "@/components/ui/AudioPlayer";
 import { SupportBlock } from "@/components/ui/SupportBlock";
@@ -176,13 +176,16 @@ function FileRow({
         </p>
       </div>
 
+      {/* Compound control: three icon targets sharing a row, sized to the
+          row rather than to a standalone button. Not <Button> material -
+          see the matching note on the steppers in TrimForm. */}
       <div className="flex shrink-0 items-center gap-0.5">
         <button
           type="button"
           onClick={() => onMove(index, -1)}
           disabled={disabled || index === 0}
           aria-label="Move up"
-          className="rounded p-1 text-text-muted transition-colors hover:bg-graphite-800 hover:text-amber-400 disabled:opacity-30"
+          className="rounded p-1 text-text-muted transition-colors hover:bg-graphite-800 hover:text-amber-400 disabled:pointer-events-none disabled:opacity-30"
         >
           <ChevronUp className="h-4 w-4" />
         </button>
@@ -191,7 +194,7 @@ function FileRow({
           onClick={() => onMove(index, 1)}
           disabled={disabled || index === total - 1}
           aria-label="Move down"
-          className="rounded p-1 text-text-muted transition-colors hover:bg-graphite-800 hover:text-amber-400 disabled:opacity-30"
+          className="rounded p-1 text-text-muted transition-colors hover:bg-graphite-800 hover:text-amber-400 disabled:pointer-events-none disabled:opacity-30"
         >
           <ChevronDown className="h-4 w-4" />
         </button>
@@ -200,7 +203,7 @@ function FileRow({
           onClick={() => onRemove(index)}
           disabled={disabled}
           aria-label="Remove"
-          className="rounded p-1 text-text-muted transition-colors hover:bg-graphite-800 hover:text-red-400 disabled:opacity-30"
+          className="rounded p-1 text-text-muted transition-colors hover:bg-graphite-800 hover:text-red-400 disabled:pointer-events-none disabled:opacity-30"
         >
           <X className="h-4 w-4" />
         </button>
@@ -231,6 +234,10 @@ export function JoinForm() {
   const pollStartedAtRef = useRef(0);
   const cancelledRef = useRef(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  // dragleave fires when the pointer crosses a child element, which made
+  // the zone highlight flicker on and off while dragging over it.
+  // Counting enters and leaves is the same fix FileDropZone uses.
+  const dragDepth = useRef(0);
 
   const totalBytes = files.reduce((sum, f) => sum + f.size, 0);
   const isBusy = status === "uploading" || status === "processing";
@@ -356,6 +363,7 @@ export function JoinForm() {
 
   const handleZoneDrop = (e: ReactDragEvent<HTMLButtonElement>) => {
     e.preventDefault();
+    dragDepth.current = 0;
     setIsDragOverZone(false);
     if (isBusy) return;
     if (e.dataTransfer.files.length > 0) addFiles(e.dataTransfer.files);
@@ -496,38 +504,69 @@ export function JoinForm() {
       <div className="space-y-6 p-6 sm:p-8">
         {status !== "complete" && (
           <>
+            {/* Matches FileDropZone: solid border at rest, dashed and
+                amber only while a file is over it. A permanently dashed
+                box reads as a placeholder - "nothing here yet" - which is
+                exactly the wrong message for the primary action. */}
             <button
               type="button"
               disabled={isBusy}
               onClick={() => inputRef.current?.click()}
-              onDragOver={(e) => {
+              onDragEnter={(e) => {
                 e.preventDefault();
-                if (!isBusy) setIsDragOverZone(true);
+                if (isBusy) return;
+                dragDepth.current += 1;
+                setIsDragOverZone(true);
               }}
-              onDragLeave={() => setIsDragOverZone(false)}
+              onDragOver={(e) => e.preventDefault()}
+              onDragLeave={() => {
+                dragDepth.current = Math.max(0, dragDepth.current - 1);
+                if (dragDepth.current === 0) setIsDragOverZone(false);
+              }}
               onDrop={handleZoneDrop}
               className={cn(
-                "flex w-full flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed px-4 py-8 text-center transition-colors",
+                "group flex w-full flex-col items-center justify-center gap-2.5 rounded-xl border px-4 py-6 text-center",
+                "transition-colors duration-200",
                 "focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40",
                 "disabled:cursor-not-allowed disabled:opacity-40",
                 isDragOverZone
-                  ? "border-amber-500/60 bg-amber-500/5"
-                  : "border-graphite-700 hover:border-graphite-700/80 hover:bg-graphite-850/40"
+                  ? "border-dashed border-amber-500/60 bg-amber-500/[0.06]"
+                  : "border-graphite-800 bg-graphite-850/40 hover:border-graphite-700 hover:bg-graphite-850/70"
               )}
             >
-              <Upload className={cn("h-6 w-6", isDragOverZone ? "text-amber-500" : "text-text-subtle")} aria-hidden />
-              <p className="text-sm text-text-muted">
-                {isDragOverZone ? (
-                  <span className="text-amber-400">Drop to add</span>
-                ) : (
-                  <>
-                    <span className="text-amber-400">Click to add</span> or drag and drop — select multiple
-                  </>
+              <span
+                className={cn(
+                  "flex h-10 w-10 items-center justify-center rounded-lg border transition-colors",
+                  isDragOverZone
+                    ? "border-amber-500/40 bg-amber-500/10"
+                    : "border-graphite-700 bg-graphite-800 group-hover:border-amber-500/30"
                 )}
-              </p>
-              <p className="text-xs text-text-subtle">
-                MP3, WAV, FLAC, M4A, AAC, OGG, AIFF — up to {MAX_FILES} files, {formatBytes(MAX_TOTAL_BYTES)} combined
-              </p>
+              >
+                <Upload
+                  className={cn(
+                    "h-5 w-5 transition-colors",
+                    isDragOverZone ? "text-amber-400" : "text-text-subtle group-hover:text-amber-500"
+                  )}
+                  aria-hidden
+                />
+              </span>
+
+              <span>
+                <span className="block text-sm text-text-primary">
+                  {isDragOverZone ? (
+                    <span className="text-amber-400">Release to add</span>
+                  ) : (
+                    <>
+                      Drop audio files, or{" "}
+                      <span className="text-amber-400 underline underline-offset-2">browse</span>
+                    </>
+                  )}
+                </span>
+                <span className="mt-1 block font-mono text-[11px] text-text-subtle">
+                  MP3, WAV, FLAC, M4A and more · up to {MAX_FILES} files, {formatBytes(MAX_TOTAL_BYTES)}
+                </span>
+              </span>
+
               <input
                 ref={inputRef}
                 type="file"
@@ -648,6 +687,8 @@ export function JoinForm() {
               <div className="opacity-60 motion-reduce:hidden">
                 <Waveform />
               </div>
+              {/* Underlined text link, not a button shape - deliberately
+                  not run through <Button>. */}
               <button
                 type="button"
                 onClick={handleCancel}
@@ -670,19 +711,22 @@ export function JoinForm() {
 
             <AudioPlayer src={getJobPreviewUrl("join", jobId)} />
 
+            {/* Stays an <a> - a real download URL, so middle-click and
+                open-in-new-tab keep working. Borrows the Button styles
+                rather than repeating them. */}
             <a
               href={getJobDownloadUrl("join", jobId)}
               download
-              className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-amber-500 px-6 py-3 font-medium text-graphite-950 transition-colors hover:bg-amber-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40"
+              className={buttonStyles({ variant: "primary", size: "lg", className: "w-full" })}
             >
-              <Download className="h-4 w-4" />
+              <Download />
               Download
             </a>
 
             <SupportBlock />
 
             <Button variant="outline" size="md" className="w-full" onClick={handleReset}>
-              <RotateCcw className="h-4 w-4" />
+              <RotateCcw />
               Join more files
             </Button>
           </div>
@@ -701,24 +745,35 @@ export function JoinForm() {
           </div>
         )}
 
-        {status !== "complete" && (
-          <Button
-            variant="primary"
-            size="lg"
-            className="w-full"
-            onClick={handleSubmit}
-            disabled={!canSubmit}
-            loading={isBusy}
-          >
-            {!isBusy && <Layers className="h-5 w-5" />}
-            {isBusy
-              ? "Working"
-              : cooldownSeconds > 0
-                ? `Try again in ${formatCooldown(cooldownSeconds)}`
-                : isFailed
-                  ? "Try again"
-                  : "Join files"}
-          </Button>
+        {/* Hidden until there's something to join, rather than shown
+            disabled - a full-width h-12 slab at 40% opacity carries the
+            weight of the primary action while doing nothing. With exactly
+            one file it stays visible and says what's missing, which is
+            more useful than a dead button. */}
+        {status !== "complete" && (files.length > 0 || isFailed) && (
+          <div className="space-y-2">
+            <Button
+              variant="primary"
+              size="lg"
+              className="w-full"
+              onClick={handleSubmit}
+              disabled={!canSubmit && !isBusy}
+              loading={isBusy}
+            >
+              {!isBusy && <Layers />}
+              {isBusy
+                ? "Working"
+                : cooldownSeconds > 0
+                  ? `Try again in ${formatCooldown(cooldownSeconds)}`
+                  : isFailed
+                    ? "Try again"
+                    : "Join files"}
+            </Button>
+
+            {files.length === 1 && !isBusy && (
+              <p className="text-center text-xs text-text-subtle">Add one more file to join.</p>
+            )}
+          </div>
         )}
       </div>
     </div>

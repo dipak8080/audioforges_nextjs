@@ -109,7 +109,13 @@ export function buttonStyles({
     // pointer-events-none rather than just opacity: a natively disabled
     // button still matches :hover, so without this a dimmed control still
     // lights up under the cursor.
-    "disabled:pointer-events-none disabled:opacity-40",
+    //
+    // 60 rather than 40: on the neutral variants the fill is already a
+    // low-contrast grey, so 40% left the label barely legible against a
+    // dark card - it read as broken rather than unavailable. The variant
+    // change from amber to grey is what communicates "not yet"; the
+    // opacity only needs to soften it, not erase it.
+    "disabled:pointer-events-none disabled:opacity-60",
     // Same treatment for the loading state, which uses aria-disabled
     // rather than disabled - see the note in the component.
     "aria-disabled:cursor-default aria-disabled:hover:bg-inherit",

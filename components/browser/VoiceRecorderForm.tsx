@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Mic, Square, Play, Pause, Download, RotateCcw, AlertTriangle } from "lucide-react";
-import { Button } from "@/components/ui/Button";
+import { Button, buttonStyles } from "@/components/ui/Button";
 
 type RecorderState = "idle" | "requesting" | "recording" | "stopped" | "denied" | "unsupported";
 
@@ -212,11 +212,18 @@ export function VoiceRecorderForm() {
 
       {(state === "idle" || state === "requesting" || state === "denied") && (
         <div className="flex flex-col items-center gap-4 py-8">
+          {/* NOT a <Button>: this and the stop/play controls below are
+              circular transport buttons at h-20/h-16/h-12. Button's sizes
+              are rectangular and capped at h-12, so fitting them would
+              mean overriding height, width, radius and padding - nothing
+              of the component would survive. If these three ever need to
+              agree with each other, that's a PlayButton component, not
+              this one. */}
           <button
             type="button"
             onClick={handleStart}
             disabled={state === "requesting"}
-            className="flex h-20 w-20 items-center justify-center rounded-full bg-amber-500 text-graphite-950 hover:bg-amber-400 disabled:opacity-50 transition-colors"
+            className="flex h-20 w-20 items-center justify-center rounded-full bg-amber-500 text-graphite-950 shadow-[inset_0_1px_0_rgba(255,255,255,0.25)] transition-colors hover:bg-amber-400 active:bg-amber-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-graphite-900 disabled:pointer-events-none disabled:opacity-50"
             aria-label="Start recording"
           >
             <Mic className="h-8 w-8" />
@@ -244,7 +251,7 @@ export function VoiceRecorderForm() {
           <button
             type="button"
             onClick={handleStop}
-            className="flex h-16 w-16 items-center justify-center rounded-full bg-red-500 text-white hover:bg-red-400 transition-colors"
+            className="flex h-16 w-16 items-center justify-center rounded-full bg-red-500 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.15)] transition-colors hover:bg-red-400 active:bg-red-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-graphite-900"
             aria-label="Stop recording"
           >
             <Square className="h-6 w-6" fill="currentColor" />
@@ -267,7 +274,7 @@ export function VoiceRecorderForm() {
             <button
               type="button"
               onClick={togglePlayback}
-              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-amber-500 text-graphite-950 hover:bg-amber-400 transition-colors"
+              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-amber-500 text-graphite-950 shadow-[inset_0_1px_0_rgba(255,255,255,0.25)] transition-colors hover:bg-amber-400 active:bg-amber-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-graphite-850"
               aria-label={isPlaying ? "Pause" : "Play"}
             >
               {isPlaying ? <Pause className="h-5 w-5" fill="currentColor" /> : <Play className="h-5 w-5 ml-0.5" fill="currentColor" />}
@@ -278,17 +285,20 @@ export function VoiceRecorderForm() {
             </div>
           </div>
 
+          {/* Stays an <a> - a real object URL, so it can be middle-clicked
+              and opened in a new tab. Borrows the Button's styles rather
+              than repeating them. */}
           <a
             href={audioUrl}
             download={downloadFilename}
-            className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-amber-500 text-graphite-950 font-medium px-6 py-3 hover:bg-amber-400 transition-colors"
+            className={buttonStyles({ size: "lg", className: "w-full" })}
           >
-            <Download className="h-4 w-4" />
+            <Download />
             Download recording
           </a>
 
           <Button variant="outline" size="md" className="w-full" onClick={handleReset}>
-            <RotateCcw className="h-4 w-4" />
+            <RotateCcw />
             Record another
           </Button>
 

@@ -607,7 +607,12 @@ export function MultiOutputToolForm({
           </div>
         )}
 
-        {status !== "complete" && (
+        {/* Hidden until there's a file, rather than shown disabled - a
+            full-width h-12 slab at 40% opacity carries the weight of the
+            primary action while doing nothing, and a dimmed amber fill
+            renders as a muddy brown bar. isFailed keeps "Try again"
+            reachable after an error. */}
+        {status !== "complete" && (file || isFailed) && (
           <Button
             variant="primary"
             size="lg"

@@ -368,7 +368,15 @@ export function YouTubeConverterForm() {
       {/* Header strip — reads like a device faceplate, not a web form */}
       <div className="flex items-center justify-between border-b border-graphite-800 px-6 py-3.5 sm:px-8">
         <div className="flex items-center gap-2.5">
-          <span className="h-1.5 w-1.5 rounded-full bg-amber-500" aria-hidden />
+          {/* Pulses while working, like every other form's header dot -
+              this one was the only static one. */}
+          <span
+            className={cn(
+              "h-1.5 w-1.5 rounded-full bg-amber-500",
+              isProcessing && "animate-pulse motion-reduce:animate-none"
+            )}
+            aria-hidden
+          />
           <span className="text-[11px] font-medium uppercase tracking-[0.18em] text-text-muted">
             YouTube to audio
           </span>
@@ -422,6 +430,8 @@ export function YouTubeConverterForm() {
               )}
             />
 
+            {/* In-field controls: sized to sit inside the input, not
+                standalone buttons. Not <Button> material. */}
             <div className="absolute right-2.5 flex items-center gap-1">
               {url && !isProcessing && (
                 <button
@@ -438,7 +448,7 @@ export function YouTubeConverterForm() {
                   type="button"
                   onClick={handlePaste}
                   disabled={isProcessing}
-                  className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-text-muted transition-colors hover:bg-graphite-800 hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40 disabled:opacity-40"
+                  className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-text-muted transition-colors hover:bg-graphite-800 hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40 disabled:pointer-events-none disabled:opacity-40"
                 >
                   <ClipboardPaste className="h-3.5 w-3.5" />
                   Paste
@@ -529,6 +539,8 @@ export function YouTubeConverterForm() {
               <div className="opacity-60 motion-reduce:hidden">
                 <Waveform />
               </div>
+              {/* Underlined text link, not a button shape - deliberately
+                  not run through <Button>. */}
               <button
                 type="button"
                 onClick={handleCancel}
@@ -585,16 +597,29 @@ export function YouTubeConverterForm() {
         )}
 
         {/* ---------- Actions ---------- */}
+        {/* w-full sm:flex-1 on the children below, NOT flex-1 alone:
+            this row is flex-col on mobile, so flex-1 resolves against the
+            MAIN axis, which is vertical there. `flex-basis: 0%` then beats
+            the h-12 from size="lg" and the button collapses to a short
+            bar - visibly shorter than the same button on every other
+            tool page. */}
         <div className="flex flex-col gap-3 sm:flex-row">
           {(status === "idle" || status === "error") && (
+            /* Neutral until the link parses. A disabled amber fill at 40%
+               opacity renders as a muddy brown bar - it reads as broken
+               rather than inactive, and on an empty form it's the loudest
+               thing on the card. Grey says "not yet"; amber is earned
+               once there's a real video ID. The URL input sits directly
+               above, so unlike the upload forms this stays visible rather
+               than disappearing - the pair reads as one control. */
             <Button
-              variant="primary"
+              variant={videoId || status === "error" ? "primary" : "secondary"}
               size="lg"
-              className="flex-1"
+              className="w-full sm:flex-1"
               onClick={handleConvert}
               disabled={!canConvert}
             >
-              <Download className="h-5 w-5" />
+              <Download />
               {cooldownSeconds > 0
                 ? `Try again in ${cooldownSeconds}s`
                 : `Convert to ${formatOption(format).label}`}
@@ -602,7 +627,10 @@ export function YouTubeConverterForm() {
           )}
 
           {isProcessing && (
-            <Button variant="outline" size="lg" className="flex-1" loading disabled>
+            /* loading alone, not loading + disabled: disabled drops focus
+               to <body>, so a keyboard user loses their place the moment
+               the conversion starts. */
+            <Button variant="outline" size="lg" className="w-full sm:flex-1" loading>
               Converting
             </Button>
           )}
@@ -612,14 +640,14 @@ export function YouTubeConverterForm() {
               <Button
                 variant="primary"
                 size="lg"
-                className="flex-1"
+                className="w-full sm:flex-1"
                 onClick={() => triggerDownload(result.blob, result.filename)}
               >
-                <Download className="h-5 w-5" />
+                <Download />
                 Save again
               </Button>
               <Button variant="outline" size="lg" onClick={handleReset}>
-                <RotateCcw className="h-4 w-4" />
+                <RotateCcw />
                 Convert another
               </Button>
             </>

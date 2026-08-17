@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Download, Mic2, Music4, Sparkles, Bell, BellOff, Info } from "lucide-react";
 import { YouTubeUrlForm } from "@/components/converter/YouTubeUrlForm";
 import { AudioPlayer } from "@/components/ui/AudioPlayer";
+import { buttonStyles } from "@/components/ui/Button";
 import {
   submitYoutubeSeparate,
   getYoutubeSeparatePreviewUrl,
@@ -105,13 +106,17 @@ function SeparateResult({ jobId, title }: { jobId: string; title: string | null 
       </div>
 
       <AudioPlayer key={activeStem} src={getYoutubeSeparatePreviewUrl(jobId, activeStem)} />
-        <a
-      
+
+      {/* Stays an <a> - a real download URL, so middle-click and
+          open-in-new-tab keep working. Borrows the Button styles rather
+          than repeating them. (The stray indentation that had this tag
+          split across two lines is fixed.) */}
+      <a
         href={getYoutubeSeparateDownloadUrl(jobId, activeStem)}
         download
-        className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-amber-500 px-6 py-3 font-medium text-graphite-950 transition-colors hover:bg-amber-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40"
+        className={buttonStyles({ variant: "primary", size: "lg", className: "w-full" })}
       >
-        <Download className="h-4 w-4" />
+        <Download />
         Download {activeStem}
       </a>
     </div>
@@ -250,13 +255,19 @@ export function YouTubeSeparateForm({ hqAvailable = false }: YouTubeSeparateForm
           )}
 
           {notifyPermission !== "unsupported" && (
+            /* aria-pressed added: this is a toggle, and without it a
+               screen reader announces the same thing whether
+               notifications are on or off. The visible label changes; the
+               accessible state didn't. */
             <button
               type="button"
               onClick={handleNotifyToggle}
               disabled={disabled || !hasUrl}
+              aria-pressed={notifyEnabled && notifyPermission === "granted"}
               className={cn(
                 "flex w-full items-center gap-2.5 rounded-lg border px-3.5 py-2.5 text-left text-sm transition-colors",
-                "focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40 disabled:cursor-not-allowed disabled:opacity-40",
+                "focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40",
+                "disabled:pointer-events-none disabled:opacity-40",
                 notifyEnabled && notifyPermission === "granted"
                   ? "border-amber-500/60 bg-amber-500/[0.07] text-amber-400"
                   : "border-graphite-700 bg-graphite-850 text-text-muted hover:border-graphite-700/60 hover:text-text-primary"

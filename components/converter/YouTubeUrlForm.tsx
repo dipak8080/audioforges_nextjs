@@ -388,10 +388,13 @@ export function YouTubeUrlForm({
     <div className="overflow-hidden rounded-2xl border border-graphite-800 bg-graphite-900">
       <div className="flex items-center justify-between border-b border-graphite-800 px-6 py-3.5 sm:px-8">
         <div className="flex items-center gap-2.5">
+          {/* Was a ternary picking bg-amber-500 in both branches - the
+              only real difference was the pulse. Same shape as every
+              other form's header dot now. */}
           <span
             className={cn(
-              "h-1.5 w-1.5 rounded-full transition-colors",
-              isBusy ? "bg-amber-500 animate-pulse motion-reduce:animate-none" : "bg-amber-500"
+              "h-1.5 w-1.5 rounded-full bg-amber-500",
+              isBusy && "animate-pulse motion-reduce:animate-none"
             )}
             aria-hidden
           />
@@ -443,6 +446,8 @@ export function YouTubeUrlForm({
                 )}
               />
 
+              {/* In-field controls: sized to sit inside the input, not
+                  standalone buttons. Not <Button> material. */}
               <div className="absolute right-2.5 flex items-center gap-1">
                 {url && !isBusy && (
                   <button
@@ -459,7 +464,7 @@ export function YouTubeUrlForm({
                     type="button"
                     onClick={handlePaste}
                     disabled={isBusy}
-                    className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-text-muted transition-colors hover:bg-graphite-800 hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40 disabled:opacity-40"
+                    className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-text-muted transition-colors hover:bg-graphite-800 hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40 disabled:pointer-events-none disabled:opacity-40"
                   >
                     <ClipboardPaste className="h-3.5 w-3.5" />
                     Paste
@@ -537,6 +542,8 @@ export function YouTubeUrlForm({
               <div className="opacity-60 motion-reduce:hidden">
                 <Waveform />
               </div>
+              {/* Underlined text link, not a button shape - deliberately
+                  not run through <Button>. */}
               <button
                 type="button"
                 onClick={handleCancel}
@@ -580,7 +587,7 @@ export function YouTubeUrlForm({
             <SupportBlock />
 
             <Button variant="outline" size="md" className="w-full" onClick={handleReset}>
-              <RotateCcw className="h-4 w-4" />
+              <RotateCcw />
               Process another link
             </Button>
           </div>
@@ -603,15 +610,21 @@ export function YouTubeUrlForm({
         )}
 
         {status !== "complete" && (
+          /* Stays visible with no link, unlike the upload forms which
+             hide their submit: here the input is directly above it and
+             the pair reads as one control, so removing half of it would
+             be stranger than dimming it. Neutral until the link parses -
+             a disabled amber fill at 40% opacity renders as a muddy
+             brown bar rather than an inactive one. */
           <Button
-            variant="primary"
+            variant={videoId || isFailed ? "primary" : "secondary"}
             size="lg"
             className="w-full"
             onClick={handleSubmit}
-            disabled={!canSubmit}
+            disabled={!canSubmit && !isBusy}
             loading={isBusy}
           >
-            {!isBusy && <Link2 className="h-5 w-5" />}
+            {!isBusy && <Link2 />}
             {isBusy
               ? "Working"
               : cooldownSeconds > 0

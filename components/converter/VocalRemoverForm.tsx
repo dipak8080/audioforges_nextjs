@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Mic2, AlertTriangle, Download, Sparkles, Music4, Bell, BellOff, Info, RotateCcw } from "lucide-react";
-import { Button } from "@/components/ui/Button";
+import { Button, buttonStyles } from "@/components/ui/Button";
 import { FileDropZone } from "@/components/ui/FileDropZone";
 import { Waveform } from "@/components/ui/Waveform";
 import { validateAudioFile } from "@/lib/utils/validation";
@@ -408,13 +408,19 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
         )}
 
         {notifyPermission !== "unsupported" && status !== "complete" && (
+          /* aria-pressed added: this is a toggle, and without it a screen
+             reader announces the same thing whether notifications are on
+             or off. The visible label changes; the accessible state
+             didn't. */
           <button
             type="button"
             onClick={handleNotifyToggle}
             disabled={isBusy || !file}
+            aria-pressed={notifyEnabled && notifyPermission === "granted"}
             className={cn(
               "flex w-full items-center gap-2.5 rounded-lg border px-3.5 py-2.5 text-left text-sm transition-colors",
-              "focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40 disabled:cursor-not-allowed disabled:opacity-40",
+              "focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40",
+              "disabled:pointer-events-none disabled:opacity-40",
               notifyEnabled && notifyPermission === "granted"
                 ? "border-amber-500/60 bg-amber-500/[0.07] text-amber-400"
                 : "border-graphite-700 bg-graphite-850 text-text-muted hover:border-graphite-700/60 hover:text-text-primary"
@@ -453,6 +459,8 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
               <div className="opacity-60 motion-reduce:hidden">
                 <Waveform />
               </div>
+              {/* Underlined text link, not a button shape - deliberately
+                  not run through <Button>. */}
               <button
                 type="button"
                 onClick={handleCancel}
@@ -498,20 +506,24 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
             </div>
 
             <AudioPlayer key={activeStem} src={getSeparationPreviewUrl(jobId, activeStem)} />
-              <a
-            
+
+            {/* Stays an <a> - a real download URL, so middle-click and
+                open-in-new-tab keep working. Borrows the Button styles
+                rather than repeating them. (The stray indentation here
+                was also swallowing the element's own line - fixed.) */}
+            <a
               href={getSeparationDownloadUrl(jobId, activeStem)}
               download
-              className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-amber-500 px-6 py-3 font-medium text-graphite-950 transition-colors hover:bg-amber-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40"
+              className={buttonStyles({ variant: "primary", size: "lg", className: "w-full" })}
             >
-              <Download className="h-4 w-4" />
+              <Download />
               Download {activeStem}
             </a>
 
             <SupportBlock />
 
             <Button variant="outline" size="md" className="w-full" onClick={handleReset}>
-              <RotateCcw className="h-4 w-4" />
+              <RotateCcw />
               Separate another track
             </Button>
           </div>
@@ -530,9 +542,19 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
           </div>
         )}
 
-        {status !== "complete" && (
-          <Button variant="primary" size="lg" className="w-full" onClick={handleSubmit} disabled={!canSubmit} loading={isBusy}>
-            {!isBusy && <Mic2 className="h-5 w-5" />}
+        {/* Hidden until there's a file, rather than shown disabled - see
+            the matching note in JobToolForm. isFailed keeps "Try again"
+            reachable after an error. */}
+        {status !== "complete" && (file || isFailed) && (
+          <Button
+            variant="primary"
+            size="lg"
+            className="w-full"
+            onClick={handleSubmit}
+            disabled={!canSubmit && !isBusy}
+            loading={isBusy}
+          >
+            {!isBusy && <Mic2 />}
             {isBusy
               ? "Working"
               : cooldownSeconds > 0

@@ -55,7 +55,8 @@ export function KeyFinderForm() {
   const [cooldownSeconds, setCooldownSeconds] = useState(0);
 
   const isProcessing = status === "processing";
-  const canAnalyze = Boolean(file) && !isProcessing && status !== "complete" && cooldownSeconds === 0;
+  const isComplete = status === "complete";
+  const canAnalyze = Boolean(file) && !isProcessing && !isComplete && cooldownSeconds === 0;
 
   useEffect(() => {
     if (!isProcessing) return;
@@ -159,7 +160,7 @@ export function KeyFinderForm() {
       </div>
 
       <div className="space-y-6 p-6 sm:p-8">
-        {status !== "complete" && (
+        {!isComplete && (
           <FileDropZone
             onFileSelect={handleFileSelect}
             currentFile={file}
@@ -202,7 +203,7 @@ export function KeyFinderForm() {
           </div>
         )}
 
-        {status === "complete" && result && (
+        {isComplete && result && (
           <div className="space-y-4" role="status" aria-live="polite">
             <AnalysisResultCard result={result} />
             <SupportBlock />
@@ -222,23 +223,34 @@ export function KeyFinderForm() {
           </div>
         )}
 
-        <Button
-          variant="primary"
-          size="lg"
-          className="w-full"
-          onClick={status === "complete" ? handleReset : handleAnalyze}
-          disabled={status === "complete" ? false : !canAnalyze}
-          loading={isProcessing}
-        >
-          {!isProcessing && (status === "complete" ? <RotateCcw className="h-4 w-4" /> : <Music className="h-5 w-5" />)}
-          {isProcessing
-            ? "Analyzing"
-            : status === "complete"
-              ? "Analyze another"
-              : cooldownSeconds > 0
-                ? `Try again in ${formatCooldown(cooldownSeconds)}`
-                : "Analyze audio"}
-        </Button>
+        {/* One button, two jobs - so the styling has to switch with the
+            job. As a reset it's `outline`, matching "Process another
+            file" in every other form; as the primary action it's amber.
+            It used to stay amber in both states, which made "Analyze
+            another" compete with the results it sat under.
+
+            Hidden entirely while idle with no file: a dimmed amber fill
+            at 40% opacity renders as a muddy brown bar, and there's
+            nothing to analyse yet anyway. */}
+        {(file || isComplete || status === "error") && (
+          <Button
+            variant={isComplete ? "outline" : "primary"}
+            size="lg"
+            className="w-full"
+            onClick={isComplete ? handleReset : handleAnalyze}
+            disabled={isComplete ? false : !canAnalyze && !isProcessing}
+            loading={isProcessing}
+          >
+            {!isProcessing && (isComplete ? <RotateCcw /> : <Music />)}
+            {isProcessing
+              ? "Analyzing"
+              : isComplete
+                ? "Analyze another"
+                : cooldownSeconds > 0
+                  ? `Try again in ${formatCooldown(cooldownSeconds)}`
+                  : "Analyze audio"}
+          </Button>
+        )}
       </div>
     </div>
   );
