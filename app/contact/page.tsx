@@ -1,3 +1,4 @@
+import { buttonStyles } from "@/components/ui/Button";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Mail } from "lucide-react";
@@ -65,7 +66,7 @@ export default function ContactPage() {
           <EmailLink
             user="contact"
             domain="audioforges.com"
-            className="inline-flex items-center gap-2 rounded-lg bg-amber-500 text-graphite-950 font-medium px-6 py-3 hover:bg-amber-400 transition-colors"
+            className={buttonStyles({ size: "lg" })}
           >
             <Mail className="h-4 w-4" aria-hidden="true" />
           </EmailLink>

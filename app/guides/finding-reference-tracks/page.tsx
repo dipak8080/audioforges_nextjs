@@ -1,3 +1,4 @@
+import { buttonStyles } from "@/components/ui/Button";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
@@ -152,7 +153,7 @@ export default function FindingReferenceTracksGuidePage() {
         <div className="pt-6 border-t border-graphite-800 flex flex-wrap gap-3">
           <Link
             href="/youtube-to-wav"
-            className="inline-flex items-center gap-2 rounded-lg bg-amber-500 text-graphite-950 font-medium px-6 py-3 hover:bg-amber-400 transition-colors"
+            className={buttonStyles({ size: "lg" })}
           >
             Try the YouTube to WAV Converter
             <ArrowRight className="h-4 w-4" />

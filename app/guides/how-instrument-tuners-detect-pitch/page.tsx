@@ -1,3 +1,4 @@
+import { buttonStyles } from "@/components/ui/Button";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
@@ -175,7 +176,7 @@ export default function TunerPitchDetectionGuidePage() {
         <div className="pt-6 border-t border-graphite-800">
           <Link
             href="/tuner"
-            className="inline-flex items-center gap-2 rounded-lg bg-amber-500 text-graphite-950 font-medium px-6 py-3 hover:bg-amber-400 transition-colors"
+            className={buttonStyles({ size: "lg" })}
           >
             Try the Online Tuner
             <ArrowRight className="h-4 w-4" />
