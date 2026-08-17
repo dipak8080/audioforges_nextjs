@@ -455,6 +455,13 @@ export function JobToolForm({
   // Eases toward 92% and only completes when the job actually does.
   const progress = Math.min(92, Math.round((1 - Math.exp(-elapsedSeconds / 12)) * 100));
 
+  // Called once and checked, rather than inlined into the JSX. When a
+  // tool's controls return null (TrimControls does, until a file is
+  // chosen) the wrapper div still rendered - an empty element collecting
+  // a 24px space-y margin, which is why the card had a phantom gap under
+  // the dropzone and looked bottom-heavy.
+  const controls = renderControls?.(file, isBusy) ?? null;
+
   const downloadName = resolveDownloadName(downloadFilename, file?.name ?? null);
 
   /* ------------------------------------------------------------------ */
@@ -502,7 +509,7 @@ export function JobToolForm({
         )}
 
         {/* ---------- Tool-specific controls ---------- */}
-        {status !== "complete" && renderControls && <div>{renderControls(file, isBusy)}</div>}
+        {status !== "complete" && controls && <div>{controls}</div>}
 
         {/* ---------- Working ---------- */}
         {isBusy && (
@@ -606,10 +613,21 @@ export function JobToolForm({
           </div>
         )}
 
-        {/* ---------- Action ---------- */}
-        {status !== "complete" && (
+        {/* ---------- Action ----------
+            Hidden until there's a file, rather than shown disabled. A
+            full-width h-12 slab at 40% opacity carries the same physical
+            weight as the primary action while doing nothing, and on an
+            empty form it competes with the only thing worth clicking.
+            isFailed keeps it visible after an error so "Try again" is
+            still reachable. */}
+        {status !== "complete" && (file || isFailed) && (
           <Button
-            variant="primary"
+            /* Neutral while there's nothing to run. A disabled amber fill
+               at 40% opacity renders as a muddy brown bar - it reads as
+               broken rather than inactive, and it's the loudest thing on
+               an empty form. Grey says "not yet"; amber is earned once a
+               file is there. */
+            variant={file || isFailed ? "primary" : "secondary"}
             size="lg"
             className="w-full"
             onClick={handleSubmit}

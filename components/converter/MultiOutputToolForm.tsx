@@ -406,6 +406,13 @@ export function MultiOutputToolForm({
     return label;
   })();
 
+  // Called once and checked, rather than inlined into the JSX. When a
+  // tool's controls return null (TrimControls does, until a file is
+  // chosen) the wrapper div still rendered - an empty element collecting
+  // a 24px space-y margin, which is why the card had a phantom gap under
+  // the dropzone and looked bottom-heavy.
+  const controls = renderControls?.(file, isBusy) ?? null;
+
   // Eases toward 92%; separation jobs are slow enough that a longer time
   // constant keeps the curve from looking stuck near the end.
   const progress = Math.min(92, Math.round((1 - Math.exp(-elapsedSeconds / 25)) * 100));
@@ -446,7 +453,7 @@ export function MultiOutputToolForm({
           </div>
         )}
 
-        {status !== "complete" && renderControls && <div>{renderControls(file, isBusy)}</div>}
+        {status !== "complete" && controls && <div>{controls}</div>}
 
         {isBusy && (
           <div

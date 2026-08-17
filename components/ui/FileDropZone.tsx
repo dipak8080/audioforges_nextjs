@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type DragEvent } from "react";
-import { Upload, FileAudio, X } from "lucide-react";
+import { Upload, FileAudio, X, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 
 interface FileDropZoneProps {
@@ -12,9 +12,8 @@ interface FileDropZoneProps {
   accept?: string;
   /** Size cap in bytes. Used to build the default hint text. */
   maxSize?: number;
-  /** Overrides the hint text shown under the upload prompt. Defaults to
-   * the audio-format hint since every tool but video-to-audio uploads
-   * audio. */
+  /** Overrides the hint text entirely. Leave unset to have it derived
+   * from `accept` (and `maxSize`, when given). */
   hint?: string;
 }
 
@@ -35,6 +34,32 @@ function fileExtension(name: string): string {
   return match ? match[1].toUpperCase() : "FILE";
 }
 
+/**
+ * Reads the format list off `accept` rather than hardcoding it.
+ *
+ * The old default was the literal string "MP3, WAV, FLAC, M4A, AAC, OGG"
+ * regardless of what the file picker would actually allow - so a tool
+ * passing a different `accept` (video-to-audio) had to remember to pass a
+ * matching `hint` too, and any drift between the two was invisible until
+ * a user was told their file was fine and then rejected. One source now.
+ */
+function formatsFromAccept(accept: string): string {
+  const extensions = accept
+    .split(",")
+    .map((part) => part.trim())
+    .filter((part) => part.startsWith("."))
+    .map((part) => part.slice(1).toUpperCase());
+
+  // Capped at four. The full list runs to seven items, which stops being
+  // information and becomes texture - nobody reads to the end of it, and
+  // the ones that matter are the ones people actually have.
+  if (extensions.length > 4) return `${extensions.slice(0, 4).join(", ")} and more`;
+  if (extensions.length > 0) return extensions.join(", ");
+  // Only wildcards given, e.g. "audio/*" — say the category instead.
+  if (accept.includes("video")) return "Video files";
+  return "Audio files";
+}
+
 export function FileDropZone({
   onFileSelect,
   currentFile,
@@ -53,7 +78,7 @@ export function FileDropZone({
 
   const resolvedHint =
     hint ??
-    `MP3, WAV, FLAC, M4A, AAC, OGG${maxSize ? ` — up to ${Math.round(maxSize / (1024 * 1024))}MB` : ""}`;
+    `${formatsFromAccept(accept)}${maxSize ? ` · up to ${Math.round(maxSize / (1024 * 1024))} MB` : ""}`;
 
   /* --- read duration locally, no upload involved -------------------- */
   useEffect(() => {
@@ -107,11 +132,24 @@ export function FileDropZone({
     e.target.value = "";
   };
 
+  // Rendered in both branches now, so the selected-file card can offer
+  // Replace without unmounting and remounting the input.
+  const fileInput = (
+    <input
+      ref={inputRef}
+      type="file"
+      accept={accept}
+      onChange={handleFileInput}
+      disabled={disabled}
+      className="hidden"
+    />
+  );
+
   /* --- selected file: show what the tool is about to work on -------- */
   if (currentFile) {
     return (
-      <div className="flex items-center gap-3.5 rounded-lg border border-graphite-800 bg-graphite-850/60 p-3.5">
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-graphite-700 bg-graphite-800">
+      <div className="flex items-center gap-3.5 rounded-xl border border-graphite-800 bg-graphite-850/60 p-3.5">
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-graphite-700 bg-graphite-800">
           <FileAudio className="h-5 w-5 text-amber-500" aria-hidden />
         </div>
 
@@ -123,6 +161,20 @@ export function FileDropZone({
           </p>
         </div>
 
+        {/* Replace, not just Remove. Picking the wrong file is the common
+            mistake, and clearing to an empty dropzone and starting over
+            is two steps where one will do - the X also resets any tool
+            controls set since, which is rarely what's wanted. */}
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          disabled={disabled}
+          className="hidden shrink-0 rounded-md px-2 py-1.5 text-xs text-text-subtle transition-colors hover:bg-graphite-800 hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40 disabled:opacity-40 sm:flex sm:items-center sm:gap-1.5"
+        >
+          <RefreshCw className="h-3.5 w-3.5" />
+          Replace
+        </button>
+
         <button
           type="button"
           onClick={onClear}
@@ -132,11 +184,28 @@ export function FileDropZone({
         >
           <X className="h-4 w-4" />
         </button>
+
+        {fileInput}
       </div>
     );
   }
 
-  /* --- empty state -------------------------------------------------- */
+  /* --- empty state --------------------------------------------------
+     THE BORDER IS SOLID UNTIL YOU DRAG (2026-08-17).
+
+     A permanently dashed box reads as a placeholder - the visual
+     language of "nothing here yet", which is why the empty form looked
+     unfinished rather than ready. Dashed is now reserved for the drag
+     state, where it means something: "release here". Solid at rest,
+     dashed and amber the moment a file is over it.
+
+     Height came down from py-10 (~200px total) to py-8. It was the
+     largest element on the page and most of it was empty. A drop target
+     needs to be obvious, not enormous.
+
+     The icon sits in the same 44px tile the selected-file card uses, so
+     choosing a file reads as this element changing state rather than one
+     component being swapped for a different one. */
   return (
     <>
       <button
@@ -156,41 +225,50 @@ export function FileDropZone({
         }}
         onDrop={handleDrop}
         className={cn(
-          "flex w-full flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed px-4 py-10 text-center transition-colors",
+          "group flex w-full flex-col items-center justify-center gap-2.5 rounded-xl border px-4 py-6 text-center",
+          "transition-colors duration-200",
           "focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40",
           "disabled:cursor-not-allowed disabled:opacity-40",
           isDragging
-            ? "border-amber-500/60 bg-amber-500/5"
-            : "border-graphite-700 hover:border-graphite-700/80 hover:bg-graphite-850/40"
+            ? "border-dashed border-amber-500/60 bg-amber-500/[0.06]"
+            : "border-graphite-800 bg-graphite-850/40 hover:border-graphite-700 hover:bg-graphite-850/70"
         )}
       >
-        <Upload
+        <span
           className={cn(
-            "h-6 w-6 transition-colors",
-            isDragging ? "text-amber-500" : "text-text-subtle"
+            "flex h-10 w-10 items-center justify-center rounded-lg border transition-colors",
+            isDragging
+              ? "border-amber-500/40 bg-amber-500/10"
+              : "border-graphite-700 bg-graphite-800 group-hover:border-amber-500/30"
           )}
-          aria-hidden
-        />
-        <p className="text-sm text-text-muted">
-          {isDragging ? (
-            <span className="text-amber-400">Drop to upload</span>
-          ) : (
-            <>
-              <span className="text-amber-400">Click to upload</span> or drag and drop
-            </>
-          )}
-        </p>
-        <p className="text-xs text-text-subtle">{resolvedHint}</p>
+        >
+          <Upload
+            className={cn(
+              "h-5 w-5 transition-colors",
+              isDragging ? "text-amber-400" : "text-text-subtle group-hover:text-amber-500"
+            )}
+            aria-hidden
+          />
+        </span>
+
+        <span>
+          <span className="block text-sm text-text-primary">
+            {isDragging ? (
+              <span className="text-amber-400">Release to upload</span>
+            ) : (
+              <>
+                Drop an audio file, or{" "}
+                <span className="text-amber-400 underline underline-offset-2">browse</span>
+              </>
+            )}
+          </span>
+          {/* Mono, matching the selected file's meta line - the same kind
+              of information in the same voice. */}
+          <span className="mt-1 block font-mono text-[11px] text-text-subtle">{resolvedHint}</span>
+        </span>
       </button>
 
-      <input
-        ref={inputRef}
-        type="file"
-        accept={accept}
-        onChange={handleFileInput}
-        disabled={disabled}
-        className="hidden"
-      />
+      {fileInput}
     </>
   );
 }
