@@ -296,6 +296,24 @@ export const guides: Guide[] = [
     updatedDate: "2026-08-13",
     category: "production",
   },
+    {
+    slug: "tiktok-audio-quality-explained",
+    title: "TikTok Audio Quality: Why 320 kbps Is a Myth",
+    description:
+      "TikTok's source audio measures around 64 kbps AAC. Here's why converting it to 320 kbps MP3 can't add quality back, and what actually affects how a sound holds up.",
+    publishedDate: "2026-08-18",
+    updatedDate: "2026-08-18",
+    category: "production",
+  },
+    {
+    slug: "tiktok-sound-to-ringtone",
+    title: "How to Make a Ringtone from a TikTok Sound",
+    description:
+      "Turn a TikTok sound into a phone ringtone: where to cut the hook, how long to make it, why it needs a fade, and how to actually install it on iPhone or Android.",
+    publishedDate: "2026-08-18",
+    updatedDate: "2026-08-18",
+    category: "production",
+  },
 ]; 
 
 export function getGuideBySlug(slug: string): Guide | undefined {

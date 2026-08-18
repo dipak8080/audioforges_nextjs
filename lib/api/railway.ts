@@ -21,6 +21,10 @@ export class ApiError extends Error {
   isServerBusy: boolean;
   isTimeout: boolean;
   retryAfterSeconds?: number;
+  /** Stable machine-readable failure cause. Branch on this, never on message. */
+  kind?: string;
+  /** Backend's decision on whether a retry can succeed. */
+  retryable?: boolean;
 
   constructor(
     message: string,
@@ -30,6 +34,8 @@ export class ApiError extends Error {
       isServerBusy?: boolean;
       isTimeout?: boolean;
       retryAfterSeconds?: number;
+      kind?: string;
+      retryable?: boolean;
     } = {}
   ) {
     super(message);
@@ -39,6 +45,8 @@ export class ApiError extends Error {
     this.isServerBusy = !!opts.isServerBusy;
     this.isTimeout = !!opts.isTimeout;
     this.retryAfterSeconds = opts.retryAfterSeconds;
+    this.kind = opts.kind;
+    this.retryable = opts.retryable;
   }
 }
 
@@ -648,4 +656,85 @@ export function getAudioToMidiStatus(jobId: string): Promise<JobStatusResult> {
 
 export function getAudioToMidiDownloadUrl(jobId: string): string {
   return getJobDownloadUrl("audio-to-midi", jobId);
+}
+
+
+// ============ TIKTOK TO MP3 (synchronous) ============
+// Unlike every other endpoint here, this one returns a structured error
+// object — { message, kind, retryable } — rather than a plain string
+// detail. toApiError() would flatten that to a message and lose the two
+// fields the UI actually needs, so this route gets its own error mapper.
+//
+// The rule from the API spec: the backend decides what's retryable and
+// what the user is told. The frontend branches on `kind` and shows
+// `message` verbatim. It does NOT keep its own list of statuses, its own
+// copy, or its own opinion about retrying.
+
+export interface TikTokToMp3Response {
+  title: string;
+  /** Base64 MP3. ~1.1 MB for a 52-second clip. */
+  audio: string;
+  format: string;
+  /** NULL on a cache hit — the cache stores audio and title only. */
+  duration: number | null;
+  id: string | null;
+}
+
+async function toTikTokError(res: Response): Promise<ApiError> {
+  let detail: unknown = null;
+  try {
+    detail = (await res.json())?.detail;
+  } catch {
+    /* not JSON — a Cloudflare block page or similar */
+  }
+
+  // The 429 comes from shared middleware and is a plain string, not the
+  // object shape. Both have to be handled.
+  if (typeof detail === "string") {
+    return new ApiError(detail, res.status, {
+      isRateLimit: res.status === 429,
+      isServerBusy: res.status === 503,
+      retryAfterSeconds: readRetryAfter(res),
+      kind: res.status === 429 ? "rate_limited" : "unknown",
+      retryable: false,
+    });
+  }
+
+  const obj = detail as { message?: string; kind?: string; retryable?: boolean } | null;
+
+  return new ApiError(
+    obj?.message || "Something went wrong. Please try again.",
+    res.status,
+    {
+      kind: obj?.kind ?? "unknown",
+      // Defaults to false: showing a retry button on a permanent failure
+      // (photo post, deleted video) is worse than omitting one on a
+      // transient failure.
+      retryable: obj?.retryable ?? false,
+      isRateLimit: res.status === 429,
+      isServerBusy: res.status === 503,
+      retryAfterSeconds: readRetryAfter(res),
+    }
+  );
+}
+
+export async function convertTikTokToMp3(url: string): Promise<TikTokToMp3Response> {
+  const body = new URLSearchParams();
+  body.set("url", url.trim());
+
+  // No explicit Content-Type: the browser sets the correct header for a
+  // URLSearchParams body, and the endpoint rejects application/json.
+  //
+  // 190s, not the 120s default: the backend's own wall-clock timeout is
+  // 180s. A shorter client timeout would abort a request the server is
+  // still working on, and the user would see "took too long" for a job
+  // that was about to succeed.
+  const res = await fetchWithTimeout(
+    `${RAILWAY_API_BASE}/tiktok-to-mp3`,
+    { method: "POST", body },
+    190_000
+  );
+
+  if (!res.ok) throw await toTikTokError(res);
+  return (await res.json()) as TikTokToMp3Response;
 }

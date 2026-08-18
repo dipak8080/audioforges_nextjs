@@ -5,13 +5,48 @@ import { FAQSection } from "@/components/faq/FAQSection";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
 
-const PAGE_TITLE = "Free iPhone Ringtone Maker Online";
+/**
+ * KEYWORD TARGETS (18 Aug 2026, Ahrefs phrase-match, 1,140 total):
+ *   ringtone maker            >1,000/mo  Medium
+ *   iphone ringtone maker       >100/mo  Medium
+ *   ringtone maker for iphone   >100/mo  Medium
+ *   mp3 ringtone maker          >100/mo  Hard
+ *   free ringtone maker         >100/mo  Hard
+ *
+ * The title and H1 were "Free iPhone Ringtone Maker", which contains
+ * "ringtone maker" and "iphone ringtone maker" but NOT "free ringtone
+ * maker" or "ringtone maker for iphone" - the word order breaks both.
+ * "Free Ringtone Maker for iPhone" contains all four as contiguous
+ * substrings without reading as a keyword list, which is the whole trick
+ * with a phrase cluster like this one.
+ *
+ * "mp3 ringtone maker" is Hard and is covered in body copy rather than
+ * chased with its own heading: the source-format angle is genuinely part
+ * of the page, and forcing it into the title would break the phrasing
+ * that wins the other four.
+ */
+
+const PAGE_TITLE = "Free Ringtone Maker for iPhone – MP3 to M4R";
 const PAGE_DESCRIPTION =
-  "Turn any song into an iPhone ringtone (M4R) online, free. Choose your start point and trim up to 30 seconds. No sign-up, no iTunes, no watermark.";
+  "Free ringtone maker for iPhone. Turn any MP3 into a 30-second M4R ringtone online — pick your start point, no iTunes, no sign-up, no watermark.";
 
 export const metadata: Metadata = {
   title: PAGE_TITLE,
   description: PAGE_DESCRIPTION,
+  keywords: [
+    "ringtone maker",
+    "free ringtone maker",
+    "iphone ringtone maker",
+    "ringtone maker for iphone",
+    "mp3 ringtone maker",
+    "online ringtone maker",
+    "make a ringtone from a song",
+    "m4r converter",
+    "mp3 to m4r",
+    "custom ringtone iphone",
+    "ringtone cutter",
+    "song to ringtone",
+  ],
   alternates: { canonical: `${SITE_URL}/ringtone-maker` },
   openGraph: {
     title: PAGE_TITLE,
@@ -43,6 +78,7 @@ const webAppJsonLd = {
   featureList: [
     "Trims to an iPhone-compatible length (up to 30 seconds)",
     "Outputs M4R, recognized directly by iOS",
+    "Accepts MP3, WAV, FLAC, M4A, AAC, OGG and AIFF sources",
     "No sign-up required",
     "No watermark",
   ],
@@ -74,6 +110,36 @@ const faqs = [
     question: "Why is there a 30-second limit?",
     answer:
       "Apple's current iPhone ringtone workflow supports ringtones up to 30 seconds. Keeping the clip within that limit helps ensure it can actually be used as an iPhone ringtone.",
+  },
+  {
+    question: "Can I make a ringtone from an MP3?",
+    answer:
+      "Yes — MP3 is the most common source here. Upload the MP3, choose the section you want, and the tool hands back an M4R. WAV, FLAC, M4A, AAC, OGG and AIFF work the same way, so you don't need to convert to MP3 first.",
+  },
+  {
+    question: "Can I make a ringtone from a TikTok or YouTube sound?",
+    answer:
+      "Yes, in two steps: pull the audio out first with the TikTok to MP3 converter or the YouTube to WAV converter, then upload that file here and pick your 30 seconds.",
+    answerNode: (
+      <>
+        Yes, in two steps: pull the audio out first with the{" "}
+        <Link href="/tiktok-to-mp3" className="text-amber-400 hover:underline">
+          TikTok to MP3 converter
+        </Link>{" "}
+        or the{" "}
+        <Link href="/youtube-to-wav" className="text-amber-400 hover:underline">
+          YouTube to WAV converter
+        </Link>
+        , then upload that file here and pick your 30 seconds.{" "}
+        <Link
+          href="/guides/tiktok-sound-to-ringtone"
+          className="text-amber-400 hover:underline"
+        >
+          Read How to Make a Ringtone from a TikTok Sound
+        </Link>{" "}
+        for the full walkthrough.
+      </>
+    ),
   },
   {
     question: "Can I use this for Android instead?",
@@ -125,8 +191,11 @@ export default function RingtoneMakerPage() {
 
       <main className="mx-auto max-w-3xl px-4 py-12 sm:py-16 space-y-12">
         <header className="text-center space-y-4">
+          {/* Contains "ringtone maker", "free ringtone maker" and
+              "ringtone maker for iphone" as contiguous substrings, in a
+              phrase that still reads like a sentence. */}
           <h1 className="text-4xl font-bold tracking-tight sm:text-5xl text-text-primary">
-            Free iPhone Ringtone Maker
+            Free Ringtone Maker for iPhone
           </h1>
           <p className="text-lg text-text-muted max-w-xl mx-auto">
             Turn any song into an iPhone-ready ringtone (M4R), free, no
@@ -157,6 +226,39 @@ export default function RingtoneMakerPage() {
             <li>Set the start point and length (up to 30 seconds) of the clip you want.</li>
             <li>Download the .m4r file and add it to your iPhone.</li>
           </ol>
+        </section>
+
+        {/* New section: covers the "mp3 ringtone maker" phrase in body
+            copy where it's honest, and gives the two downloader tools an
+            inbound link from a page that already ranks. */}
+        <section className="space-y-4">
+          <h2 className="text-2xl font-bold text-text-primary">Where to get the audio</h2>
+          <p className="text-text-muted leading-relaxed">
+            MP3 is the most common starting point, and it works here directly —
+            there&apos;s no need to convert it first. WAV, FLAC, M4A, AAC, OGG
+            and AIFF are accepted the same way, so whatever the file already is,
+            upload it as-is.
+          </p>
+          <p className="text-text-muted leading-relaxed">
+            If the sound you want isn&apos;t a file yet, get it first:{" "}
+            <Link href="/tiktok-to-mp3" className="text-amber-400 hover:underline">
+              TikTok to MP3
+            </Link>{" "}
+            pulls audio from a TikTok link, and{" "}
+            <Link href="/youtube-to-wav" className="text-amber-400 hover:underline">
+              YouTube to WAV
+            </Link>{" "}
+            does the same from a YouTube video or Short. Either output uploads
+            straight into the ringtone maker above.{" "}
+            <Link
+              href="/guides/tiktok-sound-to-ringtone"
+              className="text-amber-400 hover:underline"
+            >
+              Read How to Make a Ringtone from a TikTok Sound
+            </Link>{" "}
+            for where to cut the hook, how long to make it, and the part iOS
+            makes harder than it should be.
+          </p>
         </section>
 
         <section className="space-y-4">
