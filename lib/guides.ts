@@ -299,8 +299,8 @@ export const guides: Guide[] = [
     {
     slug: "tiktok-audio-quality-explained",
     title: "TikTok Audio Quality: Why 320 kbps Is a Myth",
-    description:
-      "TikTok's source audio measures around 64 kbps AAC. Here's why converting it to 320 kbps MP3 can't add quality back, and what actually affects how a sound holds up.",
+       description:
+      "TikTok's source audio measures around 64 kbps AAC. Here's why converting it to a 320 kbps MP3 can't add quality back — and what actually does matter.",
     publishedDate: "2026-08-18",
     updatedDate: "2026-08-18",
     category: "production",

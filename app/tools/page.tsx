@@ -7,13 +7,19 @@ import { ToolsExplorer } from "@/components/tools/ToolsExplorer";
 
 const liveTools = TOOLS.filter((t) => t.status === "live");
 
-const PAGE_TITLE = "All Free Audio Tools | AudioForges";
+// No "| AudioForges" here: the root layout's title template already
+// appends it, so hardcoding it produced "All Free Audio Tools |
+// AudioForges | AudioForges" in the SERP.
+const PAGE_TITLE = "All Free Audio Tools";
 
 // "AI-powered" removed: it describes how a few tools are built, not what
 // any of them do for the person reading the result, and it's the exact
 // marketing register the rest of the site avoids. Naming the actual jobs
 // also matches more of what people search for.
-const PAGE_DESCRIPTION = `All ${liveTools.length} free audio tools on AudioForges: conversion, key and BPM detection, vocal removal, stem splitting, cleanup, pitch and tempo, transcription. No sign-up, no watermark.`;
+// Kept under ~155 characters so Google doesn't truncate it mid-sentence.
+// The previous version ran to 172 and lost "No sign-up, no watermark" -
+// the part most likely to earn the click.
+const PAGE_DESCRIPTION = `All ${liveTools.length} free audio tools: conversion, key and BPM detection, vocal removal, stem splitting, cleanup, pitch and tempo. No sign-up, no watermark.`;
 
 export const metadata: Metadata = {
   title: PAGE_TITLE,
