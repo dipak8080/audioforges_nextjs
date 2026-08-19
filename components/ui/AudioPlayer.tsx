@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Play, Pause, Volume2, Volume1, VolumeX, AlertTriangle, Gauge } from "lucide-react";
+import { Play, Pause, Volume2, Volume1, VolumeX, AlertTriangle, Gauge, Repeat } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { WaveformCanvas } from "@/components/ui/WaveformCanvas";
 import { decodeWaveformEnvelopeFromUrl, type WaveformEnvelope } from "@/lib/utils/waveform";
@@ -9,12 +9,47 @@ import { decodeWaveformEnvelopeFromUrl, type WaveformEnvelope } from "@/lib/util
 interface AudioPlayerProps {
   src: string;
   className?: string;
+  /** Names the player for screen readers, e.g. "Vocals" on the stems
+   *  page where four of these sit in a row and "Audio player" four
+   *  times tells you nothing. */
+  title?: string;
+  /** Fires once the media element reports a usable duration. Lets a
+   *  parent show the length next to the player without mounting a
+   *  second <audio> just to read metadata. */
+  onDuration?: (seconds: number) => void;
+  /**
+   * Set false to skip the waveform decode and use the plain progress
+   * track instead.
+   *
+   * The decode is not free: it pulls the whole file into an
+   * ArrayBuffer, then decodeAudioData expands it to Float32 — a 4-minute
+   * stereo WAV is ~47MB on disk and ~90MB decoded, held at the same
+   * time. That's fine on desktop and a plausible tab crash on a
+   * mid-range phone. A caller that knows the byte size (a local blob,
+   * a Content-Length) can opt out above its own threshold; the player
+   * stays fully functional either way.
+   */
+  showWaveform?: boolean;
 }
 
 const PLAYBACK_RATES = [0.5, 0.75, 1, 1.25, 1.5, 2];
 const SEEK_STEP = 5;
 const SEEK_STEP_LARGE = 15;
 const VOLUME_STEP = 0.1;
+
+/** Minimum gap between seeks while dragging. Without it, every pointer
+ *  frame assigns currentTime — ~60 seeks/sec, which on a streamed URL is
+ *  ~60 range requests/sec and audible stuttering. The drawn playhead
+ *  still follows the pointer at full frame rate; only the media element
+ *  is throttled, and the final position is always committed on release. */
+const SCRUB_SEEK_INTERVAL_MS = 120;
+
+/* Stable identities. WaveformCanvas re-runs its draw effect whenever any
+   prop changes, so an inline arrow here would redraw both canvases on
+   every single render — which is exactly what the layering below exists
+   to avoid. */
+const SELECT_ALL = () => true;
+const SELECT_NONE = () => false;
 
 function formatTime(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
@@ -35,29 +70,43 @@ function VolumeIcon({ volume, muted }: { volume: number; muted: boolean }) {
 
 /**
  * Keyed on `src` so a new source remounts the whole player with fresh
- * state, rather than resetting six useState values by hand inside an
+ * state, rather than resetting a dozen useState values by hand inside an
  * effect. Parents can't pass the key themselves, so the split happens
  * here — the public component stays a plain <AudioPlayer src=... />.
  */
-export function AudioPlayer({ src, className }: AudioPlayerProps) {
-  return <AudioPlayerInstance key={src} src={src} className={className} />;
+export function AudioPlayer(props: AudioPlayerProps) {
+  return <AudioPlayerInstance key={props.src} {...props} />;
 }
 
-function AudioPlayerInstance({ src, className }: AudioPlayerProps) {
+function AudioPlayerInstance({
+  src,
+  className,
+  title,
+  onDuration,
+  showWaveform = true,
+}: AudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const waveformRef = useRef<HTMLDivElement>(null);
   const rateMenuRef = useRef<HTMLDivElement>(null);
+  const rateButtonRef = useRef<HTMLButtonElement>(null);
+
+  /* Written directly by the animation loop below, never through state —
+     see the comment on the rAF effect. */
+  const progressRef = useRef<HTMLDivElement>(null);
+  const playheadRef = useRef<HTMLDivElement>(null);
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
+  const [isLooping, setIsLooping] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
   const [showRemaining, setShowRemaining] = useState(false);
   const [playbackRate, setPlaybackRate] = useState(1);
   const [rateMenuOpen, setRateMenuOpen] = useState(false);
+  const [bufferedFraction, setBufferedFraction] = useState(0);
 
   const [envelope, setEnvelope] = useState<WaveformEnvelope | null>(null);
   const [scrubbing, setScrubbing] = useState(false);
@@ -65,6 +114,7 @@ function AudioPlayerInstance({ src, className }: AudioPlayerProps) {
 
   /* --- decode the waveform for this source ------------------------- */
   useEffect(() => {
+    if (!showWaveform) return;
     const controller = new AbortController();
     // Waveform is cosmetic — if this fails (CORS, unsupported codec,
     // network blip) the player still works fully via the plain track,
@@ -74,9 +124,9 @@ function AudioPlayerInstance({ src, className }: AudioPlayerProps) {
     });
 
     return () => controller.abort();
-  }, [src]);
+  }, [src, showWaveform]);
 
-  /* --- keep the element's volume/rate in sync with state ----------- */
+  /* --- keep the element in sync with state ------------------------- */
   useEffect(() => {
     if (audioRef.current) audioRef.current.volume = volume;
   }, [volume]);
@@ -89,28 +139,85 @@ function AudioPlayerInstance({ src, className }: AudioPlayerProps) {
     if (audioRef.current) audioRef.current.playbackRate = playbackRate;
   }, [playbackRate]);
 
-  /* --- close the speed menu on outside click ------------------------ */
+  useEffect(() => {
+    if (audioRef.current) audioRef.current.loop = isLooping;
+  }, [isLooping]);
+
+  /* --- close the speed menu on outside click or Escape -------------- */
   useEffect(() => {
     if (!rateMenuOpen) return;
     const onClick = (e: MouseEvent) => {
       if (rateMenuRef.current && !rateMenuRef.current.contains(e.target as Node)) setRateMenuOpen(false);
     };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      setRateMenuOpen(false);
+      // Focus would otherwise fall to <body>, stranding a keyboard user
+      // at the top of the document.
+      rateButtonRef.current?.focus();
+    };
     document.addEventListener("mousedown", onClick);
-    return () => document.removeEventListener("mousedown", onClick);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onClick);
+      document.removeEventListener("keydown", onKey);
+    };
   }, [rateMenuOpen]);
 
+  /* ------------------------------------------------------------------ */
+  /* Playhead                                                            */
+  /*                                                                     */
+  /* Progress is drawn as a full-width amber copy of the waveform with a  */
+  /* clip-path over a grey base copy, rather than by re-running the       */
+  /* canvas with a new selection range. Both canvases rasterize once and  */
+  /* then never again until the envelope, duration or size changes, so    */
+  /* advancing the playhead costs two style writes instead of ~1200 rect  */
+  /* fills — which is what makes a 60fps playhead affordable at all.      */
+  /*                                                                     */
+  /* Those writes go straight to the DOM. Routing them through state      */
+  /* would re-render this whole subtree sixty times a second to move one  */
+  /* line; `currentTime` state still updates at the media element's own   */
+  /* timeupdate rate (~4Hz), which is all the readout and aria-valuenow   */
+  /* need.                                                               */
+  /* ------------------------------------------------------------------ */
+  const applyFraction = useCallback((fraction: number) => {
+    const pct = clamp(fraction, 0, 1) * 100;
+    if (progressRef.current) progressRef.current.style.clipPath = `inset(0 ${100 - pct}% 0 0)`;
+    if (playheadRef.current) playheadRef.current.style.left = `${pct}%`;
+  }, []);
+
+  // Authoritative sync: seeks, scrub previews, pause, load, resize.
+  const stateFraction = duration > 0 ? currentTime / duration : 0;
+  const displayFraction = scrubbing && hoverFraction !== null ? hoverFraction : stateFraction;
+
+  useEffect(() => {
+    applyFraction(displayFraction);
+  }, [displayFraction, applyFraction, envelope, isLoading]);
+
+  // Smooth motion between timeupdate events, only while it's actually
+  // moving. Paused or mid-drag, the effect above owns the position.
+  useEffect(() => {
+    if (!isPlaying || scrubbing || duration <= 0) return;
+    let frame = requestAnimationFrame(function tick() {
+      const audio = audioRef.current;
+      if (audio) applyFraction(audio.currentTime / duration);
+      frame = requestAnimationFrame(tick);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [isPlaying, scrubbing, duration, applyFraction]);
+
+  /* --- transport ---------------------------------------------------- */
   const togglePlay = useCallback(() => {
     const audio = audioRef.current;
     if (!audio || hasError) return;
-    if (isPlaying) {
-      audio.pause();
-    } else {
-      // play() returns a promise that rejects if interrupted by a
-      // near-simultaneous pause() — swallow that instead of an
-      // unhandled rejection landing in the console.
+    if (audio.paused) {
+      // play() rejects if interrupted by a near-simultaneous pause() —
+      // swallow that instead of an unhandled rejection in the console.
       audio.play().catch(() => {});
+    } else {
+      audio.pause();
     }
-  }, [isPlaying, hasError]);
+  }, [hasError]);
 
   const toggleMute = () => setIsMuted((m) => !m);
 
@@ -125,16 +232,16 @@ function AudioPlayerInstance({ src, className }: AudioPlayerProps) {
     [duration]
   );
 
-  const seekBy = useCallback(
-    (deltaSeconds: number) => {
-      const audio = audioRef.current;
-      if (!audio || !duration) return;
-      const time = clamp(currentTime + deltaSeconds, 0, duration);
-      audio.currentTime = time;
-      setCurrentTime(time);
-    },
-    [currentTime, duration]
-  );
+  const seekBy = useCallback((deltaSeconds: number) => {
+    const audio = audioRef.current;
+    if (!audio || !audio.duration) return;
+    // Read position off the element rather than state: state lags by up
+    // to a timeupdate interval, so holding an arrow key would compound
+    // that stale offset.
+    const time = clamp(audio.currentTime + deltaSeconds, 0, audio.duration);
+    audio.currentTime = time;
+    setCurrentTime(time);
+  }, []);
 
   /* --- waveform pointer scrubbing ------------------------------------ */
   const fractionFromClientX = useCallback((clientX: number) => {
@@ -144,26 +251,39 @@ function AudioPlayerInstance({ src, className }: AudioPlayerProps) {
   }, []);
 
   /* Pointer events fire faster than the display refreshes (120Hz+ on a
-     trackpad). Each one seeks the media element and re-renders — which
-     now also redraws the canvas — so they're coalesced into one update
-     per animation frame. */
+     trackpad), so they're coalesced into one update per frame. The drawn
+     position follows every frame; the media element is seeked at most
+     every SCRUB_SEEK_INTERVAL_MS, then committed exactly on release. */
   useEffect(() => {
     if (!scrubbing) return;
     let frame = 0;
     let pendingX = 0;
+    let lastSeekAt = 0;
+    let lastFraction: number | null = null;
 
     const apply = () => {
       frame = 0;
       const fraction = fractionFromClientX(pendingX);
+      lastFraction = fraction;
       setHoverFraction(fraction);
-      seekToFraction(fraction);
+      applyFraction(fraction);
+
+      const now = performance.now();
+      if (now - lastSeekAt >= SCRUB_SEEK_INTERVAL_MS) {
+        lastSeekAt = now;
+        seekToFraction(fraction);
+      }
     };
 
     const onMove = (e: PointerEvent) => {
       pendingX = e.clientX;
       if (!frame) frame = requestAnimationFrame(apply);
     };
-    const onUp = () => setScrubbing(false);
+    const onUp = () => {
+      if (lastFraction !== null) seekToFraction(lastFraction);
+      setScrubbing(false);
+      setHoverFraction(null);
+    };
 
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
@@ -174,42 +294,72 @@ function AudioPlayerInstance({ src, className }: AudioPlayerProps) {
       window.removeEventListener("pointercancel", onUp);
       if (frame) cancelAnimationFrame(frame);
     };
-  }, [scrubbing, fractionFromClientX, seekToFraction]);
+  }, [scrubbing, fractionFromClientX, seekToFraction, applyFraction]);
 
   const handleWaveformKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === " ") {
+    // Digits jump to that tenth of the track, the convention every video
+    // player on the web already taught people.
+    if (/^[0-9]$/.test(e.key)) {
       e.preventDefault();
-      togglePlay();
-    } else if (e.key === "ArrowLeft") {
-      e.preventDefault();
-      seekBy(e.shiftKey ? -SEEK_STEP_LARGE : -SEEK_STEP);
-    } else if (e.key === "ArrowRight") {
-      e.preventDefault();
-      seekBy(e.shiftKey ? SEEK_STEP_LARGE : SEEK_STEP);
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      setVolume((v) => clamp(v + VOLUME_STEP, 0, 1));
-    } else if (e.key === "ArrowDown") {
-      e.preventDefault();
-      setVolume((v) => clamp(v - VOLUME_STEP, 0, 1));
-    } else if (e.key.toLowerCase() === "m") {
-      e.preventDefault();
-      toggleMute();
-    } else if (e.key === "Home") {
-      e.preventDefault();
-      seekToFraction(0);
-    } else if (e.key === "End") {
-      e.preventDefault();
-      seekToFraction(0.999);
+      seekToFraction(Number(e.key) / 10);
+      return;
+    }
+
+    switch (e.key) {
+      case " ":
+      case "k":
+      case "K":
+        e.preventDefault();
+        togglePlay();
+        break;
+      case "ArrowLeft":
+        e.preventDefault();
+        seekBy(e.shiftKey ? -SEEK_STEP_LARGE : -SEEK_STEP);
+        break;
+      case "ArrowRight":
+        e.preventDefault();
+        seekBy(e.shiftKey ? SEEK_STEP_LARGE : SEEK_STEP);
+        break;
+      case "ArrowUp":
+        e.preventDefault();
+        setVolume((v) => clamp(v + VOLUME_STEP, 0, 1));
+        break;
+      case "ArrowDown":
+        e.preventDefault();
+        setVolume((v) => clamp(v - VOLUME_STEP, 0, 1));
+        break;
+      case "m":
+      case "M":
+        e.preventDefault();
+        toggleMute();
+        break;
+      case "l":
+      case "L":
+        e.preventDefault();
+        setIsLooping((v) => !v);
+        break;
+      case "Home":
+        e.preventDefault();
+        seekToFraction(0);
+        break;
+      case "End":
+        e.preventDefault();
+        seekToFraction(0.999);
+        break;
     }
   };
 
-  const progressFraction = duration > 0 ? currentTime / duration : 0;
-  const previewFraction = scrubbing ? hoverFraction : null;
-  const displayFraction = previewFraction ?? progressFraction;
+  /* Only worth showing while it's genuinely incomplete. A blob preview
+     is buffered the instant it loads, so this never appears there — it's
+     for job results streamed off the API over a slow connection. */
+  const showBuffered = bufferedFraction > 0.01 && bufferedFraction < 0.995;
 
   return (
-    <div className={cn("rounded-lg border border-graphite-700 bg-graphite-850 p-4", className)}>
+    <div
+      className={cn("rounded-lg border border-graphite-700 bg-graphite-850 p-4", className)}
+      role="group"
+      aria-label={title ? `Audio player — ${title}` : "Audio player"}
+    >
       <audio
         ref={audioRef}
         src={src}
@@ -219,19 +369,37 @@ function AudioPlayerInstance({ src, className }: AudioPlayerProps) {
           // duration until the browser has buffered further, and
           // accepting that turns every fraction below into NaN.
           const reported = e.currentTarget.duration;
-          if (Number.isFinite(reported) && reported > 0) setDuration(reported);
+          if (Number.isFinite(reported) && reported > 0) {
+            setDuration(reported);
+            onDuration?.(reported);
+          }
           setIsLoading(false);
         }}
         onDurationChange={(e) => {
           const reported = e.currentTarget.duration;
-          if (Number.isFinite(reported) && reported > 0) setDuration(reported);
+          if (Number.isFinite(reported) && reported > 0) {
+            setDuration(reported);
+            onDuration?.(reported);
+          }
+        }}
+        // Backstop: a source that becomes playable without ever firing
+        // loadedmetadata would otherwise leave the transport disabled
+        // forever behind the skeleton.
+        onCanPlay={() => setIsLoading(false)}
+        onProgress={(e) => {
+          const audio = e.currentTarget;
+          if (!audio.buffered.length || !Number.isFinite(audio.duration) || !audio.duration) return;
+          setBufferedFraction(audio.buffered.end(audio.buffered.length - 1) / audio.duration);
         }}
         onTimeUpdate={(e) => {
           if (!scrubbing) setCurrentTime(e.currentTarget.currentTime);
         }}
         onPlay={() => setIsPlaying(true)}
         onPause={() => setIsPlaying(false)}
-        onEnded={() => setIsPlaying(false)}
+        onEnded={() => {
+          setIsPlaying(false);
+          setCurrentTime(0);
+        }}
         onError={() => {
           setHasError(true);
           setIsLoading(false);
@@ -241,7 +409,8 @@ function AudioPlayerInstance({ src, className }: AudioPlayerProps) {
       {hasError ? (
         <div className="flex items-center gap-2.5 py-1.5 text-sm text-red-400">
           <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden />
-          Couldn&apos;t load this preview. The download below should still work.
+          This preview wouldn&apos;t play in your browser. The file itself is fine — download it and
+          open it in your player.
         </div>
       ) : (
         <div className="space-y-3">
@@ -265,6 +434,7 @@ function AudioPlayerInstance({ src, className }: AudioPlayerProps) {
               ref={waveformRef}
               role="slider"
               aria-label="Seek"
+              aria-orientation="horizontal"
               aria-valuemin={0}
               aria-valuemax={duration || 0}
               aria-valuenow={currentTime}
@@ -276,6 +446,7 @@ function AudioPlayerInstance({ src, className }: AudioPlayerProps) {
                 setScrubbing(true);
                 const fraction = fractionFromClientX(e.clientX);
                 setHoverFraction(fraction);
+                applyFraction(fraction);
                 seekToFraction(fraction);
               }}
               onMouseMove={(e) => {
@@ -285,7 +456,12 @@ function AudioPlayerInstance({ src, className }: AudioPlayerProps) {
                 if (!scrubbing) setHoverFraction(null);
               }}
               className={cn(
-                "relative h-9 flex-1 select-none overflow-hidden rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40",
+                "relative h-11 flex-1 select-none overflow-hidden rounded-md",
+                // Without touch-action:none a drag on mobile scrolls the
+                // page and scrubs simultaneously — the strip fights the
+                // scroll and neither gesture wins cleanly.
+                "touch-none",
+                "focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40",
                 isLoading ? "cursor-default" : "cursor-pointer"
               )}
             >
@@ -301,41 +477,78 @@ function AudioPlayerInstance({ src, className }: AudioPlayerProps) {
                 </div>
               ) : (
                 <>
-                  {/* Waveform, or a plain progress track if the decode
-                      failed for this result. The played portion is the
-                      highlighted region, so the boundary between amber
-                      and grey IS the playhead. */}
+                  {/* Base layer: the whole track, unplayed. Either the
+                      real envelope or a plain rail while it decodes (or
+                      permanently, if the decode failed). */}
                   {envelope ? (
                     <WaveformCanvas
                       envelope={envelope}
                       duration={duration}
                       start={0}
-                      end={displayFraction * duration}
+                      end={duration}
+                      isSelected={SELECT_NONE}
                       showRuler={false}
                       className="absolute inset-0 block"
                     />
                   ) : (
                     <div className="absolute inset-0 flex items-center px-0.5">
-                      <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-graphite-700">
-                        <div
-                          className="h-full bg-amber-500"
-                          style={{ width: `${displayFraction * 100}%` }}
-                        />
-                      </div>
+                      <div className="h-1.5 w-full rounded-full bg-graphite-700" />
                     </div>
                   )}
 
+                  {/* Buffered extent, behind the played region. */}
+                  {showBuffered && (
+                    <div
+                      className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-graphite-700"
+                      aria-hidden
+                    >
+                      <div
+                        className="h-full bg-text-subtle/60 transition-[width] duration-300 ease-out"
+                        style={{ width: `${bufferedFraction * 100}%` }}
+                      />
+                    </div>
+                  )}
+
+                  {/* Played layer: an identical copy in amber, revealed
+                      by clip-path. Full width at all times — clipping
+                      doesn't change layout, so the canvas underneath
+                      never needs to re-rasterize as playback advances. */}
+                  <div
+                    ref={progressRef}
+                    className="pointer-events-none absolute inset-0"
+                    style={{ clipPath: "inset(0 100% 0 0)" }}
+                    aria-hidden
+                  >
+                    {envelope ? (
+                      <WaveformCanvas
+                        envelope={envelope}
+                        duration={duration}
+                        start={0}
+                        end={duration}
+                        isSelected={SELECT_ALL}
+                        showRuler={false}
+                        className="absolute inset-0 block"
+                      />
+                    ) : (
+                      <div className="absolute inset-0 flex items-center px-0.5">
+                        <div className="h-1.5 w-full rounded-full bg-amber-500" />
+                      </div>
+                    )}
+                  </div>
+
                   {/* Playhead */}
                   <div
+                    ref={playheadRef}
                     className="pointer-events-none absolute inset-y-0 w-px bg-amber-300"
-                    style={{ left: `${displayFraction * 100}%` }}
+                    style={{ left: "0%" }}
+                    aria-hidden
                   />
 
-                  {/* Hover scrub preview time */}
-                  {hoverFraction !== null && (
+                  {/* Hover / scrub preview time */}
+                  {hoverFraction !== null && duration > 0 && (
                     <div
-                      className="pointer-events-none absolute -top-7 -translate-x-1/2 rounded bg-graphite-950 px-1.5 py-0.5 font-mono text-[10px] text-text-primary shadow-sm"
-                      style={{ left: `${clamp(hoverFraction, 0.04, 0.96) * 100}%` }}
+                      className="pointer-events-none absolute top-1 -translate-x-1/2 rounded bg-graphite-950/90 px-1.5 py-0.5 font-mono text-[10px] text-text-primary shadow-sm"
+                      style={{ left: `${clamp(hoverFraction, 0.06, 0.94) * 100}%` }}
                     >
                       {formatTime(hoverFraction * duration)}
                     </div>
@@ -349,9 +562,12 @@ function AudioPlayerInstance({ src, className }: AudioPlayerProps) {
               type="button"
               onClick={() => setShowRemaining((v) => !v)}
               className="shrink-0 rounded px-1 font-mono text-xs tabular-nums text-text-muted transition-colors hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40"
-              aria-label="Toggle remaining time"
+              aria-label={showRemaining ? "Show total time" : "Show remaining time"}
             >
-              {formatTime(currentTime)} / {showRemaining ? `-${formatTime(Math.max(duration - currentTime, 0))}` : formatTime(duration)}
+              {formatTime(currentTime)} /{" "}
+              {showRemaining
+                ? `-${formatTime(Math.max(duration - currentTime, 0))}`
+                : formatTime(duration)}
             </button>
           </div>
 
@@ -361,7 +577,7 @@ function AudioPlayerInstance({ src, className }: AudioPlayerProps) {
               <button
                 type="button"
                 onClick={toggleMute}
-                className="shrink-0 text-text-muted transition-colors hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40 rounded"
+                className="shrink-0 rounded text-text-muted transition-colors hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40"
                 aria-label={isMuted ? "Unmute" : "Mute"}
               >
                 <VolumeIcon volume={volume} muted={isMuted} />
@@ -382,46 +598,74 @@ function AudioPlayerInstance({ src, className }: AudioPlayerProps) {
               />
             </div>
 
-            {/* Playback speed */}
-            <div className="relative shrink-0" ref={rateMenuRef}>
+            <div className="flex shrink-0 items-center gap-1.5">
+              {/* Loop — the reason someone plays the same eight bars
+                  twenty times while checking a bounce. */}
               <button
                 type="button"
-                onClick={() => setRateMenuOpen((v) => !v)}
-                className="flex items-center gap-1 rounded-md border border-graphite-700 px-2 py-1 font-mono text-[11px] text-text-muted transition-colors hover:border-graphite-700/60 hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40"
-                aria-haspopup="listbox"
-                aria-expanded={rateMenuOpen}
+                onClick={() => setIsLooping((v) => !v)}
+                aria-pressed={isLooping}
+                aria-label="Loop"
+                className={cn(
+                  "rounded-md border px-2 py-1 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40",
+                  isLooping
+                    ? "border-amber-500/40 bg-amber-500/10 text-amber-400"
+                    : "border-graphite-700 text-text-muted hover:text-text-primary"
+                )}
               >
-                <Gauge className="h-3 w-3" aria-hidden />
-                {playbackRate}x
+                <Repeat className="h-3 w-3" aria-hidden />
               </button>
 
-              {rateMenuOpen && (
-                <div
-                  role="listbox"
-                  className="absolute bottom-full right-0 z-10 mb-1.5 overflow-hidden rounded-md border border-graphite-700 bg-graphite-900 shadow-lg"
+              {/* Playback speed */}
+              <div className="relative" ref={rateMenuRef}>
+                <button
+                  ref={rateButtonRef}
+                  type="button"
+                  onClick={() => setRateMenuOpen((v) => !v)}
+                  className={cn(
+                    "flex items-center gap-1 rounded-md border px-2 py-1 font-mono text-[11px] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40",
+                    playbackRate !== 1
+                      ? "border-amber-500/40 bg-amber-500/10 text-amber-400"
+                      : "border-graphite-700 text-text-muted hover:text-text-primary"
+                  )}
+                  aria-haspopup="listbox"
+                  aria-expanded={rateMenuOpen}
+                  aria-label={`Playback speed, ${playbackRate}x`}
                 >
-                  {PLAYBACK_RATES.map((rate) => (
-                    <button
-                      key={rate}
-                      type="button"
-                      role="option"
-                      aria-selected={playbackRate === rate}
-                      onClick={() => {
-                        setPlaybackRate(rate);
-                        setRateMenuOpen(false);
-                      }}
-                      className={cn(
-                        "block w-full px-3 py-1.5 text-right font-mono text-xs transition-colors",
-                        playbackRate === rate
-                          ? "bg-amber-500/10 text-amber-400"
-                          : "text-text-muted hover:bg-graphite-800 hover:text-text-primary"
-                      )}
-                    >
-                      {rate}x
-                    </button>
-                  ))}
-                </div>
-              )}
+                  <Gauge className="h-3 w-3" aria-hidden />
+                  {playbackRate}x
+                </button>
+
+                {rateMenuOpen && (
+                  <div
+                    role="listbox"
+                    aria-label="Playback speed"
+                    className="absolute bottom-full right-0 z-10 mb-1.5 overflow-hidden rounded-md border border-graphite-700 bg-graphite-900 shadow-lg"
+                  >
+                    {PLAYBACK_RATES.map((rate) => (
+                      <button
+                        key={rate}
+                        type="button"
+                        role="option"
+                        aria-selected={playbackRate === rate}
+                        onClick={() => {
+                          setPlaybackRate(rate);
+                          setRateMenuOpen(false);
+                          rateButtonRef.current?.focus();
+                        }}
+                        className={cn(
+                          "block w-full px-3 py-1.5 text-right font-mono text-xs transition-colors",
+                          playbackRate === rate
+                            ? "bg-amber-500/10 text-amber-400"
+                            : "text-text-muted hover:bg-graphite-800 hover:text-text-primary"
+                        )}
+                      >
+                        {rate}x
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>

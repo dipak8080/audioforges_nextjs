@@ -13,6 +13,7 @@ import {
 import { Button } from "@/components/ui/Button";
 import { FormatSelector } from "@/components/ui/FormatSelector";
 import { Waveform } from "@/components/ui/Waveform";
+import { AudioPlayer } from "@/components/ui/AudioPlayer";
 import { cn } from "@/lib/utils/cn";
 import {
   validateYouTubeUrl,
@@ -58,7 +59,7 @@ function extractVideoId(input: string): string | null {
 
 function formatElapsed(seconds: number): string {
   const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
+  const s = Math.floor(seconds % 60);
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
@@ -66,6 +67,28 @@ function formatBytes(bytes: number): string {
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
+
+/** Strip only what a filesystem actually rejects. The old rule was
+ *  `[^a-zA-Z0-9\s\-_]`, which erased every Devanagari, Cyrillic, CJK and
+ *  accented character — a track titled entirely in one of those scripts
+ *  came out as the empty string and fell through to "youtube-audio".
+ *  Windows is the strictest target, so we match its reserved set. */
+function safeFilename(raw: string, fallback = "youtube-audio"): string {
+  const cleaned = raw
+    .replace(/\.[a-z0-9]+$/i, "")
+    // eslint-disable-next-line no-control-regex
+    .replace(/[<>:"/\\|?*\u0000-\u001f]/g, "")
+    .replace(/\s+/g, "_")
+    .replace(/_{2,}/g, "_")
+    .replace(/^[._]+|[._]+$/g, "")
+    .slice(0, 100)
+    .trim();
+  return cleaned || fallback;
+}
+
+/** Above this, skip the waveform decode. See the AudioPlayer call site
+ *  in the complete state for the reasoning. Roughly a two-minute WAV. */
+const WAVEFORM_DECODE_LIMIT_BYTES = 25 * 1024 * 1024;
 
 /** Pipeline stages, keyed to elapsed seconds. Labels describe what the
  *  backend is actually doing — no invented milestones. */
@@ -130,6 +153,13 @@ interface VideoPreview {
   author: string | null;
 }
 
+interface ConversionResult {
+  blob: Blob;
+  filename: string;
+  size: number;
+  format: OutputFormat;
+}
+
 export function YouTubeConverterForm() {
   const [url, setUrl] = useState("");
   const [format, setFormat] = useState<OutputFormat>("wav");
@@ -140,29 +170,52 @@ export function YouTubeConverterForm() {
   const [thumbFailed, setThumbFailed] = useState(false);
   const [cooldownSeconds, setCooldownSeconds] = useState(0);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  const [result, setResult] = useState<{
-    blob: Blob;
-    filename: string;
-    size: number;
-    format: OutputFormat;
-  } | null>(null);
+  const [result, setResult] = useState<ConversionResult | null>(null);
+
+  /** Object URL for the preview player. Held in state (not a ref) so the
+   *  player re-renders once it exists, and revoked by the same effect
+   *  that created it — the old code pushed every URL into a ref array,
+   *  set a 30s revoke timer, AND revoked again on unmount. */
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewDuration, setPreviewDuration] = useState<number | null>(null);
+  const [hasDownloaded, setHasDownloaded] = useState(false);
 
   const abortRef = useRef<AbortController | null>(null);
   const cancelledRef = useRef(false);
-  const objectUrlsRef = useRef<string[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
+  const downloadSlotRef = useRef<HTMLDivElement>(null);
 
   const isProcessing = status === "processing";
+  const isComplete = status === "complete" && result !== null;
   const videoId = useMemo(() => extractVideoId(url.trim()), [url]);
   const canConvert = Boolean(videoId) && !validationError && cooldownSeconds === 0;
 
-  /* --- cleanup: revoke any object URLs we handed to the browser ---- */
+  /* --- abort any in-flight request on unmount --------------------- */
+  useEffect(() => () => abortRef.current?.abort(), []);
+
+  /* --- one object URL per result, revoked when it's replaced ------- */
   useEffect(() => {
-    return () => {
-      objectUrlsRef.current.forEach((u) => URL.revokeObjectURL(u));
-      abortRef.current?.abort();
-    };
-  }, []);
+    if (!result) {
+      setPreviewUrl(null);
+      return;
+    }
+    const objectUrl = URL.createObjectURL(result.blob);
+    setPreviewUrl(objectUrl);
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [result]);
+
+  /* --- move focus to the download button when a run finishes ------
+     The primary action changed out from under the user, so a keyboard
+     or screen-reader user should land on it rather than hunt for it.
+     Queried through a wrapper div so this doesn't depend on <Button>
+     forwarding refs. */
+  useEffect(() => {
+    if (!isComplete) return;
+    const id = window.setTimeout(() => {
+      downloadSlotRef.current?.querySelector("button")?.focus();
+    }, 80);
+    return () => window.clearTimeout(id);
+  }, [isComplete]);
 
   /* --- cooldown ticker ------------------------------------------- */
   useEffect(() => {
@@ -236,27 +289,57 @@ export function YouTubeConverterForm() {
   const handlePaste = async () => {
     try {
       const text = await navigator.clipboard.readText();
-      if (text) {
-        setUrl(sanitizeUserInput(text, 500));
-        inputRef.current?.focus();
-      }
+      if (text) setUrl(sanitizeUserInput(text, 500));
     } catch {
       // Clipboard permission denied — the input is still there to type into.
-      inputRef.current?.focus();
     }
+    inputRef.current?.focus();
   };
 
+  /** Clears the link only. Used by the X inside the input. It must NOT
+   *  touch `result`: now that nothing downloads automatically, wiping
+   *  the blob here would silently destroy a file the user hasn't saved.
+   *  (The old code pointed this button at handleReset.) */
+  const handleClearUrl = () => {
+    setUrl("");
+    setValidationError(null);
+    setPreview(null);
+    if (status === "error") {
+      setStatus("idle");
+      setError(null);
+    }
+    inputRef.current?.focus();
+  };
+
+  /** Full reset — new track, discard the finished file. */
+  const handleReset = () => {
+    setUrl("");
+    setStatus("idle");
+    setValidationError(null);
+    setError(null);
+    setPreview(null);
+    setResult(null);
+    setPreviewDuration(null);
+    setHasDownloaded(false);
+    setCooldownSeconds(0);
+    setElapsedSeconds(0);
+    inputRef.current?.focus();
+  };
+
+  /** Always called from a click, never from an await — so the browser
+   *  treats it as a trusted gesture and won't silently drop it. */
   const triggerDownload = useCallback((blob: Blob, filename: string) => {
     const objectUrl = URL.createObjectURL(blob);
-    objectUrlsRef.current.push(objectUrl);
     const a = document.createElement("a");
     a.href = objectUrl;
     a.download = filename;
+    a.rel = "noopener";
     document.body.appendChild(a);
     a.click();
-    document.body.removeChild(a);
+    a.remove();
     // Safari and Firefox need the URL to outlive the click.
     setTimeout(() => URL.revokeObjectURL(objectUrl), 30000);
+    setHasDownloaded(true);
   }, []);
 
   const handleConvert = async () => {
@@ -284,12 +367,13 @@ export function YouTubeConverterForm() {
     setStatus("processing");
     setError(null);
     setResult(null);
+    setPreviewDuration(null);
+    setHasDownloaded(false);
 
     try {
-      // To make Cancel abort the request for real (not just ignore the
-      // response), add an options param to downloadYouTubeAudio and pass
-      // { signal: controller.signal } here as a third argument.
-      const payload = await downloadYouTubeAudio(check.normalizedUrl || trimmed, format);
+      const payload = await downloadYouTubeAudio(check.normalizedUrl || trimmed, format, {
+        signal: controller.signal,
+      });
       if (cancelledRef.current) return;
 
       const base64 = extractBase64Audio(payload);
@@ -306,20 +390,16 @@ export function YouTubeConverterForm() {
         preview?.title ||
         "youtube-audio";
 
-      const safeTitle =
-        rawTitle
-          .replace(/\.[a-z0-9]+$/i, "")
-          .replace(/[^a-zA-Z0-9\s\-_]/g, "")
-          .replace(/\s+/g, "_")
-          .slice(0, 100) || "youtube-audio";
-
       const blob = base64ToBlob(base64, mimeType);
-      const filename = `${safeTitle}.${format}`;
+      const filename = `${safeFilename(rawTitle)}.${format}`;
 
-      triggerDownload(blob, filename);
+      // No auto-download. The user saves it themselves, from a real click.
       setResult({ blob, filename, size: blob.size, format });
       setStatus("complete");
     } catch (err) {
+      // A cancelled request now rejects with a raw AbortError rather than
+      // an ApiError, so this guard has to come before anything else —
+      // otherwise pressing Cancel renders "The conversion failed".
       if (cancelledRef.current || controller.signal.aborted) return;
       console.error("Conversion error:", err);
       setError(humanizeError(err));
@@ -340,17 +420,6 @@ export function YouTubeConverterForm() {
     setError(null);
   };
 
-  const handleReset = () => {
-    setUrl("");
-    setStatus("idle");
-    setValidationError(null);
-    setError(null);
-    setPreview(null);
-    setResult(null);
-    setCooldownSeconds(0);
-    inputRef.current?.focus();
-  };
-
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" && canConvert && !isProcessing) {
       e.preventDefault();
@@ -361,6 +430,8 @@ export function YouTubeConverterForm() {
   /* --- progress: eases toward 92%, snaps to 100 on success --------- */
   const progress = Math.min(92, Math.round((1 - Math.exp(-elapsedSeconds / 16)) * 100));
 
+  const resultThumbId = preview?.id ?? videoId;
+
   /* ------------------------------------------------------------------ */
 
   return (
@@ -368,8 +439,6 @@ export function YouTubeConverterForm() {
       {/* Header strip — reads like a device faceplate, not a web form */}
       <div className="flex items-center justify-between border-b border-graphite-800 px-6 py-3.5 sm:px-8">
         <div className="flex items-center gap-2.5">
-          {/* Pulses while working, like every other form's header dot -
-              this one was the only static one. */}
           <span
             className={cn(
               "h-1.5 w-1.5 rounded-full bg-amber-500",
@@ -382,99 +451,103 @@ export function YouTubeConverterForm() {
           </span>
         </div>
         <span className="font-mono text-[11px] text-text-subtle">
-          {formatOption(format).spec}
+          {formatOption(isComplete ? result.format : format).spec}
         </span>
       </div>
 
       <div className="space-y-6 p-6 sm:p-8">
-        {/* ---------- URL input ---------- */}
-        <div className="space-y-2">
-          <label
-            htmlFor="youtube-url"
-            className="text-sm font-medium text-text-primary"
-          >
-            Paste a YouTube link
-          </label>
-
-          <div className="relative flex items-center">
-            <Link2
-              className={cn(
-                "pointer-events-none absolute left-4 h-4 w-4 transition-colors",
-                videoId ? "text-amber-500" : "text-text-subtle"
-              )}
-              aria-hidden
-            />
-            <input
-              ref={inputRef}
-              id="youtube-url"
-              type="url"
-              value={url}
-              onChange={handleUrlChange}
-              onKeyDown={handleKeyDown}
-              placeholder="https://youtube.com/watch?v=..."
-              disabled={isProcessing}
-              autoComplete="off"
-              spellCheck={false}
-              maxLength={500}
-              aria-invalid={Boolean(validationError)}
-              aria-describedby={validationError ? "url-error" : "url-hint"}
-              className={cn(
-                "w-full rounded-lg border bg-graphite-850 py-3.5 pl-11 pr-24 text-text-primary",
-                "placeholder:text-text-subtle transition-colors",
-                "focus:outline-none focus:ring-2 disabled:opacity-50",
-                validationError
-                  ? "border-red-500/60 focus:ring-red-500/25"
-                  : videoId
-                    ? "border-amber-500/40 focus:ring-amber-500/20"
-                    : "border-graphite-700 focus:border-amber-500/50 focus:ring-amber-500/20"
-              )}
-            />
-
-            {/* In-field controls: sized to sit inside the input, not
-                standalone buttons. Not <Button> material. */}
-            <div className="absolute right-2.5 flex items-center gap-1">
-              {url && !isProcessing && (
-                <button
-                  type="button"
-                  onClick={handleReset}
-                  aria-label="Clear link"
-                  className="rounded-md p-1.5 text-text-subtle transition-colors hover:bg-graphite-800 hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              )}
-              {!url && (
-                <button
-                  type="button"
-                  onClick={handlePaste}
-                  disabled={isProcessing}
-                  className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-text-muted transition-colors hover:bg-graphite-800 hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40 disabled:pointer-events-none disabled:opacity-40"
-                >
-                  <ClipboardPaste className="h-3.5 w-3.5" />
-                  Paste
-                </button>
-              )}
-            </div>
-          </div>
-
-          {validationError ? (
-            <p
-              id="url-error"
-              role="alert"
-              className="flex items-center gap-1.5 text-sm text-red-400"
+        {/* ---------- URL input ----------
+            Hidden on completion so the finished file is the only thing
+            on the card, matching YouTubeUrlForm. */}
+        {!isComplete && (
+          <div className="space-y-2">
+            <label
+              htmlFor="youtube-url"
+              className="text-sm font-medium text-text-primary"
             >
-              <AlertTriangle className="h-4 w-4 shrink-0" />
-              {validationError}
-            </p>
-          ) : (
-            <p id="url-hint" className="text-xs text-text-subtle">
-              Works with watch links, youtu.be, and Shorts
-            </p>
-          )}
-        </div>
+              Paste a YouTube link
+            </label>
+
+            <div className="relative flex items-center">
+              <Link2
+                className={cn(
+                  "pointer-events-none absolute left-4 h-4 w-4 transition-colors",
+                  videoId ? "text-amber-500" : "text-text-subtle"
+                )}
+                aria-hidden
+              />
+              <input
+                ref={inputRef}
+                id="youtube-url"
+                type="url"
+                value={url}
+                onChange={handleUrlChange}
+                onKeyDown={handleKeyDown}
+                placeholder="https://youtube.com/watch?v=..."
+                disabled={isProcessing}
+                autoComplete="off"
+                spellCheck={false}
+                maxLength={500}
+                aria-invalid={Boolean(validationError)}
+                aria-describedby={validationError ? "url-error" : "url-hint"}
+                className={cn(
+                  "w-full rounded-lg border bg-graphite-850 py-3.5 pl-11 pr-24 text-text-primary",
+                  "placeholder:text-text-subtle transition-colors",
+                  "focus:outline-none focus:ring-2 disabled:opacity-50",
+                  validationError
+                    ? "border-red-500/60 focus:ring-red-500/25"
+                    : videoId
+                      ? "border-amber-500/40 focus:ring-amber-500/20"
+                      : "border-graphite-700 focus:border-amber-500/50 focus:ring-amber-500/20"
+                )}
+              />
+
+              {/* In-field controls: sized to sit inside the input, not
+                  standalone buttons. Not <Button> material. */}
+              <div className="absolute right-2.5 flex items-center gap-1">
+                {url && !isProcessing && (
+                  <button
+                    type="button"
+                    onClick={handleClearUrl}
+                    aria-label="Clear link"
+                    className="rounded-md p-1.5 text-text-subtle transition-colors hover:bg-graphite-800 hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+                {!url && (
+                  <button
+                    type="button"
+                    onClick={handlePaste}
+                    disabled={isProcessing}
+                    className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-text-muted transition-colors hover:bg-graphite-800 hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40 disabled:pointer-events-none disabled:opacity-40"
+                  >
+                    <ClipboardPaste className="h-3.5 w-3.5" />
+                    Paste
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {validationError ? (
+              <p
+                id="url-error"
+                role="alert"
+                className="flex items-center gap-1.5 text-sm text-red-400"
+              >
+                <AlertTriangle className="h-4 w-4 shrink-0" />
+                {validationError}
+              </p>
+            ) : (
+              <p id="url-hint" className="text-xs text-text-subtle">
+                Works with watch links, youtu.be, and Shorts
+              </p>
+            )}
+          </div>
+        )}
 
         {/* ---------- Video preview: confirms the right track ---------- */}
-        {preview && !isProcessing && status !== "complete" && (
+        {preview && !isProcessing && !isComplete && (
           <div className="flex items-center gap-4 rounded-lg border border-graphite-800 bg-graphite-850/60 p-3">
             <div className="relative h-14 w-24 shrink-0 overflow-hidden rounded-md bg-graphite-800">
               {!thumbFailed && (
@@ -501,15 +574,17 @@ export function YouTubeConverterForm() {
         )}
 
         {/* ---------- Format ---------- */}
-        <div className="space-y-2">
-          <p className="text-sm font-medium text-text-primary">Output format</p>
-          <FormatSelector
-            options={FORMAT_OPTIONS}
-            value={format}
-            onChange={setFormat}
-            disabled={isProcessing}
-          />
-        </div>
+        {!isComplete && (
+          <div className="space-y-2">
+            <p className="text-sm font-medium text-text-primary">Output format</p>
+            <FormatSelector
+              options={FORMAT_OPTIONS}
+              value={format}
+              onChange={setFormat}
+              disabled={isProcessing}
+            />
+          </div>
+        )}
 
         {/* ---------- Processing ---------- */}
         {isProcessing && (
@@ -558,23 +633,80 @@ export function YouTubeConverterForm() {
           </div>
         )}
 
-        {/* ---------- Complete ---------- */}
-        {status === "complete" && result && (
+        {/* ---------- Complete ----------
+            The file exists in the browser but nothing has left it yet,
+            so the card's job is: confirm it's the right track, let them
+            hear it, and make saving the obvious next move. */}
+        {isComplete && (
           <div className="space-y-4" role="status" aria-live="polite">
-            <div className="rounded-lg border border-teal-400/25 bg-teal-400/[0.07] p-4">
-              <div className="flex items-start gap-3">
-                <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-teal-400" aria-hidden />
+            <div className="overflow-hidden rounded-lg border border-teal-400/25 bg-teal-400/[0.07]">
+              <div className="flex items-start gap-3 p-4">
+                {resultThumbId && !thumbFailed ? (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img
+                    src={`https://i.ytimg.com/vi/${resultThumbId}/mqdefault.jpg`}
+                    alt=""
+                    onError={() => setThumbFailed(true)}
+                    className="h-12 w-20 shrink-0 rounded object-cover"
+                  />
+                ) : (
+                  <CheckCircle2
+                    className="mt-0.5 h-5 w-5 shrink-0 text-teal-400"
+                    aria-hidden
+                  />
+                )}
+
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-text-primary">Saved to Downloads</p>
-                  <p className="mt-0.5 truncate font-mono text-xs text-text-muted">
+                  <p className="truncate font-mono text-sm text-text-primary">
                     {result.filename}
                   </p>
-                  <p className="mt-1.5 font-mono text-[11px] text-text-subtle">
+                  <p className="mt-1 font-mono text-[11px] text-text-subtle">
                     {formatOption(result.format).spec} · {formatBytes(result.size)}
+                    {previewDuration ? ` · ${formatElapsed(previewDuration)}` : ""}
                   </p>
                 </div>
+
+                {/* One job: say whether this file is on their disk yet.
+                    Without it, removing the auto-download leaves no signal
+                    that the work isn't finished. */}
+                <span
+                  className={cn(
+                    "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider",
+                    hasDownloaded
+                      ? "bg-teal-400/15 text-teal-300"
+                      : "bg-amber-500/15 text-amber-400"
+                  )}
+                >
+                  {hasDownloaded ? "Saved" : "Not saved"}
+                </span>
               </div>
+
+              {/* The shared player, not a bespoke scrubber — it already
+                  draws the DAW envelope via WaveformCanvas and brings
+                  keyboard seeking, volume, speed and a decode-failure
+                  fallback with it. Its own border/background/padding are
+                  overridden so it reads as part of this card rather than
+                  a second box nested inside one. */}
+              {previewUrl && (
+                <div className="border-t border-teal-400/15 px-4 py-3">
+                  <AudioPlayer
+                    src={previewUrl}
+                    onDuration={setPreviewDuration}
+                    /* Of the eight places this player is mounted, only
+                       this one holds a lossless local blob: a 4-minute
+                       WAV is ~47MB, and decoding it for the drawing
+                       expands it to ~90MB of Float32 held alongside the
+                       blob itself. Fine on a laptop, a plausible tab
+                       crash on a mid-range phone. Past the threshold the
+                       player keeps every control and just falls back to
+                       the plain amber rail. */
+                    showWaveform={result.size <= WAVEFORM_DECODE_LIMIT_BYTES}
+                    className="border-0 bg-transparent p-0"
+                  />
+                </div>
+              )}
             </div>
+
             <SupportBlock />
           </div>
         )}
@@ -609,9 +741,7 @@ export function YouTubeConverterForm() {
                opacity renders as a muddy brown bar - it reads as broken
                rather than inactive, and on an empty form it's the loudest
                thing on the card. Grey says "not yet"; amber is earned
-               once there's a real video ID. The URL input sits directly
-               above, so unlike the upload forms this stays visible rather
-               than disappearing - the pair reads as one control. */
+               once there's a real video ID. */
             <Button
               variant={videoId || status === "error" ? "primary" : "secondary"}
               size="lg"
@@ -635,17 +765,23 @@ export function YouTubeConverterForm() {
             </Button>
           )}
 
-          {status === "complete" && result && (
+          {isComplete && (
             <>
-              <Button
-                variant="primary"
-                size="lg"
-                className="w-full sm:flex-1"
-                onClick={() => triggerDownload(result.blob, result.filename)}
-              >
-                <Download />
-                Save again
-              </Button>
+              {/* Wrapper exists so the completion effect can focus the
+                  button without <Button> having to forward a ref. */}
+              <div ref={downloadSlotRef} className="w-full sm:flex-1">
+                <Button
+                  variant="primary"
+                  size="lg"
+                  className="w-full"
+                  onClick={() => triggerDownload(result.blob, result.filename)}
+                >
+                  <Download />
+                  {hasDownloaded
+                    ? "Download again"
+                    : `Download ${formatOption(result.format).label}`}
+                </Button>
+              </div>
               <Button variant="outline" size="lg" onClick={handleReset}>
                 <RotateCcw />
                 Convert another

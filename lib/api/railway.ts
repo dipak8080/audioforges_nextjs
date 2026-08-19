@@ -11,10 +11,34 @@ import type {
 export const RAILWAY_API_BASE =
   process.env.NEXT_PUBLIC_RAILWAY_API_BASE || "https://api.audioforges.com";
 
+/* ------------------------------------------------------------------ */
+/* Timeout budget                                                      */
+/* ------------------------------------------------------------------ */
+
+// Cloudflare's proxy gives the origin 100 seconds to send response
+// HEADERS before it gives up and returns a 524 of its own. Since the
+// origin firewall only accepts Cloudflare IP ranges, every request in
+// this file passes through that ceiling — there is no path around it.
+//
+// Any client timeout above 100s is therefore unreachable: Cloudflare
+// always fires first, and we get a 524 with an HTML body instead of our
+// own controlled "this is taking too long" ApiError. So the longest
+// synchronous request we allow sits just under the ceiling, and WE
+// decide what the user sees.
+//
+// Raise this ONLY if the zone's proxy read timeout is actually raised
+// (Enterprise-only) or the route stops being proxied.
+const CF_PROXY_CEILING_MS = 100_000;
+const LONG_SYNC_TIMEOUT_MS = CF_PROXY_CEILING_MS - 5_000;
+
+/* ------------------------------------------------------------------ */
+/* Errors                                                              */
+/* ------------------------------------------------------------------ */
+
 // ApiError carries enough info for the UI to render the right recovery affordance.
 // - isRateLimit  → 429, user must slow down (disable button briefly)
 // - isServerBusy → 503, server/YT capacity issue, surface a "Try again" button
-// - isTimeout    → client-side abort
+// - isTimeout    → client-side abort, or a Cloudflare 524
 export class ApiError extends Error {
   status: number;
   isRateLimit: boolean;
@@ -50,6 +74,26 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Optional per-call options. Every function below takes this as a
+ * TRAILING OPTIONAL argument, so no existing call site needs to change.
+ *
+ * Pass a signal to make a Cancel button actually abort the request
+ * rather than just ignoring the response. Note that an aborted call
+ * rejects with a raw DOMException (name "AbortError"), NOT an ApiError —
+ * see fetchWithTimeout for why. Guard on it before your generic error
+ * branch, or a deliberate Cancel will render as "Something went wrong".
+ */
+export interface RequestOptions {
+  signal?: AbortSignal;
+}
+
+/** True when the caught error is a user/unmount cancellation rather than
+ *  a real failure. Call sites should return early on this. */
+export function isAbortError(err: unknown): boolean {
+  return (err as Error)?.name === "AbortError";
+}
+
 // Extract the backend's user-facing message from a JSON error body.
 // FastAPI convention: { "detail": "..." } or { "detail": [{ msg: "..." }] }
 async function parseDetail(res: Response): Promise<string> {
@@ -60,7 +104,7 @@ async function parseDetail(res: Response): Promise<string> {
     if (typeof body?.error === "string") return body.error;
     if (typeof body?.message === "string") return body.message;
   } catch {
-    /* body was not JSON */
+    /* body was not JSON — a Cloudflare error page, an empty body, HTML */
   }
   return "";
 }
@@ -71,17 +115,58 @@ function looksLikeRawError(text: string): boolean {
   return /traceback|exception|error at line|\bat\s+\w+\.<|stacktrace/i.test(text);
 }
 
+/**
+ * Parses a success body. Every route below routes through this rather
+ * than calling res.json() directly, because a 200 whose body ISN'T JSON
+ * (Cloudflare interstitial, truncated response, proxy error page served
+ * with the wrong status) throws a bare SyntaxError. That escapes the
+ * ApiError contract entirely and surfaces to the user as something like
+ * `Unexpected token '<'`.
+ */
+async function readJson<T>(res: Response): Promise<T> {
+  try {
+    return (await res.json()) as T;
+  } catch {
+    throw new ApiError(
+      "The server sent back a response we couldn't read. Please try again.",
+      res.status,
+      { isServerBusy: true }
+    );
+  }
+}
+
 async function fetchWithTimeout(
   input: RequestInfo,
   init: RequestInit = {},
   timeoutMs = 120_000
 ): Promise<Response> {
+  const external = init.signal;
+
+  // Already cancelled before we even started — don't open a socket.
+  if (external?.aborted) throw new DOMException("Aborted", "AbortError");
+
   const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), timeoutMs);
+  const onExternalAbort = () => controller.abort();
+  external?.addEventListener("abort", onExternalAbort, { once: true });
+
+  // Distinguishes "we gave up waiting" from "the user pressed Cancel".
+  // Both surface as AbortError, and they need opposite handling.
+  let timedOut = false;
+  const id = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
+
   try {
+    // Spread order matters: the internal signal MUST overwrite whatever
+    // came in on init, or the timeout silently stops working.
     return await fetch(input, { ...init, signal: controller.signal });
   } catch (err) {
     if ((err as Error)?.name === "AbortError") {
+      // User cancellation: rethrow the raw AbortError. Wrapping it in an
+      // ApiError would make the form render "taking longer than expected"
+      // on a deliberate Cancel.
+      if (!timedOut) throw err;
       throw new ApiError(
         "This is taking longer than expected. Please try again in a moment.",
         0,
@@ -94,14 +179,27 @@ async function fetchWithTimeout(
     );
   } finally {
     clearTimeout(id);
+    external?.removeEventListener("abort", onExternalAbort);
   }
 }
 
+// Retry-After is legal as either delta-seconds or an HTTP-date. Only the
+// numeric form was handled before, so a date-form header silently became
+// undefined and the UI fell back to its own guess — which could be 10
+// seconds against a header that meant 10 minutes.
 function readRetryAfter(res: Response): number | undefined {
   const raw = res.headers.get("retry-after");
   if (!raw) return undefined;
+
   const n = Number(raw);
-  return Number.isFinite(n) && n > 0 ? n : undefined;
+  if (Number.isFinite(n) && n > 0) return Math.ceil(n);
+
+  const when = Date.parse(raw);
+  if (!Number.isNaN(when)) {
+    const seconds = Math.ceil((when - Date.now()) / 1000);
+    if (seconds > 0) return seconds;
+  }
+  return undefined;
 }
 
 // "youtube-job" is its own context (rather than reusing "download" or
@@ -114,14 +212,23 @@ function readRetryAfter(res: Response): number | undefined {
 type ErrorContext = "download" | "analyze" | "separate" | "job" | "youtube-job";
 
 async function toApiError(res: Response, context: ErrorContext): Promise<ApiError> {
-  const detail = await parseDetail(res);
+  const rawDetail = await parseDetail(res);
+
+  // Gate EVERY branch, not just the default one. Previously 400/404/413/
+  // 429/503 passed `detail` straight through, so a yt-dlp exception
+  // string that reached a FastAPI detail rendered verbatim in the error
+  // card. Blanking it here means each case falls back to its own written
+  // copy, which is always safe.
+  const detail = looksLikeRawError(rawDetail) ? "" : rawDetail;
   const retryAfter = readRetryAfter(res);
+
+  const isVideoContext = context === "download" || context === "youtube-job";
 
   switch (res.status) {
     case 400:
       return new ApiError(
         detail ||
-          (context === "download" || context === "youtube-job"
+          (isVideoContext
             ? "That link doesn't look right, or the video is too long. Please check it and try again."
             : "That request wasn't valid. Please check your input and try again."),
         400
@@ -129,14 +236,14 @@ async function toApiError(res: Response, context: ErrorContext): Promise<ApiErro
     case 404:
       return new ApiError(
         detail ||
-          (context === "download" || context === "youtube-job"
+          (isVideoContext
             ? "That video isn't available — it may be deleted, private, or copyright-blocked."
             : "That job wasn't found — it may have expired."),
         404
       );
     case 409:
       return new ApiError(
-        "Still processing — hang tight, this will be ready shortly.",
+        detail || "Still processing — hang tight, this will be ready shortly.",
         409,
         { isServerBusy: true }
       );
@@ -153,7 +260,7 @@ async function toApiError(res: Response, context: ErrorContext): Promise<ApiErro
     case 503:
       return new ApiError(
         detail ||
-          (context === "download" || context === "youtube-job"
+          (isVideoContext
             ? "YouTube is temporarily blocking our server, or the server is busy. Please try again in a few minutes."
             : "Our servers are busy right now. Please try again in a moment."),
         503,
@@ -175,12 +282,34 @@ async function toApiError(res: Response, context: ErrorContext): Promise<ApiErro
         res.status,
         { isServerBusy: true }
       );
-    default: {
-      if (detail && !looksLikeRawError(detail)) {
-        return new ApiError(detail, res.status);
-      }
-      return new ApiError("The request failed. Please try again.", res.status);
-    }
+
+    // ---- Cloudflare-generated. The origin never sent these. ----
+    // Without these cases they land in `default` and render as "The
+    // request failed" — the least useful message we have, on the failure
+    // mode most likely to hit long videos.
+    case 524:
+      // The edge gave up waiting. The VPS is very likely STILL working on
+      // this job right now, holding a download slot until its own
+      // wall-clock timeout reaps it.
+      return new ApiError(
+        "This one took too long to process. Shorter tracks are more reliable — try a single song rather than a full set.",
+        524,
+        { isTimeout: true, isServerBusy: true }
+      );
+    case 520:
+    case 521:
+    case 522:
+    case 523:
+    case 525:
+    case 526:
+      return new ApiError(
+        "We couldn't reach the processing server. Please try again in a moment.",
+        res.status,
+        { isServerBusy: true }
+      );
+
+    default:
+      return new ApiError(detail || "The request failed. Please try again.", res.status);
   }
 }
 
@@ -202,6 +331,12 @@ export async function getFeatureFlags(): Promise<FeatureFlags> {
   try {
     const res = await fetch(`${RAILWAY_API_BASE}/`, {
       next: { revalidate: 60 },
+      // The only call in this file that doesn't go through
+      // fetchWithTimeout, because it needs Next's data cache. Without a
+      // deadline, a VPS that accepts the connection but never answers
+      // blocks the whole server render — burning Vercel function
+      // duration on a page that doesn't even use this flag.
+      signal: AbortSignal.timeout(5_000),
     });
     if (!res.ok) return { separationHqEnabled: false };
     const data = await res.json();
@@ -217,7 +352,8 @@ export async function getFeatureFlags(): Promise<FeatureFlags> {
 
 export async function downloadYouTubeAudio(
   url: string,
-  format: OutputFormat
+  format: OutputFormat,
+  opts: RequestOptions = {}
 ): Promise<DownloadResponse> {
   const body = new URLSearchParams();
   body.set("url", url);
@@ -229,12 +365,13 @@ export async function downloadYouTubeAudio(
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body,
+      signal: opts.signal,
     },
-    120_000
+    LONG_SYNC_TIMEOUT_MS
   );
 
   if (!res.ok) throw await toApiError(res, "download");
-  return (await res.json()) as DownloadResponse;
+  return readJson<DownloadResponse>(res);
 }
 
 export function extractBase64Audio(payload: DownloadResponse): string | null {
@@ -243,16 +380,19 @@ export function extractBase64Audio(payload: DownloadResponse): string | null {
 
 // ============ KEY/BPM ANALYSIS (synchronous) ============
 
-export async function analyzeAudioFile(file: File): Promise<AnalyzeResponse> {
+export async function analyzeAudioFile(
+  file: File,
+  opts: RequestOptions = {}
+): Promise<AnalyzeResponse> {
   const fd = new FormData();
   fd.append("file", file);
   const res = await fetchWithTimeout(
     `${RAILWAY_API_BASE}/analyze`,
-    { method: "POST", body: fd },
+    { method: "POST", body: fd, signal: opts.signal },
     90_000
   );
   if (!res.ok) throw await toApiError(res, "analyze");
-  return (await res.json()) as AnalyzeResponse;
+  return readJson<AnalyzeResponse>(res);
 }
 
 // ============ VOCAL REMOVER (SEPARATION) ============
@@ -265,7 +405,8 @@ export type SeparationQuality = "standard" | "hq";
 
 export async function submitSeparation(
   file: File,
-  quality: SeparationQuality = "standard"
+  quality: SeparationQuality = "standard",
+  opts: RequestOptions = {}
 ): Promise<SeparateResponse> {
   const fd = new FormData();
   fd.append("file", file);
@@ -273,23 +414,26 @@ export async function submitSeparation(
   const endpoint = quality === "hq" ? "separate-hq" : "separate";
   const res = await fetchWithTimeout(
     `${RAILWAY_API_BASE}/${endpoint}`,
-    { method: "POST", body: fd },
+    { method: "POST", body: fd, signal: opts.signal },
     30_000
   );
 
   if (!res.ok) throw await toApiError(res, "separate");
-  return (await res.json()) as SeparateResponse;
+  return readJson<SeparateResponse>(res);
 }
 
-export async function getSeparationStatus(jobId: string): Promise<SeparateStatusResponse> {
+export async function getSeparationStatus(
+  jobId: string,
+  opts: RequestOptions = {}
+): Promise<SeparateStatusResponse> {
   const res = await fetchWithTimeout(
     `${RAILWAY_API_BASE}/separate/status/${jobId}`,
-    { method: "GET" },
+    { method: "GET", signal: opts.signal },
     15_000
   );
 
   if (!res.ok) throw await toApiError(res, "separate");
-  return (await res.json()) as SeparateStatusResponse;
+  return readJson<SeparateStatusResponse>(res);
 }
 
 // `endpoint` defaults to "separate" so every EXISTING call site
@@ -356,25 +500,30 @@ export interface JobStatusResult {
 export async function submitJob(
   endpoint: string,
   formData: FormData,
-  timeoutMs = 30_000
+  timeoutMs = 30_000,
+  opts: RequestOptions = {}
 ): Promise<JobSubmitResponse> {
   const res = await fetchWithTimeout(
     `${RAILWAY_API_BASE}/${endpoint}`,
-    { method: "POST", body: formData },
+    { method: "POST", body: formData, signal: opts.signal },
     timeoutMs
   );
   if (!res.ok) throw await toApiError(res, "job");
-  return (await res.json()) as JobSubmitResponse;
+  return readJson<JobSubmitResponse>(res);
 }
 
-export async function getJobStatus(endpoint: string, jobId: string): Promise<JobStatusResult> {
+export async function getJobStatus(
+  endpoint: string,
+  jobId: string,
+  opts: RequestOptions = {}
+): Promise<JobStatusResult> {
   const res = await fetchWithTimeout(
     `${RAILWAY_API_BASE}/${endpoint}/status/${jobId}`,
-    { method: "GET" },
+    { method: "GET", signal: opts.signal },
     15_000
   );
   if (!res.ok) throw await toApiError(res, "job");
-  return (await res.json()) as JobStatusResult;
+  return readJson<JobStatusResult>(res);
 }
 
 export function getJobPreviewUrl(endpoint: string, jobId: string): string {
@@ -410,20 +559,29 @@ export interface MultiOutputStatusResult {
 
 export async function getMultiOutputStatus(
   endpoint: string,
-  jobId: string
+  jobId: string,
+  opts: RequestOptions = {}
 ): Promise<MultiOutputStatusResult> {
   const res = await fetchWithTimeout(
     `${RAILWAY_API_BASE}/${endpoint}/status/${jobId}`,
-    { method: "GET" },
+    { method: "GET", signal: opts.signal },
     15_000
   );
   if (!res.ok) throw await toApiError(res, "job");
-  const data = await res.json();
+
+  const data = await readJson<{
+    job_id: string;
+    status: JobStatus;
+    title?: string | null;
+    error?: string | null;
+    stems?: unknown;
+    segments?: unknown;
+  }>(res);
 
   const outputs: string[] = Array.isArray(data?.stems)
-    ? data.stems
+    ? (data.stems as string[])
     : Array.isArray(data?.segments)
-    ? data.segments
+    ? (data.segments as string[])
     : [];
 
   return {
@@ -461,16 +619,20 @@ export function getMultiOutputDownloadUrl(
 
 export async function submitStems(
   file: File,
-  quality: SeparationQuality = "standard"
+  quality: SeparationQuality = "standard",
+  opts: RequestOptions = {}
 ): Promise<JobSubmitResponse> {
   const fd = new FormData();
   fd.append("file", file);
   const endpoint = quality === "hq" ? "stems-hq" : "stems";
-  return submitJob(endpoint, fd, 30_000);
+  return submitJob(endpoint, fd, 30_000, opts);
 }
 
-export function getStemsStatus(jobId: string): Promise<MultiOutputStatusResult> {
-  return getMultiOutputStatus("stems", jobId);
+export function getStemsStatus(
+  jobId: string,
+  opts: RequestOptions = {}
+): Promise<MultiOutputStatusResult> {
+  return getMultiOutputStatus("stems", jobId, opts);
 }
 
 export function getStemsPreviewUrl(jobId: string, stemName: string): string {
@@ -486,8 +648,11 @@ export function getStemsDownloadUrl(jobId: string, stemName: string): string {
 // min_duration_seconds itself), but status/preview/download get named
 // wrappers since "segment" as a query param is easy to typo inline.
 
-export function getSilenceSplitStatus(jobId: string): Promise<MultiOutputStatusResult> {
-  return getMultiOutputStatus("silence-split", jobId);
+export function getSilenceSplitStatus(
+  jobId: string,
+  opts: RequestOptions = {}
+): Promise<MultiOutputStatusResult> {
+  return getMultiOutputStatus("silence-split", jobId, opts);
 }
 
 export function getSilenceSplitPreviewUrl(jobId: string, segmentName: string): string {
@@ -508,7 +673,8 @@ export function getSilenceSplitDownloadUrl(jobId: string, segmentName: string): 
 export async function submitUrlJob(
   endpoint: string,
   url: string,
-  timeoutMs = 30_000
+  timeoutMs = 30_000,
+  opts: RequestOptions = {}
 ): Promise<JobSubmitResponse> {
   const body = new URLSearchParams();
   body.set("url", url);
@@ -519,33 +685,43 @@ export async function submitUrlJob(
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body,
+      signal: opts.signal,
     },
     timeoutMs
   );
   if (!res.ok) throw await toApiError(res, "youtube-job");
-  return (await res.json()) as JobSubmitResponse;
+  return readJson<JobSubmitResponse>(res);
 }
 
 // ---- /youtube/analyze ----
 // Result shape is identical to the synchronous /analyze route
 // (AnalyzeResponse) — same result-card component can render either.
 
-export function submitYoutubeAnalyze(url: string): Promise<JobSubmitResponse> {
-  return submitUrlJob("youtube/analyze", url);
+export function submitYoutubeAnalyze(
+  url: string,
+  opts: RequestOptions = {}
+): Promise<JobSubmitResponse> {
+  return submitUrlJob("youtube/analyze", url, 30_000, opts);
 }
 
-export function getYoutubeAnalyzeStatus(jobId: string): Promise<JobStatusResult> {
-  return getJobStatus("youtube/analyze", jobId);
+export function getYoutubeAnalyzeStatus(
+  jobId: string,
+  opts: RequestOptions = {}
+): Promise<JobStatusResult> {
+  return getJobStatus("youtube/analyze", jobId, opts);
 }
 
-export async function getYoutubeAnalyzeResult(jobId: string): Promise<AnalyzeResponse> {
+export async function getYoutubeAnalyzeResult(
+  jobId: string,
+  opts: RequestOptions = {}
+): Promise<AnalyzeResponse> {
   const res = await fetchWithTimeout(
     `${RAILWAY_API_BASE}/youtube/analyze/result/${jobId}`,
-    { method: "GET" },
+    { method: "GET", signal: opts.signal },
     15_000
   );
   if (!res.ok) throw await toApiError(res, "youtube-job");
-  return (await res.json()) as AnalyzeResponse;
+  return readJson<AnalyzeResponse>(res);
 }
 
 // ---- /youtube/separate ----
@@ -555,13 +731,22 @@ export async function getYoutubeAnalyzeResult(jobId: string): Promise<AnalyzeRes
 
 export function submitYoutubeSeparate(
   url: string,
-  quality: SeparationQuality = "standard"
+  quality: SeparationQuality = "standard",
+  opts: RequestOptions = {}
 ): Promise<JobSubmitResponse> {
-  return submitUrlJob(quality === "hq" ? "youtube/separate-hq" : "youtube/separate", url);
+  return submitUrlJob(
+    quality === "hq" ? "youtube/separate-hq" : "youtube/separate",
+    url,
+    30_000,
+    opts
+  );
 }
 
-export function getYoutubeSeparateStatus(jobId: string): Promise<JobStatusResult> {
-  return getJobStatus("youtube/separate", jobId);
+export function getYoutubeSeparateStatus(
+  jobId: string,
+  opts: RequestOptions = {}
+): Promise<JobStatusResult> {
+  return getJobStatus("youtube/separate", jobId, opts);
 }
 
 export function getYoutubeSeparatePreviewUrl(jobId: string, stem: StemType): string {
@@ -578,12 +763,22 @@ export function getYoutubeSeparateDownloadUrl(jobId: string, stem: StemType): st
 
 export function submitYoutubeStems(
   url: string,
-  quality: SeparationQuality = "standard"
+  quality: SeparationQuality = "standard",
+  opts: RequestOptions = {}
 ): Promise<JobSubmitResponse> {
-  return submitUrlJob(quality === "hq" ? "youtube/stems-hq" : "youtube/stems", url);
+  return submitUrlJob(
+    quality === "hq" ? "youtube/stems-hq" : "youtube/stems",
+    url,
+    30_000,
+    opts
+  );
 }
-export function getYoutubeStemsStatus(jobId: string): Promise<MultiOutputStatusResult> {
-  return getMultiOutputStatus("youtube/stems", jobId);
+
+export function getYoutubeStemsStatus(
+  jobId: string,
+  opts: RequestOptions = {}
+): Promise<MultiOutputStatusResult> {
+  return getMultiOutputStatus("youtube/stems", jobId, opts);
 }
 
 export function getYoutubeStemsPreviewUrl(jobId: string, stemName: string): string {
@@ -612,14 +807,17 @@ export interface TranscriptResult {
   segments: TranscriptSegment[];
 }
 
-export async function getTranscriptResult(jobId: string): Promise<TranscriptResult> {
+export async function getTranscriptResult(
+  jobId: string,
+  opts: RequestOptions = {}
+): Promise<TranscriptResult> {
   const res = await fetchWithTimeout(
     `${RAILWAY_API_BASE}/speech-to-text/result/${jobId}`,
-    { method: "GET" },
+    { method: "GET", signal: opts.signal },
     15_000
   );
   if (!res.ok) throw await toApiError(res, "job");
-  return (await res.json()) as TranscriptResult;
+  return readJson<TranscriptResult>(res);
 }
 
 // ---- /audio-to-midi ----
@@ -638,7 +836,8 @@ export interface AudioToMidiParams {
 
 export function submitAudioToMidi(
   file: File,
-  params: AudioToMidiParams = {}
+  params: AudioToMidiParams = {},
+  opts: RequestOptions = {}
 ): Promise<JobSubmitResponse> {
   const fd = new FormData();
   fd.append("file", file);
@@ -647,17 +846,19 @@ export function submitAudioToMidi(
   if (params.minimumNoteLength !== undefined) fd.append("minimum_note_length", String(params.minimumNoteLength));
   if (params.minimumFrequency !== undefined) fd.append("minimum_frequency", String(params.minimumFrequency));
   if (params.maximumFrequency !== undefined) fd.append("maximum_frequency", String(params.maximumFrequency));
-  return submitJob("audio-to-midi", fd, 60_000);
+  return submitJob("audio-to-midi", fd, 60_000, opts);
 }
 
-export function getAudioToMidiStatus(jobId: string): Promise<JobStatusResult> {
-  return getJobStatus("audio-to-midi", jobId);
+export function getAudioToMidiStatus(
+  jobId: string,
+  opts: RequestOptions = {}
+): Promise<JobStatusResult> {
+  return getJobStatus("audio-to-midi", jobId, opts);
 }
 
 export function getAudioToMidiDownloadUrl(jobId: string): string {
   return getJobDownloadUrl("audio-to-midi", jobId);
 }
-
 
 // ============ TIKTOK TO MP3 (synchronous) ============
 // Unlike every other endpoint here, this one returns a structured error
@@ -681,6 +882,13 @@ export interface TikTokToMp3Response {
 }
 
 async function toTikTokError(res: Response): Promise<ApiError> {
+  // Cloudflare's own 5xx bodies are HTML, never the structured detail
+  // object this route otherwise returns — so hand them to the shared
+  // mapper, which has real copy for each of them.
+  if (res.status >= 520 && res.status <= 526) {
+    return toApiError(res, "download");
+  }
+
   let detail: unknown = null;
   try {
     detail = (await res.json())?.detail;
@@ -718,23 +926,32 @@ async function toTikTokError(res: Response): Promise<ApiError> {
   );
 }
 
-export async function convertTikTokToMp3(url: string): Promise<TikTokToMp3Response> {
+export async function convertTikTokToMp3(
+  url: string,
+  opts: RequestOptions = {}
+): Promise<TikTokToMp3Response> {
   const body = new URLSearchParams();
   body.set("url", url.trim());
 
   // No explicit Content-Type: the browser sets the correct header for a
   // URLSearchParams body, and the endpoint rejects application/json.
   //
-  // 190s, not the 120s default: the backend's own wall-clock timeout is
-  // 180s. A shorter client timeout would abort a request the server is
-  // still working on, and the user would see "took too long" for a job
-  // that was about to succeed.
+  // This used to be 190s, reasoning from the backend's own 180s
+  // wall-clock timeout. But the request never survives that long: the
+  // Cloudflare proxy in front of the origin cuts it at 100s with a 524,
+  // so the 190s deadline was unreachable and every slow conversion
+  // produced an unmapped edge error instead of our timeout copy.
+  //
+  // Sitting just under the ceiling means WE time out first, with a
+  // message we wrote. Jobs that genuinely need more than ~95s can't be
+  // served synchronously at all and belong on the job-queue pattern that
+  // every other tool already uses.
   const res = await fetchWithTimeout(
     `${RAILWAY_API_BASE}/tiktok-to-mp3`,
-    { method: "POST", body },
-    190_000
+    { method: "POST", body, signal: opts.signal },
+    LONG_SYNC_TIMEOUT_MS
   );
 
   if (!res.ok) throw await toTikTokError(res);
-  return (await res.json()) as TikTokToMp3Response;
+  return readJson<TikTokToMp3Response>(res);
 }
