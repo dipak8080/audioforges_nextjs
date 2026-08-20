@@ -86,10 +86,6 @@ function safeFilename(raw: string, fallback = "youtube-audio"): string {
   return cleaned || fallback;
 }
 
-/** Above this, skip the waveform decode. See the AudioPlayer call site
- *  in the complete state for the reasoning. Roughly a two-minute WAV. */
-const WAVEFORM_DECODE_LIMIT_BYTES = 25 * 1024 * 1024;
-
 /** Pipeline stages, keyed to elapsed seconds. Labels describe what the
  *  backend is actually doing — no invented milestones. */
 const STAGES: { at: number; label: (f: OutputFormat) => string }[] = [
@@ -692,15 +688,6 @@ export function YouTubeConverterForm() {
                   <AudioPlayer
                     src={previewUrl}
                     onDuration={setPreviewDuration}
-                    /* Of the eight places this player is mounted, only
-                       this one holds a lossless local blob: a 4-minute
-                       WAV is ~47MB, and decoding it for the drawing
-                       expands it to ~90MB of Float32 held alongside the
-                       blob itself. Fine on a laptop, a plausible tab
-                       crash on a mid-range phone. Past the threshold the
-                       player keeps every control and just falls back to
-                       the plain amber rail. */
-                    showWaveform={result.size <= WAVEFORM_DECODE_LIMIT_BYTES}
                     className="border-0 bg-transparent p-0"
                   />
                 </div>

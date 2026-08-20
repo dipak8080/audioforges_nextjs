@@ -135,7 +135,7 @@ async function readJson<T>(res: Response): Promise<T> {
   }
 }
 
-async function fetchWithTimeout(
+export async function fetchWithTimeout(
   input: RequestInfo,
   init: RequestInit = {},
   timeoutMs = 120_000
@@ -187,7 +187,7 @@ async function fetchWithTimeout(
 // numeric form was handled before, so a date-form header silently became
 // undefined and the UI fell back to its own guess — which could be 10
 // seconds against a header that meant 10 minutes.
-function readRetryAfter(res: Response): number | undefined {
+export function readRetryAfter(res: Response): number | undefined {
   const raw = res.headers.get("retry-after");
   if (!raw) return undefined;
 
