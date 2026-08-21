@@ -128,6 +128,33 @@ const WAV_SIZE_TABLE = [
   { source: "44.1 kHz mono", perMinute: "5.3 MB", tenMinutes: "53 MB" },
 ];
 
+// Slugs verified against lib/data/tools.ts. The previous version of this
+// list shipped /key-bpm-finder and /stem-separation, neither of which
+// exists — the registry uses "key-finder" and "stems". Two 404s sat in the
+// one section on this page that competitors structurally can't copy.
+const AFTER_EXTRACTION = [
+  {
+    href: "/key-finder",
+    label: "Key & BPM detection",
+    body: "for a live set recording or a reference track pulled from a video.",
+  },
+  {
+    href: "/stems",
+    label: "Stem separation",
+    body: "split the extracted audio into vocals, drums, bass, and other.",
+  },
+  {
+    href: "/audio-to-text",
+    label: "Audio to Text",
+    body: "transcribe an interview or lecture, with timestamps and SRT export.",
+  },
+  {
+    href: "/audio-to-midi",
+    label: "Audio to MIDI",
+    body: "convert a melody or riff from the video into notes you can edit.",
+  },
+];
+
 const faqs = [
   // Exact-match commercial questions first. These mirror the long-tail
   // variants in the ahrefs pull ("convert mp4 to wav", "how to convert mp4
@@ -215,20 +242,26 @@ const faqs = [
       "No — the uploaded video is deleted from the server as soon as the conversion finishes. There are no accounts, so nothing is linked to you, published, or shared.",
   },
   {
-    question: "Can I transcribe the extracted audio afterward?",
+    // Rewritten. This used to send people to extract audio first and then
+    // upload it somewhere else — a two-step that's no longer necessary, and
+    // bad advice on a page whose whole subject is video files.
+    question: "Can I get a transcript from my video without converting it first?",
     answer:
-      "Yes — once you have the audio file, upload it to Speech to Text for a transcript with timestamps.",
+      "Yes — Video to Text takes MP4, MOV, MKV and WEBM directly and returns a transcript with timestamps, plus SRT or VTT subtitle export. Use this converter when you want the audio file itself; use that one when text is all you're after.",
     answerNode: (
       <>
-        Yes — once you have the audio file, upload it to{" "}
+        Yes —{" "}
         <Link
-          href="/speech-to-text"
+          href="/video-to-text"
           prefetch={false}
           className="text-amber-400 hover:underline"
         >
-          Speech to Text
+          Video to Text
         </Link>{" "}
-        for a transcript with timestamps.
+        takes MP4, MOV, MKV and WEBM directly and returns a transcript with
+        timestamps, plus SRT or VTT subtitle export. Use this converter when you
+        want the audio file itself; use that one when text is all you&apos;re
+        after.
       </>
     ),
   },
@@ -305,66 +338,64 @@ export default function VideoToAudioPage() {
             substantive block of unique content, rather than sharing one
             generic paragraph. This is what lets Google treat both queries
             as independently well-served by the page. */}
-        <section className="space-y-8">
-          <div className="space-y-3">
-            <h2 className="text-2xl font-bold text-text-primary">
-              Convert MP4 to WAV
-            </h2>
-            <p className="text-text-muted leading-relaxed">
-              MP4 is the most common video container, and its audio track is
-              usually AAC. Converting MP4 to WAV produces an uncompressed file
-              that&apos;s suited to editing in a DAW, importing into a
-              video-editing timeline, or any workflow where you need audio that
-              isn&apos;t re-compressed on every save. Upload your MP4 above,
-              choose WAV as the output, and download the extracted track — this
-              MP4 to WAV converter has no encoder settings to configure.
-            </p>
-            <p className="text-text-muted leading-relaxed">
-              Keep in mind that WAV output decodes the original AAC audio and
-              writes it out uncompressed. The file will be larger, but it
-              won&apos;t sound better than the source — see{" "}
-              <a href="#wav-quality" className="text-amber-400 hover:underline">
-                why lossless output doesn&apos;t restore lost detail
-              </a>
-              .
-            </p>
-          </div>
+        <section className="space-y-3">
+          <h2 className="text-2xl font-bold text-text-primary">
+            Convert MP4 to WAV
+          </h2>
+          <p className="text-text-muted leading-relaxed">
+            MP4 is the most common video container, and its audio track is
+            usually AAC. Converting MP4 to WAV produces an uncompressed file
+            that&apos;s suited to editing in a DAW, importing into a
+            video-editing timeline, or any workflow where you need audio that
+            isn&apos;t re-compressed on every save. Upload your MP4 above,
+            choose WAV as the output, and download the extracted track — this
+            MP4 to WAV converter has no encoder settings to configure.
+          </p>
+          <p className="text-text-muted leading-relaxed">
+            Keep in mind that WAV output decodes the original AAC audio and
+            writes it out uncompressed. The file will be larger, but it
+            won&apos;t sound better than the source — see{" "}
+            <a href="#wav-quality" className="text-amber-400 hover:underline">
+              why lossless output doesn&apos;t restore lost detail
+            </a>
+            .
+          </p>
+        </section>
 
-          <div className="space-y-3">
-            <h2 className="text-2xl font-bold text-text-primary">
-              Convert MOV to MP3
-            </h2>
-            <p className="text-text-muted leading-relaxed">
-              MOV is Apple&apos;s QuickTime container — the format behind iPhone
-              videos, Mac screen recordings, and Final Cut Pro exports.
-              Converting MOV to MP3 strips the video track and compresses the
-              audio into a small, universally compatible file. That&apos;s
-              useful for pulling a voice memo, interview, or narration out of a
-              clip without carrying the full video file size around.
-            </p>
-            <p className="text-text-muted leading-relaxed">
-              Upload the .mov file above and select MP3 as the output format.
-              The converter handles QuickTime&apos;s audio codecs automatically,
-              so there&apos;s nothing to configure beyond picking the format —
-              and like every tool here, the MOV to MP3 converter is free with no
-              daily upload cap.
-            </p>
-          </div>
+        <section className="space-y-3">
+          <h2 className="text-2xl font-bold text-text-primary">
+            Convert MOV to MP3
+          </h2>
+          <p className="text-text-muted leading-relaxed">
+            MOV is Apple&apos;s QuickTime container — the format behind iPhone
+            videos, Mac screen recordings, and Final Cut Pro exports.
+            Converting MOV to MP3 strips the video track and compresses the
+            audio into a small, universally compatible file. That&apos;s
+            useful for pulling a voice memo, interview, or narration out of a
+            clip without carrying the full video file size around.
+          </p>
+          <p className="text-text-muted leading-relaxed">
+            Upload the .mov file above and select MP3 as the output format.
+            The converter handles QuickTime&apos;s audio codecs automatically,
+            so there&apos;s nothing to configure beyond picking the format —
+            and like every tool here, the MOV to MP3 converter is free with no
+            daily upload cap.
+          </p>
+        </section>
 
-          <div className="space-y-3">
-            <h2 className="text-2xl font-bold text-text-primary">
-              Convert MOV to WAV
-            </h2>
-            <p className="text-text-muted leading-relaxed">
-              If you need the audio from a MOV file for editing rather than
-              listening, convert MOV to WAV instead of MP3. WAV keeps the audio
-              uncompressed after decoding, which avoids stacking a second round
-              of lossy compression on top of whatever the camera or screen
-              recorder already applied. It&apos;s the right choice when the
-              extracted audio is going into a DAW, a mix, or a transcription
-              pipeline rather than straight onto a phone.
-            </p>
-          </div>
+        <section className="space-y-3">
+          <h2 className="text-2xl font-bold text-text-primary">
+            Convert MOV to WAV
+          </h2>
+          <p className="text-text-muted leading-relaxed">
+            If you need the audio from a MOV file for editing rather than
+            listening, convert MOV to WAV instead of MP3. WAV keeps the audio
+            uncompressed after decoding, which avoids stacking a second round
+            of lossy compression on top of whatever the camera or screen
+            recorder already applied. It&apos;s the right choice when the
+            extracted audio is going into a DAW, a mix, or a transcription
+            pipeline rather than straight onto a phone.
+          </p>
         </section>
 
         {/* Output specs — the differentiator. No competitor in this SERP
@@ -537,6 +568,36 @@ export default function VideoToAudioPage() {
           </p>
         </section>
 
+        {/* Added: the one case where the honest answer is "don't use this
+            page". Someone who only wants the words gets a smaller, faster
+            result from /video-to-text, and sending them there beats having
+            them extract a 115 MB WAV they'll delete. It also passes a link
+            from a page ranking on >10,000/mo head terms to a brand-new one,
+            which is the cheapest authority transfer available. */}
+        <section className="space-y-4">
+          <h2 className="text-2xl font-bold text-text-primary">
+            If you only need the words, skip this step
+          </h2>
+          <p className="text-text-muted leading-relaxed">
+            Extracting audio purely to transcribe it is a detour.{" "}
+            <Link
+              href="/video-to-text"
+              prefetch={false}
+              className="text-amber-400 hover:underline"
+            >
+              Video to Text
+            </Link>{" "}
+            takes the MP4, MOV, MKV or WEBM directly and returns the transcript
+            — no intermediate WAV to download, and no second upload. You get
+            timestamps and SRT or VTT subtitle export from the same run.
+          </p>
+          <p className="text-text-muted leading-relaxed">
+            Use this converter instead when you want the audio file itself: to
+            edit in a DAW, to keep as an archive, or to run through cleanup
+            before doing anything else with it.
+          </p>
+        </section>
+
         <section className="space-y-4">
           <h2 className="text-2xl font-bold text-text-primary">
             What people use this converter for
@@ -546,7 +607,7 @@ export default function VideoToAudioPage() {
               Pulling the soundtrack from a screen recording, extracting an
               interview or podcast&apos;s audio from a video recording, getting
               a WAV out of a phone video for editing, and preparing audio from a
-              video file for transcription.
+              video file for further processing.
             </p>
             <p>
               Need a specific section of the extracted audio rather than the
@@ -568,7 +629,8 @@ export default function VideoToAudioPage() {
             copy. Naming it as a workflow rather than burying it in the
             undifferentiated tool grid is what turns a commodity converter
             into a reason to come back.
-            VERIFY these four slugs against lib/data/tools.ts before shipping. */}
+            Slugs now driven by AFTER_EXTRACTION above and checked against
+            lib/data/tools.ts — two of the four were previously 404s. */}
         <section className="space-y-4">
           <h2 className="text-2xl font-bold text-text-primary">
             After the WAV: what you can do with it here
@@ -579,47 +641,18 @@ export default function VideoToAudioPage() {
             without re-uploading to a different service:
           </p>
           <ul className="space-y-2 text-text-muted leading-relaxed">
-            <li>
-              <Link
-                href="/key-bpm-finder"
-                prefetch={false}
-                className="text-amber-400 hover:underline"
-              >
-                Key &amp; BPM detection
-              </Link>{" "}
-              — for a live set recording or a reference track pulled from a
-              video.
-            </li>
-            <li>
-              <Link
-                href="/stem-separation"
-                prefetch={false}
-                className="text-amber-400 hover:underline"
-              >
-                Stem separation
-              </Link>{" "}
-              — split the extracted audio into vocals, drums, bass, and other.
-            </li>
-            <li>
-              <Link
-                href="/speech-to-text"
-                prefetch={false}
-                className="text-amber-400 hover:underline"
-              >
-                Speech to Text
-              </Link>{" "}
-              — transcribe an interview or lecture, with timestamps.
-            </li>
-            <li>
-              <Link
-                href="/audio-to-midi"
-                prefetch={false}
-                className="text-amber-400 hover:underline"
-              >
-                Audio to MIDI
-              </Link>{" "}
-              — convert a melody or riff from the video into notes you can edit.
-            </li>
+            {AFTER_EXTRACTION.map((item) => (
+              <li key={item.href}>
+                <Link
+                  href={item.href}
+                  prefetch={false}
+                  className="text-amber-400 hover:underline"
+                >
+                  {item.label}
+                </Link>{" "}
+                — {item.body}
+              </li>
+            ))}
           </ul>
         </section>
 

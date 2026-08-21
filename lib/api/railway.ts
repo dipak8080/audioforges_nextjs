@@ -1,4 +1,12 @@
 // lib/api/railway.ts
+//
+// API client for every tool EXCEPT transcription. The three transcription
+// endpoints (/speech-to-text, /youtube/transcribe, /video-to-text) live in
+// lib/api/transcription.ts — they take options on submit, return a richer
+// status and result shape, and need their own error mapper, none of which
+// fits the shared job helpers below. They still reuse fetchWithTimeout and
+// readRetryAfter from here, which is why those two are exported.
+
 import type {
   DownloadResponse,
   AnalyzeResponse,
@@ -135,6 +143,12 @@ async function readJson<T>(res: Response): Promise<T> {
   }
 }
 
+/**
+ * Exported for lib/api/transcription.ts. Everything about aborts,
+ * timeouts and the Cloudflare ceiling is subtle enough that a second
+ * copy would drift within a month — transcription imports this rather
+ * than reimplementing it.
+ */
 export async function fetchWithTimeout(
   input: RequestInfo,
   init: RequestInit = {},
@@ -187,6 +201,8 @@ export async function fetchWithTimeout(
 // numeric form was handled before, so a date-form header silently became
 // undefined and the UI fell back to its own guess — which could be 10
 // seconds against a header that meant 10 minutes.
+//
+// Exported alongside fetchWithTimeout for lib/api/transcription.ts.
 export function readRetryAfter(res: Response): number | undefined {
   const raw = res.headers.get("retry-after");
   if (!raw) return undefined;
@@ -482,6 +498,10 @@ export function base64ToBlob(base64: string, mimeType: string): Blob {
 // appends multiple "files" entries to one FormData and calls
 // submitJob("join", formData) — no special multi-file function needed,
 // since submitJob never inspects what's inside the FormData it's given.
+//
+// The transcription endpoints deliberately do NOT use these: they take
+// options on submit and return extra fields on status and result. See
+// lib/api/transcription.ts.
 
 export type JobStatus = "processing" | "complete" | "failed";
 
@@ -669,6 +689,9 @@ export function getSilenceSplitDownloadUrl(jobId: string, segmentName: string): 
 // flows like every tool above, but submitted with a URL (as
 // x-www-form-urlencoded, matching FastAPI's Form(...) parameter) instead
 // of a file upload.
+//
+// /youtube/transcribe is NOT one of these despite the name: it takes
+// multipart/form-data, not urlencoded. It lives in transcription.ts.
 
 export async function submitUrlJob(
   endpoint: string,
@@ -789,38 +812,7 @@ export function getYoutubeStemsDownloadUrl(jobId: string, stemName: string): str
   return getMultiOutputDownloadUrl("youtube/stems", jobId, stemName, "stem");
 }
 
-// ============ SPEECH TO TEXT ============
-// Uses the same submitJob/getJobStatus as every other tool (identical job shape),
-// but has no /preview or /download route — output is a transcript, not audio.
-// Only this one extra function is needed for its unique /result endpoint.
-
-export interface TranscriptSegment {
-  start: number;
-  end: number;
-  text: string;
-}
-
-export interface TranscriptResult {
-  text: string;
-  language: string;
-  language_probability: number;
-  segments: TranscriptSegment[];
-}
-
-export async function getTranscriptResult(
-  jobId: string,
-  opts: RequestOptions = {}
-): Promise<TranscriptResult> {
-  const res = await fetchWithTimeout(
-    `${RAILWAY_API_BASE}/speech-to-text/result/${jobId}`,
-    { method: "GET", signal: opts.signal },
-    15_000
-  );
-  if (!res.ok) throw await toApiError(res, "job");
-  return readJson<TranscriptResult>(res);
-}
-
-// ---- /audio-to-midi ----
+// ============ AUDIO TO MIDI ============
 // Single-output job, same submit -> poll -> download shape as every
 // /convert-style tool, but with tool-specific tunable params instead of
 // just a file. No preview wrapper — MIDI isn't browser-playable audio,

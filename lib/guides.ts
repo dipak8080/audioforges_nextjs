@@ -145,11 +145,11 @@ export const guides: Guide[] = [
   },
   {
     slug: "transcribing-audio-accurately",
-    title: "How to Get Accurate Audio Transcripts",
+    title: "How to Improve Transcription Accuracy",
     description:
-      "What actually affects transcription accuracy: audio quality, overlapping speech, background noise, and how to prep a file before transcribing it.",
-    publishedDate: "2026-07-24",
-    updatedDate: "2026-07-24",
+      "Why transcripts come back wrong, and what to fix first. Audio cleanup, language selection, SRT vs VTT, and handling recordings over 20 minutes.",
+    publishedDate: "2026-08-20",
+    updatedDate: "2026-08-20",
     category: "podcast-cleanup",
   },
   {
@@ -296,16 +296,16 @@ export const guides: Guide[] = [
     updatedDate: "2026-08-13",
     category: "production",
   },
-    {
+  {
     slug: "tiktok-audio-quality-explained",
     title: "TikTok Audio Quality: Why 320 kbps Is a Myth",
-       description:
+    description:
       "TikTok's source audio measures around 64 kbps AAC. Here's why converting it to a 320 kbps MP3 can't add quality back — and what actually does matter.",
     publishedDate: "2026-08-18",
     updatedDate: "2026-08-18",
     category: "production",
   },
-    {
+  {
     slug: "tiktok-sound-to-ringtone",
     title: "How to Make a Ringtone from a TikTok Sound",
     description:
@@ -314,7 +314,7 @@ export const guides: Guide[] = [
     updatedDate: "2026-08-18",
     category: "production",
   },
-]; 
+];
 
 export function getGuideBySlug(slug: string): Guide | undefined {
   return guides.find((g) => g.slug === slug);

@@ -5,13 +5,29 @@ import { FAQSection } from "@/components/faq/FAQSection";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
 
-const PAGE_TITLE = "Free Silence Splitter Online — Split Audio by Silence";
+// 46 chars, so ~60 with the " | AudioForges" suffix — right at the SERP
+// budget. If it truncates, it drops "by Silence" and still reads as
+// "Free Silence Splitter — Split Audio", which is intact enough. The
+// previous title lost its differentiator entirely when cut.
+const PAGE_TITLE = "Free Silence Splitter — Split Audio by Silence";
 const PAGE_DESCRIPTION =
-  "Automatically split one long recording into separate audio tracks at silent gaps. Adjustable threshold and gap length. Free, no sign-up.";
+  "Split one long recording into separate tracks at silent gaps. Adjustable threshold and gap length, up to 50 tracks. Free, no sign-up, no watermark.";
 
 export const metadata: Metadata = {
   title: PAGE_TITLE,
   description: PAGE_DESCRIPTION,
+  keywords: [
+    "silence splitter online",
+    "split audio by silence",
+    "split audio into multiple files",
+    "split dj mix into tracks",
+    "split vinyl rip into songs",
+    "audacity split by silence alternative",
+    "auto split audio",
+    "cue sheet alternative",
+    "split mp3 by silence",
+    "separate tracks from one recording",
+  ],
   alternates: { canonical: `${SITE_URL}/silence-split` },
   openGraph: {
     title: PAGE_TITLE,
@@ -66,10 +82,14 @@ const breadcrumbJsonLd = {
     { "@type": "ListItem", position: 2, name: "Silence Splitter", item: `${SITE_URL}/silence-split` },
   ],
 };
-// NOTE: No HowTo schema (deprecated by Google, desktop since Sept 2023 — no
-// benefit remains). No separate FAQ schema added here either — check
-// whether <FAQSection> already emits its own structured data before adding
-// a second FAQPage block, to avoid duplicate schema on the page.
+// No HowTo schema — Google retired HowTo rich results for web search.
+//
+// FAQ note: <FAQSection> emits its own FAQPage block, so none is added by
+// hand here. Worth knowing that FAQPage no longer produces rich results
+// for a site like this one — Google restricted them to government and
+// health domains in 2023. The FAQ below earns its place by answering
+// things the body doesn't, not by chasing a snippet, which is why it's
+// eight questions rather than fifteen.
 
 const SUPPORTED_FORMATS = ["MP3", "WAV", "FLAC", "M4A", "AAC", "OGG", "AIFF"];
 
@@ -90,22 +110,12 @@ function FormatBadges() {
   );
 }
 
+// Cut from fifteen. Three of the originals ("too many splits", "missing
+// gaps", "no silence detected") were the Troubleshooting section rewritten
+// as questions, and four more restated the threshold/gap explanation
+// already given twice in the body. What's left answers things the page
+// doesn't cover elsewhere.
 const faqs = [
-  {
-    question: "What is a silence splitter?",
-    answer:
-      "A silence splitter scans a recording for quiet gaps and uses qualifying gaps as cut points, turning one long file into several separate track files without deleting or altering any audio.",
-  },
-  {
-    question: "How does splitting audio by silence actually work?",
-    answer:
-      "The tool measures loudness across the whole file. Any stretch that stays below your silence threshold for at least your minimum gap length becomes a split point. Everything between two split points — or between a split point and the start or end of the file — becomes its own output track.",
-  },
-  {
-    question: "Can I split an MP3, WAV, or other format by silence?",
-    answer:
-      "Yes — MP3, WAV, FLAC, M4A, AAC, OGG, and AIFF are all supported as input, up to 80MB per upload.",
-  },
   {
     question: "Can I split a DJ mix into individual tracks?",
     answer:
@@ -114,37 +124,12 @@ const faqs = [
   {
     question: "Can I split a vinyl rip into separate songs?",
     answer:
-      "Yes, when there are quiet gaps between tracks on the recording — common on vinyl rips digitized with the natural pauses between songs intact.",
+      "Yes, when there are quiet gaps between tracks on the recording — common on vinyl rips digitized with the natural pauses between songs intact. Surface noise can keep a gap from registering as silent; lowering the threshold usually fixes it.",
   },
   {
     question: "Can I split a podcast or interview by silence?",
     answer:
-      "Yes, if there are long enough pauses at the points you want as boundaries. Ordinary pauses between sentences are usually much shorter than a real segment break, so a longer minimum gap length keeps normal speech from being split up unintentionally.",
-  },
-  {
-    question: "What is the silence threshold?",
-    answer:
-      "It's the loudness level, in decibels, below which audio counts as \"quiet enough\" to potentially be silence. A more negative number (like -50dB) requires the audio to be quieter before it qualifies; a less negative number (like -20dB) is more lenient. The default is -30dB.",
-  },
-  {
-    question: "What does minimum gap length control?",
-    answer:
-      "How long a quiet stretch has to last before it's treated as a real split point rather than a brief pause. The default is 0.5 seconds — a short breath or pause won't trigger a split, but a longer quiet stretch will.",
-  },
-  {
-    question: "What should I do if it creates too many splits?",
-    answer:
-      "Try increasing the minimum gap length so only longer silences count, and check whether background noise in the recording is preventing genuinely quiet moments from being detected as silence.",
-  },
-  {
-    question: "What should I do if it misses gaps I expected?",
-    answer:
-      "Try lowering the threshold (toward something like -50dB) so quieter transitions are caught, or shortening the minimum gap length if the pauses in your recording are brief.",
-  },
-  {
-    question: "What happens if no silence is detected at all?",
-    answer:
-      "If nothing in the file meets your threshold and minimum-gap settings, there's nothing to split. This is common with continuously crossfaded music or recordings with constant background noise — try adjusting the settings, or use a different tool if the source genuinely has no quiet points.",
+      "Yes, if the boundaries you want have longer pauses than ordinary conversational speech. Normal sentence-to-sentence gaps are usually well under half a second, so a longer minimum gap length keeps normal speech from being split up unintentionally.",
   },
   {
     question: "How many tracks can one upload produce?",
@@ -154,16 +139,22 @@ const faqs = [
   {
     question: "Does splitting reduce audio quality?",
     answer:
-      "Splitting itself doesn't alter the audio content — it only cuts at the points you specify. The resulting files go through the encoding process for whichever output format you choose, the same as any format conversion.",
+      "The cut itself doesn't alter the audio — it only divides it at the points detected. The resulting files are then encoded into whichever output format you choose, the same as any format conversion.",
   },
   {
     question: "Can I choose the output format?",
     answer:
-      "Yes — pick one output format and every resulting segment is saved in that format, regardless of what you uploaded.",
+      "Yes — pick one output format and every resulting segment is saved in that format, regardless of what you uploaded. MP3, WAV, FLAC, M4A, AAC, OGG and AIFF are supported, up to 80MB per upload.",
+  },
+  {
+    question: "Does it name the tracks or read chapter markers?",
+    answer:
+      "No. Detection works purely on loudness, so it has no way to know song titles, artists, or chapter positions. Segments come out numbered in order and you rename them yourself.",
   },
   {
     question: "Is this free, and do I need to sign up?",
-    answer: "Yes, completely free, with no sign-up and no watermark on any resulting file.",
+    answer:
+      "Yes, completely free — no sign-up, no email, no account, and no watermark on any resulting file.",
   },
 ];
 
@@ -222,30 +213,26 @@ export default function SilenceSplitPage() {
         </section>
 
         <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">How silence detection works</h2>
-          <p className="text-text-muted leading-relaxed">
-            The tool measures loudness continuously across the uploaded file.
-            Any stretch that stays below your chosen silence threshold — a
-            decibel level — for at least your minimum gap length is treated
-            as a genuine split point. Everything between two split points (or
-            between a split point and the start or end of the file) becomes
-            its own separate output track. A quiet moment that&apos;s brief but
-            doesn&apos;t last as long as the minimum gap length is left alone
-            and doesn&apos;t create a split — this keeps a short breath or a
-            quick transition from fragmenting the recording unnecessarily.
-          </p>
-          <p className="text-text-muted leading-relaxed">
-            Want the fuller breakdown — how DJ mixes, vinyl rips, and voice
-            recordings each behave differently, and what to do when a
-            crossfade leaves no real gap to detect?{" "}
-            <Link href="/guides/splitting-a-recording-into-separate-tracks" className="text-amber-400 hover:underline">
-              Read How to Split a Recording Into Separate Tracks by Silence
-            </Link>.
-          </p>
+          <h2 className="text-2xl font-bold text-text-primary">How to split audio by silence</h2>
+          <ol className="list-decimal list-inside space-y-2 text-text-muted leading-relaxed">
+            <li>Upload an MP3, WAV, FLAC, M4A, AAC, OGG, or AIFF file.</li>
+            <li>Choose the output format for the resulting tracks.</li>
+            <li>Set the silence threshold, or leave it at the -30dB default.</li>
+            <li>Set the minimum gap length, or leave it at the 0.5 second default.</li>
+            <li>Run the split.</li>
+            <li>Preview and download each resulting track individually.</li>
+          </ol>
         </section>
 
+        {/* The threshold explanation, the troubleshooting steps and four of
+            the old FAQs were three separate versions of this one section.
+            Consolidated: the two settings explained once, then a
+            symptom-to-fix table that answers the question people actually
+            arrive with — "mine came out wrong, what do I change?" */}
         <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">Silence threshold and minimum gap length</h2>
+          <h2 className="text-2xl font-bold text-text-primary">
+            Silence threshold and minimum gap length
+          </h2>
           <div className="space-y-3 text-text-muted leading-relaxed">
             <p>
               <strong className="text-text-primary">Silence threshold</strong>{" "}
@@ -265,29 +252,66 @@ export default function SilenceSplitPage() {
               trigger a split on its own — only a longer, genuine gap will.
             </p>
             <p>
-              These two settings work together, and there&apos;s no single
-              correct combination — it depends entirely on how the original
-              recording was made. A podcast with long pauses between segments
-              might need a longer minimum gap length than a DJ mix with
-              shorter breaks between songs; a noisy field recording might need
-              a less negative threshold than a clean studio take. The defaults
-              above are a reasonable starting point, not a universal
-              recommendation — previewing the result and adjusting from there
-              is the most reliable approach.
+              A stretch has to satisfy both conditions at once to become a cut
+              point, which is why changing one setting often has no visible
+              effect until you change the other too.
             </p>
           </div>
-        </section>
 
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">How to split audio by silence</h2>
-          <ol className="list-decimal list-inside space-y-2 text-text-muted leading-relaxed">
-            <li>Upload an MP3, WAV, FLAC, M4A, AAC, OGG, or AIFF file.</li>
-            <li>Choose the output format for the resulting tracks.</li>
-            <li>Set the silence threshold, or leave it at the -30dB default.</li>
-            <li>Set the minimum gap length, or leave it at the 0.5 second default.</li>
-            <li>Run the split.</li>
-            <li>Preview and download each resulting track individually.</li>
-          </ol>
+          <div className="overflow-x-auto rounded-xl border border-graphite-800">
+            <table className="w-full text-sm text-left text-text-muted">
+              <thead className="bg-graphite-900 text-text-primary">
+                <tr>
+                  <th className="px-4 py-3 font-semibold">What you&apos;re seeing</th>
+                  <th className="px-4 py-3 font-semibold">What to change</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-graphite-800">
+                <tr>
+                  <td className="px-4 py-3">Too many tracks, split mid-sentence</td>
+                  <td className="px-4 py-3">
+                    Lengthen the minimum gap so only real boundaries count
+                  </td>
+                </tr>
+                <tr>
+                  <td className="px-4 py-3">Gaps you expected weren&apos;t found</td>
+                  <td className="px-4 py-3">
+                    Lower the threshold toward -50dB, or shorten the minimum gap
+                  </td>
+                </tr>
+                <tr>
+                  <td className="px-4 py-3">Nothing split at all</td>
+                  <td className="px-4 py-3">
+                    Background noise is likely sitting above the threshold —
+                    raise it toward -20dB and try again
+                  </td>
+                </tr>
+                <tr>
+                  <td className="px-4 py-3">Right number of tracks, wrong boundaries</td>
+                  <td className="px-4 py-3">
+                    The gaps aren&apos;t where you think — trim manually instead
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p className="text-text-muted leading-relaxed">
+            There&apos;s no single correct combination — it depends entirely on
+            how the original recording was made. A podcast with long pauses
+            between segments needs a longer minimum gap than a DJ mix with
+            short breaks between songs; a noisy field recording needs a less
+            negative threshold than a clean studio take. Preview the result and
+            adjust from there.
+          </p>
+          <p className="text-text-muted leading-relaxed">
+            Want the fuller breakdown — how DJ mixes, vinyl rips, and voice
+            recordings each behave differently, and what to do when a
+            crossfade leaves no real gap to detect?{" "}
+            <Link href="/guides/splitting-a-recording-into-separate-tracks" className="text-amber-400 hover:underline">
+              Read How to Split a Recording Into Separate Tracks by Silence
+            </Link>.
+          </p>
         </section>
 
         <section className="space-y-4">
@@ -343,20 +367,31 @@ export default function SilenceSplitPage() {
           </div>
         </section>
 
+        {/* Audacity's Label Sounds + Export Multiple is how most people are
+            taught to do this, so "audacity split by silence" carries far
+            more volume than "silence splitter". Being straight about when
+            Audacity is the better answer is what makes the paragraph after
+            it worth believing. */}
         <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">Silence Splitter vs. manual cutting</h2>
+          <h2 className="text-2xl font-bold text-text-primary">
+            Doing this in Audacity instead
+          </h2>
           <p className="text-text-muted leading-relaxed">
-            If your recording doesn&apos;t have real silence at the points you
-            want to cut — a continuous crossfaded mix, for example — automatic
-            silence detection won&apos;t find those boundaries, because
-            there&apos;s no acoustic gap for it to detect. In that case, manually
-            marking exact start and end points with the{" "}
-            <Link href="/trim" className="text-amber-400 hover:underline">
-              Audio Trimmer
-            </Link>{" "}
-            is the more reliable option — slower than automatic detection, but
-            it works regardless of whether the source has any silence in it
-            at all.
+            Audacity can do this with Label Sounds followed by Export
+            Multiple, and it has real advantages: you see the detected
+            boundaries as labels on the waveform before committing, you can
+            drag any of them to a better position, and you can name each
+            region so the exported files come out with proper titles instead
+            of numbers. For a vinyl rip you intend to keep, that naming step
+            alone is often worth the setup.
+          </p>
+          <p className="text-text-muted leading-relaxed">
+            The trade is time. Installing Audacity, finding Label Sounds under
+            the Analyze menu, understanding its threshold settings, then
+            configuring Export Multiple is a genuine afternoon the first time.
+            This page is for the case where you have one file, you want it in
+            pieces, and learning a desktop editor to do it once isn&apos;t
+            worth it.
           </p>
         </section>
 
@@ -390,62 +425,55 @@ export default function SilenceSplitPage() {
               </tbody>
             </table>
           </div>
+        </section>
+
+        {/* "vs. manual cutting", "Limitations" and "Is this right for you?"
+            were three passes at the same point: detection is acoustic, so
+            it can't find a boundary that isn't audible. Said once, with the
+            alternatives attached. */}
+        <section className="space-y-4">
+          <h2 className="text-2xl font-bold text-text-primary">When this won&apos;t work</h2>
           <p className="text-text-muted leading-relaxed">
-            Want to tighten a recording instead of dividing it up? The{" "}
+            Silence detection identifies quiet gaps from loudness alone. It
+            doesn&apos;t recognise song titles, artists, chapter markers, or
+            musical structure — it can&apos;t tell that a moment is the end of
+            a song except by measuring that the audio genuinely went quiet
+            there. So three situations defeat it, and no amount of setting
+            adjustment fixes them:
+          </p>
+          <ul className="list-disc list-inside space-y-1.5 text-text-muted leading-relaxed">
+            <li>
+              Continuously crossfaded mixes, where one track blends into the
+              next without ever going quiet.
+            </li>
+            <li>
+              Recordings with constant background noise that never drops below
+              any usable threshold.
+            </li>
+            <li>
+              Boundaries that are structural rather than acoustic — a chapter
+              change with no pause around it.
+            </li>
+          </ul>
+          <p className="text-text-muted leading-relaxed">
+            In all three cases there&apos;s no acoustic gap to find, so marking
+            cut points by hand with the{" "}
+            <Link href="/trim" className="text-amber-400 hover:underline">
+              Audio Trimmer
+            </Link>{" "}
+            is the reliable option — slower, but it works regardless of what
+            the source sounds like. If you want those gaps deleted rather than
+            used as boundaries, the{" "}
             <Link href="/silence-remove" className="text-amber-400 hover:underline">
               Silence Remover
             </Link>{" "}
-            deletes the same kind of gaps this tool detects, rather than
-            cutting at them.
-          </p>
-        </section>
-
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">Troubleshooting</h2>
-          <div className="space-y-4 text-text-muted leading-relaxed">
-            <div>
-              <h3 className="font-semibold text-text-primary">Too many splits</h3>
-              <p>
-                Increase the minimum gap length so only longer silences
-                count, and check whether background noise in the recording is
-                keeping otherwise-quiet moments from registering as silence.
-              </p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary">Missing gaps you expected</h3>
-              <p>
-                Lower the threshold (toward something like -50dB) to catch
-                quieter transitions, or shorten the minimum gap length if the
-                pauses in your recording are brief.
-              </p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-text-primary">No silence detected at all</h3>
-              <p>
-                If nothing in the file meets your current settings,
-                there&apos;s nothing to split — this is common on continuously
-                crossfaded music or recordings with constant background
-                noise. Try adjusting threshold and minimum gap length; if the
-                source genuinely never goes quiet, silence-based splitting
-                isn&apos;t the right tool for it.
-              </p>
-            </div>
-          </div>
-        </section>
-
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">Limitations</h2>
-          <p className="text-text-muted leading-relaxed">
-            Silence detection identifies quiet gaps based on your threshold
-            and minimum gap settings — it doesn&apos;t recognize song titles,
-            artists, chapter markers, or musical structure. It can&apos;t tell
-            that a section is "the end of a song" except by measuring that the
-            audio genuinely went quiet at that point. Continuous mixes without
-            real silence, recordings with constant background noise, and
-            transitions that fade directly from one section into the next
-            without a true gap are all cases where this approach won&apos;t
-            find a clean boundary, because there isn&apos;t an acoustic one to
-            find.
+            uses the same detection to shorten one file instead of producing
+            several. And if the resulting tracks need transcribing, each one
+            works directly with{" "}
+            <Link href="/audio-to-text" className="text-amber-400 hover:underline">
+              Audio to Text
+            </Link>
+            .
           </p>
         </section>
 
@@ -455,31 +483,6 @@ export default function SilenceSplitPage() {
           <p className="text-text-muted leading-relaxed">
             Upload any of the formats above, up to 80MB per file. Choose one
             output format and every resulting track is saved in that format.
-          </p>
-        </section>
-
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">Is silence splitting right for you?</h2>
-          <p className="text-text-muted leading-relaxed">
-            Use Silence Splitter when your recording has genuine quiet gaps at
-            the points you want to divide it, and you&apos;d rather have those
-            boundaries found automatically than mark them by hand. Reach for
-            the{" "}
-            <Link href="/trim" className="text-amber-400 hover:underline">
-              Audio Trimmer
-            </Link>{" "}
-            instead if the source has no real silence to detect and you need
-            exact manual cut points, or the{" "}
-            <Link href="/silence-remove" className="text-amber-400 hover:underline">
-              Silence Remover
-            </Link>{" "}
-            if you want those same gaps deleted rather than used as
-            boundaries. Need the resulting tracks transcribed afterward? Each
-            one works directly with{" "}
-            <Link href="/speech-to-text" className="text-amber-400 hover:underline">
-              Speech to Text
-            </Link>
-            .
           </p>
         </section>
 

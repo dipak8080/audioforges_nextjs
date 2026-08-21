@@ -5,6 +5,7 @@ import { ArrowRight } from "lucide-react";
 import { SITE_URL } from "@/lib/constants";
 import { getGuideBySlug } from "@/lib/guides";
 import { GuideByline } from "@/components/guides/GuideByline";
+import { FAQSection, type FAQItem } from "@/components/faq/FAQSection";
 
 const guide = getGuideBySlug("transcribing-audio-accurately")!;
 
@@ -43,7 +44,43 @@ const articleJsonLd = {
   datePublished: guide.publishedDate,
   dateModified: guide.updatedDate,
   author: { "@type": "Organization", name: "AudioForges" },
+  // Ties the Article to this exact URL. Without it, a syndicated or
+  // scraped copy is just as valid a candidate for the schema as the
+  // original.
+  mainEntityOfPage: { "@type": "WebPage", "@id": `${SITE_URL}/guides/${guide.slug}` },
 };
+
+// FAQSection emits the FAQPage schema from this array, so the visible
+// answers and the structured data can't drift apart. These are written
+// as standalone answers — a rich result shows them without the
+// surrounding page, so each has to make sense cold.
+const faqs: FAQItem[] = [
+  {
+    question: "Why is my transcript inaccurate?",
+    answer:
+      "In most cases the audio is the limiting factor, not the model. Background noise, two people talking over each other, very quiet or clipped recording levels, and heavy accents all produce more errors. Cleaning up the recording before transcribing usually improves the result more than anything else you can change.",
+  },
+  {
+    question: "Should I pick the language or let it detect automatically?",
+    answer:
+      "Auto-detection is reliable for a clear recording in a single language. Choose the language yourself for clips under about thirty seconds, heavy accents, or audio that mixes two languages — detection works from the opening seconds, so a short or ambiguous start is where it goes wrong.",
+  },
+  {
+    question: "What's the difference between SRT and VTT?",
+    answer:
+      "Both are timed caption formats and both carry the same text. SRT numbers each caption block and uses a comma before milliseconds; VTT starts with a WEBVTT header line and uses a period. Use SRT for video editors and most upload forms, VTT for HTML5 video on the web.",
+  },
+  {
+    question: "Can I transcribe a file longer than 20 minutes?",
+    answer:
+      "Not in one pass — 20 minutes is the per-file limit. Split the recording into sections first and transcribe each one, then join the transcripts. Timestamps restart at zero for each section, so add the offset if you're building captions.",
+  },
+  {
+    question: "Can I get an English transcript from audio in another language?",
+    answer:
+      "Yes. Choosing English output translates as it transcribes, in a single pass, at no extra cost. English is the only target language available — for any other pairing you'd need to translate the finished transcript separately.",
+  },
+];
 
 export default function TranscribingAccuratelyGuidePage() {
   return (
@@ -67,12 +104,12 @@ export default function TranscribingAccuratelyGuidePage() {
 
         <div className="space-y-6 text-text-muted leading-relaxed">
           <p>
-            Speech-to-text accuracy isn&apos;t just a property of the model
-            you&apos;re using — it&apos;s heavily shaped by the audio you feed
-            it. The same transcription engine can produce a near-perfect
+            Transcription accuracy isn&apos;t only a property of the model doing
+            the work — it&apos;s heavily shaped by the audio you feed it and the
+            settings you choose. The same engine can produce a near-perfect
             transcript from a clean recording and a noticeably rougher one from
-            a noisy or poorly recorded file, without anything about the
-            underlying model changing at all.
+            a noisy file, with nothing about the model changing at all. Most of
+            what separates those two outcomes is under your control.
           </p>
 
           <section className="space-y-3">
@@ -80,79 +117,197 @@ export default function TranscribingAccuratelyGuidePage() {
               What actually degrades accuracy
             </h2>
             <p>
-              A few specific conditions reliably cause more transcription
-              errors, regardless of which engine is doing the work:
+              A few specific conditions reliably cause more errors, regardless
+              of which engine is doing the work:
             </p>
             <ul className="list-disc list-inside space-y-1 pl-2">
               <li>
                 <strong className="text-text-primary">Background noise</strong>{" "}
                 — hiss, hum, or ambient sound competing with the voice makes it
-                harder for the model to isolate speech from everything else in
-                the signal.
+                harder to isolate speech from everything else in the signal.
               </li>
               <li>
                 <strong className="text-text-primary">Overlapping speech</strong>{" "}
                 — two people talking at once is genuinely difficult for any
                 transcription system, since it has to separate simultaneous
-                voices rather than just recognize one continuous stream.
+                voices rather than recognize one continuous stream.
               </li>
               <li>
                 <strong className="text-text-primary">Low recording volume or clipping</strong>{" "}
-                — audio that&apos;s too quiet or distorted from being too loud
-                both reduce the clarity a model has to work with.
+                — audio that&apos;s too quiet, or distorted from being too loud,
+                both reduce the clarity available to work with.
               </li>
               <li>
                 <strong className="text-text-primary">Heavy accents or unclear speech</strong>{" "}
-                — models trained on typical speech patterns can struggle more
-                with mumbled, fast, or heavily accented delivery.
+                — mumbled, fast, or heavily accented delivery is harder than
+                clearly enunciated speech, though this narrows considerably with
+                larger models.
+              </li>
+              <li>
+                <strong className="text-text-primary">Music under the voice</strong>{" "}
+                — a podcast intro bed or a busy field recording competes
+                directly with the speech you want.
               </li>
             </ul>
           </section>
 
           <section className="space-y-3">
             <h2 className="text-2xl font-bold text-text-primary">
-              Why cleaning up audio first improves the transcript
+              Clean the audio before you transcribe it, not after
             </h2>
             <p>
-              Since background noise is one of the most common and most fixable
-              causes of transcription errors, running a noisy recording through
-              a cleanup step before transcribing it directly addresses the
-              biggest lever you actually control. This matters most for
-              recordings made outside a controlled environment — phone
-              recordings, field interviews, voice memos picked up in a noisy
-              room — where the source audio itself, not the transcription
-              engine, is the limiting factor on accuracy.
+              Background noise is both the most common cause of transcription
+              errors and the most fixable one, which makes it the biggest lever
+              you actually control. Running a noisy recording through a cleanup
+              step first addresses the problem at source. This matters most for
+              audio recorded outside a controlled environment — phone
+              recordings, field interviews, voice memos picked up in a busy room
+              — where the recording itself, not the transcription engine, is
+              what&apos;s limiting the result.
+            </p>
+            <p>
+              If music is the problem rather than noise, separating the vocal
+              first is more effective than any denoiser: a{" "}
+              <Link href="/vocal-remover" className="text-amber-400 hover:underline">
+                vocal removal
+              </Link>{" "}
+              pass gives you a speech-only track to transcribe.
             </p>
           </section>
 
           <section className="space-y-3">
             <h2 className="text-2xl font-bold text-text-primary">
-              Timestamps and export formats
+              Tell it the language when detection is likely to struggle
             </h2>
             <p>
-              A transcript with per-segment timestamps is useful for more than
-              just reading text back — it&apos;s what makes an SRT caption
-              export possible, since captions need to know exactly when each
-              line of text should appear and disappear on screen. If your goal
-              is captions for a video, make sure you&apos;re exporting to SRT
-              rather than plain text; if you just need searchable text to pull
-              quotes from, plain text is simpler to work with.
+              Automatic language detection works from the opening seconds of the
+              audio, which is exactly why it fails in predictable situations. A
+              thirty-second clip gives it very little to go on. A recording that
+              opens with English pleasantries before switching to another
+              language will be labelled English. Two languages alternating
+              throughout will be assigned whichever one happened to come first.
+            </p>
+            <p>
+              Choosing the language yourself removes that guesswork entirely.
+              It&apos;s worth doing whenever the clip is short, the speaker has
+              a strong accent, or the audio mixes languages — and it costs
+              nothing, since the model is the same either way. For clear,
+              single-language recordings over a minute or so, auto-detection is
+              reliable enough that setting it manually gains you little.
             </p>
           </section>
 
           <section className="space-y-3">
             <h2 className="text-2xl font-bold text-text-primary">
-              Setting realistic expectations on speed
+              Transcribing versus translating
             </h2>
             <p>
-              Transcription is meaningfully slower than most other audio
-              processing tasks, because CPU-based transcription models process
-              a file sequentially rather than in the near-instant way a format
-              conversion or a simple effect can run. A longer file taking
-              several minutes to transcribe is expected behavior for this kind
-              of tool, not a sign something&apos;s wrong — budget for that wait
-              time rather than expecting the same near-instant turnaround as
-              trimming or converting a file.
+              These are two different operations that people often conflate.
+              Transcribing writes down what was said in the language it was
+              said in. Translating produces English text from
+              non-English speech, in the same single pass — you don&apos;t
+              transcribe first and translate afterwards.
+            </p>
+            <p>
+              The practical consequence: English is the only translation target
+              available. Spanish audio can become Spanish text or English text,
+              but not French text. For any other pairing, transcribe in the
+              source language and translate the finished text separately.
+            </p>
+          </section>
+
+          <section className="space-y-3">
+            <h2 className="text-2xl font-bold text-text-primary">
+              TXT, SRT or VTT: which export to choose
+            </h2>
+            <p>
+              All three carry the same words. What differs is whether timing
+              travels with them, and how that timing is written.
+            </p>
+            <div className="overflow-x-auto rounded-xl border border-graphite-800">
+              <table className="w-full text-left text-sm text-text-muted">
+                <thead className="bg-graphite-900 text-text-primary">
+                  <tr>
+                    <th className="px-4 py-3 font-semibold">Format</th>
+                    <th className="px-4 py-3 font-semibold">Use it for</th>
+                    <th className="px-4 py-3 font-semibold">Timing</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-graphite-800">
+                  <tr>
+                    <td className="px-4 py-3 font-mono text-text-primary">TXT</td>
+                    <td className="px-4 py-3">
+                      Reading back, searching for a quote, pasting into notes
+                    </td>
+                    <td className="px-4 py-3">None</td>
+                  </tr>
+                  <tr>
+                    <td className="px-4 py-3 font-mono text-text-primary">SRT</td>
+                    <td className="px-4 py-3">
+                      Video editors, YouTube and most caption upload forms
+                    </td>
+                    <td className="px-4 py-3">Numbered blocks, comma before milliseconds</td>
+                  </tr>
+                  <tr>
+                    <td className="px-4 py-3 font-mono text-text-primary">VTT</td>
+                    <td className="px-4 py-3">
+                      HTML5 video on the web, via a &lt;track&gt; element
+                    </td>
+                    <td className="px-4 py-3">WEBVTT header, period before milliseconds</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p>
+              That comma-versus-period distinction is the single most common
+              reason a caption file silently fails to load. If an editor
+              accepts your file but shows no captions, that&apos;s the first
+              thing to check.
+            </p>
+          </section>
+
+          <section className="space-y-3">
+            <h2 className="text-2xl font-bold text-text-primary">
+              Working with recordings longer than 20 minutes
+            </h2>
+            <p>
+              Twenty minutes is the per-file limit. A longer recording needs
+              splitting first — either at a sensible break point with a{" "}
+              <Link href="/trim" className="text-amber-400 hover:underline">
+                trim
+              </Link>
+              , or automatically at the natural pauses using the{" "}
+              <Link href="/silence-split" className="text-amber-400 hover:underline">
+                silence splitter
+              </Link>
+              , which tends to produce cleaner boundaries than cutting at a
+              fixed time.
+            </p>
+            <p>
+              One thing to watch when reassembling: timestamps restart from zero
+              in each section&apos;s transcript. Joining plain text is
+              straightforward, but building captions from split sections means
+              adding each section&apos;s start offset to its timings first.
+            </p>
+          </section>
+
+          <section className="space-y-3">
+            <h2 className="text-2xl font-bold text-text-primary">
+              What to expect on speed
+            </h2>
+            <p>
+              Transcription runs on a GPU worker that spins down when
+              it&apos;s idle. In practice that means the wait is dominated by
+              startup rather than by the length of your file: the first run
+              after a quiet period takes about a minute to begin, and once
+              the worker is warm a ten-minute recording finishes in well under
+              a minute.
+            </p>
+            <p>
+              The counterintuitive consequence is that a thirty-second voice
+              memo and a ten-minute podcast often take roughly the same wall
+              time. If a short clip seems to be taking a while, that&apos;s
+              almost always a cold start rather than a problem with your file.
             </p>
           </section>
 
@@ -161,31 +316,61 @@ export default function TranscribingAccuratelyGuidePage() {
               A practical workflow
             </h2>
             <p>
-              If your source recording has noticeable background noise, run it
-              through cleanup before transcribing rather than after — you want
-              the transcription model working from the cleanest version of the
-              audio available. Our{" "}
-              <Link href="/speech-to-text" className="text-amber-400 hover:underline">
-                Speech to Text
+              Put together, the order that gets the best result from the least
+              effort:
+            </p>
+            <ol className="list-decimal list-inside space-y-1.5 pl-2">
+              <li>
+                Trim to just the part you need — shorter audio means less to go
+                wrong, and it keeps you under the length limit.
+              </li>
+              <li>
+                Clean up noticeable noise with the{" "}
+                <Link href="/voice-clean" className="text-amber-400 hover:underline">
+                  Voice Cleaner
+                </Link>
+                , or the{" "}
+                <Link href="/noise-remove" className="text-amber-400 hover:underline">
+                  Noise Remover
+                </Link>{" "}
+                when you want manual control over how aggressive it is.
+              </li>
+              <li>
+                Set the language if the clip is short, accented, or mixes
+                languages.
+              </li>
+              <li>
+                Transcribe with{" "}
+                <Link href="/audio-to-text" className="text-amber-400 hover:underline">
+                  Audio to Text
+                </Link>
+                , or paste a link into{" "}
+                <Link href="/youtube-to-text" className="text-amber-400 hover:underline">
+                  YouTube to Text
+                </Link>{" "}
+                to skip the download step entirely.
+              </li>
+              <li>
+                Export TXT to read, SRT or VTT to caption — and check the
+                transcript against the audio before you publish it.
+              </li>
+            </ol>
+            <p>
+              Working from video rather than audio?{" "}
+              <Link href="/video-to-text" className="text-amber-400 hover:underline">
+                Video to Text
               </Link>{" "}
-              tool auto-detects language and exports as plain text or SRT
-              captions. For noisy speech recordings, running the file through
-              the{" "}
-              <Link href="/voice-clean" className="text-amber-400 hover:underline">
-                Voice Cleaner
-              </Link>{" "}
-              first is a straightforward way to improve transcription accuracy
-              before you start.
+              takes MP4, MOV, MKV and WEBM directly, so there&apos;s no need to
+              extract the audio track first.
             </p>
           </section>
         </div>
 
+        <FAQSection eyebrow="Questions" faqs={faqs} />
+
         <div className="pt-6 border-t border-graphite-800 flex flex-wrap gap-3">
-          <Link
-            href="/speech-to-text"
-            className={buttonStyles({ size: "lg" })}
-          >
-            Try Speech to Text
+          <Link href="/audio-to-text" className={buttonStyles({ size: "lg" })}>
+            Try Audio to Text
             <ArrowRight className="h-4 w-4" />
           </Link>
           <Link

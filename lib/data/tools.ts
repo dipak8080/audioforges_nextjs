@@ -294,12 +294,28 @@ export const TOOLS: Tool[] = [
 
   // ---------- TRANSCRIPTION ----------
   {
-    slug: "speech-to-text",
-    name: "Speech to Text",
-    shortDescription: "Transcribe audio with timestamps, powered by Whisper.",
+    slug: "audio-to-text",
+    name: "Audio to Text",
+    shortDescription: "Transcribe audio to text with timestamps, free and without an account.",
     category: "transcription",
     status: "live",
-    related: ["voice-clean", "silence-remove"],
+    related: ["youtube-to-text", "video-to-text", "voice-clean"],
+  },
+  {
+    slug: "youtube-to-text",
+    name: "YouTube to Text",
+    shortDescription: "Paste a YouTube link and get the full transcript, free.",
+    category: "transcription",
+    status: "live",
+    related: ["audio-to-text", "video-to-text", "youtube-to-wav"],
+  },
+  {
+    slug: "video-to-text",
+    name: "Video to Text",
+    shortDescription: "Upload a video and get a transcript or subtitle file.",
+    category: "transcription",
+    status: "live",
+    related: ["audio-to-text", "youtube-to-text", "video-to-audio"],
   },
 
   // ---------- BROWSER TOOLS ----------

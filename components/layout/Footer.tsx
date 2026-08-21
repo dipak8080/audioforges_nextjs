@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { AudioWaveform, Coffee } from "lucide-react";
-import { TOOLS } from "@/lib/data/tools";
+import { getLiveTools, type Tool } from "@/lib/data/tools";
 
 /**
  * PREFETCH DISABLED (2026-08-16, extended 2026-08-17).
@@ -24,6 +24,11 @@ import { TOOLS } from "@/lib/data/tools";
  * this file guessed at slugs and three of six missed, which is why the
  * column rendered half-empty - a hardcoded list should never be able to
  * leave a hole in the layout.
+ *
+ * Kept at six through the transcription split. /youtube-to-text and
+ * /video-to-text are new and could use the signal, but a sitewide link is
+ * the most diluting kind there is - they're seeded from the homepage
+ * workflow and from cross-links on related tool pages instead.
  */
 const FOOTER_TOOL_SLUGS = [
   "youtube-to-wav",
@@ -31,7 +36,7 @@ const FOOTER_TOOL_SLUGS = [
   "audio-to-midi",
   "key-finder",
   "convert",
-  "speech-to-text",
+  "audio-to-text",
 ];
 
 const FOOTER_TOOL_COUNT = 6;
@@ -50,11 +55,16 @@ const LEGAL_LINKS = [
 ];
 
 export function Footer() {
+  // Server component in the layout, so on a statically rendered page this
+  // is the BUILD year rather than the current one. Fine at this deploy
+  // cadence; if the site ever goes long stretches without a build, this is
+  // the line that quietly goes stale every January.
   const year = new Date().getFullYear();
-  const live = TOOLS.filter((t) => t.status === "live");
+
+  const live = getLiveTools();
 
   const picked = FOOTER_TOOL_SLUGS.map((slug) => live.find((t) => t.slug === slug)).filter(
-    (t): t is (typeof TOOLS)[number] => Boolean(t)
+    (t): t is Tool => Boolean(t)
   );
   const footerTools = [
     ...picked,
@@ -133,18 +143,33 @@ export function Footer() {
   );
 }
 
+/**
+ * The column title is a <p>, not an <h2>.
+ *
+ * As headings, these three appended "Popular tools / Site / Legal" to the
+ * outline of every page on the site, sitting at the same level as the
+ * page's own content sections. On a tool page that means the last three
+ * h2s a crawler reads are boilerplate.
+ *
+ * The label moves onto the <nav> instead, where it does more good than it
+ * did as a heading: three unlabelled navs announce as "navigation" three
+ * times with nothing to tell them apart, which is what a screen-reader
+ * user got before.
+ */
 function FooterColumn({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
       <div className="mb-3.5 flex items-center gap-2">
         {/* The amber tick used for categories in the nav panel and on
             /tools - one motif across all three surfaces. */}
-        <span className="h-3 w-[2px] rounded-full bg-amber-500" />
-        <h2 className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-subtle">
+        <span className="h-3 w-[2px] rounded-full bg-amber-500" aria-hidden />
+        <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-subtle">
           {title}
-        </h2>
+        </p>
       </div>
-      <nav className="flex flex-col gap-2.5">{children}</nav>
+      <nav aria-label={title} className="flex flex-col gap-2.5">
+        {children}
+      </nav>
     </div>
   );
 }

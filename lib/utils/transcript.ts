@@ -122,6 +122,79 @@ export function buildTranscript(transcript: Transcript, format: TranscriptFormat
 }
 
 /* ------------------------------------------------------------------ */
+/* Reading view                                                        */
+/* ------------------------------------------------------------------ */
+
+export interface TranscriptParagraph {
+  start: number;
+  end: number;
+  text: string;
+  /** Indices into the original segments array, for playback sync. */
+  segmentIndices: number[];
+}
+
+/**
+ * Whisper emits segments of roughly 5–10 seconds, which is right for
+ * captions and wrong for reading: a 20-minute interview comes back as
+ * two hundred stubby lines. Nobody reads that, they scan it and leave.
+ *
+ * Grouping is on two signals, because either alone gets it wrong:
+ *
+ *   - A gap between segments longer than `gapSeconds` is a real pause —
+ *     a breath between thoughts, a question ending. That's a paragraph
+ *     break, and it's the signal that actually tracks meaning.
+ *   - Continuous speech never pauses, so a hard character ceiling stops
+ *     an uninterrupted monologue becoming one impenetrable block.
+ *
+ * The defaults suit conversational speech. Dense narration wants a
+ * lower gap; a slow lecture wants a higher one.
+ */
+export function groupIntoParagraphs(
+  segments: TranscriptSegment[],
+  gapSeconds = 1.4,
+  maxChars = 480
+): TranscriptParagraph[] {
+  const paragraphs: TranscriptParagraph[] = [];
+  let current: TranscriptParagraph | null = null;
+
+  segments.forEach((segment, index) => {
+    const text = segment.text.trim();
+    if (!text) return;
+
+    const gap = current ? segment.start - current.end : 0;
+    const wouldOverflow = current ? current.text.length + text.length + 1 > maxChars : false;
+
+    if (!current || gap >= gapSeconds || wouldOverflow) {
+      current = { start: segment.start, end: segment.end, text, segmentIndices: [index] };
+      paragraphs.push(current);
+      return;
+    }
+
+    current.text = `${current.text} ${text}`;
+    current.end = segment.end;
+    current.segmentIndices.push(index);
+  });
+
+  return paragraphs;
+}
+
+/** Case-insensitive occurrence count. Used to number matches globally so
+ *  the "3 of 12" counter and next/previous navigation agree. */
+export function countMatches(text: string, query: string): number {
+  if (!query) return 0;
+  const haystack = text.toLowerCase();
+  const needle = query.toLowerCase();
+  let count = 0;
+  let from = 0;
+  for (;;) {
+    const found = haystack.indexOf(needle, from);
+    if (found === -1) return count;
+    count += 1;
+    from = found + needle.length;
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /* Filenames                                                           */
 /* ------------------------------------------------------------------ */
 

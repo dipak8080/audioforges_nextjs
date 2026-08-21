@@ -2,13 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { SITE_URL } from "@/lib/constants";
-import { TOOLS, getLiveTools } from "@/lib/data/tools";
+import { getLiveTools, type Tool } from "@/lib/data/tools";
 import { HeroConverter } from "@/components/home/HeroConverter";
 import { FAQSection, type FAQItem } from "@/components/faq/FAQSection";
 
 const PAGE_TITLE = "Free Audio Tools for Music Producers, DJs & Musicians";
 const PAGE_DESCRIPTION =
-  "Free online audio tools for producers and DJs. Convert, edit, analyze, tune instruments, find BPM, and practice with a metronome. No sign-up required.";
+  "Free online audio tools for producers and DJs. Convert, edit, analyze, transcribe, tune instruments, find BPM, and practice with a metronome. No sign-up required.";
 
 export const metadata: Metadata = {
   title: PAGE_TITLE,
@@ -44,7 +44,8 @@ export const metadata: Metadata = {
 /**
  * EDIT THIS from Analytics every month or two. Unresolvable slugs are
  * dropped and the list is topped up from the live catalogue, so the grid
- * can never render with a hole in it.
+ * can never render with a hole in it — which is also why a slug that
+ * doesn't exist yet is safe to leave here through a rename.
  */
 const POPULAR_SLUGS = [
   "youtube-to-wav",
@@ -52,7 +53,7 @@ const POPULAR_SLUGS = [
   "audio-to-midi",
   "key-finder",
   "convert",
-  "speech-to-text",
+  "audio-to-text",
 ];
 
 /**
@@ -69,6 +70,11 @@ const WAVE = [
  * The producer workflow, in the order the steps happen. Every internal
  * link that used to live in the eleven-link prose paragraph is here
  * instead - same link equity and keywords, scannable rather than buried.
+ *
+ * Step 04 carries three links rather than two: the transcription tools
+ * are new, and the homepage is the strongest internal signal a new page
+ * can get. POPULAR_SLUGS below is analytics-driven and stays honest -
+ * this is the place to seed a page that hasn't earned traffic yet.
  */
 const WORKFLOW = [
   {
@@ -101,10 +107,11 @@ const WORKFLOW = [
   {
     step: "04",
     title: "Take it apart",
-    body: "Split out an instrumental, an acapella, or a transcript.",
+    body: "Split out an instrumental, an acapella, or a written transcript.",
     links: [
       { href: "/vocal-remover", label: "Vocal Remover" },
-      { href: "/speech-to-text", label: "Speech to Text" },
+      { href: "/audio-to-text", label: "Audio to Text" },
+      { href: "/youtube-to-text", label: "YouTube to Text" },
     ],
   },
 ];
@@ -114,7 +121,7 @@ export default function HomePage() {
   const toolCount = liveTools.length;
 
   const picked = POPULAR_SLUGS.map((slug) => liveTools.find((t) => t.slug === slug)).filter(
-    (t): t is (typeof TOOLS)[number] => Boolean(t)
+    (t): t is Tool => Boolean(t)
   );
   const popular = [
     ...picked,
@@ -145,13 +152,13 @@ export default function HomePage() {
   const faqs: FAQItem[] = [
     {
       question: "What tools does AudioForges offer?",
-      answer: `${toolCount} free audio tools covering conversion, trimming, volume, pitch and tempo, noise/echo/silence cleanup, vocal removal, key/BPM detection, instrument tuning, metronome practice, BPM tapping, and speech-to-text transcription — all with no sign-up required.`,
+      answer: `${toolCount} free audio tools covering conversion, trimming, volume, pitch and tempo, noise/echo/silence cleanup, vocal removal, key/BPM detection, instrument tuning, metronome practice, BPM tapping, and transcription with subtitle export — all with no sign-up required.`,
       answerNode: (
         <>
           {toolCount} free audio tools covering conversion, trimming, volume, pitch and tempo,
           noise/echo/silence cleanup, vocal removal, key/BPM detection, instrument tuning,
-          metronome practice, BPM tapping, and speech-to-text transcription — all with no sign-up
-          required.{" "}
+          metronome practice, BPM tapping, and transcription with subtitle export — all with no
+          sign-up required.{" "}
           <Link
             href="/tools"
             prefetch={false}
@@ -171,7 +178,23 @@ export default function HomePage() {
     {
       question: "Are the tools actually free?",
       answer:
-        "Yes. There's no watermark, no paywall, and no hidden tier — the free tools are the only tools.",
+        "Yes. There's no watermark, no paywall, and no hidden tier — the free tools are the only tools. Fair-use limits apply so one person can't tie up the servers: most tools cap file length, and transcription allows two files every five minutes.",
+      answerNode: (
+        <>
+          Yes. There&apos;s no watermark, no paywall, and no hidden tier — the
+          free tools are the only tools. Fair-use limits apply so one person
+          can&apos;t tie up the servers: most tools cap file length, and
+          transcription allows two files every five minutes. More on{" "}
+          <Link
+            href="/free-transcription-no-sign-up"
+            prefetch={false}
+            className="text-amber-400 underline underline-offset-2 hover:text-amber-300"
+          >
+            what &quot;free&quot; usually means elsewhere
+          </Link>
+          .
+        </>
+      ),
     },
     {
       question: "What happens to the files I upload?",
@@ -262,7 +285,10 @@ export default function HomePage() {
             description="Prepping a DJ set, sampling for a beat, editing a podcast — the same few steps come up every time. Each is its own focused tool here rather than one bloated app."
           />
 
-          <ol className="mt-10 grid gap-x-8 gap-y-10 sm:grid-cols-2 lg:grid-cols-4">
+          {/* items-start, or a column with three links stretches the two-link
+              columns beside it to match and leaves them with dead space
+              under the last link. */}
+          <ol className="mt-10 grid items-start gap-x-8 gap-y-10 sm:grid-cols-2 lg:grid-cols-4">
             {WORKFLOW.map((stage) => (
               <li key={stage.step} className="border-t border-graphite-800 pt-4">
                 <p className="font-mono text-xs text-amber-500">{stage.step}</p>
@@ -353,7 +379,12 @@ export default function HomePage() {
             {[
               ["No account", "No sign-up, no email, nothing to install."],
               ["No paywall", "No watermark, no premium tier, no artificial limits."],
-              ["No queue", "Most tools finish in seconds."],
+              // Was "No queue / Most tools finish in seconds". Transcription
+              // runs on a GPU worker that spins down when idle, so the first
+              // run of the day genuinely waits ~a minute - and it's the tool
+              // this claim is most likely to be tested against. Naming the
+              // exception costs nothing and keeps the other two credible.
+              ["No waiting around", "Most tools finish in seconds; transcription can take a minute."],
             ].map(([term, description]) => (
               <div key={term} className="py-4">
                 <dt className="font-medium text-text-primary">{term}</dt>

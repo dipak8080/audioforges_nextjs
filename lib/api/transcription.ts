@@ -34,6 +34,18 @@ import { ApiError, RAILWAY_API_BASE, fetchWithTimeout, readRetryAfter, type Requ
  */
 export type TranscriptionEndpoint = "speech-to-text" | "youtube/transcribe" | "video-to-text";
 
+/**
+ * The model name, displayed on every transcription page and in the form
+ * header.
+ *
+ * It lives here because naming the model IS the positioning — the pages
+ * argue that a named model is checkable while an accuracy percentage
+ * isn't, which only holds if the name is right. Five hand-written copies
+ * meant one model upgrade away from a site that confidently names the
+ * wrong one, which is worse than naming none.
+ */
+export const TRANSCRIPTION_MODEL = "Whisper large-v3";
+
 export const TRANSCRIPTION_ENDPOINTS = {
   audio: "speech-to-text",
   youtube: "youtube/transcribe",
@@ -49,6 +61,13 @@ export const TRANSCRIPTION_ENDPOINTS = {
  * upload is rejected BEFORE the bytes go over the wire. A 99MB video
  * refused after a five-minute upload is the worst outcome in the whole
  * flow, and it's entirely avoidable.
+ *
+ * NOTHING OUTSIDE THIS OBJECT SHOULD WRITE THESE NUMBERS AS TEXT. The
+ * form, the drop zone, the page copy, the FAQ answers, the meta
+ * descriptions and the error messages below all derive from here. The
+ * whole positioning of these pages is "we state the real limit up
+ * front", so a stale number isn't a cosmetic bug — it's the one claim
+ * the pages rest on, broken.
  */
 export const TRANSCRIPTION_LIMITS = {
   /** /speech-to-text */
@@ -69,6 +88,10 @@ export const TRANSCRIPTION_LIMITS = {
    * §4: 20 minutes, and this figure is NOT a guess — the GPU job carries
    * a 900s execution timeout enforced on both sides, so anything still
    * running past it has already been cancelled server-side.
+   *
+   * The 20 here is a coincidence, not a reference to durationSeconds —
+   * this is how long the CLIENT waits, that's how long the AUDIO may be.
+   * Don't "tidy" one into the other.
    *
    * Note this is double the 10-minute DEFAULT_MAX_POLL_MS in
    * YouTubeUrlForm. Reusing that default here would kill a legitimate
@@ -137,6 +160,7 @@ export type TranscriptionErrorKind =
   | "rate_limited"
   | "queue_full"
   | "service_down"
+  | "blocked"
   | "server_error"
   | "unknown";
 
@@ -180,6 +204,18 @@ async function toTranscriptionError(res: Response): Promise<ApiError> {
         retryable: false,
       });
 
+    case 403:
+      // The WAF, not the app. When a route is missing from the Cloudflare
+      // POST allowlist, the block response carries no CORS header, so the
+      // browser can't read it and fetch rejects with a bare TypeError —
+      // which surfaces to the user as "couldn't reach the server" and
+      // sends whoever debugs it looking at the network instead of the
+      // rule. This case only fires if the block ever comes back
+      // readable, but when it does the message should say so.
+      return build("This request was blocked before it reached the server.", "blocked", {
+        retryable: false,
+      });
+
     case 404:
       return build("This job has expired. Jobs are kept for one hour.", "expired", { retryable: false });
 
@@ -189,10 +225,11 @@ async function toTranscriptionError(res: Response): Promise<ApiError> {
       return build("This transcript isn't ready yet.", "not_ready", { retryable: true });
 
     case 429:
-      // 2 per 5 minutes, per IP, per endpoint. A user transcribing a few
-      // files WILL hit this, so it deserves a countdown rather than a
-      // red toast.
-      return build("You've reached the limit of 2 submissions per 5 minutes.", "rate_limited", {
+      // Per IP, per endpoint. A user transcribing a few files WILL hit
+      // this, so it deserves a countdown rather than a red toast. The
+      // server's own detail string carries the real numbers and is
+      // preferred — this fallback only shows if it sent none.
+      return build("You've reached this tool's submission limit.", "rate_limited", {
         isRateLimit: true,
         retryable: true,
       });
@@ -232,9 +269,113 @@ async function readJson<T>(res: Response): Promise<T> {
   }
 }
 
+
+/* ------------------------------------------------------------------ */
+/* Upload with progress                                                */
+/* ------------------------------------------------------------------ */
+
+/**
+ * fetch() cannot report upload progress — there is no hook for bytes
+ * sent, only for the response coming back. XMLHttpRequest can, via
+ * upload.onprogress, so the two file-upload routes go through this
+ * instead.
+ *
+ * That matters here more than on most forms: uploads run to 100MB, and
+ * a slow connection spends a full minute sending before the server says
+ * anything at all. Without a byte counter that minute is indistinguishable
+ * from a hang, and people abandon.
+ *
+ * The XHR response is repackaged as a real Response so it can go
+ * straight into toTranscriptionError() — no second error mapper, no
+ * chance of the two drifting apart.
+ */
+function headersFromXhr(xhr: XMLHttpRequest): Headers {
+  const headers = new Headers();
+  for (const line of xhr.getAllResponseHeaders().trim().split(/[\r\n]+/)) {
+    const separator = line.indexOf(": ");
+    if (separator > 0) headers.append(line.slice(0, separator), line.slice(separator + 2));
+  }
+  return headers;
+}
+
+export type UploadProgressHandler = (sentBytes: number, totalBytes: number) => void;
+
+function uploadWithProgress(
+  url: string,
+  body: FormData,
+  opts: { signal?: AbortSignal; timeoutMs: number; onUploadProgress?: UploadProgressHandler }
+): Promise<Response> {
+  return new Promise((resolve, reject) => {
+    if (opts.signal?.aborted) {
+      reject(new DOMException("Aborted", "AbortError"));
+      return;
+    }
+
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", url);
+    xhr.timeout = opts.timeoutMs;
+
+    const onAbort = () => xhr.abort();
+    opts.signal?.addEventListener("abort", onAbort, { once: true });
+    const cleanup = () => opts.signal?.removeEventListener("abort", onAbort);
+
+    if (opts.onUploadProgress) {
+      xhr.upload.onprogress = (event) => {
+        // Not computable for a stream of unknown length. Reporting a
+        // fabricated total would be worse than reporting nothing.
+        if (event.lengthComputable) opts.onUploadProgress?.(event.loaded, event.total);
+      };
+    }
+
+    xhr.onload = () => {
+      cleanup();
+      // The Response constructor rejects anything under 200, and status
+      // 0 here would mean the request never really completed.
+      if (xhr.status < 200) {
+        reject(new ApiError("The request didn't complete. Please try again.", 0));
+        return;
+      }
+      resolve(new Response(xhr.responseText, { status: xhr.status, headers: headersFromXhr(xhr) }));
+    };
+
+    xhr.onerror = () => {
+      cleanup();
+      reject(
+        new ApiError("We couldn't reach the server. Please check your connection and try again.", 0)
+      );
+    };
+
+    xhr.ontimeout = () => {
+      cleanup();
+      reject(
+        new ApiError("This is taking longer than expected. Please try again in a moment.", 0, {
+          isTimeout: true,
+          isServerBusy: true,
+        })
+      );
+    };
+
+    // Matches fetchWithTimeout: a user cancellation rejects with the raw
+    // AbortError so call sites can tell it apart from a real failure.
+    xhr.onabort = () => {
+      cleanup();
+      reject(new DOMException("Aborted", "AbortError"));
+    };
+
+    xhr.send(body);
+  });
+}
+
 /* ------------------------------------------------------------------ */
 /* Submit                                                              */
 /* ------------------------------------------------------------------ */
+
+export interface UploadOptions extends RequestOptions {
+  /** Called as bytes leave the browser. Only fires for the two file
+   *  routes — /youtube/transcribe sends a URL, so there is nothing to
+   *  report. Silently absent when the browser can't compute a total. */
+  onUploadProgress?: UploadProgressHandler;
+}
 
 export interface TranscriptionSubmitResponse {
   job_id: string;
@@ -265,17 +406,17 @@ const READ_TIMEOUT_MS = 15_000;
 export async function submitSpeechToText(
   file: File,
   options: TranscriptionOptions = {},
-  opts: RequestOptions = {}
+  opts: UploadOptions = {}
 ): Promise<TranscriptionSubmitResponse> {
   const fd = new FormData();
   fd.append("file", file);
   appendOptions(fd, options);
 
-  const res = await fetchWithTimeout(
-    `${RAILWAY_API_BASE}/speech-to-text`,
-    { method: "POST", body: fd, signal: opts.signal },
-    UPLOAD_TIMEOUT_MS
-  );
+  const res = await uploadWithProgress(`${RAILWAY_API_BASE}/speech-to-text`, fd, {
+    signal: opts.signal,
+    timeoutMs: UPLOAD_TIMEOUT_MS,
+    onUploadProgress: opts.onUploadProgress,
+  });
   if (!res.ok) throw await toTranscriptionError(res);
   return readJson<TranscriptionSubmitResponse>(res);
 }
@@ -306,17 +447,17 @@ export async function submitYoutubeTranscribe(
 export async function submitVideoToText(
   file: File,
   options: TranscriptionOptions = {},
-  opts: RequestOptions = {}
+  opts: UploadOptions = {}
 ): Promise<TranscriptionSubmitResponse> {
   const fd = new FormData();
   fd.append("file", file);
   appendOptions(fd, options);
 
-  const res = await fetchWithTimeout(
-    `${RAILWAY_API_BASE}/video-to-text`,
-    { method: "POST", body: fd, signal: opts.signal },
-    UPLOAD_TIMEOUT_MS
-  );
+  const res = await uploadWithProgress(`${RAILWAY_API_BASE}/video-to-text`, fd, {
+    signal: opts.signal,
+    timeoutMs: UPLOAD_TIMEOUT_MS,
+    onUploadProgress: opts.onUploadProgress,
+  });
   if (!res.ok) throw await toTranscriptionError(res);
   return readJson<TranscriptionSubmitResponse>(res);
 }
@@ -435,8 +576,8 @@ export interface TranscriptionLanguages {
   /** ~34 well-supported languages WITH display names, already in
    *  recommended display order. This is the main dropdown. */
   primary: TranscriptionLanguage[];
-  /** ~100 ISO-639-1 codes, no names. Put behind a "More languages"
-   *  expander and resolve names with Intl.DisplayNames. */
+  /** ~100 ISO-639-1 codes, no names. Resolve names with Intl.DisplayNames
+   *  and show them in the same list — see SearchableSelect. */
   all: string[];
   tasks: TranscriptionTask[];
   modes: string[];
@@ -510,7 +651,7 @@ export interface ValidationResult {
 
 /**
  * Size and extension only — synchronous, so it can gate the button the
- * instant a file is chosen. Pair with readMediaDuration for the 20-minute
+ * instant a file is chosen. Pair with readMediaDuration for the duration
  * check, which needs a decode.
  */
 export function validateTranscriptionFile(file: File, kind: "audio" | "video"): ValidationResult {
@@ -541,12 +682,21 @@ export function validateTranscriptionFile(file: File, kind: "audio" | "video"): 
 
 export function validateTranscriptionDuration(seconds: number | null): ValidationResult {
   if (seconds === null) return { ok: true };
+
   if (seconds > TRANSCRIPTION_LIMITS.durationSeconds) {
     const minutes = (seconds / 60).toFixed(1);
+    // Derived, not written. This message used to say "20 minutes" as a
+    // literal — inside the function that enforces the limit. Tightening
+    // durationSeconds to 10 would have made it reject at 10 while
+    // telling the user the limit was 20, which is the single worst place
+    // on the site for a stale number: it's the exact moment someone
+    // learns what the limit is.
+    const maxMinutes = TRANSCRIPTION_LIMITS.durationSeconds / 60;
     return {
       ok: false,
-      error: `That's ${minutes} minutes of audio. The limit is 20 minutes — trim it first and try again.`,
+      error: `That's ${minutes} minutes of audio. The limit is ${maxMinutes} minutes — trim it first and try again.`,
     };
   }
+
   return { ok: true };
 }

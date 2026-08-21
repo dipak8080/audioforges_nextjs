@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type DragEvent } from "react";
-import { Upload, FileAudio, X, RefreshCw } from "lucide-react";
+import { Upload, FileAudio, FileVideo, X, RefreshCw, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
+
+export type MediaKind = "audio" | "video";
 
 interface FileDropZoneProps {
   onFileSelect: (file: File) => void;
@@ -13,8 +15,39 @@ interface FileDropZoneProps {
   /** Size cap in bytes. Used to build the default hint text. */
   maxSize?: number;
   /** Overrides the hint text entirely. Leave unset to have it derived
-   * from `accept` (and `maxSize`, when given). */
+   *  from `accept` and `maxSize`. */
   hint?: string;
+
+  /**
+   * Duration in seconds, when the caller already knows it.
+   *
+   * Pass this and the local probe is skipped entirely. Leave it
+   * `undefined` and the component decodes the file itself, which is the
+   * old behaviour and what every other tool on the site still relies on.
+   *
+   * Worth passing: the transcription form calls `readMediaDuration()` on
+   * the same file to validate the 20-minute cap, so with no prop the
+   * browser decodes the header twice and creates two object URLs per
+   * selected file.
+   */
+  duration?: number | null;
+
+  /**
+   * Marks the chosen file as rejected.
+   *
+   * Duration validation is async, so an over-long file is already sitting
+   * in the card by the time the error appears underneath it. Without
+   * this, the card looks perfectly fine while a red line below complains
+   * about something the user has to infer is the same file.
+   */
+  invalid?: boolean;
+
+  /**
+   * Picks the icon and the default copy. Video files used to get a
+   * `FileAudio` icon on `/video-to-text`, because there was only ever one
+   * icon.
+   */
+  kind?: MediaKind;
 }
 
 function formatBytes(bytes: number): string {
@@ -35,29 +68,23 @@ function fileExtension(name: string): string {
 }
 
 /**
- * Reads the format list off `accept` rather than hardcoding it.
+ * Reads the format list off `accept` rather than hardcoding it, so a tool
+ * passing a different `accept` can't end up promising formats the file
+ * picker won't allow.
  *
- * The old default was the literal string "MP3, WAV, FLAC, M4A, AAC, OGG"
- * regardless of what the file picker would actually allow - so a tool
- * passing a different `accept` (video-to-audio) had to remember to pass a
- * matching `hint` too, and any drift between the two was invisible until
- * a user was told their file was fine and then rejected. One source now.
+ * Capped at four: the full audio list runs to seven, which stops being
+ * information and becomes texture.
  */
-function formatsFromAccept(accept: string): string {
+function formatsFromAccept(accept: string, kind: MediaKind): string {
   const extensions = accept
     .split(",")
     .map((part) => part.trim())
     .filter((part) => part.startsWith("."))
     .map((part) => part.slice(1).toUpperCase());
 
-  // Capped at four. The full list runs to seven items, which stops being
-  // information and becomes texture - nobody reads to the end of it, and
-  // the ones that matter are the ones people actually have.
   if (extensions.length > 4) return `${extensions.slice(0, 4).join(", ")} and more`;
   if (extensions.length > 0) return extensions.join(", ");
-  // Only wildcards given, e.g. "audio/*" — say the category instead.
-  if (accept.includes("video")) return "Video files";
-  return "Audio files";
+  return kind === "video" ? "Video files" : "Audio files";
 }
 
 export function FileDropZone({
@@ -68,27 +95,44 @@ export function FileDropZone({
   accept = "audio/*",
   maxSize,
   hint,
+  duration: providedDuration,
+  invalid = false,
+  kind = "audio",
 }: FileDropZoneProps) {
   const [isDragging, setIsDragging] = useState(false);
-  const [duration, setDuration] = useState<number | null>(null);
+  const [probedDuration, setProbedDuration] = useState<number | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   // dragleave fires when the pointer crosses a child element, which makes
   // the highlight flicker. Counting enters and leaves fixes it.
   const dragDepth = useRef(0);
 
+  const ownsProbe = providedDuration === undefined;
+  const duration = ownsProbe ? probedDuration : providedDuration;
+
   const resolvedHint =
     hint ??
-    `${formatsFromAccept(accept)}${maxSize ? ` · up to ${Math.round(maxSize / (1024 * 1024))} MB` : ""}`;
+    `${formatsFromAccept(accept, kind)}${
+      maxSize ? ` · up to ${Math.round(maxSize / (1024 * 1024))} MB` : ""
+    }`;
 
-  /* --- read duration locally, no upload involved -------------------- */
+  const FileIcon = kind === "video" ? FileVideo : FileAudio;
+
+  /* --- read duration locally, no upload involved --------------------
+     Skipped entirely when the caller supplies it. A <video> element for
+     video files: an <audio> element reads MP4 and MOV but returns
+     Infinity or errors on MKV, AVI and some WEBM, so the duration line
+     silently vanished on exactly the containers people drag in from a
+     camera. */
   useEffect(() => {
+    if (!ownsProbe) return;
     if (!currentFile) {
-      setDuration(null);
+      setProbedDuration(null);
       return;
     }
+
     let released = false;
     const objectUrl = URL.createObjectURL(currentFile);
-    const probe = new Audio();
+   const probe: HTMLMediaElement = document.createElement(kind === "video" ? "video" : "audio");
     const release = () => {
       if (released) return;
       released = true;
@@ -97,11 +141,11 @@ export function FileDropZone({
 
     probe.preload = "metadata";
     probe.onloadedmetadata = () => {
-      if (Number.isFinite(probe.duration)) setDuration(probe.duration);
+      if (Number.isFinite(probe.duration)) setProbedDuration(probe.duration);
       release();
     };
     probe.onerror = () => {
-      setDuration(null);
+      setProbedDuration(null);
       release();
     };
     probe.src = objectUrl;
@@ -111,7 +155,27 @@ export function FileDropZone({
       probe.onerror = null;
       release();
     };
-  }, [currentFile]);
+  }, [currentFile, ownsProbe, kind]);
+
+  /* --- drag handling, shared by both states -------------------------
+     The selected-file card accepts drops too. Dragging a second file onto
+     a form that already has one obviously means "use this one instead",
+     and the old card just ignored it — the drop landed on the page and
+     the browser tried to open the file. */
+  const handleDragEnter = useCallback(
+    (e: DragEvent<HTMLElement>) => {
+      e.preventDefault();
+      if (disabled) return;
+      dragDepth.current += 1;
+      setIsDragging(true);
+    },
+    [disabled]
+  );
+
+  const handleDragLeave = useCallback(() => {
+    dragDepth.current = Math.max(0, dragDepth.current - 1);
+    if (dragDepth.current === 0) setIsDragging(false);
+  }, []);
 
   const handleDrop = useCallback(
     (e: DragEvent<HTMLElement>) => {
@@ -125,6 +189,13 @@ export function FileDropZone({
     [disabled, onFileSelect]
   );
 
+  const dragHandlers = {
+    onDragEnter: handleDragEnter,
+    onDragOver: (e: DragEvent<HTMLElement>) => e.preventDefault(),
+    onDragLeave: handleDragLeave,
+    onDrop: handleDrop,
+  };
+
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) onFileSelect(file);
@@ -132,7 +203,7 @@ export function FileDropZone({
     e.target.value = "";
   };
 
-  // Rendered in both branches now, so the selected-file card can offer
+  // Rendered in both branches, so the selected-file card can offer
   // Replace without unmounting and remounting the input.
   const fileInput = (
     <input
@@ -145,90 +216,109 @@ export function FileDropZone({
     />
   );
 
-  /* --- selected file: show what the tool is about to work on -------- */
+  /* --- selected file ------------------------------------------------ */
   if (currentFile) {
     return (
-      <div className="flex items-center gap-3.5 rounded-xl border border-graphite-800 bg-graphite-850/60 p-3.5">
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-graphite-700 bg-graphite-800">
-          <FileAudio className="h-5 w-5 text-amber-500" aria-hidden />
-        </div>
+      <>
+        {/* The swap from empty box to file card is silent for a screen
+            reader — the button just stops existing. */}
+        <p className="sr-only" role="status" aria-live="polite">
+          {currentFile.name} selected
+        </p>
 
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium text-text-primary">{currentFile.name}</p>
-          <p className="mt-0.5 font-mono text-[11px] text-text-subtle">
-            {fileExtension(currentFile.name)} · {formatBytes(currentFile.size)}
-            {duration !== null ? ` · ${formatDuration(duration)}` : ""}
-          </p>
-        </div>
-
-        {/* Replace, not just Remove. Picking the wrong file is the common
-            mistake, and clearing to an empty dropzone and starting over
-            is two steps where one will do - the X also resets any tool
-            controls set since, which is rarely what's wanted. */}
-        <button
-          type="button"
-          onClick={() => inputRef.current?.click()}
-          disabled={disabled}
-          className="hidden shrink-0 rounded-md px-2 py-1.5 text-xs text-text-subtle transition-colors hover:bg-graphite-800 hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40 disabled:opacity-40 sm:flex sm:items-center sm:gap-1.5"
+        <div
+          {...dragHandlers}
+          className={cn(
+            "flex items-center gap-3 rounded-lg border p-3 transition-colors",
+            isDragging
+              ? "border-dashed border-amber-500/60 bg-amber-500/[0.06]"
+              : invalid
+                ? "border-red-500/40 bg-red-500/[0.05]"
+                : "border-graphite-800 bg-graphite-850/60"
+          )}
         >
-          <RefreshCw className="h-3.5 w-3.5" />
-          Replace
-        </button>
+          <div
+            className={cn(
+              "flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border",
+              invalid
+                ? "border-red-500/30 bg-red-500/10"
+                : "border-graphite-700 bg-graphite-800"
+            )}
+          >
+            {invalid ? (
+              <AlertTriangle className="h-5 w-5 text-red-400" aria-hidden />
+            ) : (
+              <FileIcon className="h-5 w-5 text-amber-500" aria-hidden />
+            )}
+          </div>
 
-        <button
-          type="button"
-          onClick={onClear}
-          disabled={disabled}
-          aria-label="Remove file"
-          className="shrink-0 rounded-md p-1.5 text-text-subtle transition-colors hover:bg-graphite-800 hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40 disabled:opacity-40"
-        >
-          <X className="h-4 w-4" />
-        </button>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-medium text-text-primary">{currentFile.name}</p>
+            <p className="mt-0.5 font-mono text-[11px] text-text-subtle">
+              {fileExtension(currentFile.name)} · {formatBytes(currentFile.size)}
+              {duration !== null && duration !== undefined
+                ? ` · ${formatDuration(duration)}`
+                : ""}
+            </p>
+          </div>
 
-        {fileInput}
-      </div>
+          {/* Replace, not just Remove. Picking the wrong file is the common
+              mistake, and clearing to an empty dropzone and starting over
+              is two steps where one will do.
+
+              Was `hidden sm:flex`, which left phone users — most of them —
+              with only the destructive option. It's an icon under sm and
+              gains its label above. */}
+          <button
+            type="button"
+            onClick={() => inputRef.current?.click()}
+            disabled={disabled}
+            aria-label="Replace file"
+            className="flex shrink-0 items-center gap-1.5 rounded-md p-1.5 text-xs text-text-subtle transition-colors hover:bg-graphite-800 hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40 disabled:opacity-40 sm:px-2"
+          >
+            <RefreshCw className="h-3.5 w-3.5" aria-hidden />
+            <span className="hidden sm:inline">Replace</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={onClear}
+            disabled={disabled}
+            aria-label="Remove file"
+            className="shrink-0 rounded-md p-1.5 text-text-subtle transition-colors hover:bg-graphite-800 hover:text-red-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40 disabled:opacity-40"
+          >
+            <X className="h-4 w-4" />
+          </button>
+
+          {fileInput}
+        </div>
+      </>
     );
   }
 
   /* --- empty state --------------------------------------------------
-     THE BORDER IS SOLID UNTIL YOU DRAG (2026-08-17).
+     Solid border at rest, dashed only while something is over it. A
+     permanently dashed box is the visual language of "nothing here yet",
+     which is why the resting form looked unfinished.
 
-     A permanently dashed box reads as a placeholder - the visual
-     language of "nothing here yet", which is why the empty form looked
-     unfinished rather than ready. Dashed is now reserved for the drag
-     state, where it means something: "release here". Solid at rest,
-     dashed and amber the moment a file is over it.
-
-     Height came down from py-10 (~200px total) to py-8. It was the
-     largest element on the page and most of it was empty. A drop target
-     needs to be obvious, not enormous.
-
-     The icon sits in the same 44px tile the selected-file card uses, so
-     choosing a file reads as this element changing state rather than one
-     component being swapped for a different one. */
+     The tile is h-11, matching the selected-file card exactly — it was
+     h-10, one notch off, so choosing a file nudged the icon by 4px and
+     read as one component being swapped for another rather than this one
+     changing state. Same reason the padding and radius now match. */
   return (
     <>
       <button
         type="button"
         disabled={disabled}
         onClick={() => inputRef.current?.click()}
-        onDragEnter={(e) => {
-          e.preventDefault();
-          if (disabled) return;
-          dragDepth.current += 1;
-          setIsDragging(true);
-        }}
-        onDragOver={(e) => e.preventDefault()}
-        onDragLeave={() => {
-          dragDepth.current = Math.max(0, dragDepth.current - 1);
-          if (dragDepth.current === 0) setIsDragging(false);
-        }}
-        onDrop={handleDrop}
+        {...dragHandlers}
         className={cn(
-          "group flex w-full flex-col items-center justify-center gap-2.5 rounded-xl border px-4 py-6 text-center",
+          "group flex min-h-[7rem] w-full flex-col items-center justify-center gap-2.5 rounded-lg border px-4 py-6 text-center",
           "transition-colors duration-200",
           "focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40",
-          "disabled:cursor-not-allowed disabled:opacity-40",
+          // 50, not 40: at 40 the disabled box read as broken rather than
+          // unavailable.
+          "disabled:cursor-not-allowed disabled:opacity-50",
           isDragging
             ? "border-dashed border-amber-500/60 bg-amber-500/[0.06]"
             : "border-graphite-800 bg-graphite-850/40 hover:border-graphite-700 hover:bg-graphite-850/70"
@@ -236,7 +326,7 @@ export function FileDropZone({
       >
         <span
           className={cn(
-            "flex h-10 w-10 items-center justify-center rounded-lg border transition-colors",
+            "flex h-11 w-11 items-center justify-center rounded-lg border transition-colors",
             isDragging
               ? "border-amber-500/40 bg-amber-500/10"
               : "border-graphite-700 bg-graphite-800 group-hover:border-amber-500/30"
@@ -257,12 +347,12 @@ export function FileDropZone({
               <span className="text-amber-400">Release to upload</span>
             ) : (
               <>
-                Drop an audio file, or{" "}
+                Drop {kind === "video" ? "a video" : "an audio"} file, or{" "}
                 <span className="text-amber-400 underline underline-offset-2">browse</span>
               </>
             )}
           </span>
-          {/* Mono, matching the selected file's meta line - the same kind
+          {/* Mono, matching the selected file's meta line — the same kind
               of information in the same voice. */}
           <span className="mt-1 block font-mono text-[11px] text-text-subtle">{resolvedHint}</span>
         </span>

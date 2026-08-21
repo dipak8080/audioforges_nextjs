@@ -18,6 +18,27 @@ interface AudioPlayerProps {
    *  second <audio> just to read metadata. */
   onDuration?: (seconds: number) => void;
   /**
+   * Fires as playback position changes, at the media element's own
+   * timeupdate rate (~4Hz) plus immediately on every seek. That's ample
+   * for following along a transcript, where segments run seconds long.
+   *
+   * Deliberately NOT driven at frame rate: the playhead moves at 60fps
+   * via direct DOM writes precisely so this component doesn't re-render
+   * sixty times a second, and calling a parent's setState that often
+   * would give the whole cost straight back.
+   */
+  onTimeUpdate?: (seconds: number) => void;
+  /**
+   * Filled with a seek function on mount and cleared on unmount, so a
+   * parent can jump playback without owning the audio element — a
+   * transcript line, a chapter marker, a loop point.
+   *
+   * Typed structurally rather than as MutableRefObject/RefObject because
+   * those two swapped meanings between React 18 and 19; a plain
+   * `{ current: ... }` satisfies useRef's return type under both.
+   */
+  seekRef?: { current: ((seconds: number) => void) | null };
+  /**
    * Set false to skip the waveform decode and use the plain progress
    * track instead.
    *
@@ -25,11 +46,32 @@ interface AudioPlayerProps {
    * ArrayBuffer, then decodeAudioData expands it to Float32 — a 4-minute
    * stereo WAV is ~47MB on disk and ~90MB decoded, held at the same
    * time. That's fine on desktop and a plausible tab crash on a
-   * mid-range phone. A caller that knows the byte size (a local blob,
-   * a Content-Length) can opt out above its own threshold; the player
-   * stays fully functional either way.
+   * mid-range phone.
+   *
+   * Callers rarely need this now — see `maxWaveformSeconds`, which
+   * enforces the same ceiling automatically. Keep it for the cases where
+   * a caller knows up front that a waveform is pointless.
    */
   showWaveform?: boolean;
+  /**
+   * Longest source that gets a drawn waveform, in seconds.
+   *
+   * DECODED SIZE IS A FUNCTION OF DURATION, NOT FILE SIZE. Float32 at
+   * 48kHz stereo is ~384 KB per second regardless of codec, so a 6MB
+   * 20-minute MP3 and a 200MB 20-minute WAV both expand to roughly
+   * 460MB in memory — and the ArrayBuffer is still held alongside it.
+   * A phone does not survive that.
+   *
+   * Guarding on bytes, which is the obvious instinct, catches the WAV
+   * and waves the MP3 straight through. So the check waits for
+   * `loadedmetadata` and reads the real duration. Five minutes is about
+   * 115MB decoded, which is survivable; past that the player falls back
+   * to the plain rail and loses nothing but the drawing.
+   *
+   * This matters most on the transcription tools, where 20-minute
+   * uploads are the normal case rather than the outlier.
+   */
+  maxWaveformSeconds?: number;
 }
 
 const PLAYBACK_RATES = [0.5, 0.75, 1, 1.25, 1.5, 2];
@@ -83,7 +125,10 @@ function AudioPlayerInstance({
   className,
   title,
   onDuration,
+  onTimeUpdate,
+  seekRef,
   showWaveform = true,
+  maxWaveformSeconds = 300,
 }: AudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const waveformRef = useRef<HTMLDivElement>(null);
@@ -94,6 +139,14 @@ function AudioPlayerInstance({
      see the comment on the rAF effect. */
   const progressRef = useRef<HTMLDivElement>(null);
   const playheadRef = useRef<HTMLDivElement>(null);
+
+  /* Held in a ref so commitTime below can stay identity-stable. A parent
+     passing an inline arrow would otherwise change the callback on every
+     render, tearing down and rebuilding the seekRef effect each time. */
+  const onTimeUpdateRef = useRef(onTimeUpdate);
+  useEffect(() => {
+    onTimeUpdateRef.current = onTimeUpdate;
+  });
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -112,9 +165,24 @@ function AudioPlayerInstance({
   const [scrubbing, setScrubbing] = useState(false);
   const [hoverFraction, setHoverFraction] = useState<number | null>(null);
 
-  /* --- decode the waveform for this source ------------------------- */
+  /** Single place position changes are recorded, so a parent listening
+   *  via onTimeUpdate hears about seeks and scrubs too — not just the
+   *  media element's own periodic events. */
+  const commitTime = useCallback((seconds: number) => {
+    setCurrentTime(seconds);
+    onTimeUpdateRef.current?.(seconds);
+  }, []);
+
+  /* --- decode the waveform for this source -------------------------
+     Gated on the real duration, so this fires after loadedmetadata
+     rather than on mount. The delay is imperceptible next to the decode
+     itself, and it's the only point at which we know whether decoding is
+     safe — see the maxWaveformSeconds note above. */
   useEffect(() => {
     if (!showWaveform) return;
+    if (duration <= 0) return;
+    if (duration > maxWaveformSeconds) return;
+
     const controller = new AbortController();
     // Waveform is cosmetic — if this fails (CORS, unsupported codec,
     // network blip) the player still works fully via the plain track,
@@ -124,7 +192,7 @@ function AudioPlayerInstance({
     });
 
     return () => controller.abort();
-  }, [src, showWaveform]);
+  }, [src, showWaveform, duration, maxWaveformSeconds]);
 
   /* --- keep the element in sync with state ------------------------- */
   useEffect(() => {
@@ -227,21 +295,44 @@ function AudioPlayerInstance({
       if (!audio || !duration) return;
       const time = clamp(fraction, 0, 1) * duration;
       audio.currentTime = time;
-      setCurrentTime(time);
+      commitTime(time);
     },
-    [duration]
+    [duration, commitTime]
   );
 
-  const seekBy = useCallback((deltaSeconds: number) => {
-    const audio = audioRef.current;
-    if (!audio || !audio.duration) return;
-    // Read position off the element rather than state: state lags by up
-    // to a timeupdate interval, so holding an arrow key would compound
-    // that stale offset.
-    const time = clamp(audio.currentTime + deltaSeconds, 0, audio.duration);
-    audio.currentTime = time;
-    setCurrentTime(time);
-  }, []);
+  const seekBy = useCallback(
+    (deltaSeconds: number) => {
+      const audio = audioRef.current;
+      if (!audio || !audio.duration) return;
+      // Read position off the element rather than state: state lags by up
+      // to a timeupdate interval, so holding an arrow key would compound
+      // that stale offset.
+      const time = clamp(audio.currentTime + deltaSeconds, 0, audio.duration);
+      audio.currentTime = time;
+      commitTime(time);
+    },
+    [commitTime]
+  );
+
+  /* --- imperative seek for parents ---------------------------------
+     Absolute seconds rather than a fraction: a caller holding transcript
+     timings already has seconds and shouldn't need to know the duration
+     to divide by. Starts playback, because every use of this is someone
+     clicking a moment they want to hear. */
+  useEffect(() => {
+    if (!seekRef) return;
+    seekRef.current = (seconds: number) => {
+      const audio = audioRef.current;
+      if (!audio) return;
+      const target = clamp(seconds, 0, audio.duration || seconds);
+      audio.currentTime = target;
+      commitTime(target);
+      audio.play().catch(() => {});
+    };
+    return () => {
+      seekRef.current = null;
+    };
+  }, [seekRef, commitTime]);
 
   /* --- waveform pointer scrubbing ------------------------------------ */
   const fractionFromClientX = useCallback((clientX: number) => {
@@ -355,8 +446,13 @@ function AudioPlayerInstance({
   const showBuffered = bufferedFraction > 0.01 && bufferedFraction < 0.995;
 
   return (
+    /* graphite-900, not 850, and p-3 rather than p-4.
+       This sits directly above the transcript pane, which is an 850
+       surface at p-3 — two identical panels stacked read as one
+       mis-drawn box. Darker and tighter makes the player read as chrome
+       for the thing below it. */
     <div
-      className={cn("rounded-lg border border-graphite-700 bg-graphite-850 p-4", className)}
+      className={cn("rounded-lg border border-graphite-700 bg-graphite-900 p-3", className)}
       role="group"
       aria-label={title ? `Audio player — ${title}` : "Audio player"}
     >
@@ -392,13 +488,15 @@ function AudioPlayerInstance({
           setBufferedFraction(audio.buffered.end(audio.buffered.length - 1) / audio.duration);
         }}
         onTimeUpdate={(e) => {
-          if (!scrubbing) setCurrentTime(e.currentTarget.currentTime);
+          // Suppressed mid-drag: the pointer owns the position then, and
+          // letting the element's own events through would fight it.
+          if (!scrubbing) commitTime(e.currentTarget.currentTime);
         }}
         onPlay={() => setIsPlaying(true)}
         onPause={() => setIsPlaying(false)}
         onEnded={() => {
           setIsPlaying(false);
-          setCurrentTime(0);
+          commitTime(0);
         }}
         onError={() => {
           setHasError(true);
@@ -415,11 +513,22 @@ function AudioPlayerInstance({
       ) : (
         <div className="space-y-3">
           <div className="flex items-center gap-3">
+            {/* The only filled amber control on the page that wasn't a
+                Button. Now wears the same clothes: inset top highlight
+                instead of a flat fill, and a real press. Circular is
+                correct here — that's transport convention, not drift. */}
             <button
               type="button"
               onClick={togglePlay}
               disabled={isLoading}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-500 text-graphite-950 transition-colors hover:bg-amber-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40 disabled:opacity-40"
+              className={cn(
+                "flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-500 text-graphite-950",
+                "shadow-[inset_0_1px_0_rgba(255,255,255,0.25)]",
+                "transition-[background-color,transform] duration-150",
+                "hover:bg-amber-400 active:bg-amber-600 active:translate-y-px motion-reduce:active:translate-y-0",
+                "focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50",
+                "disabled:pointer-events-none disabled:opacity-60"
+              )}
               aria-label={isPlaying ? "Pause" : "Play"}
             >
               {isPlaying ? (
@@ -478,8 +587,9 @@ function AudioPlayerInstance({
               ) : (
                 <>
                   {/* Base layer: the whole track, unplayed. Either the
-                      real envelope or a plain rail while it decodes (or
-                      permanently, if the decode failed). */}
+                      real envelope or a plain rail while it decodes — or
+                      permanently, if the decode failed or the source is
+                      past maxWaveformSeconds. */}
                   {envelope ? (
                     <WaveformCanvas
                       envelope={envelope}
@@ -561,7 +671,7 @@ function AudioPlayerInstance({
             <button
               type="button"
               onClick={() => setShowRemaining((v) => !v)}
-              className="shrink-0 rounded px-1 font-mono text-xs tabular-nums text-text-muted transition-colors hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40"
+              className="shrink-0 rounded px-1 font-mono text-[11px] tabular-nums text-text-muted transition-colors hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40"
               aria-label={showRemaining ? "Show total time" : "Show remaining time"}
             >
               {formatTime(currentTime)} /{" "}
@@ -637,10 +747,18 @@ function AudioPlayerInstance({
                 </button>
 
                 {rateMenuOpen && (
+                  /* OPENS DOWNWARD (2026-08-21).
+                     Was bottom-full. Fine when the player sat inline, but
+                     on the transcript pages it's `sticky top-2` — parked
+                     8px below the top of the viewport, where a ~150px
+                     menu opening upward renders entirely off-screen.
+                     Downward it overlaps the transcript, which is
+                     harmless: the sticky wrapper carries z-20 and this
+                     sits above it. */
                   <div
                     role="listbox"
                     aria-label="Playback speed"
-                    className="absolute bottom-full right-0 z-10 mb-1.5 overflow-hidden rounded-md border border-graphite-700 bg-graphite-900 shadow-lg"
+                    className="absolute right-0 top-full z-30 mt-1.5 overflow-hidden rounded-md border border-graphite-700 bg-graphite-900 shadow-lg shadow-graphite-950/60"
                   >
                     {PLAYBACK_RATES.map((rate) => (
                       <button
@@ -654,7 +772,7 @@ function AudioPlayerInstance({
                           rateButtonRef.current?.focus();
                         }}
                         className={cn(
-                          "block w-full px-3 py-1.5 text-right font-mono text-xs transition-colors",
+                          "block w-full px-3 py-1.5 text-right font-mono text-[13px] transition-colors",
                           playbackRate === rate
                             ? "bg-amber-500/10 text-amber-400"
                             : "text-text-muted hover:bg-graphite-800 hover:text-text-primary"
