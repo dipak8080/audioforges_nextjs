@@ -4,10 +4,25 @@ import { JoinForm } from "@/components/converter/JoinForm";
 import { FAQSection } from "@/components/faq/FAQSection";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
+import { TOOL_LIMITS, formatBytes, formatDuration } from "@/lib/data/tool-limits";
 
 const PAGE_TITLE = "Free Audio Joiner — Merge Multiple Files Online";
 const PAGE_DESCRIPTION =
   "Combine multiple audio files into one track online, free. Reorder files, mix formats, choose your output. No sign-up, no watermark.";
+
+// Every limit shown on this page resolves from ONE place. Previously the
+// file count, byte ceiling, and duration cap were each written out by
+// hand in three or four spots (schema featureList, the feature grid, the
+// FAQ answer) — and they had already drifted once: the FAQ said "30
+// minutes" while the backend cap moved. Raising a cap on the VPS now
+// means updating tool-limits.ts alone, not grepping this file for
+// numbers.
+const JOIN = TOOL_LIMITS.join;
+
+const MAX_FILES = JOIN.maxFiles ?? 10;
+const MAX_TOTAL_SIZE = formatBytes(JOIN.maxTotalBytes ?? 0);
+const MAX_PER_FILE_SIZE = formatBytes(JOIN.maxFileBytes ?? 0);
+const MAX_TOTAL_DURATION = formatDuration(JOIN.maxTotalDurationSeconds ?? 0);
 
 export const metadata: Metadata = {
   title: PAGE_TITLE,
@@ -42,7 +57,7 @@ const webAppJsonLd = {
   operatingSystem: "Any",
   offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
   featureList: [
-    "Join up to 10 audio files into one",
+    `Join up to ${MAX_FILES} audio files into one`,
     "Reorder files before joining",
     "Resamples mismatched inputs to a common sample rate",
     "No sign-up required",
@@ -69,7 +84,11 @@ const faqs = [
   },
   {
     question: "How many files can I join at once?",
-    answer: "Up to 10 files, with a combined total of 150MB and up to 30 minutes of audio across all files together.",
+    answer:
+      `Up to ${MAX_FILES} files, with a combined total of ${MAX_TOTAL_SIZE} and up to ` +
+      `${MAX_TOTAL_DURATION} of audio across all files together. Each individual ` +
+      `file is also capped at ${MAX_PER_FILE_SIZE} — a single file over that is ` +
+      `rejected even when the combined total is well under the limit.`,
   },
   {
     question: "Does the order I add files in matter?",
@@ -93,6 +112,27 @@ const faqs = [
     question: "Will there be a gap or crossfade between files?",
     answer:
       "Files are joined end-to-end with no gap and no crossfade — whatever silence or lack of silence exists at the boundary between two files is exactly what carries over into the merged result.",
+  },
+  {
+    question: "Why was my join rejected for being too long?",
+    answer:
+      `The combined running time of all files is capped at ${MAX_TOTAL_DURATION}. ` +
+      `This is checked before any processing starts, so an over-length batch is ` +
+      `rejected immediately rather than failing partway through. If you're over ` +
+      `the limit, trim the individual files first or join them in two passes.`,
+    answerNode: (
+      <>
+        The combined running time of all files is capped at{" "}
+        {MAX_TOTAL_DURATION}. This is checked before any processing starts,
+        so an over-length batch is rejected immediately rather than failing
+        partway through. If you&apos;re over the limit, trim the individual
+        files first with the{" "}
+        <Link href="/trim" className="text-amber-400 hover:underline">
+          Audio Trimmer
+        </Link>{" "}
+        or join them in two passes.
+      </>
+    ),
   },
   {
     question: "Is this really free?",
@@ -124,7 +164,10 @@ export default function AudioJoinerPage() {
 
         <section className="grid gap-4 sm:grid-cols-3">
           {[
-            { title: "Up to 10 files", desc: "150MB combined, any mix of supported formats." },
+            {
+              title: `Up to ${MAX_FILES} files`,
+              desc: `${MAX_TOTAL_SIZE} combined, any mix of supported formats.`,
+            },
             { title: "Reorderable", desc: "Set the exact playback order before joining." },
             { title: "No sign-up", desc: "No account, no email, no watermark." },
           ].map((f) => (
@@ -146,6 +189,38 @@ export default function AudioJoinerPage() {
         </section>
 
         <section className="space-y-4">
+          <h2 className="text-2xl font-bold text-text-primary">Limits</h2>
+          <div className="overflow-x-auto rounded-xl border border-graphite-800">
+            <table className="w-full text-sm text-left text-text-muted">
+              <tbody className="divide-y divide-graphite-800">
+                <tr>
+                  <td className="px-4 py-3 font-medium text-text-primary">Files per join</td>
+                  <td className="px-4 py-3">Up to {MAX_FILES}</td>
+                </tr>
+                <tr>
+                  <td className="px-4 py-3 font-medium text-text-primary">Combined size</td>
+                  <td className="px-4 py-3">{MAX_TOTAL_SIZE}</td>
+                </tr>
+                <tr>
+                  <td className="px-4 py-3 font-medium text-text-primary">Per-file size</td>
+                  <td className="px-4 py-3">{MAX_PER_FILE_SIZE}</td>
+                </tr>
+                <tr>
+                  <td className="px-4 py-3 font-medium text-text-primary">Combined length</td>
+                  <td className="px-4 py-3">{MAX_TOTAL_DURATION}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p className="text-text-muted leading-relaxed">
+            Both size limits apply independently — a single file over{" "}
+            {MAX_PER_FILE_SIZE} is rejected even when the combined total sits
+            comfortably under {MAX_TOTAL_SIZE}. Length is checked across all
+            files together, before any processing begins.
+          </p>
+        </section>
+
+        <section className="space-y-4">
           <h2 className="text-2xl font-bold text-text-primary">Why mismatched files still join correctly</h2>
           <p className="text-text-muted leading-relaxed">
             Joining audio files directly is riskier than it looks — a file
@@ -158,8 +233,8 @@ export default function AudioJoinerPage() {
             seam.
           </p>
           <p className="text-text-muted leading-relaxed">
-            Want the fuller breakdown of what's actually happening when
-            mismatched files get joined, and what "no gap, no crossfade"
+            Want the fuller breakdown of what&apos;s actually happening when
+            mismatched files get joined, and what &quot;no gap, no crossfade&quot;
             really means for the result?{" "}
             <Link href="/guides/why-you-cant-just-concatenate-audio-files" className="text-amber-400 hover:underline">
               Read Why You Can&apos;t Just Concatenate Audio Files
@@ -172,7 +247,7 @@ export default function AudioJoinerPage() {
           <p className="text-text-muted leading-relaxed">
             Because every input is resampled to a common rate as part of the
             join, each file goes through a decode-and-re-encode step rather
-            than being spliced together as raw, untouched data — that's true
+            than being spliced together as raw, untouched data — that&apos;s true
             even when the input and chosen output format already match. In
             practice the audible difference is minimal, but it&apos;s worth
             knowing this isn&apos;t a byte-for-byte lossless passthrough, the

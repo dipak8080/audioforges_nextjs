@@ -4,6 +4,16 @@ import { SilenceSplitForm } from "@/components/converter/SilenceSplitForm";
 import { FAQSection } from "@/components/faq/FAQSection";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
+import { getToolLimits, getFileBytesLabel } from "@/lib/data/tool-limits";
+import { getRateLimitLabel } from "@/lib/data/rate-limits";
+
+// Single reads at module load — same pattern as every other data-driven
+// value on this page (relatedTools, faqs). No hardcoded "80MB" or
+// "3 per 5 minutes" anywhere below; both come from these two lines.
+const limits = getToolLimits("silence-split");
+const fileSizeLabel = getFileBytesLabel("silence-split") ?? "80MB";
+const rateLimitLabel = getRateLimitLabel("silence-split");
+const maxSegments = limits?.maxOutputSegments ?? 50;
 
 // 46 chars, so ~60 with the " | AudioForges" suffix — right at the SERP
 // budget. If it truncates, it drops "by Silence" and still reads as
@@ -67,7 +77,7 @@ const webAppJsonLd = {
     "Automatic silence detection",
     "Adjustable silence threshold",
     "Adjustable minimum gap length",
-    "Splits one file into up to 50 separate tracks",
+    `Splits one file into up to ${maxSegments} separate tracks`,
     "Choice of output format",
     "No sign-up required",
     "No watermark",
@@ -133,8 +143,7 @@ const faqs = [
   },
   {
     question: "How many tracks can one upload produce?",
-    answer:
-      "Up to 50 segments per upload. Any segment shorter than 1 second is dropped automatically rather than kept as a near-empty fragment.",
+    answer: `Up to ${maxSegments} segments per upload. Any segment shorter than ${limits?.minOutputSegmentSeconds ?? 1} second is dropped automatically rather than kept as a near-empty fragment.`,
   },
   {
     question: "Does splitting reduce audio quality?",
@@ -143,8 +152,7 @@ const faqs = [
   },
   {
     question: "Can I choose the output format?",
-    answer:
-      "Yes — pick one output format and every resulting segment is saved in that format, regardless of what you uploaded. MP3, WAV, FLAC, M4A, AAC, OGG and AIFF are supported, up to 80MB per upload.",
+    answer: `Yes — pick one output format and every resulting segment is saved in that format, regardless of what you uploaded. MP3, WAV, FLAC, M4A, AAC, OGG and AIFF are supported, up to ${fileSizeLabel} per upload.`,
   },
   {
     question: "Does it name the tracks or read chapter markers?",
@@ -185,7 +193,7 @@ export default function SilenceSplitPage() {
           {[
             { title: "Automatic silence detection", desc: "Finds quiet gaps across the whole file instead of you scrubbing through it by hand." },
             { title: "Adjustable detection", desc: "Control the silence threshold and minimum gap length to decide what counts as a split point." },
-            { title: "Up to 50 tracks", desc: "One long recording becomes as many separate, individually downloadable files as it has real gaps." },
+            { title: `Up to ${maxSegments} tracks`, desc: "One long recording becomes as many separate, individually downloadable files as it has real gaps." },
           ].map((f) => (
             <div key={f.title} className="rounded-xl border border-graphite-800 bg-graphite-900 p-5 space-y-2">
               <p className="font-semibold text-text-primary">{f.title}</p>
@@ -481,8 +489,9 @@ export default function SilenceSplitPage() {
           <h2 className="text-2xl font-bold text-text-primary">Supported formats</h2>
           <FormatBadges />
           <p className="text-text-muted leading-relaxed">
-            Upload any of the formats above, up to 80MB per file. Choose one
-            output format and every resulting track is saved in that format.
+            Upload any of the formats above, up to {fileSizeLabel} per file.
+            Choose one output format and every resulting track is saved in
+            that format.
           </p>
         </section>
 
