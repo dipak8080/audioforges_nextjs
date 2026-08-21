@@ -15,12 +15,15 @@
 //
 // SCOPE: every limit below is per IP address, per endpoint. Two
 // endpoints sharing a number don't share a budget — someone who has
-// used their transcription allowance can still submit to /stems.
+// used their transcription allowance can still submit to /stems. This
+// is not a convention, it's how rate_limit.py's `_requests` map is
+// keyed: `(ip, path)`. Nothing in the backend can make two paths draw
+// from one pool without changing that key.
 //
 // For input caps (file counts, byte ceilings, duration ceilings) see
 // tool-limits.ts — separate file, separate concern.
 //
-// ALL VALUES BELOW VERIFIED against backend config.py on 2026-08-21.
+// ALL VALUES BELOW RE-VERIFIED against backend config.py on 2026-08-21.
 // The `envVar` field names the backend variable, so a limit changed on
 // the VPS can be traced back here without grepping Python.
 
@@ -49,13 +52,21 @@ export const RATE_LIMITS: Record<string, RateLimitSpec> = {
     limit: 1, windowSeconds: 3600, label: "1 per hour",
     envVar: "SEPARATION_HQ_RATE_LIMIT_MAX_REQUESTS",
   },
+  // CHANGED 2026-08-21: 15 → 6, and the envVar moved off the shared
+  // YOUTUBE_CHAIN_* constant onto this tool's own. The backend split
+  // one pair of constants into five (one per chained YouTube tool)
+  // because /youtube/separate holds the single Demucs slot for 3-5
+  // minutes per job, while /youtube/analyze — which shared its number —
+  // finishes in about 30 seconds on a 4-slot semaphore. Fifteen
+  // separation jobs from one IP was over an hour of the only separation
+  // slot on the box.
   "youtube/separate": {
-    limit: 15, windowSeconds: 3600, label: "15 per hour",
-    envVar: "YOUTUBE_CHAIN_RATE_LIMIT_MAX_REQUESTS",
+    limit: 6, windowSeconds: 3600, label: "6 per hour",
+    envVar: "YOUTUBE_SEPARATE_RATE_LIMIT_MAX_REQUESTS",
   },
   "youtube/separate-hq": {
     limit: 1, windowSeconds: 3600, label: "1 per hour",
-    envVar: "YOUTUBE_CHAIN_HQ_RATE_LIMIT_MAX_REQUESTS",
+    envVar: "YOUTUBE_SEPARATE_HQ_RATE_LIMIT_MAX_REQUESTS",
   },
 
   // ---- Stem Splitter (4 stems: vocals, drums, bass, other) ----
@@ -67,13 +78,17 @@ export const RATE_LIMITS: Record<string, RateLimitSpec> = {
     limit: 1, windowSeconds: 3600, label: "1 per hour",
     envVar: "STEMS_HQ_RATE_LIMIT_MAX_REQUESTS",
   },
+  // CHANGED 2026-08-21: 15 → 6, same reasoning as youtube/separate
+  // above. Identical Demucs cost (same model, same run — only the
+  // output files differ), so the same number, but now from its own
+  // backend constant rather than a shared one.
   "youtube/stems": {
-    limit: 15, windowSeconds: 3600, label: "15 per hour",
-    envVar: "YOUTUBE_CHAIN_RATE_LIMIT_MAX_REQUESTS",
+    limit: 6, windowSeconds: 3600, label: "6 per hour",
+    envVar: "YOUTUBE_STEMS_RATE_LIMIT_MAX_REQUESTS",
   },
   "youtube/stems-hq": {
     limit: 1, windowSeconds: 3600, label: "1 per hour",
-    envVar: "YOUTUBE_CHAIN_HQ_RATE_LIMIT_MAX_REQUESTS",
+    envVar: "YOUTUBE_STEMS_HQ_RATE_LIMIT_MAX_REQUESTS",
   },
 
   // ---- Transcription ----
@@ -113,8 +128,16 @@ export const RATE_LIMITS: Record<string, RateLimitSpec> = {
   },
 
   // ---- YouTube / TikTok download ----
+  //
+  // CORRECTED 2026-08-21: this said 15, but
+  // DOWNLOAD_RATE_LIMIT_MAX_REQUESTS in config.py is 18. Same class of
+  // bug as the audio-to-midi entry above and in the same direction —
+  // the UI under-reported the real allowance, so a user who'd made
+  // sixteen downloads was told they were over a limit they hadn't
+  // reached. Found while auditing this file against config.py for the
+  // YouTube chain split; unrelated to that change.
   download: {
-    limit: 15, windowSeconds: 3600, label: "15 per hour",
+    limit: 18, windowSeconds: 3600, label: "18 per hour",
     envVar: "DOWNLOAD_RATE_LIMIT_MAX_REQUESTS",
   },
   "tiktok-to-mp3": {
@@ -199,9 +222,15 @@ export const RATE_LIMITS: Record<string, RateLimitSpec> = {
   },
 
   // ---- YouTube chained analysis ----
+  //
+  // Unchanged at 15/hour, but now from its own backend constant. This
+  // is the one chained YouTube tool that never touches the single
+  // separation slot — it runs Essentia on a 3-minute trim against a
+  // 4-slot semaphore — which is exactly why it can stay this loose
+  // while its two former co-tenants dropped to 6.
   "youtube/analyze": {
     limit: 15, windowSeconds: 3600, label: "15 per hour",
-    envVar: "YOUTUBE_CHAIN_RATE_LIMIT_MAX_REQUESTS",
+    envVar: "YOUTUBE_ANALYZE_RATE_LIMIT_MAX_REQUESTS",
   },
 };
 
