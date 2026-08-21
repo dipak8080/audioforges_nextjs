@@ -46,8 +46,7 @@ const formatDate = (iso: string) =>
 // ("free transcription no sign up", "transcribe without an account")
 // rather than brand queries — see the note on competitor naming below.
 const PAGE_TITLE = "Free Transcription Without Signing Up";
-const PAGE_DESCRIPTION =
-  "Why most free transcription tools ask for an account halfway through, how to spot it before you upload, and where to get a transcript with no sign-up and no credit card.";
+const PAGE_DESCRIPTION = "Why most free transcription tools ask for an account halfway through, how to spot it before you upload, and where to get one with no sign-up or card.";
 
 export const metadata: Metadata = {
   title: PAGE_TITLE,

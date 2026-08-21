@@ -7,9 +7,7 @@ import { HeroConverter } from "@/components/home/HeroConverter";
 import { FAQSection, type FAQItem } from "@/components/faq/FAQSection";
 
 const PAGE_TITLE = "Free Audio Tools for Music Producers, DJs & Musicians";
-const PAGE_DESCRIPTION =
-  "Free online audio tools for producers and DJs. Convert, edit, analyze, transcribe, tune instruments, find BPM, and practice with a metronome. No sign-up required.";
-
+const PAGE_DESCRIPTION ="Free online audio tools for producers and DJs. Convert, edit, analyze, transcribe, find BPM and tune your instrument. No sign-up required."
 export const metadata: Metadata = {
   title: PAGE_TITLE,
   description: PAGE_DESCRIPTION,

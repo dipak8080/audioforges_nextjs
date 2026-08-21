@@ -66,7 +66,7 @@ const formatDate = (iso: string) =>
 // in the same breath — the qualifier is what makes this winnable rather
 // than a fourth identical result.
 const PAGE_TITLE = "YouTube Transcript When Captions Are Off";
-const PAGE_DESCRIPTION = `Get a YouTube transcript even when captions are disabled — it reads the audio, not the caption track. Free, no account, no extension. Export TXT, SRT or VTT. Up to ${MAX_MINUTES} minutes.`;
+const PAGE_DESCRIPTION = `Get a YouTube transcript even when captions are disabled — it reads the audio, not the caption track. Free, no account. TXT, SRT or VTT, up to ${MAX_MINUTES} min.`;
 
 export const metadata: Metadata = {
   title: PAGE_TITLE,
