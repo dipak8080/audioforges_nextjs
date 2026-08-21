@@ -50,7 +50,7 @@ export const RATE_LIMITS: Record<string, RateLimitSpec> = {
     envVar: "SEPARATION_HQ_RATE_LIMIT_MAX_REQUESTS",
   },
   "youtube/separate": {
-    limit: 3, windowSeconds: 3600, label: "3 per hour",
+    limit: 15, windowSeconds: 3600, label: "15 per hour",
     envVar: "YOUTUBE_CHAIN_RATE_LIMIT_MAX_REQUESTS",
   },
   "youtube/separate-hq": {
@@ -68,7 +68,7 @@ export const RATE_LIMITS: Record<string, RateLimitSpec> = {
     envVar: "STEMS_HQ_RATE_LIMIT_MAX_REQUESTS",
   },
   "youtube/stems": {
-    limit: 3, windowSeconds: 3600, label: "3 per hour",
+    limit: 15, windowSeconds: 3600, label: "15 per hour",
     envVar: "YOUTUBE_CHAIN_RATE_LIMIT_MAX_REQUESTS",
   },
   "youtube/stems-hq": {
@@ -200,7 +200,7 @@ export const RATE_LIMITS: Record<string, RateLimitSpec> = {
 
   // ---- YouTube chained analysis ----
   "youtube/analyze": {
-    limit: 3, windowSeconds: 3600, label: "3 per hour",
+    limit: 15, windowSeconds: 3600, label: "15 per hour",
     envVar: "YOUTUBE_CHAIN_RATE_LIMIT_MAX_REQUESTS",
   },
 };
