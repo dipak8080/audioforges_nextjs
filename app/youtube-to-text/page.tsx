@@ -65,8 +65,8 @@ const formatDate = (iso: string) =>
 // ("YouTube transcript") while staking the claim on the differentiator
 // in the same breath — the qualifier is what makes this winnable rather
 // than a fourth identical result.
-const PAGE_TITLE = "YouTube Transcript When Captions Are Off";
-const PAGE_DESCRIPTION = `Get a YouTube transcript even when captions are disabled — it reads the audio, not the caption track. Free, no account. TXT, SRT or VTT, up to ${MAX_MINUTES} min.`;
+const PAGE_TITLE = "Free YouTube Transcript, Even Without Captions";
+const PAGE_DESCRIPTION = `Free YouTube transcript with no account or extension. It reads the audio, so it works even when captions are disabled. Export TXT, SRT or VTT, up to ${MAX_MINUTES} min.`;
 
 export const metadata: Metadata = {
   title: PAGE_TITLE,
@@ -218,13 +218,13 @@ export default function YouTubeToTextPage() {
             No account · No extension · Free SRT
           </p>
           <h1 className="mx-auto mt-4 max-w-2xl text-4xl font-bold tracking-tight text-text-primary sm:text-5xl">
-            YouTube transcript, even with captions off
+            Free YouTube transcript, with or without captions
           </h1>
           <p className="mx-auto mt-4 max-w-xl text-lg text-text-muted">
-            Paste a link and get the words back with timestamps. This reads the
-            audio rather than YouTube&apos;s caption track, so it works on
-            videos where the transcript panel and every browser extension come
-            back empty.
+            Paste a link and get the words back with timestamps, free and with no
+            account. This reads the audio rather than YouTube&apos;s caption track,
+            so it works on videos where the transcript panel and every browser
+            extension come back empty.
           </p>
         </section>
 

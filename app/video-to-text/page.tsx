@@ -43,6 +43,11 @@ const formatDate = (iso: string) =>
  * "video to text converter" survives as the JSON-LD name, in the opening
  * paragraph, and in an H2. Losing an exact-match H1 for a term we can't
  * win costs nothing; Google matches the entity regardless.
+ *
+ * "video transcription" (bare noun phrase, KD 27, DR 70+ SaaS on the
+ * SERP) is the same story: not a title target for a new domain, but the
+ * entity gets matched without spending title real estate by carrying it
+ * in the opening paragraph — see below.
  */
 const PAGE_TITLE = "Transcribe Video to Text Free, MP4 to SRT";
 const PAGE_DESCRIPTION = `Transcribe MP4, MOV, MKV or WEBM to text free — no account, no watermark. Export SRT or VTT subtitles. Videos up to ${MAX_MINUTES} minutes and ${VIDEO_MB}MB.`;
@@ -63,6 +68,11 @@ export const metadata: Metadata = {
     "video to subtitles",
     "transcribe video free no sign up",
     "mov to text",
+    // Added — gap run against youtubetotranscript.com, tactiq.io,
+    // notegpt.io, downsub.com, kome.ai. Bare-noun-phrase and reversed
+    // word-order variants not previously in the array.
+    "video transcription",
+    "transcription video to text",
   ],
   alternates: { canonical: `${SITE_URL}/video-to-text` },
   openGraph: {
@@ -253,6 +263,10 @@ export default function VideoToTextPage() {
       />
 
       <main className="mx-auto max-w-3xl px-4 pb-16">
+        {/* Opening paragraph now carries the bare entity "video
+            transcription" (KD 27, DR 70+ SaaS on the SERP — not a title
+            target for a new domain, per the targeting comment above) so
+            it's matched without spending title or H1 real estate. */}
         <section className="pt-14 text-center sm:pt-20">
           <p className="font-mono text-xs uppercase tracking-[0.16em] text-amber-500">
             No account · No watermark · Free SRT
@@ -261,9 +275,9 @@ export default function VideoToTextPage() {
             Transcribe video to text free
           </h1>
           <p className="mx-auto mt-4 max-w-xl text-lg text-text-muted">
-            A video to text converter that gives you the file. Upload an MP4 or
-            MOV, get the transcript back, and download SRT or VTT subtitles with
-            nothing held behind a sign-up.
+            A video to text converter that gives you the file — free video
+            transcription with nothing held behind a sign-up. Upload an MP4 or
+            MOV, get the transcript back, and download SRT or VTT subtitles.
           </p>
         </section>
 

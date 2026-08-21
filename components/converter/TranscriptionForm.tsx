@@ -18,6 +18,7 @@ import { SearchableSelect } from "@/components/ui/SearchableSelect";
 import { FileDropZone } from "@/components/ui/FileDropZone";
 import { FileDropOverlay } from "@/components/ui/FileDropOverlay";
 import { SupportBlock } from "@/components/ui/SupportBlock";
+import { VideoPreviewCard, useYouTubeMeta } from "@/components/ui/VideoPreviewCard";
 import { cn } from "@/lib/utils/cn";
 import { sanitizeUserInput, validateYouTubeUrl } from "@/lib/utils/validation";
 import { ApiError } from "@/lib/api/railway";
@@ -51,7 +52,7 @@ import { getRateLimitLabel, getRetryAfterFallback } from "@/lib/data/rate-limits
  * The card is a panel with named zones, not a stack of widgets.
  *
  *   ┌ header ─────────────── state dot · state ····· model ┐
- *   │ SOURCE      file drop / URL field                    │
+ *   │ SOURCE      file drop / URL field + preview          │
  *   ├──────────────────────────────────────────────────────┤
  *   │ SETTINGS    language · output          (2-up on sm+)  │
  *   ├──────────────────────────────────────────────────────┤
@@ -61,11 +62,7 @@ import { getRateLimitLabel, getRetryAfterFallback } from "@/lib/data/rate-limits
  * Two rules that everything below follows:
  *
  *  1. ONE action, ONE place. The footer holds exactly one button in
- *     every state — Transcribe, Cancel, or Transcribe another. The old
- *     form had a submit button that turned into a spinner while a
- *     separate progress panel above it also span, and a Cancel link
- *     buried at 12px inside that panel. Three feedback surfaces for one
- *     job.
+ *     every state — Transcribe, Cancel, or Transcribe another.
  *
  *  2. Zones are separated by hairlines, not by more vertical space.
  *     Uniform `space-y-6` between seven unrelated blocks is why the old
@@ -82,6 +79,12 @@ import { getRateLimitLabel, getRetryAfterFallback } from "@/lib/data/rate-limits
  *
  * Control height is 44px (`h-11`) for every settings control, so the
  * settings row has one baseline instead of three.
+ *
+ * The YouTube confirmation row is NOT defined here. It's
+ * <VideoPreviewCard>, shared with YouTubeUrlForm and
+ * YouTubeConverterForm — the three used to be three near-copies that had
+ * drifted on thumbnail size, fallback copy and whether an image error
+ * was handled at all.
  */
 
 /* ------------------------------------------------------------------ */
@@ -310,10 +313,6 @@ export function TranscriptionForm({ mode, languages: initialLanguages }: Transcr
   const [serverTitle, setServerTitle] = useState<string | null>(null);
   const [cooldownSeconds, setCooldownSeconds] = useState(0);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  /** Real video title from YouTube's oEmbed endpoint, so the confirmation
-   *  row shows what you're about to transcribe rather than the string
-   *  "Ready to transcribe". Best-effort — the row falls back to the ID. */
-  const [videoMeta, setVideoMeta] = useState<{ id: string; title: string } | null>(null);
 
   const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pollStartedAtRef = useRef(0);
@@ -329,6 +328,12 @@ export function TranscriptionForm({ mode, languages: initialLanguages }: Transcr
    *  be acted on. During a job they're replaced by the progress panel;
    *  after one they're replaced by the transcript. */
   const showEditor = status === "idle" || status === "failed";
+
+  /** Title/channel for the pasted link. Shared hook, shared card — see
+   *  components/ui/VideoPreviewCard.tsx. Lives up here rather than inside
+   *  the card because the progress panel needs the same title, and a
+   *  card that owned the fetch would mean requesting it twice. */
+  const videoMeta = useYouTubeMeta(videoId);
 
   /* --- preview audio ----------------------------------------------
      Created and revoked here rather than in TranscriptView, because the
@@ -361,36 +366,32 @@ export function TranscriptionForm({ mode, languages: initialLanguages }: Transcr
     };
   }, [languages]);
 
-  /* --- YouTube title ----------------------------------------------
-     oEmbed is CORS-open and unauthenticated. It is allowed to fail: the
-     row degrades to the video ID and nothing else depends on it. */
+  /* --- link validation, debounced ---------------------------------
+     Matched to the two YouTube tools, which have always done this. The
+     transcription form used to say nothing about a malformed link until
+     you pressed the button, so the only feedback on a typo'd URL was the
+     submit staying grey — which reads as the button being broken, not
+     the link. 450ms is long enough that it never fires mid-paste. */
   useEffect(() => {
-    if (!videoId) {
-      setVideoMeta(null);
+    if (!isUrlMode || isBusy) return;
+
+    const trimmed = url.trim();
+    if (!trimmed) {
+      setValidationError(null);
       return;
     }
-    let cancelled = false;
-    const controller = new AbortController();
+    if (extractVideoId(trimmed)) {
+      setValidationError(null);
+      return;
+    }
 
-    fetch(
-      `https://www.youtube.com/oembed?format=json&url=${encodeURIComponent(
-        `https://www.youtube.com/watch?v=${videoId}`
-      )}`,
-      { signal: controller.signal }
-    )
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data: { title?: string } | null) => {
-        if (!cancelled && data?.title) setVideoMeta({ id: videoId, title: data.title });
-      })
-      .catch(() => {
-        // Private, deleted, region-locked, or offline. The ID is enough.
-      });
+    const timer = setTimeout(() => {
+      const check = validateYouTubeUrl(trimmed);
+      setValidationError(check.error || "That doesn't look like a YouTube link");
+    }, 450);
 
-    return () => {
-      cancelled = true;
-      controller.abort();
-    };
-  }, [videoId]);
+    return () => clearTimeout(timer);
+  }, [url, isUrlMode, isBusy]);
 
   /* --- timers ----------------------------------------------------- */
   const stopPolling = useCallback(() => {
@@ -575,6 +576,7 @@ export function TranscriptionForm({ mode, languages: initialLanguages }: Transcr
     setServerTitle(null);
     setIsSample(false);
     setElapsedSeconds(0);
+    if (isUrlMode) inputRef.current?.focus();
   };
 
   const handleCancel = () => {
@@ -762,7 +764,7 @@ export function TranscriptionForm({ mode, languages: initialLanguages }: Transcr
          TranscriptView: a sticky element inside an overflow-hidden
          ancestor sticks to that ancestor, which never scrolls, so it
          just never moves. The action bar carries rounded-b-xl instead. */
-      className="rounded-xl border border-graphite-800 bg-graphite-900"
+      className="rounded-xl border border-graphite-800 bg-graphite-900 shadow-[0_1px_0_rgba(255,255,255,0.03)_inset]"
     >
       {/* Whole window is a drop target, not just the dashed box. Off for
           the URL mode, while a job runs, and once a result is showing —
@@ -853,6 +855,8 @@ export function TranscriptionForm({ mode, languages: initialLanguages }: Transcr
                   value={url}
                   onChange={(e) => {
                     setUrl(sanitizeUserInput(e.target.value, 500));
+                    // Clear immediately; the debounced effect above puts
+                    // it back if the link still doesn't parse.
                     setValidationError(null);
                   }}
                   onKeyDown={(e) => {
@@ -882,7 +886,11 @@ export function TranscriptionForm({ mode, languages: initialLanguages }: Transcr
                   {url && !isBusy && (
                     <button
                       type="button"
-                      onClick={() => setUrl("")}
+                      onClick={() => {
+                        setUrl("");
+                        setValidationError(null);
+                        inputRef.current?.focus();
+                      }}
                       aria-label="Clear link"
                       className="rounded-md p-1.5 text-text-subtle transition-colors hover:bg-graphite-800 hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40"
                     >
@@ -906,28 +914,10 @@ export function TranscriptionForm({ mode, languages: initialLanguages }: Transcr
               {/* Confirmation row. Shows the actual video, not the string
                   "Ready to transcribe" — you should be able to tell you
                   pasted the wrong link before you spend 90 seconds
-                  finding out. */}
+                  finding out. Identical component to the one on
+                  /youtube-to-mp3 and /key-bpm-finder. */}
               {videoId ? (
-                <div className="flex items-center gap-3 rounded-lg border border-graphite-800 bg-graphite-850/60 p-2.5">
-                  <div className="h-12 w-20 shrink-0 overflow-hidden rounded-md bg-graphite-800">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={`https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`}
-                      alt=""
-                      loading="lazy"
-                      className="h-full w-full object-cover"
-                    />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-[13px] font-medium text-text-primary">
-                      {videoMeta?.id === videoId ? videoMeta.title : "Video found"}
-                    </p>
-                    <p className="mt-0.5 truncate font-mono text-[11px] text-text-subtle">
-                      youtu.be/{videoId}
-                    </p>
-                  </div>
-                  <Check className="h-4 w-4 shrink-0 text-teal-400" aria-hidden />
-                </div>
+                <VideoPreviewCard videoId={videoId} meta={videoMeta} size="md" />
               ) : (
                 <p className="text-[13px] text-text-subtle">
                   Watch links, youtu.be and Shorts. Up to{" "}
@@ -1036,21 +1026,39 @@ export function TranscriptionForm({ mode, languages: initialLanguages }: Transcr
       {/* ================= Working ================= */}
       {isBusy && (
         <section className="px-5 py-5 sm:px-6" aria-busy="true">
-          <div className="mb-3.5 flex items-baseline justify-between gap-3">
-            <p className="min-w-0 truncate text-sm font-medium text-text-primary">
-              {isUrlMode
-                ? videoMeta?.id === videoId
-                  ? videoMeta.title
-                  : serverTitle || "Working on your video"
-                : (file?.name ?? "Working on your file")}
-            </p>
-            <span
-              className="shrink-0 font-mono text-[11px] tabular-nums text-text-subtle"
-              aria-hidden
-            >
-              {formatElapsed(elapsedSeconds)}
-            </span>
-          </div>
+          {/* The same card that confirmed the link now carries the job.
+              Watching the thumbnail you chose stay on screen for 90
+              seconds is a stronger "yes, this is running on the right
+              video" than a line of truncated text. */}
+          {isUrlMode && videoId ? (
+            <VideoPreviewCard
+              videoId={videoId}
+              meta={videoMeta}
+              size="sm"
+              title={serverTitle}
+              className="mb-3.5"
+              trailing={
+                <span
+                  className="shrink-0 font-mono text-[11px] tabular-nums text-text-subtle"
+                  aria-hidden
+                >
+                  {formatElapsed(elapsedSeconds)}
+                </span>
+              }
+            />
+          ) : (
+            <div className="mb-3.5 flex items-baseline justify-between gap-3">
+              <p className="min-w-0 truncate text-sm font-medium text-text-primary">
+                {file?.name ?? "Working on your file"}
+              </p>
+              <span
+                className="shrink-0 font-mono text-[11px] tabular-nums text-text-subtle"
+                aria-hidden
+              >
+                {formatElapsed(elapsedSeconds)}
+              </span>
+            </div>
+          )}
 
           {/* Determinate while the bytes are going up, because that IS
               measurable — then indeterminate once the server takes over,
