@@ -56,8 +56,14 @@ export interface Tool {
   status: ToolStatus;
   /** Explicit curated related tool slugs, in priority order. Overrides generic
    * same-category matching — use this when the genuinely useful next step
-   * isn't just "another tool in the same bucket" (e.g. speech-to-text should
-   * point to voice-clean, not just any AI-category tool). */
+   * isn't just "another tool in the same bucket" (e.g. audio-to-text should
+   * point to voice-clean, not just any transcription-category tool).
+   *
+   * LIST AT LEAST AS MANY AS THE LARGEST `count` ANY PAGE PASSES (4, on the
+   * tool pages). getRelatedTools falls back to same-category matches to fill
+   * the gap, and that fallback is where irrelevant cross-links come from — a
+   * transcription page listing three curated tools gets a fourth chosen
+   * purely because it shares a category label. */
   related?: string[];
 }
 
@@ -293,13 +299,21 @@ export const TOOLS: Tool[] = [
   },
 
   // ---------- TRANSCRIPTION ----------
+  //
+  // Each of these lists FOUR related tools, matching the count the tool
+  // pages pass to getRelatedTools. With only three, the fourth slot fell
+  // through to same-category matching and picked up audio-to-midi — see
+  // the note on that entry below.
   {
     slug: "audio-to-text",
     name: "Audio to Text",
     shortDescription: "Transcribe audio to text with timestamps, free and without an account.",
     category: "transcription",
     status: "live",
-    related: ["youtube-to-text", "video-to-text", "voice-clean"],
+    // voice-clean and silence-split are the two the page copy actually
+    // recommends: clean the recording first, split it if it's over the
+    // duration cap.
+    related: ["youtube-to-text", "video-to-text", "voice-clean", "silence-split"],
   },
   {
     slug: "youtube-to-text",
@@ -307,7 +321,9 @@ export const TOOLS: Tool[] = [
     shortDescription: "Paste a YouTube link and get the full transcript, free.",
     category: "transcription",
     status: "live",
-    related: ["audio-to-text", "video-to-text", "youtube-to-wav"],
+    // youtube-to-wav and silence-split are steps 1 and 2 of the
+    // over-the-limit workaround the page documents.
+    related: ["audio-to-text", "video-to-text", "youtube-to-wav", "silence-split"],
   },
   {
     slug: "video-to-text",
@@ -315,7 +331,43 @@ export const TOOLS: Tool[] = [
     shortDescription: "Upload a video and get a transcript or subtitle file.",
     category: "transcription",
     status: "live",
-    related: ["audio-to-text", "youtube-to-text", "video-to-audio"],
+    // video-to-audio is what the page tells people to use when a file is
+    // over the byte cap.
+    related: ["audio-to-text", "youtube-to-text", "video-to-audio", "voice-clean"],
+  },
+
+  // ---------- AUDIO TO MIDI ----------
+  //
+  // MOVED HERE (2026-08-21) from under "// BROWSER TOOLS", where it sat
+  // while declaring category: "transcription". The comment headers are
+  // decoration — the category field is what the code reads — so nothing
+  // was broken, but a reader scanning for the transcription tools would
+  // have missed it, which is the whole point of grouping the file.
+  //
+  // `related` pointed at "speech-to-text", a route that no longer exists
+  // (it 308s to /audio-to-text). getRelatedTools silently skips slugs it
+  // can't resolve, so the entry didn't error — it just quietly returned
+  // one fewer tool than asked for and let the category fallback pick the
+  // replacement.
+  //
+  // The replacements are musical, not speech: someone converting a melody
+  // to MIDI wants the key, the isolated stem, or the source audio — they
+  // do not want a speech transcript. Four listed so the fallback never
+  // fires.
+  //
+  // OPEN QUESTION worth deciding: is category "transcription" right at
+  // all? It's literally transcription, but nobody browsing a
+  // "Transcription" menu for a speech transcript wants MIDI, and grouping
+  // them means each keeps showing up in the other's category listings.
+  // "vocals" is arguably the better home. Left as-is for now because
+  // changing it also changes the nav dropdown and the /tools hub.
+  {
+    slug: "audio-to-midi",
+    name: "Audio to MIDI Converter",
+    shortDescription: "Transcribe a melody or vocal line into a downloadable MIDI file.",
+    category: "transcription",
+    status: "live",
+    related: ["key-finder", "vocal-remover", "stems", "youtube-to-wav"],
   },
 
   // ---------- BROWSER TOOLS ----------
@@ -351,14 +403,8 @@ export const TOOLS: Tool[] = [
     status: "live",
     related: ["metronome", "key-finder"],
   },
-  {
-    slug: "audio-to-midi",
-    name: "Audio to MIDI Converter",
-    shortDescription: "Transcribe a melody or vocal line into a downloadable MIDI file.",
-    category: "transcription",
-    status: "live",
-    related: ["speech-to-text", "key-finder", "vocal-remover"],
-  },
+
+  // ---------- DOWNLOAD (cont.) ----------
   {
     slug: "tiktok-to-mp3",
     name: "TikTok to MP3",
@@ -386,6 +432,13 @@ export function getToolBySlug(slug: string): Tool | undefined {
 // 2) other tools in the same category, 3) anything else live. This ensures
 // every page links to genuinely relevant tools rather than always showing
 // the same first-N-in-list-order pair.
+//
+// NOTE: an unresolvable slug in `related` (a renamed or deleted route) is
+// skipped silently rather than throwing. That's deliberate — a stale
+// cross-link should not break a page render — but it means a typo shows up
+// only as a slightly-off related list, which is easy to miss. If a page's
+// related tools ever look arbitrary, check its `related` array for a slug
+// that no longer exists before looking anywhere else.
 export function getRelatedTools(currentSlug: string, count: number = 2): Tool[] {
   const current = getToolBySlug(currentSlug);
   const liveExcludingSelf = getLiveTools().filter((t) => t.slug !== currentSlug);
