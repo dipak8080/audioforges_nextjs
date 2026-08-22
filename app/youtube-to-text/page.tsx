@@ -30,6 +30,21 @@ import { TRANSCRIPTION_LIMITS, TRANSCRIPTION_MODEL } from "@/lib/api/transcripti
  * winnable, and every visitor who arrives is one the tool actually
  * serves.
  *
+ * ── NOT CHASING THE TERM ISN'T THE SAME AS OMITTING IT ────────────────
+ *
+ * The title carries "YouTube transcript" as an ENTITY. The qualifier
+ * that follows it is what keeps the page off the head intent — someone
+ * who just wants to read the captions of a captioned video reads
+ * "Even Without Captions" and self-selects out, which is the whole
+ * point.
+ *
+ * Being absent from the entity entirely was the earlier mistake: it
+ * cost the match without buying any protection from the wrong intent,
+ * and it made the title read as a restriction on the tool ("only works
+ * when captions are off") rather than a capability. The sibling pages
+ * both lead with entity + "Free" + differentiator; this one now does
+ * the same.
+ *
  * ── THE REAL FIX IS A BACKEND CHANGE ──────────────────────────────────
  *
  * TODO(dipak): caption fast path. On submit, ask YouTube whether a
@@ -44,9 +59,17 @@ import { TRANSCRIPTION_LIMITS, TRANSCRIPTION_MODEL } from "@/lib/api/transcripti
  * that handles both, which is the point at which competing for the head
  * term stops being a bad idea.
  *
- * When it ships: widen the title back toward "youtube transcript",
- * rewrite the hero, and drop the length caveat from the comparison
- * table — captions have no length limit.
+ * It's also the only route to the volume that actually exists here. A
+ * gap run against youtubetotranscript.com, tactiq.io, notegpt.io,
+ * downsub.com and kome.ai returned nothing in the captions-disabled
+ * cluster worth targeting — that cluster is small because it genuinely
+ * is small. The volume sits on "transcription youtube" (~110k) and
+ * "transcript youtube videos" (~22k), and both are head-intent terms
+ * this page can't serve until the fast path ships.
+ *
+ * When it ships: widen the title toward the head term, rewrite the
+ * hero, and drop the length caveat from the comparison table — captions
+ * have no length limit.
  */
 
 /* ------------------------------------------------------------------ */
@@ -61,10 +84,12 @@ const LAST_VERIFIED: string = "2026-08-21";
 const formatDate = (iso: string) =>
   new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
 
-// 39 chars → 53 with the " | AudioForges" suffix. Carries the entity
-// ("YouTube transcript") while staking the claim on the differentiator
-// in the same breath — the qualifier is what makes this winnable rather
-// than a fourth identical result.
+// 46 chars → 60 with the " | AudioForges" suffix, which sits right at
+// the desktop truncation edge (~580px). "Captions" is the at-risk word
+// and it's also the differentiator, so check a live SERP snippet after
+// this indexes. If it's cutting, drop "Even":
+// "Free YouTube Transcript Without Captions" is 40 → 54 and renders
+// guaranteed, at the cost of some of the phrasing's warmth.
 const PAGE_TITLE = "Free YouTube Transcript, Even Without Captions";
 const PAGE_DESCRIPTION = `Free YouTube transcript with no account or extension. It reads the audio, so it works even when captions are disabled. Export TXT, SRT or VTT, up to ${MAX_MINUTES} min.`;
 
@@ -84,6 +109,11 @@ export const metadata: Metadata = {
     "youtube to srt",
     "youtube transcript no sign up",
     "get transcript from youtube video",
+    // Head terms surfaced by the gap run. Recorded here as targeting
+    // history, NOT as a claim this page can win them — see the fast
+    // path TODO above. Revisit both when it ships.
+    "transcription youtube",
+    "transcript youtube videos",
   ],
   alternates: { canonical: `${SITE_URL}/youtube-to-text` },
   openGraph: {
@@ -213,6 +243,10 @@ export default function YouTubeToTextPage() {
       />
 
       <main className="mx-auto max-w-3xl px-4 pb-16">
+        {/* H1 says "with or without" rather than "even with captions off".
+            Same fact, but phrased as a capability instead of a condition
+            — the old wording read as a restriction on the tool, which is
+            the opposite of what it does. */}
         <section className="pt-14 text-center sm:pt-20">
           <p className="font-mono text-xs uppercase tracking-[0.16em] text-amber-500">
             No account · No extension · Free SRT

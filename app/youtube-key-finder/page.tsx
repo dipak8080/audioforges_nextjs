@@ -4,6 +4,8 @@ import { YouTubeAnalyzeForm } from "@/components/converter/YouTubeAnalyzeForm";
 import { FAQSection } from "@/components/faq/FAQSection";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
+import { getRateLimitLabel } from "@/lib/data/rate-limits";
+import { getDurationLabel } from "@/lib/data/tool-limits";
 
 const PAGE_TITLE = "Free YouTube Key & BPM Finder";
 const PAGE_DESCRIPTION =
@@ -29,9 +31,16 @@ export const metadata: Metadata = {
   },
 };
 
-// WebApplication schema — every claim below is checked against config.py's
-// confirmed values (rate limit, analysis window). No accuracy guarantees
-// and no "instant" claims, since analysis genuinely takes 20-60 seconds.
+// WebApplication schema — no accuracy guarantees and no "instant" claims,
+// since analysis genuinely takes 20-60 seconds.
+//
+// This comment used to assert that "every claim below is checked against
+// config.py's confirmed values (rate limit, analysis window)." It was not
+// true of the FAQ answers below it, and had not been for some time — see
+// the two constants underneath. A comment claiming verification is worse
+// than no comment when the verification has lapsed, because it stops the
+// next person from checking. Both numbers now come from the shared data
+// files instead, which is a claim the code can actually keep.
 const webAppJsonLd = {
   "@context": "https://schema.org",
   "@type": "WebApplication",
@@ -59,6 +68,42 @@ const breadcrumbJsonLd = {
 // NOTE: No HowTo schema — deprecated by Google (desktop since Sept 2023),
 // no ranking or rich-result benefit remains. Visible how-to steps stay.
 
+// Rate limit, from lib/data/rate-limits.ts.
+//
+// FIXED 2026-08-22: the FAQ below stated "a couple of requests every 10
+// minutes." The real limit is YOUTUBE_ANALYZE_RATE_LIMIT_MAX_REQUESTS —
+// 15 per hour. That is roughly seven times more generous than what this
+// page was telling people, so the copy was actively talking users out of
+// a tool they were free to keep using.
+const FALLBACK_RATE_LIMIT_LABEL = "rate limited";
+const rateLimitLabel = getRateLimitLabel("youtube/analyze") ?? FALLBACK_RATE_LIMIT_LABEL;
+
+// Video length cap, from lib/data/tool-limits.ts.
+//
+// FIXED 2026-08-22: the FAQ below stated "videos longer than 15 minutes
+// aren't supported." The real cap is 40 minutes.
+//
+// Worth understanding why this page is the ODD ONE OUT among the
+// /youtube/* tools, because the same wrong number here was wrong in the
+// opposite direction to its siblings. Every chained YouTube tool stacks
+// a download cap (MAX_VIDEO_DURATION_SECONDS, 40 min) against a
+// processing cap, and the smaller of the two is what a user hits:
+//
+//   /youtube-vocal-remover, /youtube-stem-splitter -> separation caps at
+//   10 min (6 on HQ), so those pages were OVER-promising. A 14-minute
+//   video was accepted, downloaded through the paid proxy, then refused.
+//
+//   THIS tool has no processing cap at all. Key/BPM analysis trims to
+//   ANALYSIS_MAX_SECONDS rather than rejecting a long file, so nothing
+//   after the download turns anything away — the 40-minute download cap
+//   really is the ceiling. This page was UNDER-promising, turning away
+//   perfectly processable 20- and 30-minute videos in its own copy.
+//
+// Same hardcoded "15 minutes" string on three pages, wrong in two
+// different directions, which is exactly what a copy-pasted number does.
+const FALLBACK_DURATION_LABEL = "40 minutes";
+const durationLabel = getDurationLabel("youtube/analyze") ?? FALLBACK_DURATION_LABEL;
+
 const faqs = [
   {
     question: "How is this different from the regular Key & BPM Finder?",
@@ -74,9 +119,12 @@ const faqs = [
     question: "Does this work with Shorts?",
     answer: "Yes — standard videos, youtu.be links, and Shorts are all supported.",
   },
+  // Length limit, derived from tool-limits.ts — see the note above the
+  // constants at the top of this file for why the previous hardcoded
+  // "15 minutes" was turning away videos this tool handles fine.
   {
     question: "Is there a video length limit?",
-    answer: "Yes, videos longer than 15 minutes aren't supported for this tool.",
+    answer: `Yes — videos up to ${durationLabel} long are supported.`,
   },
   {
     question: "What if the video is private, age-restricted, or region-locked?",
@@ -88,10 +136,11 @@ const faqs = [
     answer:
       "The same detection method used by the file-based Key & BPM Finder runs here. It works well on most conventional tracks, but automated key and tempo detection can be less certain on songs with ambiguous tonality, live performances, complex arrangements, heavy effects, or tempo changes mid-track.",
   },
+  // Rate limit, derived from rate-limits.ts — see the note above the
+  // constants at the top of this file. Do not hardcode this again.
   {
     question: "Is this really free?",
-    answer:
-      "Yes, free to use — usage is limited to a couple of requests every 10 minutes per person, since this chains a YouTube fetch together with analysis.",
+    answer: `Yes, free to use — usage is limited to ${rateLimitLabel} per person, since this chains a YouTube fetch together with analysis.`,
   },
   {
     question: "Can I remove the vocals from the same video too?",
@@ -147,7 +196,7 @@ export default function YouTubeKeyFinderPage() {
         <section className="space-y-4">
           <h2 className="text-2xl font-bold text-text-primary">How to find a YouTube video&apos;s key and BPM</h2>
           <ol className="list-decimal list-inside space-y-2 text-text-muted leading-relaxed">
-            <li>Paste a YouTube video, Shorts, or youtu.be link.</li>
+            <li>Paste a YouTube video, Shorts, or youtu.be link — up to {durationLabel} long.</li>
             <li>The audio is fetched and analyzed automatically — no settings to configure.</li>
             <li>View the detected key, BPM, and Camelot code.</li>
           </ol>
@@ -191,8 +240,8 @@ export default function YouTubeKeyFinderPage() {
             heavy effects processing, or a tempo that changes partway through
             can all produce a less certain result than a straightforward
             studio track in 4/4 time. Each result includes a confidence
-            percentage, and the key or BPM reading is flagged with a "Lower
-            confidence" indicator whenever two independent checks disagree
+            percentage, and the key or BPM reading is flagged with a &quot;Lower
+            confidence&quot; indicator whenever two independent checks disagree
             with each other rather than confirming the same answer.
           </p>
           <p className="text-text-muted leading-relaxed">

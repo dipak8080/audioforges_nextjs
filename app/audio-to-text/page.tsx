@@ -48,6 +48,11 @@ const LAST_VERIFIED = "2026-08-21";
 // actual differentiator in this SERP. The term is carried in the
 // description and the body copy instead, which is enough for a modifier
 // that broad.
+//
+// The natural-language phrasings added to `keywords` below are the same
+// story and are handled the same way: "transcribe audio recording to
+// text" is the softest term in the whole cluster, but it's served by an
+// exact-match FAQ question and body copy, not by spending title space.
 const PAGE_TITLE = "Free Audio to Text Converter, No Sign-Up";
 const PAGE_DESCRIPTION = `Transcribe MP3, WAV, M4A and FLAC to text free online. No account, no email, no credits. Export TXT, SRT or VTT. Files up to ${MAX_MINUTES} minutes.`;
 
@@ -66,6 +71,19 @@ export const metadata: Metadata = {
     "convert voice recording to text",
     "free speech to text online",
     "transcribe interview free",
+    // Added — gap run against youtubetotranscript.com, tactiq.io,
+    // notegpt.io, downsub.com, kome.ai (US/English). Natural-language
+    // transcription phrasings, KD 10–22, none previously present.
+    //
+    // Note the volumes in that dataset are Keyword Planner buckets:
+    // several of these share an identical figure because they're one
+    // aggregate, not separate opportunities. Treat the block as one.
+    "transcribe audio recording to text",
+    "audio to text transcription",
+    "transcribe from audio",
+    "transcribe an audio",
+    "transcribe a voice recording",
+    "audio transcribe to text",
   ],
   alternates: { canonical: `${SITE_URL}/audio-to-text` },
   openGraph: {
@@ -134,8 +152,16 @@ const breadcrumbJsonLd = {
  * so an answer that spends its first sentence setting up context gets
  * either skipped or misquoted. A site with no backlinks yet gets its
  * first impressions from those panels more often than from position 4.
+ *
+ * ORDER MATTERS HERE. The first entry is the exact-match question form
+ * of the softest keyword in the cluster, and early entries get weighted
+ * by the same summarisers. Don't reorder without a reason.
  */
 const faqs = [
+  {
+    question: "How do I transcribe an audio recording to text?",
+    answer: `Upload the file above and download the transcript — no account, no email, no credits. It takes MP3, WAV, FLAC, M4A, AAC, OGG and AIFF up to ${AUDIO_MB}MB and ${MAX_MINUTES} minutes, and exports plain text plus SRT and VTT with nothing paywalled.`,
+  },
   {
     question: "Is this really free, with no account?",
     answer: `Yes. No sign-up, no email, no credits, no card. Exports aren't paywalled either — TXT, SRT and VTT all download without an account. ${MAX_MINUTES} minutes per file and ${RATE_LIMIT} are the only limits, and they exist to keep the queue moving rather than to sell you an upgrade.`,
@@ -210,11 +236,13 @@ export default function AudioToTextPage() {
             three facts in it are the entire competitive position, so they
             go above the fold rather than in a features grid below.
 
-            The body paragraph now names the formats and says "online".
-            Both were previously only in the meta description and the FAQ,
-            which meant the first hundred words of actual page copy
-            carried neither — and "online" is a separate query with its
-            own volume rather than a synonym Google folds in for free. */}
+            The body paragraph names the formats, says "online", and
+            carries the verb phrase "transcribe an audio recording" —
+            all three were previously only in the meta description or the
+            FAQ, which meant the first hundred words of actual page copy
+            carried none of them. "Online" in particular is a separate
+            query with its own volume rather than a synonym Google folds
+            in for free. */}
         <section className="pt-14 text-center sm:pt-20">
           <p className="font-mono text-xs uppercase tracking-[0.16em] text-amber-500">
             No account · No credits · Free exports
@@ -223,9 +251,10 @@ export default function AudioToTextPage() {
             Free audio to text converter
           </h1>
           <p className="mx-auto mt-4 max-w-xl text-lg text-text-muted">
-            Upload an MP3, WAV, M4A or FLAC and get the words back, with
-            timestamps. It runs online in your browser — nothing to install, no
-            account to make — and TXT, SRT and VTT all export free.
+            Transcribe an audio recording to text in a couple of minutes —
+            upload an MP3, WAV, M4A or FLAC and get the words back, with
+            timestamps. It runs online in your browser, with nothing to install
+            and no account to make, and TXT, SRT and VTT all export free.
           </p>
         </section>
 

@@ -5,6 +5,7 @@ import { FAQSection, type FAQItem } from "@/components/faq/FAQSection";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
 import { getRateLimitLabel } from "@/lib/data/rate-limits";
+import { getDurationLabel } from "@/lib/data/tool-limits";
 import { getFeatureFlags } from "@/lib/api/railway";
 
 const PAGE_TITLE = "Free YouTube Stem Splitter – Split Songs Into Stems";
@@ -71,6 +72,30 @@ const FALLBACK_RATE_LIMIT_LABEL = "rate limited";
 const standardLimitLabel = getRateLimitLabel("youtube/stems") ?? FALLBACK_RATE_LIMIT_LABEL;
 const hqLimitLabel = getRateLimitLabel("youtube/stems-hq") ?? FALLBACK_RATE_LIMIT_LABEL;
 
+// Video length caps, read from lib/data/tool-limits.ts for the same reason
+// the rate limits above come from rate-limits.ts.
+//
+// FIXED 2026-08-22, identical bug to the one corrected on
+// /youtube-vocal-remover the same day — the two pages had the same wrong
+// sentence, which is what a copy-pasted hardcoded number does.
+//
+// This page previously stated "videos longer than 15 minutes aren't
+// supported." The real ceiling is MAX_SEPARATION_DURATION_SECONDS — TEN
+// minutes, and SIX on Studio Quality. A 14-minute video was therefore
+// explicitly invited by this copy, accepted, downloaded in full through
+// the paid residential proxy, and only then refused at the separation
+// step. The user waited for a fetch that could never have been usable,
+// and we paid for the bandwidth.
+//
+// The 15 almost certainly came from someone reading the DOWNLOAD cap
+// (MAX_VIDEO_DURATION_SECONDS, 40 min) and rounding. Every /youtube/*
+// tool stacks a download cap and a processing cap; the smaller one is
+// what a user actually hits, and it is the only one worth showing. See
+// the note at the top of tool-limits.ts.
+const FALLBACK_DURATION_LABEL = "10 minutes";
+const standardDurationLabel = getDurationLabel("youtube/stems") ?? FALLBACK_DURATION_LABEL;
+const hqDurationLabel = getDurationLabel("youtube/stems-hq") ?? "6 minutes";
+
 export default async function YouTubeStemSplitterPage() {
   const relatedTools = getRelatedTools("youtube-stem-splitter", 5);
   const { separationHqEnabled } = await getFeatureFlags();
@@ -129,9 +154,17 @@ export default async function YouTubeStemSplitterPage() {
       question: "Does it work with YouTube Shorts?",
       answer: "Yes — watch links, youtu.be links, and Shorts links are all supported.",
     },
+    // Length limit, derived from tool-limits.ts — see the note above the
+    // constants at the top of this file for why the previous hardcoded
+    // "15 minutes" was actively costing users time and us proxy
+    // bandwidth. Studio Quality has a tighter cap than standard (a single
+    // job holds the one separation slot far longer), so when HQ is
+    // available both numbers are stated rather than just the looser one.
     {
       question: "Is there a video length limit?",
-      answer: "Yes, videos longer than 15 minutes aren't supported for this tool.",
+      answer: separationHqEnabled
+        ? `Yes — up to ${standardDurationLabel} at standard quality, or ${hqDurationLabel} with Studio Quality, which is more intensive to process.`
+        : `Yes — videos up to ${standardDurationLabel} long are supported.`,
     },
     {
       question: "What videos cannot be processed?",
@@ -196,7 +229,7 @@ export default async function YouTubeStemSplitterPage() {
         <section className="space-y-4">
           <h2 className="text-2xl font-bold text-text-primary">How to split a YouTube video into stems</h2>
           <ol className="list-decimal list-inside space-y-2 text-text-muted leading-relaxed">
-            <li>Paste a YouTube video, Shorts, or youtu.be link.</li>
+            <li>Paste a YouTube video, Shorts, or youtu.be link — up to {standardDurationLabel} long.</li>
             <li>The audio is fetched and split into four stems automatically, usually 30 seconds to 1 minute.</li>
             <li>Preview and download each stem individually.</li>
           </ol>
@@ -328,6 +361,15 @@ export default async function YouTubeStemSplitterPage() {
                     <td className="px-4 py-3">1–2 minutes</td>
                   </tr>
                   <tr>
+                    {/* Pulled from lib/data/tool-limits.ts (getDurationLabel).
+                        The two tiers have genuinely different caps — HQ holds
+                        the single separation slot several times longer — so
+                        this row is not decorative. Do not hardcode it. */}
+                    <td className="px-4 py-3 font-medium text-text-primary">Max video length</td>
+                    <td className="px-4 py-3">{standardDurationLabel}</td>
+                    <td className="px-4 py-3">{hqDurationLabel}</td>
+                  </tr>
+                  <tr>
                     <td className="px-4 py-3 font-medium text-text-primary">Separation quality</td>
                     <td className="px-4 py-3">Good for most tracks</td>
                     <td className="px-4 py-3">Noticeably cleaner across all four stems</td>
@@ -351,7 +393,8 @@ export default async function YouTubeStemSplitterPage() {
               Studio Quality uses a larger, ensembled model rather than a single
               pass, which is why it takes longer — the trade-off is
               worth it when the stems are headed into an actual production, not
-              just a quick check.
+              just a quick check. It also accepts a shorter video, since a
+              single job occupies the separation queue for much longer.
             </p>
           </section>
         )}

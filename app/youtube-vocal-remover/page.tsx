@@ -5,6 +5,7 @@ import { FAQSection, type FAQItem } from "@/components/faq/FAQSection";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
 import { getRateLimitLabel } from "@/lib/data/rate-limits";
+import { getDurationLabel } from "@/lib/data/tool-limits";
 import { getFeatureFlags } from "@/lib/api/railway";
 
 const PAGE_TITLE = "Free YouTube Vocal Remover";
@@ -71,6 +72,25 @@ const FALLBACK_RATE_LIMIT_LABEL = "rate limited";
 const standardLimitLabel = getRateLimitLabel("youtube/separate") ?? FALLBACK_RATE_LIMIT_LABEL;
 const hqLimitLabel = getRateLimitLabel("youtube/separate-hq") ?? FALLBACK_RATE_LIMIT_LABEL;
 
+// Video length caps, read from lib/data/tool-limits.ts for the same reason
+// the rate limits above come from rate-limits.ts.
+//
+// FIXED 2026-08-22, and this one was not a cosmetic drift. This page
+// previously stated a hardcoded "videos longer than 15 minutes aren't
+// supported." The real ceiling is MAX_SEPARATION_DURATION_SECONDS — TEN
+// minutes, and SIX on Studio Quality. So a 14-minute video was explicitly
+// invited by this copy, accepted, downloaded in full through the paid
+// residential proxy, and only then refused at the separation step.
+//
+// The user waited for a fetch that could never have been usable, and we
+// paid for the bandwidth. The 15 almost certainly came from someone
+// reading the DOWNLOAD cap and rounding — see the "two stacked caps" note
+// at the top of tool-limits.ts for why the download number is never the
+// one to show on a page like this.
+const FALLBACK_DURATION_LABEL = "10 minutes";
+const standardDurationLabel = getDurationLabel("youtube/separate") ?? FALLBACK_DURATION_LABEL;
+const hqDurationLabel = getDurationLabel("youtube/separate-hq") ?? "6 minutes";
+
 export default async function YouTubeVocalRemoverPage() {
   const relatedTools = getRelatedTools("youtube-vocal-remover", 5);
   const { separationHqEnabled } = await getFeatureFlags();
@@ -129,9 +149,17 @@ export default async function YouTubeVocalRemoverPage() {
       question: "Does it work with YouTube Shorts?",
       answer: "Yes — watch links, youtu.be links, and Shorts links are all supported.",
     },
+    // Length limit, derived from tool-limits.ts — see the note above the
+    // constants at the top of this file for why the previous hardcoded
+    // "15 minutes" was actively costing users time and us proxy
+    // bandwidth. The Studio Quality tier has a tighter cap than standard
+    // (a job holds the single separation slot far longer), so when HQ is
+    // available both numbers are stated rather than just the looser one.
     {
       question: "Is there a video length limit?",
-      answer: "Yes, videos longer than 15 minutes aren't supported for this tool.",
+      answer: separationHqEnabled
+        ? `Yes — up to ${standardDurationLabel} at standard quality, or ${hqDurationLabel} with Studio Quality, which is more intensive to process.`
+        : `Yes — videos up to ${standardDurationLabel} long are supported.`,
     },
     {
       question: "What videos cannot be processed?",
@@ -196,7 +224,7 @@ export default async function YouTubeVocalRemoverPage() {
         <section className="space-y-4">
           <h2 className="text-2xl font-bold text-text-primary">How to remove vocals from a YouTube video</h2>
           <ol className="list-decimal list-inside space-y-2 text-text-muted leading-relaxed">
-            <li>Paste a YouTube video, Shorts, or youtu.be link.</li>
+            <li>Paste a YouTube video, Shorts, or youtu.be link — up to {standardDurationLabel} long.</li>
             <li>The audio is fetched and separated automatically, usually 30 seconds to 1 minute.</li>
             <li>Preview and download the vocals, the instrumental, or both.</li>
           </ol>
@@ -293,6 +321,15 @@ export default async function YouTubeVocalRemoverPage() {
                     <td className="px-4 py-3">1–2 minutes</td>
                   </tr>
                   <tr>
+                    {/* Pulled from lib/data/tool-limits.ts (getDurationLabel).
+                        The two tiers have genuinely different caps — HQ holds
+                        the single separation slot several times longer — so
+                        this row is not decorative. Do not hardcode it. */}
+                    <td className="px-4 py-3 font-medium text-text-primary">Max video length</td>
+                    <td className="px-4 py-3">{standardDurationLabel}</td>
+                    <td className="px-4 py-3">{hqDurationLabel}</td>
+                  </tr>
+                  <tr>
                     <td className="px-4 py-3 font-medium text-text-primary">Separation quality</td>
                     <td className="px-4 py-3">Good for most tracks</td>
                     <td className="px-4 py-3">Noticeably cleaner on both stems</td>
@@ -316,7 +353,8 @@ export default async function YouTubeVocalRemoverPage() {
               Studio Quality uses a larger, ensembled model rather than a single
               pass, which is why it takes longer — the trade-off is
               worth it when the stems are headed into an actual production, not
-              just a quick check.
+              just a quick check. It also accepts a shorter video, since a
+              single job occupies the separation queue for much longer.
             </p>
           </section>
         )}

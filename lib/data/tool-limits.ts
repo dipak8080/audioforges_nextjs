@@ -17,7 +17,33 @@
 // each entry names the variable to check, so the mapping is at least
 // discoverable rather than folklore.
 //
-// Verified against config.py on 2026-08-21.
+// ---------------------------------------------------------------
+// WHEN A TOOL HAS TWO STACKED CAPS, LIST THE BINDING ONE.
+//
+// Added 2026-08-22 after an audit found three pages advertising a
+// limit their users could never actually reach. Every /youtube/* tool
+// runs a DOWNLOAD and then a PROCESSING step, each with its own
+// ceiling, and they are not the same number:
+//
+//   MAX_VIDEO_DURATION_SECONDS        2400 (40 min)  — the download
+//   MAX_SEPARATION_DURATION_SECONDS    600 (10 min)  — separation
+//   MAX_SEPARATION_DURATION_SECONDS_HQ 360 ( 6 min)  — separation, HQ
+//   MAX_TRANSCRIPTION_DURATION_SECONDS 1200 (20 min) — transcription
+//
+// The SMALLER of the pair is what a user hits, and it is the only one
+// worth showing them. Advertising 40 minutes on a separation page
+// invites a 14-minute video that downloads through the paid proxy and
+// then fails at the separation step — the user waits, pays nothing,
+// and we pay for bandwidth on a job that was refusable at submit.
+//
+// So each /youtube/* entry below carries the PROCESSING cap, not the
+// download cap, and names both env vars so the pairing stays visible.
+// The one exception is youtube/analyze, where the download cap really
+// is the binding one — analysis trims to ANALYSIS_MAX_SECONDS rather
+// than rejecting, so nothing downstream refuses on length.
+// ---------------------------------------------------------------
+//
+// Verified against config.py on 2026-08-22.
 
 export interface ToolLimits {
   /** Max number of files per request, where the tool accepts several. */
@@ -72,6 +98,51 @@ export const TOOL_LIMITS: Record<string, ToolLimits> = {
     maxTotalDurationSeconds: 360,
     envVars: ["MAX_UPLOAD_BYTES", "MAX_SEPARATION_DURATION_SECONDS_HQ"],
   },
+  stems: {
+    maxFileBytes: 80 * MB,
+    maxTotalDurationSeconds: 600,
+    envVars: ["MAX_UPLOAD_BYTES", "MAX_SEPARATION_DURATION_SECONDS"],
+  },
+  "stems-hq": {
+    maxFileBytes: 80 * MB,
+    maxTotalDurationSeconds: 360,
+    envVars: ["MAX_UPLOAD_BYTES", "MAX_SEPARATION_DURATION_SECONDS_HQ"],
+  },
+
+  // ---- YOUTUBE CHAINED TOOLS ----
+  //
+  // No maxFileBytes on any of these: there is no upload. The input is a
+  // link, and what bounds it is the video's LENGTH, not its size.
+  //
+  // The duration shown is the SEPARATION cap, not the 40-minute
+  // download cap — see the note at the top of this file. Identical
+  // numbers to their upload-based siblings above, which is the point:
+  // the separation work is the same, only the input method differs.
+  "youtube/separate": {
+    maxTotalDurationSeconds: 600,
+    envVars: ["MAX_SEPARATION_DURATION_SECONDS", "MAX_VIDEO_DURATION_SECONDS"],
+  },
+  "youtube/separate-hq": {
+    maxTotalDurationSeconds: 360,
+    envVars: ["MAX_SEPARATION_DURATION_SECONDS_HQ", "MAX_VIDEO_DURATION_SECONDS"],
+  },
+  "youtube/stems": {
+    maxTotalDurationSeconds: 600,
+    envVars: ["MAX_SEPARATION_DURATION_SECONDS", "MAX_VIDEO_DURATION_SECONDS"],
+  },
+  "youtube/stems-hq": {
+    maxTotalDurationSeconds: 360,
+    envVars: ["MAX_SEPARATION_DURATION_SECONDS_HQ", "MAX_VIDEO_DURATION_SECONDS"],
+  },
+
+  // The ONE tool where the download cap genuinely is the binding one.
+  // Key/BPM analysis trims to ANALYSIS_MAX_SECONDS (180s) rather than
+  // rejecting a long file, so nothing after the download refuses on
+  // length — 40 minutes really is the ceiling here.
+  "youtube/analyze": {
+    maxTotalDurationSeconds: 2400,
+    envVars: ["MAX_VIDEO_DURATION_SECONDS"],
+  },
 
   // ---- TRANSCRIPTION ----
   "speech-to-text": {
@@ -83,6 +154,16 @@ export const TOOL_LIMITS: Record<string, ToolLimits> = {
     maxFileBytes: 100 * MB,
     maxTotalDurationSeconds: 1200,
     envVars: ["MAX_VIDEO_TRANSCRIBE_BYTES", "MAX_TRANSCRIPTION_DURATION_SECONDS"],
+  },
+  // 20 minutes, NOT the downloader's 40. This entry exists specifically
+  // because there was nothing here before, so /youtube-to-text had no
+  // source to read and inherited whatever number the copy happened to
+  // state. A user pasting a 30-minute video is refused after the
+  // download completes, having waited for a fetch that was never going
+  // to be usable.
+  "youtube/transcribe": {
+    maxTotalDurationSeconds: 1200,
+    envVars: ["MAX_TRANSCRIPTION_DURATION_SECONDS", "MAX_VIDEO_DURATION_SECONDS"],
   },
 
   // ---- MIDI ----
@@ -100,7 +181,7 @@ export const TOOL_LIMITS: Record<string, ToolLimits> = {
     envVars: ["MAX_VIDEO_UPLOAD_BYTES", "VIDEO_EXTRACT_MAX_DURATION_SECONDS"],
   },
 
-  // ---- YOUTUBE / TIKTOK ----
+  // ---- YOUTUBE / TIKTOK DOWNLOAD ----
   download: {
     maxTotalDurationSeconds: 2400,
     envVars: ["MAX_VIDEO_DURATION_SECONDS"],
@@ -110,10 +191,19 @@ export const TOOL_LIMITS: Record<string, ToolLimits> = {
     envVars: ["MAX_TIKTOK_DURATION_SECONDS"],
   },
 
-  // ---- GENERIC AUDIO TOOLS (trim/pitch/tempo/volume/reverse/etc) ----
+  // ---- GENERIC AUDIO TOOLS (trim/volume/reverse/convert/etc) ----
+  //
+  // WATCH THIS ONE. The backend now has a per-tool override map
+  // (AUDIO_TOOL_MAX_DURATION_SECONDS in config.py) alongside the
+  // MAX_AUDIO_TOOL_DURATION_SECONDS fallback this mirrors. Today only
+  // pitch and tempo are in that map (900s), and it is NOT yet wired
+  // into the submit path — so this 3600 is still correct for every
+  // tool. The moment it is wired, pitch and tempo need their own
+  // entries here or any page reading getDurationLabel("audio-tools")
+  // for them will claim an hour against a real 15-minute cap.
   "audio-tools": {
     maxFileBytes: 80 * MB,
-    maxTotalDurationSeconds: 3600, // was 1200 — backend raised MAX_AUDIO_TOOL_DURATION_SECONDS to 1hr
+    maxTotalDurationSeconds: 3600,
     envVars: ["MAX_UPLOAD_BYTES", "MAX_AUDIO_TOOL_DURATION_SECONDS"],
   },
 

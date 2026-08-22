@@ -44,8 +44,11 @@ export interface RateLimitSpec {
 // tier and looks it up with getRateLimitLabel(key).
 export const RATE_LIMITS: Record<string, RateLimitSpec> = {
   // ---- Vocal Remover (2 stems: vocals + instrumental) ----
+  // RAISED 3 -> 6 (2026-08-22), matching the chained youtube/separate
+  // limit below. Demand-driven; MAX_QUEUED_SEPARATIONS (3 in flight) is
+  // what actually protects the server and is unchanged.
   separate: {
-    limit: 3, windowSeconds: 3600, label: "3 per hour",
+    limit: 6, windowSeconds: 3600, label: "6 per hour",
     envVar: "SEPARATION_RATE_LIMIT_MAX_REQUESTS",
   },
   "separate-hq": {
@@ -70,8 +73,10 @@ export const RATE_LIMITS: Record<string, RateLimitSpec> = {
   },
 
   // ---- Stem Splitter (4 stems: vocals, drums, bass, other) ----
+  // RAISED 3 -> 6 (2026-08-22), same reasoning as `separate` above -
+  // identical Demucs cost, so the two move together.
   stems: {
-    limit: 3, windowSeconds: 3600, label: "3 per hour",
+    limit: 6, windowSeconds: 3600, label: "6 per hour",
     envVar: "STEMS_RATE_LIMIT_MAX_REQUESTS",
   },
   "stems-hq": {
@@ -200,12 +205,16 @@ export const RATE_LIMITS: Record<string, RateLimitSpec> = {
   },
 
   // ---- Heavier tools (rubberband / multi-input filter graphs) ----
+  // RAISED 3 -> 5 (2026-08-22). These are the only ITERATIVE tools on
+  // the site - the real workflow is +2, listen, +3, listen - and 3
+  // locked someone out on their third attempt, mid-decision. Every
+  // other tool here is one-shot.
   pitch: {
-    limit: 3, windowSeconds: 300, label: "3 per 5 minutes",
+    limit: 5, windowSeconds: 300, label: "5 per 5 minutes",
     envVar: "AUDIO_PITCH_RATE_LIMIT_MAX_REQUESTS",
   },
   tempo: {
-    limit: 3, windowSeconds: 300, label: "3 per 5 minutes",
+    limit: 5, windowSeconds: 300, label: "5 per 5 minutes",
     envVar: "AUDIO_TEMPO_RATE_LIMIT_MAX_REQUESTS",
   },
   "silence-split": {
