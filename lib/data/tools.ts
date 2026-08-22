@@ -59,11 +59,12 @@ export interface Tool {
    * isn't just "another tool in the same bucket" (e.g. audio-to-text should
    * point to voice-clean, not just any transcription-category tool).
    *
-   * LIST AT LEAST AS MANY AS THE LARGEST `count` ANY PAGE PASSES (4, on the
-   * tool pages). getRelatedTools falls back to same-category matches to fill
-   * the gap, and that fallback is where irrelevant cross-links come from — a
-   * transcription page listing three curated tools gets a fourth chosen
-   * purely because it shares a category label. */
+   * LIST AT LEAST AS MANY AS THE LARGEST `count` ANY PAGE PASSES (5, on the
+   * tool pages — verified against the rendered HTML of /key-finder, which
+   * shows five cards). getRelatedTools falls back to same-category matches
+   * to fill the gap, and that fallback is where irrelevant cross-links come
+   * from — a transcription page listing four curated tools gets a fifth
+   * chosen purely because it shares a category label. */
   related?: string[];
 }
 
@@ -129,7 +130,7 @@ export const TOOLS: Tool[] = [
     shortDescription: "Detect musical key, tempo, and Camelot notation.",
     category: "vocals",
     status: "live",
-    related: ["youtube-to-wav", "vocal-remover"],
+    related: ["bpm-tapper", "youtube-key-finder", "vocal-remover", "stems", "youtube-to-wav"],
   },
   {
     slug: "vocal-remover",
@@ -253,7 +254,7 @@ export const TOOLS: Tool[] = [
     shortDescription: "Speed up or slow down without affecting pitch.",
     category: "pitch-tempo",
     status: "live",
-    related: ["pitch", "reverse"],
+    related: ["bpm-tapper", "pitch", "key-finder", "reverse", "convert"],
   },
 
   // ---------- CLEANUP & ENHANCE ----------
@@ -300,8 +301,8 @@ export const TOOLS: Tool[] = [
 
   // ---------- TRANSCRIPTION ----------
   //
-  // Each of these lists FOUR related tools, matching the count the tool
-  // pages pass to getRelatedTools. With only three, the fourth slot fell
+  // Each of these lists FIVE related tools, matching the count the tool
+  // pages pass to getRelatedTools. With fewer, the remaining slot(s) fell
   // through to same-category matching and picked up audio-to-midi — see
   // the note on that entry below.
   {
@@ -312,8 +313,9 @@ export const TOOLS: Tool[] = [
     status: "live",
     // voice-clean and silence-split are the two the page copy actually
     // recommends: clean the recording first, split it if it's over the
-    // duration cap.
-    related: ["youtube-to-text", "video-to-text", "voice-clean", "silence-split"],
+    // duration cap. youtube-to-wav added as the fifth slot so nothing
+    // falls through to the category fallback.
+    related: ["youtube-to-text", "video-to-text", "voice-clean", "silence-split", "youtube-to-wav"],
   },
   {
     slug: "youtube-to-text",
@@ -322,8 +324,9 @@ export const TOOLS: Tool[] = [
     category: "transcription",
     status: "live",
     // youtube-to-wav and silence-split are steps 1 and 2 of the
-    // over-the-limit workaround the page documents.
-    related: ["audio-to-text", "video-to-text", "youtube-to-wav", "silence-split"],
+    // over-the-limit workaround the page documents. video-to-audio added
+    // as the fifth slot so nothing falls through to the category fallback.
+    related: ["audio-to-text", "video-to-text", "youtube-to-wav", "silence-split", "video-to-audio"],
   },
   {
     slug: "video-to-text",
@@ -332,8 +335,9 @@ export const TOOLS: Tool[] = [
     category: "transcription",
     status: "live",
     // video-to-audio is what the page tells people to use when a file is
-    // over the byte cap.
-    related: ["audio-to-text", "youtube-to-text", "video-to-audio", "voice-clean"],
+    // over the byte cap. silence-split added as the fifth slot so nothing
+    // falls through to the category fallback.
+    related: ["audio-to-text", "youtube-to-text", "video-to-audio", "voice-clean", "silence-split"],
   },
 
   // ---------- AUDIO TO MIDI ----------
@@ -351,9 +355,9 @@ export const TOOLS: Tool[] = [
   // replacement.
   //
   // The replacements are musical, not speech: someone converting a melody
-  // to MIDI wants the key, the isolated stem, or the source audio — they
-  // do not want a speech transcript. Four listed so the fallback never
-  // fires.
+  // to MIDI wants the key, the isolated stem, the source audio, or a way
+  // to check the tempo — they do not want a speech transcript. Five
+  // listed so the fallback never fires.
   //
   // OPEN QUESTION worth deciding: is category "transcription" right at
   // all? It's literally transcription, but nobody browsing a
@@ -367,7 +371,7 @@ export const TOOLS: Tool[] = [
     shortDescription: "Transcribe a melody or vocal line into a downloadable MIDI file.",
     category: "transcription",
     status: "live",
-    related: ["key-finder", "vocal-remover", "stems", "youtube-to-wav"],
+    related: ["key-finder", "vocal-remover", "stems", "youtube-to-wav", "tempo"],
   },
 
   // ---------- BROWSER TOOLS ----------
@@ -385,7 +389,7 @@ export const TOOLS: Tool[] = [
     shortDescription: "Adjustable BPM metronome with time signature support, right in your browser.",
     category: "browser",
     status: "live",
-    related: ["bpm-tapper", "key-finder"],
+    related: ["bpm-tapper", "tempo", "key-finder", "tuner", "voice-recorder"],
   },
   {
     slug: "bpm-tapper",
@@ -393,7 +397,7 @@ export const TOOLS: Tool[] = [
     shortDescription: "Tap along to a beat and find its tempo instantly.",
     category: "browser",
     status: "live",
-    related: ["metronome", "key-finder"],
+    related: ["metronome", "key-finder", "tempo", "tuner", "youtube-key-finder"],
   },
   {
     slug: "tuner",
@@ -401,7 +405,7 @@ export const TOOLS: Tool[] = [
     shortDescription: "Tune any instrument in real time using your microphone.",
     category: "browser",
     status: "live",
-    related: ["metronome", "key-finder"],
+    related: ["metronome", "bpm-tapper", "key-finder", "voice-recorder", "pitch"],
   },
 
   // ---------- DOWNLOAD (cont.) ----------

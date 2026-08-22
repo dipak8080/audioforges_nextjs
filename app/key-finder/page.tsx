@@ -88,16 +88,9 @@ const breadcrumbJsonLd = {
   ],
 };
 
-const howToJsonLd = {
-  "@context": "https://schema.org",
-  "@type": "HowTo",
-  name: "How to Find the Key and BPM of a Song",
-  step: [
-    { "@type": "HowToStep", name: "Upload", text: "Upload an MP3, WAV, FLAC, M4A, AAC, or OGG file." },
-    { "@type": "HowToStep", name: "Analyze", text: "The tool automatically analyzes the musical key and tempo — no settings to configure." },
-    { "@type": "HowToStep", name: "View results", text: "See the detected key, BPM, and Camelot notation in a few seconds." },
-  ],
-};
+// HowTo JSON-LD intentionally omitted: Google deprecated HowTo rich results
+// on desktop (and mobile) as of Sept 2023 — no rich-result benefit, so we
+// don't ship the schema. Same reasoning already applied on /youtube-key-finder.
 
 // Same 7 questions and answers as before, word-for-word.
 const faqs = [
@@ -143,7 +136,6 @@ export default function KeyFinderPage() {
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(webAppJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(howToJsonLd) }} />
 
       <main className="mx-auto max-w-3xl px-4 py-12 sm:py-16 space-y-12">
         <header className="text-center space-y-4">
