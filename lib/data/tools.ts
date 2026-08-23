@@ -36,6 +36,42 @@
 // "echo reducer" carries essentially none. This is category naming (like
 // "vocal remover"), not a claim of 100% removal — the page body copy still
 // accurately says "reduces mild echo," only the product name changed.
+//
+// NOTE ON FULL `related` COVERAGE (2026-08-23): every entry below now
+// lists exactly FIVE slugs, because five is the largest `count` any page
+// passes to getRelatedTools. Previously most entries listed two or three
+// and the remaining slots were filled by the same-category fallback in
+// declaration order. That fallback is not neutral: it silently decided a
+// large share of the site's internal link graph, it favoured whichever
+// tools happened to sit earliest in this array, and it never reached
+// anything declared near the bottom of the file.
+//
+// The concrete failure it caused: `tiktok-to-mp3` sat last in the array
+// under a "DOWNLOAD (cont.)" header and appeared in ZERO other entry's
+// `related` list. youtube-to-wav — by a wide margin the site's strongest
+// page in search — listed two slugs and had its other three slots filled
+// by the download-category fallback, which walked the array in order,
+// found youtube-key-finder / youtube-vocal-remover / youtube-stem-splitter,
+// hit the count, and stopped before ever reaching tiktok-to-mp3. On a
+// site whose external link profile is close to nonexistent, internal
+// links are the main authority signal we actually control, and the
+// newest page was receiving none of it.
+//
+// Two invariants worth preserving when editing this file:
+//   1. Every entry lists five slugs. If a tool genuinely has fewer than
+//      five useful neighbours, that is a signal the tool is isolated,
+//      not a reason to let the fallback choose for you.
+//   2. Every live slug appears in at least two OTHER entries' `related`
+//      arrays. Grep before you delete a slug from a list — a tool that
+//      falls to zero inbound cross-links becomes an orphan reachable
+//      only from the navbar and /tools hub.
+//
+// NOTE ON ORDERING (2026-08-23): `tiktok-to-mp3` moved up into the
+// DOWNLOAD block where it belongs. The old "DOWNLOAD (cont.)" section at
+// the bottom was an append-and-forget artifact. Declaration order is not
+// cosmetic here — the category fallback iterates this array in order, so
+// anything parked at the bottom is structurally last in line for every
+// fallback decision on the site.
 
 export type ToolCategory =
   | "download"
@@ -59,12 +95,11 @@ export interface Tool {
    * isn't just "another tool in the same bucket" (e.g. audio-to-text should
    * point to voice-clean, not just any transcription-category tool).
    *
-   * LIST AT LEAST AS MANY AS THE LARGEST `count` ANY PAGE PASSES (5, on the
-   * tool pages — verified against the rendered HTML of /key-finder, which
-   * shows five cards). getRelatedTools falls back to same-category matches
-   * to fill the gap, and that fallback is where irrelevant cross-links come
-   * from — a transcription page listing four curated tools gets a fifth
-   * chosen purely because it shares a category label. */
+   * LIST EXACTLY FIVE. Five is the largest `count` any page passes (the tool
+   * pages — verified against the rendered HTML of /key-finder, which shows
+   * five cards). Anything short of five hands the remaining slots to the
+   * same-category fallback, which picks by declaration order rather than by
+   * relevance and is where irrelevant cross-links come from. */
   related?: string[];
 }
 
@@ -96,7 +131,11 @@ export const TOOLS: Tool[] = [
     shortDescription: "Convert YouTube videos to WAV or MP3 audio.",
     category: "download",
     status: "live",
-    related: ["key-finder", "vocal-remover"],
+    // The site's strongest search page, so its five outbound links carry
+    // more weight than any other entry here. tiktok-to-mp3 is placed third
+    // deliberately: same "paste a link, get audio" intent, and it was
+    // previously receiving no internal links at all.
+    related: ["key-finder", "vocal-remover", "tiktok-to-mp3", "video-to-audio", "trim"],
   },
   {
     slug: "youtube-key-finder",
@@ -104,7 +143,7 @@ export const TOOLS: Tool[] = [
     shortDescription: "Paste a YouTube link and get its key, BPM, and Camelot code directly.",
     category: "download",
     status: "live",
-    related: ["key-finder", "youtube-to-wav", "youtube-vocal-remover"],
+    related: ["key-finder", "youtube-to-wav", "youtube-vocal-remover", "bpm-tapper", "tempo"],
   },
   {
     slug: "youtube-vocal-remover",
@@ -112,7 +151,7 @@ export const TOOLS: Tool[] = [
     shortDescription: "Paste a YouTube link and get vocal and instrumental stems directly.",
     category: "download",
     status: "live",
-    related: ["vocal-remover", "youtube-to-wav", "youtube-key-finder"],
+    related: ["vocal-remover", "youtube-to-wav", "youtube-stem-splitter", "youtube-key-finder", "stems"],
   },
   {
     slug: "youtube-stem-splitter",
@@ -120,7 +159,20 @@ export const TOOLS: Tool[] = [
     shortDescription: "Paste a YouTube link and get vocals, drums, bass, and other stems directly.",
     category: "download",
     status: "live",
-    related: ["stems", "youtube-to-wav", "youtube-vocal-remover"],
+    // audio-to-midi in the fifth slot is a real workflow, not filler:
+    // isolate a stem, then transcribe that stem to MIDI.
+    related: ["stems", "youtube-vocal-remover", "youtube-to-wav", "key-finder", "audio-to-midi"],
+  },
+  {
+    slug: "tiktok-to-mp3",
+    name: "TikTok to MP3",
+    shortDescription: "Convert a TikTok video link into a downloadable MP3.",
+    category: "download",
+    status: "live",
+    // Matches what the page copy actually tells people to do next: trim the
+    // clip, fade the cut so it doesn't click, or send it to the ringtone
+    // maker for the 30s cap and M4R container.
+    related: ["trim", "ringtone-maker", "fade", "youtube-to-wav", "convert"],
   },
 
   // ---------- VOCALS & KEY ----------
@@ -130,7 +182,7 @@ export const TOOLS: Tool[] = [
     shortDescription: "Detect musical key, tempo, and Camelot notation.",
     category: "vocals",
     status: "live",
-    related: ["bpm-tapper", "youtube-key-finder", "vocal-remover", "stems", "youtube-to-wav"],
+    related: ["bpm-tapper", "youtube-key-finder", "vocal-remover", "tempo", "audio-to-midi"],
   },
   {
     slug: "vocal-remover",
@@ -138,7 +190,7 @@ export const TOOLS: Tool[] = [
     shortDescription: "Split a track into vocal and instrumental stems.",
     category: "vocals",
     status: "live",
-    related: ["stems", "key-finder", "youtube-to-wav"],
+    related: ["stems", "key-finder", "youtube-vocal-remover", "audio-to-midi", "youtube-to-wav"],
   },
   {
     slug: "stems",
@@ -146,7 +198,7 @@ export const TOOLS: Tool[] = [
     shortDescription: "Split a track into vocals, drums, bass, and other stems.",
     category: "vocals",
     status: "live",
-    related: ["vocal-remover", "key-finder", "youtube-stem-splitter"],
+    related: ["vocal-remover", "key-finder", "youtube-stem-splitter", "audio-to-midi", "tempo"],
   },
 
   // ---------- CONVERT & EDIT ----------
@@ -156,7 +208,7 @@ export const TOOLS: Tool[] = [
     shortDescription: "Convert between MP3, WAV, FLAC, M4A, AAC, OGG, AIFF.",
     category: "convert",
     status: "live",
-    related: ["trim", "volume"],
+    related: ["trim", "volume", "sample-rate-converter", "mono-stereo-converter", "video-to-audio"],
   },
   {
     slug: "video-to-audio",
@@ -164,7 +216,9 @@ export const TOOLS: Tool[] = [
     shortDescription: "Extract audio from MP4, MOV, and other video files.",
     category: "convert",
     status: "live",
-    related: ["convert", "youtube-to-wav"],
+    // video-to-text is the other thing people arrive here wanting; several
+    // land on this page when what they actually need is the transcript.
+    related: ["convert", "youtube-to-wav", "tiktok-to-mp3", "video-to-text", "trim"],
   },
   {
     slug: "trim",
@@ -172,7 +226,7 @@ export const TOOLS: Tool[] = [
     shortDescription: "Cut audio to a specific start and end point.",
     category: "convert",
     status: "live",
-    related: ["convert", "volume"],
+    related: ["convert", "fade", "volume", "ringtone-maker", "audio-joiner"],
   },
   {
     slug: "volume",
@@ -180,7 +234,10 @@ export const TOOLS: Tool[] = [
     shortDescription: "Boost or reduce audio gain in decibels.",
     category: "convert",
     status: "live",
-    related: ["trim", "convert"],
+    // loudness-normalizer first: "my track is too quiet" is usually a
+    // loudness-target problem, not a gain problem, and this is the page
+    // where that misconception gets corrected.
+    related: ["loudness-normalizer", "trim", "convert", "noise-remove", "fade"],
   },
   {
     slug: "loudness-normalizer",
@@ -188,7 +245,7 @@ export const TOOLS: Tool[] = [
     shortDescription: "Normalize a track to streaming, club, or broadcast loudness (LUFS).",
     category: "convert",
     status: "live",
-    related: ["volume", "convert"],
+    related: ["volume", "convert", "sample-rate-converter", "trim", "key-finder"],
   },
   {
     slug: "audio-joiner",
@@ -196,7 +253,7 @@ export const TOOLS: Tool[] = [
     shortDescription: "Combine multiple audio files into a single track.",
     category: "convert",
     status: "live",
-    related: ["trim", "convert"],
+    related: ["trim", "fade", "convert", "silence-split", "volume"],
   },
   {
     slug: "fade",
@@ -204,7 +261,7 @@ export const TOOLS: Tool[] = [
     shortDescription: "Add a smooth fade in and fade out to a track.",
     category: "convert",
     status: "live",
-    related: ["trim", "volume"],
+    related: ["trim", "volume", "audio-joiner", "convert", "ringtone-maker"],
   },
   {
     slug: "reverse",
@@ -212,7 +269,7 @@ export const TOOLS: Tool[] = [
     shortDescription: "Flip a track to play backwards.",
     category: "convert",
     status: "live",
-    related: ["pitch", "tempo"],
+    related: ["pitch", "tempo", "trim", "convert", "fade"],
   },
   {
     slug: "mono-stereo-converter",
@@ -220,7 +277,7 @@ export const TOOLS: Tool[] = [
     shortDescription: "Convert audio between mono and stereo channels.",
     category: "convert",
     status: "live",
-    related: ["sample-rate-converter", "convert"],
+    related: ["sample-rate-converter", "convert", "volume", "loudness-normalizer", "trim"],
   },
   {
     slug: "sample-rate-converter",
@@ -228,7 +285,7 @@ export const TOOLS: Tool[] = [
     shortDescription: "Change an audio file's sample rate and bit depth.",
     category: "convert",
     status: "live",
-    related: ["mono-stereo-converter", "convert"],
+    related: ["mono-stereo-converter", "convert", "loudness-normalizer", "volume", "trim"],
   },
   {
     slug: "ringtone-maker",
@@ -236,7 +293,10 @@ export const TOOLS: Tool[] = [
     shortDescription: "Trim a track into an iPhone-ready ringtone (M4R).",
     category: "convert",
     status: "live",
-    related: ["trim", "convert"],
+    // tiktok-to-mp3 second: making a ringtone out of a TikTok sound is a
+    // real and common path, and /guides/tiktok-sound-to-ringtone already
+    // documents it, so the connection is topical rather than manufactured.
+    related: ["trim", "tiktok-to-mp3", "fade", "youtube-to-wav", "convert"],
   },
 
   // ---------- PITCH & TEMPO ----------
@@ -246,7 +306,7 @@ export const TOOLS: Tool[] = [
     shortDescription: "Change pitch independently of tempo.",
     category: "pitch-tempo",
     status: "live",
-    related: ["tempo", "reverse"],
+    related: ["tempo", "key-finder", "reverse", "tuner", "convert"],
   },
   {
     slug: "tempo",
@@ -254,17 +314,24 @@ export const TOOLS: Tool[] = [
     shortDescription: "Speed up or slow down without affecting pitch.",
     category: "pitch-tempo",
     status: "live",
-    related: ["bpm-tapper", "pitch", "key-finder", "reverse", "convert"],
+    related: ["bpm-tapper", "pitch", "key-finder", "metronome", "reverse"],
   },
 
   // ---------- CLEANUP & ENHANCE ----------
+  //
+  // Each cleanup entry ends with audio-to-text. That is not padding: the
+  // cleanup tools are overwhelmingly used on speech recordings, and a
+  // cleaned-up recording is the input a transcript wants. It also gives
+  // the transcription cluster five inbound internal links it did not
+  // previously have, which matters while those URLs are still fighting to
+  // get indexed at all.
   {
     slug: "noise-remove",
     name: "Noise Remover",
     shortDescription: "Reduce background noise with adjustable strength.",
     category: "cleanup",
     status: "live",
-    related: ["voice-clean", "silence-remove"],
+    related: ["voice-clean", "silence-remove", "echo-remove", "volume", "audio-to-text"],
   },
   {
     slug: "voice-clean",
@@ -272,7 +339,7 @@ export const TOOLS: Tool[] = [
     shortDescription: "Speech-optimized cleanup: denoise, rumble cut, normalize.",
     category: "cleanup",
     status: "live",
-    related: ["noise-remove", "echo-remove"],
+    related: ["noise-remove", "echo-remove", "silence-remove", "audio-to-text", "volume"],
   },
   {
     slug: "echo-remove",
@@ -280,7 +347,7 @@ export const TOOLS: Tool[] = [
     shortDescription: "Reduce mild echo and slap-back in a recording.",
     category: "cleanup",
     status: "live",
-    related: ["voice-clean", "noise-remove"],
+    related: ["voice-clean", "noise-remove", "silence-remove", "volume", "audio-to-text"],
   },
   {
     slug: "silence-remove",
@@ -288,7 +355,7 @@ export const TOOLS: Tool[] = [
     shortDescription: "Strip silent gaps throughout a track, not just the ends.",
     category: "cleanup",
     status: "live",
-    related: ["silence-split", "voice-clean", "noise-remove"],
+    related: ["silence-split", "voice-clean", "noise-remove", "trim", "audio-to-text"],
   },
   {
     slug: "silence-split",
@@ -296,15 +363,10 @@ export const TOOLS: Tool[] = [
     shortDescription: "Split one long recording into separate tracks at silent gaps.",
     category: "cleanup",
     status: "live",
-    related: ["silence-remove", "trim"],
+    related: ["silence-remove", "trim", "voice-clean", "audio-joiner", "audio-to-text"],
   },
 
   // ---------- TRANSCRIPTION ----------
-  //
-  // Each of these lists FIVE related tools, matching the count the tool
-  // pages pass to getRelatedTools. With fewer, the remaining slot(s) fell
-  // through to same-category matching and picked up audio-to-midi — see
-  // the note on that entry below.
   {
     slug: "audio-to-text",
     name: "Audio to Text",
@@ -313,9 +375,10 @@ export const TOOLS: Tool[] = [
     status: "live",
     // voice-clean and silence-split are the two the page copy actually
     // recommends: clean the recording first, split it if it's over the
-    // duration cap. youtube-to-wav added as the fifth slot so nothing
-    // falls through to the category fallback.
-    related: ["youtube-to-text", "video-to-text", "voice-clean", "silence-split", "youtube-to-wav"],
+    // duration cap. noise-remove replaces youtube-to-wav in the fifth slot
+    // — it's the other cleanup step people need before a usable transcript,
+    // and youtube-to-wav already has ample inbound links elsewhere.
+    related: ["youtube-to-text", "video-to-text", "voice-clean", "silence-split", "noise-remove"],
   },
   {
     slug: "youtube-to-text",
@@ -324,8 +387,7 @@ export const TOOLS: Tool[] = [
     category: "transcription",
     status: "live",
     // youtube-to-wav and silence-split are steps 1 and 2 of the
-    // over-the-limit workaround the page documents. video-to-audio added
-    // as the fifth slot so nothing falls through to the category fallback.
+    // over-the-limit workaround the page documents.
     related: ["audio-to-text", "video-to-text", "youtube-to-wav", "silence-split", "video-to-audio"],
   },
   {
@@ -335,8 +397,7 @@ export const TOOLS: Tool[] = [
     category: "transcription",
     status: "live",
     // video-to-audio is what the page tells people to use when a file is
-    // over the byte cap. silence-split added as the fifth slot so nothing
-    // falls through to the category fallback.
+    // over the byte cap.
     related: ["audio-to-text", "youtube-to-text", "video-to-audio", "voice-clean", "silence-split"],
   },
 
@@ -356,8 +417,7 @@ export const TOOLS: Tool[] = [
   //
   // The replacements are musical, not speech: someone converting a melody
   // to MIDI wants the key, the isolated stem, the source audio, or a way
-  // to check the tempo — they do not want a speech transcript. Five
-  // listed so the fallback never fires.
+  // to check the tempo — they do not want a speech transcript.
   //
   // OPEN QUESTION worth deciding: is category "transcription" right at
   // all? It's literally transcription, but nobody browsing a
@@ -365,13 +425,20 @@ export const TOOLS: Tool[] = [
   // them means each keeps showing up in the other's category listings.
   // "vocals" is arguably the better home. Left as-is for now because
   // changing it also changes the nav dropdown and the /tools hub.
+  //
+  // Worth noting the 2026-08-23 `related` pass reduces the urgency of that
+  // question: with every entry listing five slugs, the category fallback
+  // no longer fires anywhere, so audio-to-midi can no longer be pulled
+  // into a speech page's cross-links (or vice versa) purely by sharing a
+  // category label. The remaining cost of the current category is confined
+  // to the navbar dropdown and the /tools hub grouping.
   {
     slug: "audio-to-midi",
     name: "Audio to MIDI Converter",
     shortDescription: "Transcribe a melody or vocal line into a downloadable MIDI file.",
     category: "transcription",
     status: "live",
-    related: ["key-finder", "vocal-remover", "stems", "youtube-to-wav", "tempo"],
+    related: ["key-finder", "vocal-remover", "stems", "tempo", "youtube-to-wav"],
   },
 
   // ---------- BROWSER TOOLS ----------
@@ -381,7 +448,9 @@ export const TOOLS: Tool[] = [
     shortDescription: "Record audio from your microphone and download it — runs entirely in your browser.",
     category: "browser",
     status: "live",
-    related: ["convert", "trim"],
+    // A recording made here almost always needs cleaning next, which is
+    // why two cleanup tools sit above the other browser tools.
+    related: ["convert", "trim", "noise-remove", "voice-clean", "tuner"],
   },
   {
     slug: "metronome",
@@ -389,7 +458,7 @@ export const TOOLS: Tool[] = [
     shortDescription: "Adjustable BPM metronome with time signature support, right in your browser.",
     category: "browser",
     status: "live",
-    related: ["bpm-tapper", "tempo", "key-finder", "tuner", "voice-recorder"],
+    related: ["bpm-tapper", "tempo", "tuner", "key-finder", "voice-recorder"],
   },
   {
     slug: "bpm-tapper",
@@ -406,16 +475,6 @@ export const TOOLS: Tool[] = [
     category: "browser",
     status: "live",
     related: ["metronome", "bpm-tapper", "key-finder", "voice-recorder", "pitch"],
-  },
-
-  // ---------- DOWNLOAD (cont.) ----------
-  {
-    slug: "tiktok-to-mp3",
-    name: "TikTok to MP3",
-    shortDescription: "Convert a TikTok video link into a downloadable MP3.",
-    category: "download",
-    status: "live",
-    related: ["trim", "ringtone-maker", "youtube-to-wav"],
   },
 ];
 
@@ -443,6 +502,14 @@ export function getToolBySlug(slug: string): Tool | undefined {
 // only as a slightly-off related list, which is easy to miss. If a page's
 // related tools ever look arbitrary, check its `related` array for a slug
 // that no longer exists before looking anywhere else.
+//
+// As of 2026-08-23 every entry lists five slugs and every page passes a
+// count of five or fewer, so branches 2 and 3 below should never execute.
+// They are kept as a safety net for a future tool added with a short list,
+// not as part of normal operation. If you find yourself explaining an
+// unexpected cross-link, the first thing to check is whether the source
+// entry has fewer than five resolvable slugs — that is the only way these
+// branches can fire.
 export function getRelatedTools(currentSlug: string, count: number = 2): Tool[] {
   const current = getToolBySlug(currentSlug);
   const liveExcludingSelf = getLiveTools().filter((t) => t.slug !== currentSlug);

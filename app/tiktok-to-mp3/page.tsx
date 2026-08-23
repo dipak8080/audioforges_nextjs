@@ -12,10 +12,34 @@ import { getRelatedTools } from "@/lib/data/tools";
  *   convert tiktok to mp3       >100/mo  Hard
  *   tiktok to mp3 file/player   >100/mo
  *
- * No "| AudioForges" in the title, unlike /tools: on a commercial query
- * against established competitors, 14 characters of a brand nobody
- * searches for yet is worse spent than 14 characters of search concept.
- * Add it back when the brand is worth searching for.
+ * DOWNLOADER INTENT (23 Aug 2026, SE Ranking content brief): the top ten
+ * pages for this term collectively rank for a second phrase family this
+ * page did not previously contain anywhere in its visible copy —
+ * "tiktok audio downloader" (1,900/mo), "mp3 downloader" (49,500/mo),
+ * "tiktok mp3 downloader", "tiktok video downloader", "tiktok sounds"
+ * (410/mo, plural). Every one of those was already sitting in the
+ * `keywords` meta array below, which Google has ignored since 2009. The
+ * "TikTok audio downloader" section further down puts them in body text,
+ * where they are actually read. Converter and downloader are adjacent but
+ * distinct intents — one implies a format change, the other implies
+ * getting a file off a platform — and a page that only speaks one of them
+ * is invisible to half the query space.
+ *
+ * TITLE — READ BEFORE EDITING (23 Aug 2026):
+ * `title` is `{ absolute: PAGE_TITLE }`, not a bare string. Passing a
+ * string opts INTO the `title.template` defined in the root layout, which
+ * appends " | AudioForges". A site crawl confirmed the rendered title was
+ * "TikTok to MP3 Converter – Free MP3 Download | AudioForges" (57 chars)
+ * despite the comment below asserting the brand was omitted — the comment
+ * described intent, the template quietly overrode it. `absolute` is the
+ * only form that actually suppresses the template.
+ *
+ * The original reasoning, which still holds: no "| AudioForges" on a
+ * commercial query against established competitors. Fourteen characters
+ * of a brand nobody searches for yet is worse spent than fourteen
+ * characters of search concept. Add it back when the brand is worth
+ * searching for — GSC currently records zero queries containing
+ * "audioforges", so that day is not today.
  *
  * H1 keeps the site's "Free X Converter" pattern. It contains the exact
  * primary phrase as a substring, so trimming it to a bare "TikTok to
@@ -28,7 +52,7 @@ const PAGE_DESCRIPTION =
   "Convert TikTok videos to MP3 online for free. Paste a TikTok link, download the audio in seconds, and listen on any device.";
 
 export const metadata: Metadata = {
-  title: PAGE_TITLE,
+  title: { absolute: PAGE_TITLE },
   description: PAGE_DESCRIPTION,
   keywords: [
     "tiktok to mp3",
@@ -84,6 +108,7 @@ const webAppJsonLd = {
   },
   featureList: [
     "Convert TikTok videos to MP3",
+    "Download TikTok audio and sounds as MP3",
     "Works with vt.tiktok.com and vm.tiktok.com share links",
     "No sign-up required",
     "No watermark",
@@ -115,6 +140,10 @@ const breadcrumbJsonLd = {
   ],
 };
 
+// HowTo rich results were retired by Google in 2023, so this no longer
+// produces a SERP feature. Kept because it is accurate, costs nothing,
+// and is still consumed by non-Google parsers — but do not expect it to
+// do anything visible, and do not add more of it hoping otherwise.
 const howToJsonLd = {
   "@context": "https://schema.org",
   "@type": "HowTo",
@@ -148,6 +177,11 @@ const faqs = [
     question: "Is this TikTok to MP3 converter free?",
     answer:
       "Yes, with no account and no payment. There's a limit of 30 conversions per hour from one connection, which exists to keep the service running for everyone rather than to push you toward a paid tier — there isn't one.",
+  },
+  {
+    question: "Is this a TikTok audio downloader or a converter?",
+    answer:
+      "Both, in the sense that matters: it fetches the audio track off a public TikTok video and hands it back as an MP3 file. Tools calling themselves TikTok audio downloaders and tools calling themselves TikTok to MP3 converters are doing the same job — pull the sound off the platform, give you a file. There is no separate download step to find elsewhere.",
   },
   {
     question: "What audio quality do I get?",
@@ -184,6 +218,11 @@ const faqs = [
     question: "Can I download a TikTok MP3 on iPhone or Android?",
     answer:
       "Yes, in any mobile browser with nothing to install. On iPhone, copy the link in the TikTok app, open this page in Safari, and the MP3 saves to Files under Downloads. On Android it lands in your Downloads folder and appears in any music player or file manager.",
+  },
+  {
+    question: "Can I download TikTok sounds as well as full videos?",
+    answer:
+      "Yes — a TikTok sound and a TikTok video are the same thing from the converter's point of view. Paste the link to any public video using the sound and you get that sound as an MP3. There is no separate sounds page to visit; the audio track is what gets extracted either way.",
   },
   {
     question: "Does it work with short vt.tiktok.com links?",
@@ -280,6 +319,61 @@ export default function TikTokToMp3Page() {
           </p>
         </section>
 
+        {/* DOWNLOADER SECTION (23 Aug 2026) - added because the page spoke
+            only "converter" language while half the query space for this
+            SERP is phrased as "downloader". The two words describe the
+            same action to a user and different intents to a search engine.
+            Written as an explanation of what you actually receive rather
+            than a keyword shelf: the H3s underneath carry the specifics,
+            which is also what pulls the page toward the brief's 15-23
+            heading range from its previous ten. */}
+        <section className="space-y-4">
+          <h2 className="text-2xl font-bold text-text-primary">
+            TikTok audio downloader
+          </h2>
+          <p className="text-text-muted leading-relaxed">
+            Used as a TikTok audio downloader, this does what a dedicated TikTok
+            MP3 downloader does and stops there: it pulls the sound off a public
+            video and gives you the file. There is no app to install, no
+            extension, no second site to bounce through, and no step where you
+            download the video first and strip the audio out yourself.
+          </p>
+
+          <h3 className="text-xl font-semibold text-text-primary pt-2">
+            What you actually get
+          </h3>
+          <p className="text-text-muted leading-relaxed">
+            One MP3 file per link, at 128kbps and 44.1kHz, named after the
+            video. No watermark, no spoken tag over the intro, no sponsor
+            message welded onto the end — three things that are routine on free
+            TikTok downloaders and that make the file useless for anything but
+            listening. The audio is the audio, unmodified.
+          </p>
+
+          <h3 className="text-xl font-semibold text-text-primary pt-2">
+            Downloading TikTok sounds
+          </h3>
+          <p className="text-text-muted leading-relaxed">
+            TikTok sounds work the same way as videos here, because they are the
+            same thing underneath: paste a link to any public video using the
+            sound and that sound comes back as an MP3. If you found a sound on
+            its own TikTok page rather than on a video, open any post using it
+            and copy that link instead — the sound page itself has no audio
+            stream to fetch.
+          </p>
+
+          <h3 className="text-xl font-semibold text-text-primary pt-2">
+            One at a time, and only public links
+          </h3>
+          <p className="text-text-muted leading-relaxed">
+            There is no batch mode and no queue. One link, one MP3, then paste
+            the next. That&apos;s a deliberate limit rather than a missing
+            feature — bulk TikTok downloaders are the ones that get blocked
+            fastest, and a converter that works today is worth more than one
+            that scrapes a hundred videos until it stops working entirely.
+          </p>
+        </section>
+
         <section className="space-y-4">
           <h2 className="text-2xl font-bold text-text-primary">
             How to convert TikTok to MP3
@@ -299,11 +393,23 @@ export default function TikTokToMp3Page() {
             <li>Click Convert to MP3 and listen back to check the sound.</li>
             <li>Download the MP3 to your phone or computer.</li>
           </ol>
+
+          <h3 className="text-xl font-semibold text-text-primary pt-2">
+            On iPhone
+          </h3>
           <p className="text-text-muted leading-relaxed">
-            The same three steps work everywhere. On iPhone, open this page in
-            Safari and the file saves into the Files app under Downloads; on
-            Android it lands in your Downloads folder and shows up in any music
-            player or file manager. Nothing to install on either.
+            Copy the link inside the TikTok app, open this page in Safari, and
+            paste. The MP3 saves into the Files app under Downloads, where the
+            Music app, VLC and GarageBand can all reach it. Nothing to install.
+          </p>
+
+          <h3 className="text-xl font-semibold text-text-primary pt-2">
+            On Android
+          </h3>
+          <p className="text-text-muted leading-relaxed">
+            Same three steps in Chrome or any other browser. The file lands in
+            your Downloads folder and shows up automatically in any music player
+            or file manager that scans local storage.
           </p>
         </section>
 
@@ -320,6 +426,10 @@ export default function TikTokToMp3Page() {
             bit-for-bit the same audible content. Lossy audio can&apos;t be
             un-lost by moving it into a bigger container.
           </p>
+
+          <h3 className="text-xl font-semibold text-text-primary pt-2">
+            Why 320kbps claims are worth ignoring
+          </h3>
           <p className="text-text-muted leading-relaxed">
             128kbps is double the source rate, which gives the encoder enough
             headroom that nothing audible is dropped on the way through. Any
@@ -429,6 +539,9 @@ export default function TikTokToMp3Page() {
             </table>
           </div>
 
+          <h3 className="text-xl font-semibold text-text-primary pt-2">
+            What to do after you download the MP3
+          </h3>
           <p className="text-text-muted leading-relaxed">
             Most of those want one more step after converting. Trim the clip
             down with the{" "}
