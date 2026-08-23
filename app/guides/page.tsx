@@ -5,7 +5,17 @@ import { SITE_URL } from "@/lib/constants";
 import { guides } from "@/lib/guides";
 import { GuidesExplorer } from "@/components/guides/GuidesExplorer";
 
-const PAGE_TITLE = "Guides for Producers & DJs | AudioForges";
+// The root layout sets `title.template = "%s | AudioForges"`, which applies
+// to `metadata.title` ONLY — Next.js does not apply it to openGraph.title,
+// because the root's openGraph.title is a plain string rather than a
+// template object. So:
+//   PAGE_TITLE   — no brand suffix; the template adds it → "… | AudioForges"
+//   SOCIAL_TITLE — brand included by hand, since nothing appends it here
+// Previously both used one constant that already carried the suffix, so the
+// rendered <title> came out "Guides for Producers & DJs | AudioForges |
+// AudioForges". Flagged by Ahrefs as "Page and SERP titles do not match".
+const PAGE_TITLE = "Guides for Producers & DJs";
+const SOCIAL_TITLE = `${PAGE_TITLE} | AudioForges`;
 const PAGE_DESCRIPTION =
   "Practical guides on harmonic mixing, sampling, set prep, and production workflow, written from real studio and DJ experience.";
 
@@ -14,7 +24,7 @@ export const metadata: Metadata = {
   description: PAGE_DESCRIPTION,
   alternates: { canonical: `${SITE_URL}/guides` },
   openGraph: {
-    title: PAGE_TITLE,
+    title: SOCIAL_TITLE,
     description: PAGE_DESCRIPTION,
     url: `${SITE_URL}/guides`,
     siteName: "AudioForges",
@@ -23,7 +33,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: PAGE_TITLE,
+    title: SOCIAL_TITLE,
     description: PAGE_DESCRIPTION,
     images: ["/images/og-default.png"],
   },

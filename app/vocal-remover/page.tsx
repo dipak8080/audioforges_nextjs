@@ -11,25 +11,12 @@ const PAGE_TITLE = "Free AI Vocal Remover – Remove Vocals Online";
 const PAGE_DESCRIPTION =
   "Remove vocals from songs online with AI for free. Extract instrumentals or acapellas from MP3, WAV, FLAC, AAC and more. No sign-up, no watermark.";
 
+// FIX 2: `keywords` meta removed. Google has ignored the keywords meta tag
+// since 2009, and no other tool page on the site carries it — it was dead
+// weight and an inconsistency, not a ranking factor.
 export const metadata: Metadata = {
   title: PAGE_TITLE,
   description: PAGE_DESCRIPTION,
-  keywords: [
-    "vocal remover",
-    "ai vocal remover",
-    "remove vocals from song",
-    "vocal remover online free",
-    "extract instrumental",
-    "karaoke maker",
-    "acapella extractor",
-    "isolate vocals",
-    "free vocal remover",
-    "stem splitter",
-    "instrumental maker",
-    "vocal isolation",
-    "extract vocals",
-    "ai stem splitter",
-  ],
   alternates: { canonical: `${SITE_URL}/vocal-remover` },
   openGraph: {
     title: PAGE_TITLE,
@@ -58,9 +45,27 @@ const webAppJsonLd = {
   "@context": "https://schema.org",
   "@type": "WebApplication",
   name: "AI Vocal Remover",
+  // FIX 3: alternateName carries the head terms as standalone entity labels,
+  // which helps Google associate the page with each query independently.
+  // Same pattern already used on /video-to-audio.
+  // Volumes (SE Ranking, Aug 2026, US):
+  //   vocal remover              90,500/mo
+  //   remove vocals              22,200/mo
+  //   vocal isolator              8,100/mo
+  //   ai vocal remover            6,600/mo
+  //   remove vocals from a song   6,600/mo
+  alternateName: [
+    "Vocal Remover",
+    "AI Vocal Remover",
+    "Vocal Isolator",
+    "Acapella Extractor",
+    "Karaoke Maker",
+    "Instrumental Maker",
+  ],
   url: `${SITE_URL}/vocal-remover`,
   applicationCategory: "MultimediaApplication",
   operatingSystem: "Any",
+  browserRequirements: "Requires JavaScript.",
   offers: {
     "@type": "Offer",
     price: "0",
@@ -87,10 +92,11 @@ const breadcrumbJsonLd = {
 // no ranking or rich-result benefit remains. Visible how-to steps stay.
 // This matches the standard already applied on /stems and both YouTube
 // separation pages.
+// FAQPage schema is emitted by <FAQSection /> — do not duplicate it here.
 
 // Rate-limit numbers shown in the "Standard vs. Studio Quality" table below
-// are read from lib/data/rate-limits.ts rather than hardcoded here — same
-// source VocalRemoverForm.tsx uses ("separate"/"separate-hq", the
+// AND in the FAQ are read from lib/data/rate-limits.ts rather than hardcoded —
+// same source VocalRemoverForm.tsx uses ("separate"/"separate-hq", the
 // file-upload Vocal Remover's own endpoint, distinct from the 4-stem
 // Stem Splitter and the YouTube Vocal Remover). Fallback text only fires
 // if a key is ever missing/renamed in rate-limits.ts.
@@ -118,9 +124,25 @@ export default async function VocalRemoverPage() {
         ]
       : []),
     {
+      // FIX 6: was hardcoded "three tracks per hour". rate-limits.ts raised
+      // `separate` from 3 to 6 on 2026-08-22 — this page was under-reporting
+      // the real allowance by half. Now read from the single source of truth,
+      // so a future backend change can't silently make this copy lie again.
       question: "Is this really free?",
+      answer: `Yes, completely free — no account, no email, no watermark. Because separation is processing-intensive, standard quality is limited to ${standardLimitLabel} per IP address to keep it available for everyone.`,
+    },
+    {
+      // FIX 7: this page had NO retention statement at all — on the one tool
+      // where people upload copyrighted music. /video-to-audio answers the
+      // equivalent question; this was a trust gap and a conversion gap.
+      // ⚠️ VERIFY AGAINST BACKEND BEFORE SHIPPING: stems must persist through
+      // the download step, so the timing may differ from /video-to-audio's
+      // "deleted as soon as conversion finishes". If the cleanup job runs on
+      // a delay, state that delay accurately — a wrong retention claim is
+      // worse than no claim.
+      question: "Are my uploaded tracks kept?",
       answer:
-        "Yes, completely free. Because separation is processing-intensive, it's limited to three tracks per hour per person to keep it available for everyone.",
+        "No — the uploaded file and the separated stems are deleted from the server once processing finishes and your download window closes. There are no accounts, so nothing is linked to you, published, or shared.",
     },
     {
       question: "What can I use the instrumental for?",
@@ -133,9 +155,14 @@ export default async function VocalRemoverPage() {
         "AI source separation gets much closer than a center-channel filter, but it isn't perfect on every track — dense mixes, heavy reverb, or doubled vocals can leave faint traces behind. Simpler mixes tend to separate more cleanly.",
     },
     {
+      // FIX 5: previously claimed "Everything runs in your browser", which is
+      // false — separation runs Demucs on GPU infrastructure server-side. The
+      // page contradicted itself three sections later, and the claim was
+      // incompatible with the retention answer above. Same error class already
+      // corrected on /video-to-audio.
       question: "Do I need to download anything?",
       answer:
-        "No. Everything runs in your browser — upload a track, wait for processing, and download the result directly. No app or software install required.",
+        "No app or plugin to install. You upload a track through your browser, separation runs on the server, and you download the two stems when it finishes. Nothing runs locally on your machine.",
     },
     {
       question: "How is this different from a karaoke center-channel filter?",
@@ -215,7 +242,10 @@ export default async function VocalRemoverPage() {
         <section className="grid gap-4 sm:grid-cols-3">
           {[
             { title: "GPU-accelerated AI", desc: "Real source separation, not a basic center-channel filter." },
-            { title: "No download", desc: "Runs entirely in your browser. Upload, process, download." },
+            // FIX 4: was "Runs entirely in your browser" — factually wrong,
+            // separation runs server-side on GPU. Reworded to say what's
+            // actually true and still answer the "do I need software?" worry.
+            { title: "No install", desc: "Nothing to download. Upload, process, download in your browser." },
             { title: "Free", desc: "No sign-up, no watermark, free for everyone." },
           ].map((f) => (
             <div key={f.title} className="rounded-xl border border-graphite-800 bg-graphite-900 p-5 space-y-2">
@@ -252,6 +282,36 @@ export default async function VocalRemoverPage() {
             </div>
           </div>
         </section>
+
+        {/* ─────────────────────────────────────────────────────────────
+            TODO — OUTPUT SPEC SECTION GOES HERE.
+
+            This is the single highest-value addition available to this
+            page, and it can't be written without the backend separation
+            command. Every claim on this page is currently qualitative
+            ("noticeably cleaner", "20 seconds to 1 minute"), which is
+            exactly what vocalremover.org and LALAL.AI also say. Nothing
+            here is checkable.
+
+            /video-to-audio's strongest section is the one that states
+            16-bit PCM at source sample rate and does the file-size
+            arithmetic. No competitor in that SERP publishes it. The
+            equivalent here would state, for both stems:
+              - output format and container
+              - bitrate (or "lossless" if WAV)
+              - sample rate and channel count
+              - whether either is inherited from the source
+
+            Also worth stating: the model name. AudioForges runs Demucs;
+            competitors deliberately hide what's under the hood. Naming
+            htdemucs (and the ensembled variant behind Studio Quality) is
+            verifiable and separates this page from the "our proprietary
+            AI" crowd — producers who know the space will trust it more.
+
+            NOT worth doing: published SDR benchmark comparisons against
+            named competitors. That needs a controlled test set to claim
+            honestly, and a sloppy version is worse than none.
+            ───────────────────────────────────────────────────────────── */}
 
         <section className="space-y-4">
           <h2 className="text-2xl font-bold text-text-primary">Who is this for?</h2>
@@ -327,9 +387,9 @@ export default async function VocalRemoverPage() {
             <p>
               AudioForges processes the AI separation workload on GPU-accelerated
               infrastructure. A single track usually takes 20 seconds to 1 minute,
-              and usage is rate-limited per person so it stays free and available
-              for everyone. No download, install, or account is needed — everything
-              happens in your browser.
+              and usage is rate-limited per IP address so it stays free and
+              available for everyone. There is no app or plugin to install —
+              you upload through the browser and the separation runs on the server.
             </p>
             <p>
               Want the fuller breakdown of how this compares to older methods and
@@ -456,6 +516,7 @@ export default async function VocalRemoverPage() {
                 <Link
                   key={tool.slug}
                   href={`/${tool.slug}`}
+                  prefetch={false}
                   className="rounded-xl border border-graphite-800 bg-graphite-900 p-4 hover:border-amber-500/40 transition-colors"
                 >
                   <h3 className="font-semibold text-text-primary">{tool.name}</h3>

@@ -181,11 +181,11 @@ export const guides: Guide[] = [
   },
   {
     slug: "mono-vs-stereo-what-changes",
-    title: "Mono vs. Stereo: What Actually Changes When You Convert",
+    title: "Mono vs Stereo: What's the Difference?",
     description:
-      "Why converting mono to stereo doesn't add width, why stereo to mono loses channel separation, and when each direction actually matters.",
+      "Mono is one channel, stereo is two. What actually changes when you convert between them, why mono-to-stereo adds no width, and how to check a mix in mono.",
     publishedDate: "2026-08-01",
-    updatedDate: "2026-08-01",
+    updatedDate: "2026-08-23",
     category: "production",
   },
   {

@@ -537,6 +537,12 @@ export default function VideoToAudioPage() {
               new format, which takes additional processing time.
             </p>
             <p>
+              {/* FIX: link text now matches the guide's actual title in
+                  lib/data/guides.ts ("Why M4A Extraction Is Instant (WAV
+                  Isn't)"). It previously read "Why Extracting Audio to M4A Is
+                  Instant (and WAV Isn't)" — a title that doesn't exist.
+                  Anchor text that misstates the destination's title is a weak
+                  relevance signal and confuses the reader on arrival. */}
               Want the fuller breakdown of what a stream copy actually is, and
               when lossless output genuinely helps versus when it&apos;s just a
               bigger file?{" "}
@@ -545,8 +551,7 @@ export default function VideoToAudioPage() {
                 prefetch={false}
                 className="text-amber-400 hover:underline"
               >
-                Read Why Extracting Audio to M4A Is Instant (and WAV
-                Isn&apos;t)
+                Read Why M4A Extraction Is Instant (WAV Isn&apos;t)
               </Link>
               .
             </p>

@@ -1,381 +1,339 @@
+// app/guides/mono-vs-stereo-what-changes/page.tsx
+import { buttonStyles } from "@/components/ui/Button";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ChannelsForm } from "@/components/converter/ChannelsForm";
-import { FAQSection } from "@/components/faq/FAQSection";
-import { SITE_URL, SITE_NAME } from "@/lib/constants";
-import { getRelatedTools } from "@/lib/data/tools";
+import { ArrowRight } from "lucide-react";
+import { SITE_URL } from "@/lib/constants";
+import { getGuideBySlug } from "@/lib/guides";
+import { GuideByline } from "@/components/guides/GuideByline";
 
-const PAGE_TITLE = "Free Audio to Stereo & Mono Converter";
-const PAGE_DESCRIPTION =
-  "Convert audio to stereo or mono, free. Downmix stereo to mono, or duplicate mono to stereo. No sign-up, no watermark.";
+const guide = getGuideBySlug("mono-vs-stereo-what-changes")!;
 
 export const metadata: Metadata = {
-  title: PAGE_TITLE,
-  description: PAGE_DESCRIPTION,
-  alternates: { canonical: `${SITE_URL}/mono-stereo-converter` },
+  title: guide.title,
+  description: guide.description,
+  alternates: { canonical: `${SITE_URL}/guides/${guide.slug}` },
   openGraph: {
-    title: PAGE_TITLE,
-    description: PAGE_DESCRIPTION,
-    url: `${SITE_URL}/mono-stereo-converter`,
-    siteName: SITE_NAME,
-    type: "website",
-    images: [{ url: "/images/og-default.png", width: 1200, height: 630, alt: "AudioForges" }],
+    title: guide.title,
+    description: guide.description,
+    url: `${SITE_URL}/guides/${guide.slug}`,
+    siteName: "AudioForges",
+    type: "article",
+    images: [
+      {
+        url: "/images/og-default.png",
+        width: 1200,
+        height: 630,
+        alt: "AudioForges",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
-    title: PAGE_TITLE,
-    description: PAGE_DESCRIPTION,
+    title: guide.title,
+    description: guide.description,
     images: ["/images/og-default.png"],
   },
 };
 
-// WebApplication schema — every claim below is checked against the actual
-// ChannelsForm/backend behavior. No accuracy, performance, or file-size
-// reduction claims, since encoding settings and format affect size.
-const webAppJsonLd = {
+// No FAQPage schema here on purpose — /mono-stereo-converter already emits
+// FAQPage for this topic. Two FAQPage blocks on the same subject across two
+// URLs is the cannibalization we're trying to remove, not add to.
+const articleJsonLd = {
   "@context": "https://schema.org",
-  "@type": "WebApplication",
-  name: "Mono/Stereo Converter",
-  url: `${SITE_URL}/mono-stereo-converter`,
-  applicationCategory: "MultimediaApplication",
-  operatingSystem: "Any",
-  offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
-  featureList: [
-    "Convert stereo to mono",
-    "Convert mono to stereo",
-    "No sign-up required",
-    "No watermark",
-  ],
+  "@type": "Article",
+  headline: guide.title,
+  description: guide.description,
+  datePublished: guide.publishedDate,
+  dateModified: guide.updatedDate,
+  author: { "@type": "Organization", name: "AudioForges" },
+  publisher: { "@type": "Organization", name: "AudioForges" },
+  image: `${SITE_URL}/images/og-default.png`,
+  mainEntityOfPage: `${SITE_URL}/guides/${guide.slug}`,
 };
 
-const breadcrumbJsonLd = {
-  "@context": "https://schema.org",
-  "@type": "BreadcrumbList",
-  itemListElement: [
-    { "@type": "ListItem", position: 1, name: "Home", item: SITE_URL },
-    { "@type": "ListItem", position: 2, name: "Mono/Stereo Converter", item: `${SITE_URL}/mono-stereo-converter` },
-  ],
-};
-// NOTE: No HowTo schema — deprecated by Google (desktop since Sept 2023),
-// no ranking or rich-result benefit remains.
-
-const SUPPORTED_FORMATS = ["MP3", "WAV", "FLAC", "M4A", "AAC", "OGG", "AIFF"];
-
-/** Same style as the convert/stems pages — clean mono badges, no check icons.
- *  Check icons are reserved for comparison-table cells, not format lists. */
-function FormatBadges() {
-  return (
-    <div className="flex flex-wrap gap-2">
-      {SUPPORTED_FORMATS.map((format) => (
-        <span
-          key={format}
-          className="rounded-lg border border-graphite-700 bg-graphite-850 px-3 py-1.5 font-mono text-sm font-semibold text-amber-400"
-        >
-          {format}
-        </span>
-      ))}
-    </div>
-  );
-}
-
-const faqs = [
-  {
-    question: "How do I convert mono to stereo?",
-    answer:
-      "Upload your mono file, choose stereo as the target, and download the result. The tool duplicates the single mono signal onto both the left and right channels.",
-  },
-  {
-    question: "How do I convert stereo to mono?",
-    answer:
-      "Upload your stereo file, choose mono as the target, and download the result. The tool combines the left and right channels into a single centered channel.",
-  },
-  {
-    question: "Does mono to stereo create real stereo?",
-    answer:
-      "No. It duplicates the identical mono signal onto both channels rather than inventing new left/right content. It satisfies a two-channel requirement, but there's no actual stereo width or separation, since there was nothing to separate in the mono source.",
-  },
-  {
-    question: "Is mono better for voice recordings?",
-    answer:
-      "Often, yes — a single voice usually doesn't benefit from stereo width, and many phone systems, IVR platforms, and podcast hosts expect or prefer single-channel audio for spoken content.",
-  },
-  {
-    question: "Is stereo better for music?",
-    answer:
-      "Music that was recorded or mixed with genuine left/right separation — instruments panned to different sides, stereo effects — benefits from staying in stereo, since converting it to mono collapses that separation into one channel.",
-  },
-  {
-    question: "Does converting stereo to mono lose left/right information?",
-    answer:
-      "Yes — combining two channels into one is a real change. Any separation between the left and right channels in the original is gone in the mono result; the audio isn't damaged, but it's a genuinely different listening experience from the stereo original.",
-  },
-  {
-    question: "Does this conversion affect audio quality?",
-    answer:
-      "It changes channel count, not fidelity — but stereo-to-mono is not a lossless no-op, since it genuinely discards the left/right separation that existed. Mono-to-stereo doesn't lose anything, since it's only duplicating what's already there.",
-  },
-  {
-    question: "Will converting to mono make my file smaller?",
-    answer:
-      "Often, since there's less channel data to store, but the exact difference depends on the output format and encoding settings rather than being a fixed, guaranteed reduction.",
-  },
-  {
-    question: "What audio formats are supported?",
-    answer: "MP3, WAV, FLAC, M4A, AAC, OGG, and AIFF.",
-  },
-  {
-    question: "What is the maximum upload size?",
-    answer: "80MB per upload.",
-  },
-  {
-    question: "Is this really free?",
-    answer: "Yes — completely free, no sign-up, no watermark on the output.",
-  },
-];
-
-export default function ChannelsPage() {
-  const relatedTools = getRelatedTools("mono-stereo-converter", 5);
-
+export default function MonoStereoGuidePage() {
   return (
     <>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(webAppJsonLd) }} />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(articleJsonLd) }}
+      />
 
-      <main className="mx-auto max-w-3xl px-4 py-12 sm:py-16 space-y-12">
-        <header className="text-center space-y-4">
-          <h1 className="text-4xl font-bold tracking-tight sm:text-5xl text-text-primary">
-            Free Audio to Stereo &amp; Mono Converter
+      <main className="mx-auto max-w-3xl px-4 py-12 sm:py-16 space-y-10">
+        <header className="space-y-3">
+          <Link href="/guides" className="text-sm text-amber-400 hover:underline">
+            ← All guides
+          </Link>
+          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl text-text-primary">
+            {guide.title}
           </h1>
-          <p className="text-lg text-text-muted max-w-xl mx-auto">
-            Convert audio to stereo or mono, free. No sign-up, no watermark.
-            Downmix stereo to mono, or duplicate mono to stereo, in seconds.
-          </p>
         </header>
 
-        {/* Tool stays first — SEO content supports it, doesn't bury it */}
-        <ChannelsForm />
+        <GuideByline publishedDate={guide.publishedDate} updatedDate={guide.updatedDate} />
 
-        <section className="grid gap-4 sm:grid-cols-3">
-          {[
-            { title: "Both directions", desc: "Mono to stereo, or stereo to mono." },
-            { title: "Any format", desc: "MP3, WAV, FLAC, M4A, AAC, OGG, AIFF." },
-            { title: "No sign-up", desc: "No account, no email, no watermark." },
-          ].map((f) => (
-            <div key={f.title} className="rounded-xl border border-graphite-800 bg-graphite-900 p-5 space-y-2">
-              <p className="font-semibold text-text-primary">{f.title}</p>
-              <p className="text-sm text-text-muted">{f.desc}</p>
-            </div>
-          ))}
-        </section>
-
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">What is mono audio?</h2>
-          <p className="text-text-muted leading-relaxed">
-            Mono (monaural) audio is a single audio channel. The same signal
-            plays from every speaker or earbud — there&apos;s no left/right
-            distinction, because there&apos;s only one channel to begin with.
+        <div className="space-y-6 text-text-muted leading-relaxed">
+          {/* Direct answer in the first 40 words — this is the paragraph
+              Google lifts for a featured snippet, and the one a reader
+              needs before deciding whether to keep reading. */}
+          <p>
+            <strong className="text-text-primary">
+              Mono audio is one channel; stereo is two.
+            </strong>{" "}
+            That&apos;s the whole difference. Neither is higher quality than
+            the other — stereo isn&apos;t a better version of mono, it&apos;s
+            a different number of channels. What matters is what happens at
+            the edges: a stereo mix can lose entire elements when it gets
+            played back in mono, and that failure is silent until it
+            happens in front of an audience.
           </p>
-        </section>
 
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">What is stereo audio?</h2>
-          <p className="text-text-muted leading-relaxed">
-            Stereo audio uses two independent channels, left and right, which
-            can carry different content. That difference between the two
-            channels is what creates a sense of width and positioning — an
-            instrument panned left, another panned right, or a wide stereo
-            effect spread across the field.
-          </p>
-        </section>
-
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">Mono vs. stereo: what&apos;s the difference?</h2>
-          <div className="overflow-x-auto rounded-xl border border-graphite-800">
-            <table className="w-full text-sm text-left text-text-muted">
-              <thead className="bg-graphite-900 text-text-primary">
-                <tr>
-                  <th className="px-4 py-3 font-semibold">&nbsp;</th>
-                  <th className="px-4 py-3 font-semibold">Mono</th>
-                  <th className="px-4 py-3 font-semibold">Stereo</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-graphite-800">
-                <tr>
-                  <td className="px-4 py-3 font-medium text-text-primary">Channels</td>
-                  <td className="px-4 py-3">1</td>
-                  <td className="px-4 py-3">2 (left + right)</td>
-                </tr>
-                <tr>
-                  <td className="px-4 py-3 font-medium text-text-primary">Left/right information</td>
-                  <td className="px-4 py-3">None — same signal everywhere</td>
-                  <td className="px-4 py-3">Can differ between channels</td>
-                </tr>
-                <tr>
-                  <td className="px-4 py-3 font-medium text-text-primary">Stereo width</td>
-                  <td className="px-4 py-3">None</td>
-                  <td className="px-4 py-3">Present when the two channels genuinely differ</td>
-                </tr>
-                <tr>
-                  <td className="px-4 py-3 font-medium text-text-primary">Common uses</td>
-                  <td className="px-4 py-3">Voice, phone systems, podcasts</td>
-                  <td className="px-4 py-3">Music, sound design, most media</td>
-                </tr>
-                <tr>
-                  <td className="px-4 py-3 font-medium text-text-primary">Reason to convert here</td>
-                  <td className="px-4 py-3">A target expects/prefers single-channel audio</td>
-                  <td className="px-4 py-3">A target requires two channels present</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">Mono to stereo: what happens?</h2>
-          <p className="text-text-muted leading-relaxed">
-            The single mono channel is duplicated onto both the left and
-            right channels. The result is technically two-channel audio, but
-            it plays back exactly as centered as the mono original — nothing
-            new is separated between the channels, because there was only one
-            signal to begin with.
-          </p>
-        </section>
-
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">Stereo to mono: what happens?</h2>
-          <p className="text-text-muted leading-relaxed">
-            The left and right channels are combined into a single centered
-            channel. Whatever separation existed between them — instruments
-            panned to one side, a wide stereo effect — collapses into one
-            signal. This is a genuine change to how the audio sounds, not just
-            a format formality.
-          </p>
-        </section>
-
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">When should you convert stereo to mono?</h2>
-          <p className="text-text-muted leading-relaxed">
-            When a target platform expects single-channel audio — phone
-            systems, IVR prompts, and some podcast hosts commonly do — or when
-            the content itself, like a single spoken voice, was never relying
-            on stereo separation in the first place.
-          </p>
-        </section>
-
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">When should you convert mono to stereo?</h2>
-          <p className="text-text-muted leading-relaxed">
-            When an upload target rejects or mishandles mono files and simply
-            requires two channels to be present, regardless of whether they
-            carry different content. This satisfies that requirement without
-            changing how the audio actually sounds.
-          </p>
-        </section>
-
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">Does mono to stereo create real stereo?</h2>
-          <p className="text-text-muted leading-relaxed">
-            No. Real stereo width comes from having two channels that
-            genuinely carry different content — different mic positions,
-            panned instruments, a stereo effect. Duplicating a mono signal
-            across two channels satisfies a channel-count requirement, but it
-            doesn&apos;t create anything to separate, so no width is added.
-          </p>
-          <p className="text-text-muted leading-relaxed">
-            Want the fuller breakdown of why this distinction matters and
-            what each direction is actually doing under the hood?{" "}
-            <Link href="/guides/mono-vs-stereo-what-changes" className="text-amber-400 hover:underline">
-              Read Mono vs. Stereo: What Actually Changes When You Convert
-            </Link>.
-          </p>
-        </section>
-
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">Does converting stereo to mono affect audio quality?</h2>
-          <p className="text-text-muted leading-relaxed">
-            Converting stereo to mono changes the channel configuration and
-            can remove left/right separation that was present in the
-            original. The result isn&apos;t necessarily lower-quality audio,
-            but it can sound different, because stereo information is being
-            combined into one channel. Whether that matters depends on the
-            source: a mono voice recording loses nothing meaningful, while a
-            stereo music mix with real left/right content will sound
-            different once collapsed to one channel.
-          </p>
-        </section>
-
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">How to convert between mono and stereo</h2>
-          <ol className="list-decimal list-inside space-y-2 text-text-muted leading-relaxed">
-            <li>Upload an MP3, WAV, FLAC, M4A, AAC, OGG, or AIFF file.</li>
-            <li>Choose mono or stereo as the target.</li>
-            <li>Download the converted file.</li>
-          </ol>
-        </section>
-
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">Supported formats</h2>
-          <FormatBadges />
-          <p className="text-text-muted leading-relaxed">
-            Upload any of the formats above, up to 80MB per file.
-          </p>
-        </section>
-
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">Common uses</h2>
-          <div className="space-y-3 text-text-muted leading-relaxed">
+          <section className="space-y-3">
+            <h2 className="text-2xl font-bold text-text-primary">
+              What mono and stereo actually are
+            </h2>
             <p>
-              <strong className="text-text-primary">Podcasts &amp; voice content:</strong>{" "}
-              converting spoken-word recordings to mono for hosts and
-              pipelines that expect single-channel audio.
+              Mono (monaural) is a single channel of audio. Every speaker
+              plays the identical signal. There is no left and no right,
+              because there is only one thing to play.
             </p>
             <p>
-              <strong className="text-text-primary">IVR &amp; telephone systems:</strong>{" "}
-              phone-based audio commonly requires mono input, regardless of
-              how the source was originally recorded.
+              Stereo is two independent channels. They can carry different
+              content, and that difference is what produces the impression of
+              width — a guitar sitting slightly left, keys slightly right, a
+              reverb tail spreading outward. Crucially, the width lives in
+              the <em>difference</em> between the channels. Two identical
+              channels are stereo in file format and mono in every way that
+              matters to your ears.
             </p>
-            <p>
-              <strong className="text-text-primary">Voice-over work:</strong>{" "}
-              preparing narration for whichever channel format a project
-              or delivery spec requires.
-            </p>
-            <p>
-              <strong className="text-text-primary">Video editing:</strong>{" "}
-              matching a voice track&apos;s channel format to the rest of a
-              project&apos;s audio before syncing it to picture.
-            </p>
-            <p>
-              <strong className="text-text-primary">Music production:</strong>{" "}
-              checking how a mix collapses to mono to catch phase or balance
-              issues that only show up once stereo separation is removed.
-            </p>
-            <p>
-              <strong className="text-text-primary">Upload compatibility:</strong>{" "}
-              satisfying a platform&apos;s channel-count requirement when it
-              rejects or mishandles the format you started with.
-            </p>
-          </div>
-        </section>
-
-        {relatedTools.length > 0 && (
-          <section className="space-y-4">
-            <h2 className="text-2xl font-bold text-text-primary">More free tools</h2>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {relatedTools.map((tool) => (
-                <Link
-                  key={tool.slug}
-                  href={`/${tool.slug}`}
-                  className="rounded-xl border border-graphite-800 bg-graphite-900 p-4 hover:border-amber-500/40 transition-colors"
-                >
-                  <h3 className="font-semibold text-text-primary">{tool.name}</h3>
-                  <p className="text-sm text-text-muted mt-1">{tool.shortDescription}</p>
-                </Link>
-              ))}
-            </div>
           </section>
-        )}
 
-        <FAQSection faqs={faqs} />
+          <section className="space-y-3">
+            <h2 className="text-2xl font-bold text-text-primary">
+              The real reason this matters: phase cancellation
+            </h2>
+            <p>
+              This is the part most explanations skip, and it&apos;s the only
+              part with real consequences.
+            </p>
+            <p>
+              When two channels are summed into one, they add together sample
+              by sample. If the left and right channels contain the same
+              sound but with opposite polarity — one pushing while the other
+              pulls — the sum is silence. Not a quieter version. Silence.
+              That sound disappears entirely from the mono result while
+              sounding perfectly fine in stereo.
+            </p>
+            <p>
+              Partial cancellation is more common than total cancellation and
+              harder to notice. A sound that was full in stereo comes back
+              thin, hollow, or noticeably quieter, and because nothing
+              obviously broke, it&apos;s easy to blame the room or the
+              speakers instead of the mix.
+            </p>
+            <p>The usual culprits:</p>
+            <ul className="list-disc list-inside space-y-2">
+              <li>
+                <strong className="text-text-primary">
+                  Stereo widening plugins.
+                </strong>{" "}
+                Many create width by phase-inverting part of one channel.
+                That is exactly the condition that cancels on summing — the
+                wider it sounds in stereo, the more it can vanish in mono.
+              </li>
+              <li>
+                <strong className="text-text-primary">
+                  Two microphones on one source.
+                </strong>{" "}
+                If the mics sit at different distances, the same sound
+                arrives at each at a slightly different time. Some
+                frequencies cancel when the channels are summed.
+              </li>
+              <li>
+                <strong className="text-text-primary">
+                  Haas-effect doubling.
+                </strong>{" "}
+                Delaying one side by a few milliseconds to fake width has the
+                same problem — the delay becomes comb filtering the moment
+                the channels combine.
+              </li>
+              <li>
+                <strong className="text-text-primary">
+                  Mid-side processing pushed too far.
+                </strong>{" "}
+                Boosting the side signal heavily means more of the mix lives
+                in the difference between channels, and the difference is
+                precisely what mono discards.
+              </li>
+            </ul>
+          </section>
+
+          <section className="space-y-3">
+            <h2 className="text-2xl font-bold text-text-primary">
+              Where your music actually gets played in mono
+            </h2>
+            <p>
+              Mono compatibility sounds like a legacy concern. It isn&apos;t.
+              A large share of real-world listening is mono or effectively
+              mono:
+            </p>
+            <ul className="list-disc list-inside space-y-2">
+              <li>
+                <strong className="text-text-primary">Club and PA systems.</strong>{" "}
+                Many venues run their sub and often the whole system in mono,
+                because stereo imaging is meaningless when the audience is
+                spread across a room and most of them aren&apos;t standing in
+                the sweet spot.
+              </li>
+              <li>
+                <strong className="text-text-primary">Phone speakers.</strong>{" "}
+                A single speaker is mono by definition. Even dual-speaker
+                phones are so close together that separation barely
+                registers.
+              </li>
+              <li>
+                <strong className="text-text-primary">
+                  Smart speakers and small Bluetooth speakers.
+                </strong>{" "}
+                Single-driver units sum everything to mono before it reaches
+                the driver.
+              </li>
+              <li>
+                <strong className="text-text-primary">Laptop speakers.</strong>{" "}
+                Technically two, positioned centimetres apart, firing
+                downward. Functionally mono.
+              </li>
+              <li>
+                <strong className="text-text-primary">Anyone with one earbud in.</strong>{" "}
+                Depending on the device, they get one channel only or a mono
+                sum — either way, not what you mixed.
+              </li>
+            </ul>
+            <p>
+              A mix that only holds together in stereo is a mix that falls
+              apart in most of the places it will actually be heard.
+            </p>
+          </section>
+
+          <section className="space-y-3">
+            <h2 className="text-2xl font-bold text-text-primary">
+              How to check a mix in mono
+            </h2>
+            <p>
+              Convert the mix to mono and listen to it against the stereo
+              version. You are listening for things that <em>change level</em>,
+              not things that sound narrower — narrower is expected and fine.
+            </p>
+            <p>Specifically:</p>
+            <ul className="list-disc list-inside space-y-2">
+              <li>
+                Does any element get quieter or disappear? That&apos;s
+                cancellation, and it points straight at whatever you did to
+                widen it.
+              </li>
+              <li>
+                Does the low end lose weight? Bass content that isn&apos;t
+                centred is the most common offender, and it&apos;s the most
+                damaging on a club system.
+              </li>
+              <li>
+                Do reverbs and pads go thin or hollow? Stereo reverb is a
+                frequent partial-cancellation source.
+              </li>
+              <li>
+                Does the vocal still sit forward? A vocal that only cuts
+                through because everything else is panned away will get
+                buried once nothing is panned anywhere.
+              </li>
+            </ul>
+            <p>
+              If something drops out, the fix is at the source: turn down the
+              widener, check mic polarity, keep low frequencies centred, or
+              build width by panning genuinely different content rather than
+              phase-tricking one signal.
+            </p>
+          </section>
+
+          <section className="space-y-3">
+            <h2 className="text-2xl font-bold text-text-primary">
+              When stereo actively makes things worse
+            </h2>
+            <p>
+              Stereo isn&apos;t the safe default. For a single spoken voice —
+              podcast, narration, interview — there is one sound source in
+              one position, so there is nothing for two channels to
+              represent. What you often get instead is stereo room reverb
+              that sounds spacious on headphones and smeared on a phone
+              speaker, plus double the file size for no added information.
+            </p>
+            <p>
+              Mono is also more forgiving of listener position. A stereo mix
+              has a sweet spot; step outside it and the balance shifts. Mono
+              sounds the same everywhere in the room, which is why it&apos;s
+              standard for public address and phone systems.
+            </p>
+          </section>
+
+          <section className="space-y-3">
+            <h2 className="text-2xl font-bold text-text-primary">
+              Converting mono to stereo adds nothing
+            </h2>
+            <p>
+              Going the other direction is the most common misunderstanding.
+              Converting a mono file to stereo copies the identical signal to
+              both channels. The file is now two-channel, and it sounds
+              exactly as it did before — because width comes from the
+              difference between channels, and two copies of the same thing
+              have no difference.
+            </p>
+            <p>
+              That&apos;s still a legitimate operation when a platform
+              rejects mono uploads and just needs two channels present. It is
+              not a way to widen anything. Real width requires putting
+              genuinely different content in each channel: panning separate
+              elements, recording with multiple mics in different positions,
+              or a stereo effect that generates new material rather than
+              inverting existing material.
+            </p>
+          </section>
+
+          <section className="space-y-3">
+            <h2 className="text-2xl font-bold text-text-primary">
+              Running the conversion
+            </h2>
+            <p>
+              The{" "}
+              <Link
+                href="/mono-stereo-converter"
+                className="text-amber-400 hover:underline"
+              >
+                Mono/Stereo Converter
+              </Link>{" "}
+              converts in either direction — upload, pick the target, download.
+              For a mono compatibility check, convert your stereo bounce to
+              mono and A/B the two files.
+            </p>
+            <p>
+              If a mono check reveals that low end is the thing losing
+              weight, the{" "}
+              <Link href="/loudness-normalizer" className="text-amber-400 hover:underline">
+                Loudness Normalizer
+              </Link>{" "}
+              will show you how much level you actually lost between the two
+              versions rather than leaving you guessing by ear.
+            </p>
+          </section>
+        </div>
+
+        <div className="pt-6 border-t border-graphite-800">
+          <Link
+            href="/mono-stereo-converter"
+            className={buttonStyles({ size: "lg" })}
+          >
+            Try the Mono/Stereo Converter
+            <ArrowRight className="h-4 w-4" />
+          </Link>
+        </div>
       </main>
     </>
   );
