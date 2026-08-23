@@ -66,6 +66,20 @@
 //      falls to zero inbound cross-links becomes an orphan reachable
 //      only from the navbar and /tools hub.
 //
+// NOTE ON /youtube-to-mp3 (2026-08-23): added as a second URL against the
+// same converter endpoint as youtube-to-wav. This is knowingly against the
+// "one URL per underlying tool concept" rule at the top of this file, and
+// the exception is narrow: the two queries have different audiences (WAV =
+// producers importing to a DAW, MP3 = listeners loading a phone or a car),
+// different follow-up tools, and Bing's related-searches panel treats them
+// as adjacent rather than identical. The pages share no body copy and each
+// leads its `related` list with the other.
+//
+// The condition for keeping the split: if a future edit makes the two
+// pages' copy converge, merge them rather than maintaining two thin pages
+// competing for one intent. Two near-duplicate pages on a domain with one
+// referring domain is worse than one good page.
+//
 // NOTE ON ORDERING (2026-08-23): `tiktok-to-mp3` moved up into the
 // DOWNLOAD block where it belongs. The old "DOWNLOAD (cont.)" section at
 // the bottom was an append-and-forget artifact. Declaration order is not
@@ -128,14 +142,34 @@ export const TOOLS: Tool[] = [
   {
     slug: "youtube-to-wav",
     name: "YouTube to WAV",
-    shortDescription: "Convert YouTube videos to WAV or MP3 audio.",
+    shortDescription: "Convert YouTube videos to lossless WAV audio for sampling and DJ sets.",
     category: "download",
     status: "live",
     // The site's strongest search page, so its five outbound links carry
-    // more weight than any other entry here. tiktok-to-mp3 is placed third
-    // deliberately: same "paste a link, get audio" intent, and it was
-    // previously receiving no internal links at all.
-    related: ["key-finder", "vocal-remover", "tiktok-to-mp3", "video-to-audio", "trim"],
+    // more weight than any other entry here — which is why the sibling MP3
+    // page takes the first slot. video-to-audio was dropped from this list
+    // to make room; it keeps inbound links from convert, youtube-to-text
+    // and video-to-text, so it stays well connected.
+    related: ["youtube-to-mp3", "key-finder", "vocal-remover", "tiktok-to-mp3", "trim"],
+  },
+  {
+    slug: "youtube-to-mp3",
+    name: "YouTube to MP3",
+    shortDescription: "Convert YouTube videos to a 320kbps MP3 for phones, cars, and offline listening.",
+    category: "download",
+    status: "live",
+    // ADDED 2026-08-23. Deliberate exception to this file's "one URL per
+    // tool concept" rule, documented in full at the top of the page file.
+    // Short version: same endpoint, genuinely different search intent —
+    // WAV is producers (DAW, sampling, DJ decks), MP3 is listeners (phone,
+    // car, storage). Bing's own related-searches panel on "youtube to wav"
+    // surfaces "YouTube to mp3" as its first suggestion, which is the
+    // engine stating it treats them as adjacent rather than identical.
+    //
+    // youtube-to-wav leads the list, and youtube-to-mp3 leads that page's
+    // list in return. The reciprocal first-slot pairing is what makes the
+    // two read as siblings rather than as one page duplicated.
+    related: ["youtube-to-wav", "trim", "ringtone-maker", "tiktok-to-mp3", "convert"],
   },
   {
     slug: "youtube-key-finder",
@@ -171,8 +205,10 @@ export const TOOLS: Tool[] = [
     status: "live",
     // Matches what the page copy actually tells people to do next: trim the
     // clip, fade the cut so it doesn't click, or send it to the ringtone
-    // maker for the 30s cap and M4R container.
-    related: ["trim", "ringtone-maker", "fade", "youtube-to-wav", "convert"],
+    // maker for the 30s cap and M4R container. youtube-to-mp3 sits third
+    // as the nearest same-intent tool — "paste a link, get an MP3" — and
+    // this is one of its three inbound links.
+    related: ["trim", "ringtone-maker", "youtube-to-mp3", "fade", "youtube-to-wav"],
   },
 
   // ---------- VOCALS & KEY ----------
@@ -216,9 +252,10 @@ export const TOOLS: Tool[] = [
     shortDescription: "Extract audio from MP4, MOV, and other video files.",
     category: "convert",
     status: "live",
-    // video-to-text is the other thing people arrive here wanting; several
-    // land on this page when what they actually need is the transcript.
-    related: ["convert", "youtube-to-wav", "tiktok-to-mp3", "video-to-text", "trim"],
+    // Both YouTube pages listed: someone extracting audio from a local
+    // video file is one step away from wanting the same thing from a
+    // YouTube URL, and this is one of youtube-to-mp3's inbound links.
+    related: ["convert", "youtube-to-mp3", "youtube-to-wav", "tiktok-to-mp3", "trim"],
   },
   {
     slug: "trim",

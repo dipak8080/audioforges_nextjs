@@ -156,9 +156,32 @@ interface ConversionResult {
   format: OutputFormat;
 }
 
-export function YouTubeConverterForm() {
+interface YouTubeConverterFormProps {
+  /**
+   * Which format the selector starts on.
+   *
+   * Added 2026-08-23 for /youtube-to-mp3. That page's H1 promises MP3, and
+   * with the format hardcoded to "wav" the tool underneath it would have
+   * opened on WAV — the page contradicting itself in the first thing the
+   * visitor looks at.
+   *
+   * This is the INITIAL value only. The FormatSelector stays fully
+   * interactive on both pages; someone who lands on /youtube-to-mp3 and
+   * decides they want WAV can still switch, and vice versa. The two pages
+   * differ in what they lead with, not in what they permit.
+   *
+   * Defaults to "wav" and the props object itself defaults to `{}`, so
+   * `<YouTubeConverterForm />` with no props behaves exactly as it did
+   * before and /youtube-to-wav needs no edit.
+   */
+  defaultFormat?: OutputFormat;
+}
+
+export function YouTubeConverterForm({
+  defaultFormat = "wav",
+}: YouTubeConverterFormProps = {}) {
   const [url, setUrl] = useState("");
-  const [format, setFormat] = useState<OutputFormat>("wav");
+  const [format, setFormat] = useState<OutputFormat>(defaultFormat);
   const [status, setStatus] = useState<ProcessingState>("idle");
   const [validationError, setValidationError] = useState<string | null>(null);
   const [error, setError] = useState<{ title: string; hint: string } | null>(null);
@@ -307,9 +330,15 @@ export function YouTubeConverterForm() {
     inputRef.current?.focus();
   };
 
-  /** Full reset — new track, discard the finished file. */
+  /** Full reset — new track, discard the finished file.
+   *
+   *  Format returns to `defaultFormat`, not a hardcoded "wav": on
+   *  /youtube-to-mp3 a reset that silently flipped the selector back to
+   *  WAV would contradict the page a second time, and more confusingly
+   *  than on first load because the user has already seen it set to MP3. */
   const handleReset = () => {
     setUrl("");
+    setFormat(defaultFormat);
     setStatus("idle");
     setValidationError(null);
     setError(null);
