@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { AudioWaveform, Coffee, Menu, X, ChevronDown, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { TOOLS, CATEGORY_ORDER, CATEGORY_LABELS, getToolsByCategory } from "@/lib/data/tools";
+import { BalancePill } from "@/components/credits/BalancePill";
 
 /**
  * PREFETCH IS DISABLED ON THE BULK TOOL LINKS BELOW (2026-08-16).
@@ -220,6 +221,8 @@ export function Navbar() {
           </div>
 
           <div className="flex items-center gap-2">
+            <BalancePill />
+
             <a
               href="https://ko-fi.com/audioforges"
               target="_blank"

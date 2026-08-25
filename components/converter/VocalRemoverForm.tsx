@@ -17,8 +17,13 @@ import {
 } from "@/lib/api/railway";
 import { getRateLimitLabel } from "@/lib/data/rate-limits";
 import type { SeparationUiState, StemType } from "@/lib/types/converter";
+import type { MeteredToolKey } from "@/lib/types/credits";
 import { SupportBlock } from "@/components/ui/SupportBlock";
 import { cn } from "@/lib/utils/cn";
+import { useCreditGate } from "@/components/credits/useCreditGate";
+import { useCredits } from "@/components/credits/CreditProvider";
+import { FreeTierBadge } from "@/components/credits/FreeTierBadge";
+import { UpgradeToHqCard } from "@/components/credits/UpgradeToHqCard";
 
 interface VocalRemoverFormProps {
   hqAvailable?: boolean;
@@ -31,6 +36,13 @@ interface QualitySpec {
   detail: string;
   /** Key into RATE_LIMITS (lib/data/rate-limits.ts) — NOT a hardcoded string. */
   rateLimitKey: string;
+  /**
+   * Metered-tool key, for the free-tier badge. Deliberately the SAME
+   * string as rateLimitKey — the backend uses one route key everywhere,
+   * so the three places describing this route can be diffed by eye.
+   * Null on the free tier: nothing to meter, nothing to badge.
+   */
+  toolKey: MeteredToolKey | null;
 }
 
 // rateLimit strings are intentionally NOT hardcoded here — they're
@@ -45,6 +57,7 @@ const STANDARD_SPEC: QualitySpec = {
   time: "20 sec–1 min",
   detail: "Vocals and instrumental",
   rateLimitKey: "separate",
+  toolKey: null,
 };
 
 const HQ_SPEC: QualitySpec = {
@@ -53,6 +66,7 @@ const HQ_SPEC: QualitySpec = {
   time: "1–2 min",
   detail: "Cleaner separation, same 2 stems",
   rateLimitKey: "separate-hq",
+  toolKey: "separate-hq",
 };
 
 // Fallback shown only if a key is ever missing from RATE_LIMITS (e.g.
@@ -123,8 +137,20 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
   const [quality, setQuality] = useState<SeparationQuality>("standard");
+  /**
+   * The tier the FINISHED job actually ran at — not the toggle's current
+   * value, which the user can still change while a result is on screen.
+   * The upgrade card and the tip block both key off this; using `quality`
+   * would offer an upgrade on a job that already ran at Studio Quality.
+   */
+  const [completedQuality, setCompletedQuality] = useState<SeparationQuality>("standard");
   const [notifyEnabled, setNotifyEnabled] = useState(false);
   const [notifyPermission, setNotifyPermission] = useState<NotificationPermission | "unsupported">("default");
+
+  // The entire per-form cost of the paywall — the same lines go in each
+  // of the other three metered forms.
+  const { catchCreditError, gate } = useCreditGate();
+  const { refresh: refreshCredits } = useCredits();
 
   const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pollStartedAtRef = useRef(0);
@@ -279,10 +305,29 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
       const { job_id } = await submitSeparation(file, effectiveQuality);
       if (cancelledRef.current) return;
       setJobId(job_id);
+      setCompletedQuality(effectiveQuality);
       setStatus("processing");
       startPolling(job_id, effectiveQuality);
+
+      // A metered submit has just spent a free run or a credit, but the
+      // submit response carries no billing block — only the upgrade route
+      // does. Without this, the navbar pill and the free-tier badge stay
+      // stale until the next tab refocus, so the user watches a number
+      // that says 2 while the server thinks 1. Fire-and-forget: the job
+      // is already running and nothing here should block on it.
+      if (effectiveQuality === "hq") void refreshCredits();
     } catch (err) {
       if (cancelledRef.current) return;
+
+      // Out of credits is a DECISION POINT, not a failure. Going back to
+      // idle leaves the file selected and the toggle where it was, so
+      // buying and pressing the button again just works — and nothing red
+      // is ever rendered for it.
+      if (catchCreditError(err)) {
+        setStatus("idle");
+        return;
+      }
+
       console.error("Separation submit error:", err);
 
       if (err instanceof ApiError && err.isRateLimit) {
@@ -303,6 +348,26 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
     }
   };
 
+  /**
+   * The upgrade route returns a NEW job id, and the existing polling loop
+   * handles it unchanged — same status route, same preview and download
+   * URL shape. Nothing in the result rendering needs to know an upgrade
+   * happened.
+   */
+  const handleUpgraded = useCallback((newJobId: string) => {
+    cancelledRef.current = false;
+    setJobId(newJobId);
+    setCompletedQuality("hq");
+    setResultTitle(null);
+    setActiveStem("vocals");
+    setElapsedSeconds(0);
+    setError(null);
+    setStatus("processing");
+    startPolling(newJobId, "hq");
+    // startPolling closes over the stable poll/stopPolling pair.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleReset = () => {
     stopPolling();
     cancelledRef.current = true;
@@ -314,6 +379,7 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
     setResultTitle(null);
     setActiveStem("vocals");
     setElapsedSeconds(0);
+    setCompletedQuality("standard");
   };
 
   const handleCancel = () => {
@@ -386,6 +452,10 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
                       <span className={cn("flex items-center gap-1.5 text-sm font-semibold", selected ? "text-amber-400" : "text-text-primary")}>
                         {option.value === "hq" && <Sparkles className="h-3.5 w-3.5" />}
                         {option.label}
+                        {/* Renders nothing unless this tool is metered
+                            right now. "2 free runs left" is what makes a
+                            first-timer click Studio Quality at all. */}
+                        {option.toolKey && <FreeTierBadge tool={option.toolKey} />}
                       </span>
                       <span className={cn("font-mono text-[10px]", selected ? "text-amber-500/80" : "text-text-subtle")}>
                         {option.time}
@@ -507,6 +577,15 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
 
             <AudioPlayer key={activeStem} src={getSeparationPreviewUrl(jobId, activeStem)} />
 
+            {/* Directly under the player, above Download. The user has
+                just heard the bleed in their own track — this is the only
+                moment where the pitch makes itself. Renders nothing
+                unless the server says this job is eligible, and never on
+                a job that already ran at Studio Quality. */}
+            {completedQuality === "standard" && (
+              <UpgradeToHqCard family="separate" jobId={jobId} onUpgraded={handleUpgraded} />
+            )}
+
             {/* Stays an <a> - a real download URL, so middle-click and
                 open-in-new-tab keep working. Borrows the Button styles
                 rather than repeating them. (The stray indentation here
@@ -520,7 +599,9 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
               Download {activeStem}
             </a>
 
-            <SupportBlock />
+            {/* Asking for a tip immediately after charging someone a
+                credit is a bad look. Free results keep it. */}
+            {completedQuality === "standard" && <SupportBlock />}
 
             <Button variant="outline" size="md" className="w-full" onClick={handleReset}>
               <RotateCcw />
@@ -567,6 +648,8 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
           </Button>
         )}
       </div>
+
+      {gate}
     </div>
   );
 }

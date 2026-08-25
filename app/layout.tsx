@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import Script from "next/script";
 import { SiteChrome } from "@/components/layout/SiteChrome";
 import { SITE_URL } from "@/lib/constants";
+import { getFeatureFlags } from "@/lib/api/railway";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -60,7 +61,17 @@ const organizationJsonLd = {
   logo: `${SITE_URL}/images/og-default.png`,
 };
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  // Resolved HERE, once, server-side — so CreditProvider makes ZERO client
+  // requests on the ~90 pages of this site while the paywall is off.
+  //
+  // This does NOT make the site dynamic: getFeatureFlags() uses
+  // `next: { revalidate: 60 }`, so pages stay static with ISR. It also
+  // fails closed and has a 5s deadline, so a dead VPS renders the site
+  // normally with the paywall reading as off rather than hanging the
+  // render.
+  const { paywallEnabled, paywallTools } = await getFeatureFlags();
+
   return (
     <html
       lang="en"
@@ -98,7 +109,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }}
         />
 
-        <SiteChrome>{children}</SiteChrome>
+        <SiteChrome flags={{ paywallEnabled, paywallTools }}>{children}</SiteChrome>
       </body>
     </html>
   );

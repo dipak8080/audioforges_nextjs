@@ -16,6 +16,12 @@ import type {
   StemType,
 } from "@/lib/types/converter";
 
+import type {
+  InsufficientCreditsPayload,
+  MeteredToolKey,
+  RateLimitedPayload,
+} from "@/lib/types/credits";
+
 export const RAILWAY_API_BASE =
   process.env.NEXT_PUBLIC_RAILWAY_API_BASE || "https://api.audioforges.com";
 
@@ -57,6 +63,21 @@ export class ApiError extends Error {
   kind?: string;
   /** Backend's decision on whether a retry can succeed. */
   retryable?: boolean;
+  /**
+   * The 402 body's `detail`, preserved intact. Present ONLY on 402 from a
+   * metered route, and identical at all six of them (4 HQ submits + 2
+   * upgrades). The gate modal renders straight from this, so pack prices
+   * and buy URLs are never hardcoded on the client and a price change
+   * needs no deploy.
+   */
+  insufficientCredits?: InsufficientCreditsPayload;
+  /**
+   * The 429 body's `detail` on a METERED route only. Carries `tier`, which
+   * turns a rate limit into a conversion moment: tier "free" on a metered
+   * tool means "buy credits to lift this to 12/hour". Every other route in
+   * the app still returns a plain string detail and leaves this undefined.
+   */
+  rateLimit?: RateLimitedPayload;
 
   constructor(
     message: string,
@@ -68,6 +89,8 @@ export class ApiError extends Error {
       retryAfterSeconds?: number;
       kind?: string;
       retryable?: boolean;
+      insufficientCredits?: InsufficientCreditsPayload;
+      rateLimit?: RateLimitedPayload;
     } = {}
   ) {
     super(message);
@@ -79,6 +102,8 @@ export class ApiError extends Error {
     this.retryAfterSeconds = opts.retryAfterSeconds;
     this.kind = opts.kind;
     this.retryable = opts.retryable;
+    this.insufficientCredits = opts.insufficientCredits;
+    this.rateLimit = opts.rateLimit;
   }
 }
 
@@ -228,6 +253,70 @@ export function readRetryAfter(res: Response): number | undefined {
 type ErrorContext = "download" | "analyze" | "separate" | "job" | "youtube-job";
 
 async function toApiError(res: Response, context: ErrorContext): Promise<ApiError> {
+  // ---- Structured object details (credits/paywall routes only) ----
+  //
+  // A Response body reads ONCE. This branch consumes a CLONE and returns
+  // early on a match, so the string-detail path below is reached only by
+  // routes that never send an object — i.e. everything that existed
+  // before credits. Statuses are matched narrowly on purpose: a future
+  // route returning an object detail on some other status falls through
+  // to the existing handling and renders its generic copy, which is safe.
+  if (res.status === 402 || res.status === 429 || res.status === 400) {
+    let detail: unknown;
+    try {
+      const body = await res.clone().json();
+      detail = body?.detail;
+    } catch {
+      /* not JSON — fall through to the plain-text path below */
+    }
+
+    const obj =
+      detail && typeof detail === "object" && !Array.isArray(detail)
+        ? (detail as Record<string, unknown>)
+        : null;
+
+    if (obj) {
+      const message = typeof obj.message === "string" ? obj.message : "";
+      const kind =
+        (typeof obj.kind === "string" && obj.kind) ||
+        (typeof obj.error === "string" && obj.error) ||
+        undefined;
+
+      if (res.status === 402 && obj.error === "insufficient_credits") {
+        return new ApiError(message || "You're out of credits for this tool.", 402, {
+          kind: "insufficient_credits",
+          insufficientCredits: obj as unknown as InsufficientCreditsPayload,
+        });
+      }
+
+      if (res.status === 429 && kind === "rate_limited") {
+        return new ApiError(
+          message || "You're going a little fast — please wait a moment before trying again.",
+          429,
+          {
+            isRateLimit: true,
+            kind,
+            retryAfterSeconds:
+              (typeof obj.retry_after_seconds === "number" && obj.retry_after_seconds) ||
+              readRetryAfter(res) ||
+              60,
+            rateLimit: obj as unknown as RateLimitedPayload,
+          }
+        );
+      }
+
+      if (res.status === 400 && kind) {
+        // hq_duration_exceeded / unreadable_audio. The backend's message
+        // already names the actual duration and the cap, which beats
+        // anything generic — and this is a PRE-CHARGE rejection, so no
+        // credit was taken.
+        return new ApiError(message || "That file can't be processed at Studio Quality.", 400, {
+          kind,
+        });
+      }
+    }
+  }
+
   const rawDetail = await parseDetail(res);
 
   // Gate EVERY branch, not just the default one. Previously 400/404/413/
@@ -341,7 +430,20 @@ async function toApiError(res: Response, context: ErrorContext): Promise<ApiErro
 // broken one is not.
 export interface FeatureFlags {
   separationHqEnabled: boolean;
+  /** Global kill switch. False → the entire credits UI is inert. */
+  paywallEnabled: boolean;
+  /**
+   * EFFECTIVE per-tool state (global AND per-tool, resolved server-side).
+   * Never AND these with paywallEnabled again on the client.
+   */
+  paywallTools: Partial<Record<MeteredToolKey, boolean>>;
 }
+
+const FLAGS_OFF: FeatureFlags = {
+  separationHqEnabled: false,
+  paywallEnabled: false,
+  paywallTools: {},
+};
 
 export async function getFeatureFlags(): Promise<FeatureFlags> {
   try {
@@ -354,13 +456,24 @@ export async function getFeatureFlags(): Promise<FeatureFlags> {
       // duration on a page that doesn't even use this flag.
       signal: AbortSignal.timeout(5_000),
     });
-    if (!res.ok) return { separationHqEnabled: false };
+    if (!res.ok) return FLAGS_OFF;
     const data = await res.json();
+    const tools = data?.features?.paywall_tools;
     return {
       separationHqEnabled: Boolean(data?.features?.separation_hq_enabled),
+      paywallEnabled: Boolean(data?.features?.paywall_enabled),
+      paywallTools:
+        tools && typeof tools === "object"
+          ? (Object.fromEntries(
+              Object.entries(tools).map(([k, v]) => [k, Boolean(v)])
+            ) as Partial<Record<MeteredToolKey, boolean>>)
+          : {},
     };
   } catch {
-    return { separationHqEnabled: false };
+    // Fails closed, as before: hiding a working feature is a minor
+    // inconvenience; showing a broken paywall is not. This is also the
+    // deploy health signal, so it must never throw.
+    return FLAGS_OFF;
   }
 }
 
@@ -427,10 +540,18 @@ export async function submitSeparation(
   const fd = new FormData();
   fd.append("file", file);
 
-  const endpoint = quality === "hq" ? "separate-hq" : "separate";
+  const isMetered = quality === "hq";
+  const endpoint = isMetered ? "separate-hq" : "separate";
   const res = await fetchWithTimeout(
     `${RAILWAY_API_BASE}/${endpoint}`,
-    { method: "POST", body: fd, signal: opts.signal },
+    {
+      method: "POST",
+      body: fd,
+      signal: opts.signal,
+      // Identity travels on the metered tier only. The free tier has no
+      // code path to the ledger and no reason to carry a cookie.
+      ...(isMetered ? { credentials: "include" as RequestCredentials } : {}),
+    },
     30_000
   );
 
@@ -521,11 +642,18 @@ export async function submitJob(
   endpoint: string,
   formData: FormData,
   timeoutMs = 30_000,
-  opts: RequestOptions = {}
+  opts: RequestOptions = {},
+  /** Trailing and defaulted — only stems-hq passes true. */
+  withCredentials = false
 ): Promise<JobSubmitResponse> {
   const res = await fetchWithTimeout(
     `${RAILWAY_API_BASE}/${endpoint}`,
-    { method: "POST", body: formData, signal: opts.signal },
+    {
+      method: "POST",
+      body: formData,
+      signal: opts.signal,
+      ...(withCredentials ? { credentials: "include" as RequestCredentials } : {}),
+    },
     timeoutMs
   );
   if (!res.ok) throw await toApiError(res, "job");
@@ -644,8 +772,9 @@ export async function submitStems(
 ): Promise<JobSubmitResponse> {
   const fd = new FormData();
   fd.append("file", file);
-  const endpoint = quality === "hq" ? "stems-hq" : "stems";
-  return submitJob(endpoint, fd, 30_000, opts);
+  const isMetered = quality === "hq";
+  const endpoint = isMetered ? "stems-hq" : "stems";
+  return submitJob(endpoint, fd, 30_000, opts, isMetered);
 }
 
 export function getStemsStatus(
@@ -697,7 +826,8 @@ export async function submitUrlJob(
   endpoint: string,
   url: string,
   timeoutMs = 30_000,
-  opts: RequestOptions = {}
+  opts: RequestOptions = {},
+  withCredentials = false
 ): Promise<JobSubmitResponse> {
   const body = new URLSearchParams();
   body.set("url", url);
@@ -709,6 +839,7 @@ export async function submitUrlJob(
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body,
       signal: opts.signal,
+      ...(withCredentials ? { credentials: "include" as RequestCredentials } : {}),
     },
     timeoutMs
   );
@@ -757,11 +888,13 @@ export function submitYoutubeSeparate(
   quality: SeparationQuality = "standard",
   opts: RequestOptions = {}
 ): Promise<JobSubmitResponse> {
+  const isMetered = quality === "hq";
   return submitUrlJob(
-    quality === "hq" ? "youtube/separate-hq" : "youtube/separate",
+    isMetered ? "youtube/separate-hq" : "youtube/separate",
     url,
     30_000,
-    opts
+    opts,
+    isMetered
   );
 }
 
@@ -789,11 +922,13 @@ export function submitYoutubeStems(
   quality: SeparationQuality = "standard",
   opts: RequestOptions = {}
 ): Promise<JobSubmitResponse> {
+  const isMetered = quality === "hq";
   return submitUrlJob(
-    quality === "hq" ? "youtube/stems-hq" : "youtube/stems",
+    isMetered ? "youtube/stems-hq" : "youtube/stems",
     url,
     30_000,
-    opts
+    opts,
+    isMetered
   );
 }
 
