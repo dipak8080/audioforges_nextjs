@@ -10,7 +10,7 @@
  * The metered SUBMIT routes (separate-hq, stems-hq, youtube/*-hq) live in
  * railway.ts because they share the existing job plumbing — those get
  * credentials via the `withCredentials` flag added to submitSeparation /
- * submitStems / submitUrlJob.
+ * submitStems / submitUrlJob. See PR1_PATCHES.md.
  */
 
 import {
@@ -77,7 +77,7 @@ async function creditsFetch<T>(
  * rest of the API does, and the object always carries either `kind` or
  * `error` plus a `message`. railway.ts's parseDetail only understood
  * string and array-of-{msg} details, which is why the 402 payload was
- * being thrown away entirely.
+ * being thrown away entirely (see PR1_PATCHES.md patch 1).
  */
 async function toCreditsError(res: Response): Promise<ApiError> {
   let detail: unknown;
@@ -335,6 +335,51 @@ export async function requestMagicLink(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email }),
     },
+    15_000,
+    opts
+  );
+}
+
+/** POST /auth/device-link */
+export interface DeviceLinkResponse {
+  /**
+   * A fresh sign-in URL for the ALREADY-LINKED caller, returned rather
+   * than emailed. Same one-use, 30-minute token as the magic link — it is
+   * a live credential, so it is rendered as a QR and never logged,
+   * copied to the clipboard automatically, or put in a URL bar.
+   */
+  url: string;
+  /**
+   * Seconds until the token expires. 300 — five minutes, NOT the emailed
+   * link's thirty. Deliberately short: this is rendered on a screen
+   * someone is looking at right now, so it's scanned in seconds or not at
+   * all, and a screenshot or screen-share shouldn't carry a working
+   * credential for half an hour.
+   *
+   * Render the countdown FROM THIS FIELD, never from a hardcoded string.
+   */
+  expires_in_seconds: number;
+  /**
+   * Which account the QR links to. Matters when someone has a work and a
+   * personal address and only one of them holds the credits.
+   */
+  email: string;
+}
+
+/**
+ * Mints a sign-in link for the current browser's account WITHOUT sending
+ * an email, so a phone can scan it off the screen.
+ *
+ * Requires an authenticated caller — an anonymous subject has no account
+ * to link to and this will fail. Callers should only offer it when
+ * `me.authenticated` is true.
+ */
+export async function createDeviceLink(
+  opts: RequestOptions = {}
+): Promise<DeviceLinkResponse> {
+  return creditsFetch<DeviceLinkResponse>(
+    "/auth/device-link",
+    { method: "POST" },
     15_000,
     opts
   );

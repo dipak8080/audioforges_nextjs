@@ -106,7 +106,18 @@ const hqLimitLabel = getRateLimitLabel("separate-hq") ?? FALLBACK_RATE_LIMIT_LAB
 
 export default async function VocalRemoverPage() {
   const relatedTools = getRelatedTools("vocal-remover", 5);
-  const { separationHqEnabled } = await getFeatureFlags();
+  const { separationHqEnabled, paywallTools } = await getFeatureFlags();
+  /**
+   * The free Studio Quality allowance is the single strongest thing this
+   * page can say against a subscription competitor, and right now it's
+   * only discoverable by scrolling to the quality toggle. Putting it in
+   * the subhead costs one line and reaches everyone who reads the page.
+   *
+   * Only rendered when the tool is ACTUALLY metered — otherwise Studio
+   * Quality is simply unlimited and free, and advertising "2 free" would
+   * understate it.
+   */
+  const showFreeTierNote = Boolean(paywallTools["separate-hq"]);
 
   const faqs: FAQItem[] = [
     {
@@ -235,6 +246,13 @@ export default async function VocalRemoverPage() {
             or acapella, no sign-up, no download required. Free for karaoke,
             practice, remixing, and sampling.
           </p>
+          {showFreeTierNote && (
+            <p className="text-sm text-text-subtle">
+              Includes{" "}
+              <span className="text-amber-400">2 free Studio Quality runs</span>{" "}
+              every month — no account, no subscription.
+            </p>
+          )}
         </header>
 
         <VocalRemoverForm hqAvailable={separationHqEnabled} />

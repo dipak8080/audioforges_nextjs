@@ -6,6 +6,9 @@ import { MultiOutputToolForm } from "@/components/converter/MultiOutputToolForm"
 import { submitStems, type SeparationQuality } from "@/lib/api/railway";
 import { getRateLimitLabel } from "@/lib/data/rate-limits";
 import { cn } from "@/lib/utils/cn";
+import { useCredits } from "@/components/credits/CreditProvider";
+import { FreeTierBadge } from "@/components/credits/FreeTierBadge";
+import type { MeteredToolKey } from "@/lib/types/credits";
 
 interface StemsFormProps {
   hqAvailable?: boolean;
@@ -18,6 +21,8 @@ interface QualitySpec {
   detail: string;
   /** Key into RATE_LIMITS (lib/data/rate-limits.ts). */
   rateLimitKey: string;
+  /** Metered-tool key. Null on the free tier: nothing to meter, nothing to badge. */
+  toolKey: MeteredToolKey | null;
 }
 
 const STANDARD_SPEC: QualitySpec = {
@@ -26,6 +31,7 @@ const STANDARD_SPEC: QualitySpec = {
   time: "20 sec–1 min",
   detail: "Vocals, drums, bass, other",
   rateLimitKey: "stems",
+  toolKey: null,
 };
 
 const HQ_SPEC: QualitySpec = {
@@ -34,9 +40,31 @@ const HQ_SPEC: QualitySpec = {
   time: "1–2 min",
   detail: "Cleaner separation, same 4 stems",
   rateLimitKey: "stems-hq",
+  toolKey: "stems-hq",
 };
 
 const FALLBACK_RATE_LIMIT_LABEL = "rate limited";
+
+/**
+ * The static table in lib/data/rate-limits.ts cannot be right for a
+ * tiered limit — metered routes are 2/hour free and 30/hour credited, so
+ * whichever number is in the table lies to one of those groups.
+ * /credits/me returns the limit that applies to THIS visitor, resolved
+ * through the same code the limiter uses.
+ */
+function formatRateLimit(max: number, windowSeconds: number): string {
+  const unit =
+    windowSeconds >= 3600
+      ? windowSeconds === 3600
+        ? "hour"
+        : `${Math.round(windowSeconds / 3600)} hr`
+      : windowSeconds >= 60
+        ? windowSeconds === 60
+          ? "min"
+          : `${Math.round(windowSeconds / 60)} min`
+        : `${windowSeconds} sec`;
+  return `${max} per ${unit}`;
+}
 
 // Stage timestamps rescaled to fit the corrected times above — previously
 // ran to 80s (standard) and 280s (HQ), well beyond the current ~1 min and
@@ -65,6 +93,8 @@ export function StemsForm({ hqAvailable = false }: StemsFormProps) {
   const effectiveQuality: SeparationQuality = hqAvailable ? quality : "standard";
   const isHq = effectiveQuality === "hq";
   const spec = isHq ? HQ_SPEC : STANDARD_SPEC;
+
+  const { rateLimitFor } = useCredits();
 
   const standardLimitLabel = getRateLimitLabel(STANDARD_SPEC.rateLimitKey) ?? FALLBACK_RATE_LIMIT_LABEL;
   const hqLimitLabel = getRateLimitLabel(HQ_SPEC.rateLimitKey) ?? FALLBACK_RATE_LIMIT_LABEL;
@@ -104,6 +134,11 @@ export function StemsForm({ hqAvailable = false }: StemsFormProps) {
       endpoint="stems"
       queryParam="stem"
       onSubmit={(file) => submitStems(file, effectiveQuality)}
+      // Credits wiring. `meteredToolKey` reflects the CURRENT selection,
+      // so it's null while Standard is chosen and the 429 offer stays
+      // out of the free tier's way.
+      meteredToolKey={isHq ? "stems-hq" : null}
+      upgradeFamily="stems"
       pollIntervalMs={isHq ? 20_000 : 8_000}
       maxPollMs={isHq ? 32 * 60 * 1000 : 12 * 60 * 1000}
       toolLabel="Stem separator"
@@ -128,7 +163,10 @@ export function StemsForm({ hqAvailable = false }: StemsFormProps) {
               <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Separation quality">
                 {[STANDARD_SPEC, HQ_SPEC].map((option) => {
                   const selected = quality === option.value;
-                  const rateLimitLabel = getRateLimitLabel(option.rateLimitKey) ?? FALLBACK_RATE_LIMIT_LABEL;
+                  const liveLimit = option.toolKey ? rateLimitFor(option.toolKey) : null;
+                  const rateLimitLabel = liveLimit
+                    ? formatRateLimit(liveLimit.max_requests, liveLimit.window_seconds)
+                    : (getRateLimitLabel(option.rateLimitKey) ?? FALLBACK_RATE_LIMIT_LABEL);
                   return (
                     <button
                       key={option.value}
@@ -155,6 +193,9 @@ export function StemsForm({ hqAvailable = false }: StemsFormProps) {
                         >
                           {option.value === "hq" && <Sparkles className="h-3.5 w-3.5" />}
                           {option.label}
+                          {/* Renders nothing unless this tool is metered
+                              right now. */}
+                          {option.toolKey && <FreeTierBadge tool={option.toolKey} />}
                         </span>
                         <span
                           className={cn(

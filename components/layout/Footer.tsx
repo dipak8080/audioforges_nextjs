@@ -48,13 +48,40 @@ const SITE_LINKS = [
   { href: "/contact", label: "Contact" },
 ];
 
+/**
+ * Pricing is footer-only, deliberately.
+ *
+ * The tool pages rank on "free vocal remover" and "free stem splitter".
+ * A price link in the main nav sits beside that H1 and undercuts the
+ * exact positioning that earns the traffic. The footer is where someone
+ * who is already looking for a price goes to find one.
+ *
+ * Appended only when the paywall is live — while it's off, /pricing
+ * calls notFound(), and a footer link to a 404 on every page of the site
+ * is a real SEO problem, not a cosmetic one.
+ */
+const PRICING_LINK = { href: "/pricing", label: "Pricing" };
+
 const LEGAL_LINKS = [
   { href: "/privacy", label: "Privacy Policy" },
   { href: "/terms", label: "Terms of Service" },
   { href: "/dmca", label: "DMCA" },
 ];
 
-export function Footer() {
+/**
+ * `paywallEnabled` arrives as a PROP, not a fetch.
+ *
+ * This component is rendered by SiteChrome, which is "use client" — so
+ * Footer is a client component by inheritance even though it has no
+ * "use client" of its own. Calling getFeatureFlags() here therefore ran
+ * in the BROWSER, on every render, against api.audioforges.com. Combined
+ * with the "async Client Component" error it produced a render loop that
+ * fired ~125 requests and exhausted the connection pool.
+ *
+ * The flag is already resolved once, server-side and cached, in the root
+ * layout. Threading it down costs nothing and cannot loop.
+ */
+export function Footer({ paywallEnabled = false }: { paywallEnabled?: boolean }) {
   // Server component in the layout, so on a statically rendered page this
   // is the BUILD year rather than the current one. Fine at this deploy
   // cadence; if the site ever goes long stretches without a build, this is
@@ -62,6 +89,8 @@ export function Footer() {
   const year = new Date().getFullYear();
 
   const live = getLiveTools();
+
+  const siteLinks = paywallEnabled ? [...SITE_LINKS, PRICING_LINK] : SITE_LINKS;
 
   const picked = FOOTER_TOOL_SLUGS.map((slug) => live.find((t) => t.slug === slug)).filter(
     (t): t is Tool => Boolean(t)
@@ -117,7 +146,7 @@ export function Footer() {
             </FooterColumn>
 
             <FooterColumn title="Site">
-              {SITE_LINKS.map((link) => (
+              {siteLinks.map((link) => (
                 <FooterLink key={link.href} href={link.href}>
                   {link.label}
                 </FooterLink>

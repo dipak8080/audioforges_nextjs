@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Check, Loader2, Mail, Sparkles, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { getCreditsMe, requestMagicLink } from "@/lib/api/credits";
+import { DeviceLinkQr } from "@/components/credits/DeviceLinkQr";
 import { useCredits } from "@/components/credits/CreditProvider";
 import { trackCredits } from "@/lib/analytics";
 import EmailLink from "@/components/EmailLink";
@@ -194,11 +195,34 @@ function ConfirmedState({ me }: { me: CreditsMe }) {
           {me.balance === 1 ? "credit" : "credits"} ready to use
         </p>
         {me.email && (
-          <p className="mt-3 border-t border-amber-500/15 pt-3 text-xs text-text-subtle">
-            Linked to {me.email} — use that address to sign in on another device.
+          /*
+            Pre-empts the ONLY friction point in the whole access model:
+            credits live on this browser's cookie, so a phone or a work
+            machine shows zero until it's linked. That question becomes a
+            support message if the answer isn't already on screen at the
+            moment they're most receptive — and the link is already in
+            their inbox, so the answer costs one sentence.
+          */
+          <p className="mt-3 border-t border-amber-500/15 pt-3 text-xs leading-relaxed text-text-subtle">
+            Ready to use on this device right now. We&apos;ve also emailed{" "}
+            <span className="text-text-muted">{me.email}</span> a sign-in link —
+            open it on your phone or any other browser to use these credits
+            there too.
           </p>
         )}
       </div>
+
+      {/*
+        The four-second version of the emailed link, offered at the one
+        moment the user is definitely at a computer with their phone
+        nearby. The email is still sent — this just removes the wait for
+        anyone who wants their phone linked now.
+      */}
+      {me.authenticated && (
+        <div className="rounded-xl border border-graphite-800 bg-graphite-900 p-4 text-left">
+          <DeviceLinkQr />
+        </div>
+      )}
 
       {/*
         Straight back to work. The user came here to separate a track, not

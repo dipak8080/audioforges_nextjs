@@ -13,6 +13,9 @@ import {
 } from "@/lib/api/railway";
 import { getRateLimitLabel } from "@/lib/data/rate-limits";
 import { cn } from "@/lib/utils/cn";
+import { useCredits } from "@/components/credits/CreditProvider";
+import { FreeTierBadge } from "@/components/credits/FreeTierBadge";
+import type { MeteredToolKey } from "@/lib/types/credits";
 
 interface YouTubeStemFormProps {
   hqAvailable?: boolean;
@@ -25,6 +28,8 @@ interface QualitySpec {
   detail: string;
   /** Key into RATE_LIMITS (lib/data/rate-limits.ts) — NOT a hardcoded string. */
   rateLimitKey: string;
+  /** Metered-tool key. Null on the free tier: nothing to meter, nothing to badge. */
+  toolKey: MeteredToolKey | null;
 }
 
 // rateLimit strings are intentionally NOT hardcoded here — they're
@@ -36,6 +41,7 @@ const STANDARD_SPEC: QualitySpec = {
   time: "30 sec–1 min",
   detail: "Vocals, drums, bass, other",
   rateLimitKey: "youtube/stems",
+  toolKey: null,
 };
 
 const HQ_SPEC: QualitySpec = {
@@ -44,12 +50,34 @@ const HQ_SPEC: QualitySpec = {
   time: "1–2 min",
   detail: "Cleaner separation, same 4 stems",
   rateLimitKey: "youtube/stems-hq",
+  toolKey: "youtube/stems-hq",
 };
 
 // Fallback shown only if a key is ever missing from RATE_LIMITS (e.g.
 // someone renames a key in rate-limits.ts without updating this file) —
 // keeps the UI from rendering "undefined" instead of failing loudly in dev.
 const FALLBACK_RATE_LIMIT_LABEL = "rate limited";
+
+/**
+ * The static table in lib/data/rate-limits.ts cannot be right for a
+ * tiered limit — metered routes are 2/hour free and 30/hour credited, so
+ * whichever number sits in the table lies to one of those groups.
+ * /credits/me returns the limit that applies to THIS visitor, resolved
+ * through the same code the limiter uses.
+ */
+function formatRateLimit(max: number, windowSeconds: number): string {
+  const unit =
+    windowSeconds >= 3600
+      ? windowSeconds === 3600
+        ? "hour"
+        : `${Math.round(windowSeconds / 3600)} hr`
+      : windowSeconds >= 60
+        ? windowSeconds === 60
+          ? "min"
+          : `${Math.round(windowSeconds / 60)} min`
+        : `${windowSeconds} sec`;
+  return `${max} per ${unit}`;
+}
 
 // Stage timestamps (seconds elapsed) are proportional progress-indicator
 // cues, rescaled to match the current GPU-era processing times above —
@@ -177,6 +205,8 @@ export function YouTubeStemForm({ hqAvailable = false }: YouTubeStemFormProps) {
   // Looked up here (not hardcoded) so both the quality-picker cards and
   // the rate-limit-exceeded message below always agree with each other
   // and with lib/data/rate-limits.ts.
+  const { rateLimitFor } = useCredits();
+
   const standardLimitLabel = getRateLimitLabel(STANDARD_SPEC.rateLimitKey) ?? FALLBACK_RATE_LIMIT_LABEL;
   const hqLimitLabel = getRateLimitLabel(HQ_SPEC.rateLimitKey) ?? FALLBACK_RATE_LIMIT_LABEL;
 
@@ -214,6 +244,11 @@ export function YouTubeStemForm({ hqAvailable = false }: YouTubeStemFormProps) {
     <YouTubeUrlForm
       endpoint="youtube/stems"
       onSubmit={(url) => submitYoutubeStems(url, effectiveQuality)}
+      // Credits wiring. `meteredToolKey` reflects the CURRENT selection,
+      // so it's null while Standard is chosen and the 429 offer stays out
+      // of the free tier's way.
+      meteredToolKey={isHq ? "youtube/stems-hq" : null}
+      upgradeFamily="stems"
       pollIntervalMs={isHq ? 20_000 : 8_000}
       // Must cover the BACKEND's actual timeout ceiling
       // (DEMUCS_TIMEOUT_SECONDS_HQ=1800s / DEMUCS_TIMEOUT_SECONDS=600s in
@@ -240,7 +275,10 @@ export function YouTubeStemForm({ hqAvailable = false }: YouTubeStemFormProps) {
               <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Separation quality">
                 {[STANDARD_SPEC, HQ_SPEC].map((option) => {
                   const selected = quality === option.value;
-                  const rateLimitLabel = getRateLimitLabel(option.rateLimitKey) ?? FALLBACK_RATE_LIMIT_LABEL;
+                  const liveLimit = option.toolKey ? rateLimitFor(option.toolKey) : null;
+                  const rateLimitLabel = liveLimit
+                    ? formatRateLimit(liveLimit.max_requests, liveLimit.window_seconds)
+                    : (getRateLimitLabel(option.rateLimitKey) ?? FALLBACK_RATE_LIMIT_LABEL);
                   return (
                     <button
                       key={option.value}
@@ -267,6 +305,8 @@ export function YouTubeStemForm({ hqAvailable = false }: YouTubeStemFormProps) {
                         >
                           {option.value === "hq" && <Sparkles className="h-3.5 w-3.5" />}
                           {option.label}
+                          {/* Renders nothing unless this tool is metered right now. */}
+                          {option.toolKey && <FreeTierBadge tool={option.toolKey} />}
                         </span>
                         <span
                           className={cn(

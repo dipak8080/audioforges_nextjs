@@ -20,10 +20,6 @@ export function SiteChrome({
   // own background) - the public site's Navbar/Footer would be
   // redundant chrome on an internal tool nobody but the site owner
   // ever sees.
-  //
-  // The provider still wraps them: with the paywall off it's inert and
-  // costs nothing, and a future admin credits widget then needs no second
-  // mount point. Only the visible chrome is skipped here, not the context.
   if (isAdminRoute) {
     return <CreditProvider flags={flags}>{children}</CreditProvider>;
   }
@@ -32,7 +28,7 @@ export function SiteChrome({
     <CreditProvider flags={flags}>
       <Navbar />
       <div className="flex-1">{children}</div>
-      <Footer />
+      <Footer paywallEnabled={flags.paywallEnabled} />
     </CreditProvider>
   );
 }

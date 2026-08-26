@@ -4,7 +4,16 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { Link2, AlertTriangle, ClipboardPaste, X, CheckCircle2, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Waveform } from "@/components/ui/Waveform";
+import Link from "next/link";
 import { SupportBlock } from "@/components/ui/SupportBlock";
+import { useCreditGate } from "@/components/credits/useCreditGate";
+import { useCredits } from "@/components/credits/CreditProvider";
+import { UpgradeToHqCard } from "@/components/credits/UpgradeToHqCard";
+import { CreditReceipt, StudioQualityTag } from "@/components/credits/CreditReceipt";
+import type { SubmitBilling } from "@/lib/types/converter";
+import { trackCredits } from "@/lib/analytics";
+import type { MeteredToolKey } from "@/lib/types/credits";
+import type { UpgradeFamily } from "@/lib/api/credits";
 import { cn } from "@/lib/utils/cn";
 import { validateYouTubeUrl, sanitizeUserInput } from "@/lib/utils/validation";
 import { getJobStatus, ApiError, type JobSubmitResponse } from "@/lib/api/railway";
@@ -111,6 +120,20 @@ interface YouTubeUrlFormProps {
   onComplete?: (title: string | null) => void;
   onFailed?: (message: string) => void;
   renderComplete: (jobId: string, title: string | null) => ReactNode;
+  /**
+   * OPT-IN CREDITS WIRING.
+   *
+   * This component backs every /youtube/* tool, and most of them are
+   * never metered. Passing neither prop leaves behaviour byte-identical
+   * to before.
+   *
+   * `meteredToolKey` is the key for the CURRENTLY SELECTED tier, so the
+   * caller passes null while Standard is chosen. It drives only the
+   * free-tier 429 offer; the 402 gate is unconditional and harmless.
+   */
+  meteredToolKey?: MeteredToolKey | null;
+  /** Enables the upgrade CTA under the result. Omit for tools with no HQ tier. */
+  upgradeFamily?: UpgradeFamily;
 }
 
 export function YouTubeUrlForm({
@@ -129,12 +152,31 @@ export function YouTubeUrlForm({
   onComplete,
   onFailed,
   renderComplete,
+  meteredToolKey = null,
+  upgradeFamily,
 }: YouTubeUrlFormProps) {
   const [url, setUrl] = useState("");
   const [validationError, setValidationError] = useState<string | null>(null);
   const [status, setStatus] = useState<UiState>("idle");
-  const [error, setError] = useState<{ title: string; hint: string } | null>(null);
+  const [error, setError] = useState<{
+    title: string;
+    hint: string;
+    /** Free-tier rate limit on a metered tool — an offer, not a dead end. */
+    offerCredits?: boolean;
+  } | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
+  /**
+   * Whether the FINISHED job ran on a metered route. Derived from the
+   * presence of the `billing` block — the server telling us directly —
+   * rather than from the caller's current toggle, which the user can
+   * still change while a result is on screen.
+   */
+  const [completedMetered, setCompletedMetered] = useState(false);
+  /** What the server said it charged. Reported verbatim, never inferred. */
+  const [billing, setBilling] = useState<SubmitBilling | null>(null);
+
+  const { catchCreditError, gate } = useCreditGate();
+  const { applyBalance } = useCredits();
   const [resultTitle, setResultTitle] = useState<string | null>(null);
   const [cooldownSeconds, setCooldownSeconds] = useState(0);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -287,6 +329,24 @@ export function YouTubeUrlForm({
     inputRef.current?.focus();
   };
 
+  /**
+   * The upgrade route returns a NEW job id that works against the same
+   * status/preview/download routes, so the existing polling loop handles
+   * it unchanged.
+   */
+  const handleUpgraded = useCallback((newJobId: string) => {
+    cancelledRef.current = false;
+    setJobId(newJobId);
+    setCompletedMetered(true);
+    setResultTitle(null);
+    setElapsedSeconds(0);
+    setError(null);
+    setStatus("processing");
+    startPolling(newJobId);
+    // startPolling closes over the stable poll/stopPolling pair.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleReset = () => {
     stopPolling();
     cancelledRef.current = true;
@@ -331,15 +391,33 @@ export function YouTubeUrlForm({
 
     while (true) {
       try {
-        const { job_id } = await onSubmit(urlValidation.normalizedUrl || trimmedUrl);
+        const res = await onSubmit(urlValidation.normalizedUrl || trimmedUrl);
         if (cancelledRef.current) return;
         setRetryNotice(null);
-        setJobId(job_id);
+        setJobId(res.job_id);
+        setCompletedMetered(Boolean(res.billing));
         setStatus("processing");
-        startPolling(job_id);
+        startPolling(res.job_id);
+
+        // Metered routes report what they just charged, so the navbar
+        // pill updates from THIS response rather than a follow-up
+        // /credits/me — no stale number, no extra round trip.
+        setBilling(res.billing ?? null);
+        if (res.billing) {
+          applyBalance(res.billing.balance, res.billing.free_remaining);
+        }
         return;
       } catch (err) {
         if (cancelledRef.current) return;
+
+        // Out of credits is a decision point, not a failure. Back to idle
+        // keeps the URL and the tier selection, so buying and pressing the
+        // button again just works — and nothing red is rendered for it.
+        if (catchCreditError(err)) {
+          setRetryNotice(null);
+          setStatus("idle");
+          return;
+        }
 
         if (attempt < maxRetries && isRetryableSubmitError(err)) {
           attempt += 1;
@@ -353,9 +431,17 @@ export function YouTubeUrlForm({
         setRetryNotice(null);
 
         if (err instanceof ApiError && err.isRateLimit) {
+          // The best-qualified moment in the product: they used the good
+          // mode up to its free ceiling and immediately wanted more.
+          const freeTierOnMetered =
+            err.rateLimit?.tier === "free" && Boolean(meteredToolKey);
+
           setError({
-            title: "You've hit this tool's limit",
-            hint: rateLimitMessage || "Wait for the timer, then run it again.",
+            title: freeTierOnMetered ? "Studio Quality limit reached" : "You've hit this tool's limit",
+            hint: freeTierOnMetered
+              ? "That's the free-tier limit. Credits raise it to 30 per hour — and they never expire."
+              : rateLimitMessage || "Wait for the timer, then run it again.",
+            offerCredits: freeTierOnMetered,
           });
           setCooldownSeconds(err.retryAfterSeconds ?? 600);
         } else {
@@ -572,9 +658,12 @@ export function YouTubeUrlForm({
                   />
                 )}
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-text-primary">
-                    {resultTitle || preview.title || "Analysis complete"}
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <p className="truncate text-sm font-medium text-text-primary">
+                      {resultTitle || preview.title || "Analysis complete"}
+                    </p>
+                    {completedMetered && <StudioQualityTag />}
+                  </div>
                   <p className="mt-0.5 font-mono text-[11px] text-text-subtle">
                     Finished in {formatElapsed(elapsedSeconds)}
                   </p>
@@ -584,7 +673,23 @@ export function YouTubeUrlForm({
 
             {renderComplete(jobId, resultTitle)}
 
-            <SupportBlock />
+            {/* Under the result, where the user has just heard the bleed
+                in their own track. Silent unless the server says this job
+                is eligible, and never on a job that already ran at Studio
+                Quality. */}
+            {upgradeFamily && !completedMetered && (
+              <UpgradeToHqCard
+                family={upgradeFamily}
+                jobId={jobId}
+                onUpgraded={handleUpgraded}
+              />
+            )}
+
+            {/* Asking for a tip right after charging someone a credit is a
+                bad look. Free results keep it. */}
+            <CreditReceipt billing={billing} />
+
+            {!completedMetered && <SupportBlock />}
 
             <Button variant="outline" size="md" className="w-full" onClick={handleReset}>
               <RotateCcw />
@@ -603,6 +708,15 @@ export function YouTubeUrlForm({
               <div>
                 <p className="text-sm font-medium text-text-primary">{error.title}</p>
                 <p className="mt-0.5 text-xs text-text-muted">{error.hint}</p>
+                {error.offerCredits && (
+                  <Link
+                    href="/pricing"
+                    onClick={() => trackCredits("credits_rate_limited", { tool: meteredToolKey })}
+                    className="mt-2 inline-block text-xs font-medium text-amber-400 underline-offset-4 hover:underline"
+                  >
+                    See credit packs →
+                  </Link>
+                )}
               </div>
             </div>
             <SupportBlock />
@@ -635,6 +749,8 @@ export function YouTubeUrlForm({
           </Button>
         )}
       </div>
+
+      {gate}
     </div>
   );
 }

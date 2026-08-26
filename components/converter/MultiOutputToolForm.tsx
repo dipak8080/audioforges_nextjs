@@ -19,7 +19,16 @@ import { Button, buttonStyles } from "@/components/ui/Button";
 import { FileDropZone } from "@/components/ui/FileDropZone";
 import { Waveform } from "@/components/ui/Waveform";
 import { AudioPlayer } from "@/components/ui/AudioPlayer";
+import Link from "next/link";
 import { SupportBlock } from "@/components/ui/SupportBlock";
+import { useCreditGate } from "@/components/credits/useCreditGate";
+import { useCredits } from "@/components/credits/CreditProvider";
+import { UpgradeToHqCard } from "@/components/credits/UpgradeToHqCard";
+import { CreditReceipt, StudioQualityTag } from "@/components/credits/CreditReceipt";
+import type { SubmitBilling } from "@/lib/types/converter";
+import { trackCredits } from "@/lib/analytics";
+import type { MeteredToolKey } from "@/lib/types/credits";
+import type { UpgradeFamily } from "@/lib/api/credits";
 import { validateAudioFile } from "@/lib/utils/validation";
 import {
   getMultiOutputStatus,
@@ -173,6 +182,24 @@ interface MultiOutputToolFormProps {
   /** Overrides the default per-row icon for a given output name. */
   getOutputIcon?: (name: string) => ReactNode;
   maxSubmitRetries?: number;
+  /**
+   * OPT-IN CREDITS WIRING.
+   *
+   * This component is shared by /stems, /silence-split and
+   * /youtube/stems. Only some of those are ever metered, so credits are
+   * props rather than built in — silence-split passes neither and
+   * behaves exactly as before.
+   *
+   * `meteredToolKey` is the key for the CURRENTLY SELECTED tier, so the
+   * caller passes null while Standard is chosen. It drives only the
+   * free-tier 429 offer; the 402 gate is unconditional and harmless.
+   */
+  meteredToolKey?: MeteredToolKey | null;
+  /**
+   * Enables the upgrade CTA under the result player. "stems" for the
+   * 4-stem tools; omit for anything with no HQ equivalent.
+   */
+  upgradeFamily?: UpgradeFamily;
 }
 
 /* ------------------------------------------------------------------ */
@@ -200,11 +227,29 @@ export function MultiOutputToolForm({
   formatOutputName = defaultFormatOutputName,
   getOutputIcon = defaultOutputIcon,
   maxSubmitRetries = 1,
+  meteredToolKey = null,
+  upgradeFamily,
 }: MultiOutputToolFormProps) {
   const [file, setFile] = useState<File | null>(null);
   const [status, setStatus] = useState<UiState>("idle");
   const [validationError, setValidationError] = useState<string | null>(null);
-  const [error, setError] = useState<{ title: string; hint: string } | null>(null);
+  const [error, setError] = useState<{
+    title: string;
+    hint: string;
+    /** Free-tier rate limit on a metered tool — an offer, not a dead end. */
+    offerCredits?: boolean;
+  } | null>(null);
+  /**
+   * Whether the FINISHED job ran on a metered route. Derived from the
+   * presence of the `billing` block rather than from the caller's current
+   * toggle, which the user can change while a result is on screen.
+   */
+  const [completedMetered, setCompletedMetered] = useState(false);
+  /** What the server said it charged. Reported verbatim, never inferred. */
+  const [billing, setBilling] = useState<SubmitBilling | null>(null);
+
+  const { catchCreditError, gate } = useCreditGate();
+  const { applyBalance } = useCredits();
   const [jobId, setJobId] = useState<string | null>(null);
   const [resultTitle, setResultTitle] = useState<string | null>(null);
   const [outputs, setOutputs] = useState<string[]>([]);
@@ -323,6 +368,26 @@ export function MultiOutputToolForm({
     setActiveOutput(null);
   };
 
+  /**
+   * The upgrade route returns a NEW job id that works against the same
+   * status/preview/download routes, so the existing polling loop handles
+   * it unchanged.
+   */
+  const handleUpgraded = useCallback((newJobId: string) => {
+    cancelledRef.current = false;
+    setJobId(newJobId);
+    setCompletedMetered(true);
+    setResultTitle(null);
+    setOutputs([]);
+    setActiveOutput(null);
+    setElapsedSeconds(0);
+    setError(null);
+    setStatus("processing");
+    startPolling(newJobId);
+    // startPolling closes over the stable poll/stopPolling pair.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleReset = () => {
     stopPolling();
     cancelledRef.current = true;
@@ -362,15 +427,33 @@ export function MultiOutputToolForm({
 
     while (true) {
       try {
-        const { job_id } = await onSubmit(file);
+        const res = await onSubmit(file);
         if (cancelledRef.current) return;
         setRetryNotice(null);
-        setJobId(job_id);
+        setJobId(res.job_id);
+        setCompletedMetered(Boolean(res.billing));
         setStatus("processing");
-        startPolling(job_id);
+        startPolling(res.job_id);
+
+        // Metered routes report what they just charged, so the navbar
+        // pill updates from THIS response rather than a follow-up
+        // /credits/me — no stale number, no extra round trip.
+        setBilling(res.billing ?? null);
+        if (res.billing) {
+          applyBalance(res.billing.balance, res.billing.free_remaining);
+        }
         return;
       } catch (err) {
         if (cancelledRef.current) return;
+
+        // Out of credits is a decision point, not a failure. Back to idle
+        // leaves the file and the tier selection intact, so buying and
+        // pressing the button again just works.
+        if (catchCreditError(err)) {
+          setRetryNotice(null);
+          setStatus("idle");
+          return;
+        }
 
         if (attempt < maxSubmitRetries && isRetryableSubmitError(err)) {
           attempt += 1;
@@ -384,9 +467,17 @@ export function MultiOutputToolForm({
         setRetryNotice(null);
 
         if (err instanceof ApiError && err.isRateLimit) {
+          // The best-qualified moment in the product: they used the good
+          // mode up to its free ceiling and immediately wanted more.
+          const freeTierOnMetered =
+            err.rateLimit?.tier === "free" && Boolean(meteredToolKey);
+
           setError({
-            title: "You're going a little fast",
-            hint: rateLimitMessage || "Wait for the timer, then run it again.",
+            title: freeTierOnMetered ? "Studio Quality limit reached" : "You're going a little fast",
+            hint: freeTierOnMetered
+              ? "That's the free-tier limit. Credits raise it to 30 per hour — and they never expire."
+              : rateLimitMessage || "Wait for the timer, then run it again.",
+            offerCredits: freeTierOnMetered,
           });
           setCooldownSeconds(err.retryAfterSeconds ?? 60);
         } else {
@@ -500,7 +591,13 @@ export function MultiOutputToolForm({
         {status === "complete" && jobId && (
           <div className="space-y-4" role="status" aria-live="polite">
             <div className="border-b border-graphite-800 pb-4">
-              <p className="text-[11px] uppercase tracking-[0.18em] text-teal-400">{resultVerb}</p>
+              <div className="flex items-center gap-2">
+                <p className="text-[11px] uppercase tracking-[0.18em] text-teal-400">{resultVerb}</p>
+                {/* Marks WHICH model produced these files. Someone
+                    downloading four stems over a week can't tell from the
+                    filenames. */}
+                {completedMetered && <StudioQualityTag />}
+              </div>
               <p className="mt-1.5 truncate text-sm font-medium text-text-primary">
                 {resultTitle || `${outputs.length} outputs ready`}
               </p>
@@ -585,7 +682,24 @@ export function MultiOutputToolForm({
               <AudioPlayer key={activeOutput} src={getMultiOutputPreviewUrl(endpoint, jobId, activeOutput, queryParam)} />
             )}
 
-            <SupportBlock />
+            {/* Under the player, above the downloads. The user has just
+                heard the bleed in their own track — the only moment where
+                the pitch makes itself. Silent unless the server says this
+                job is eligible, and never on a job that already ran at
+                Studio Quality. */}
+            {upgradeFamily && !completedMetered && (
+              <UpgradeToHqCard
+                family={upgradeFamily}
+                jobId={jobId}
+                onUpgraded={handleUpgraded}
+              />
+            )}
+
+            {/* Asking for a tip right after charging someone a credit is a
+                bad look. Free results keep it. */}
+            <CreditReceipt billing={billing} />
+
+            {!completedMetered && <SupportBlock />}
 
             <Button variant="outline" size="md" className="w-full" onClick={handleReset}>
               <RotateCcw />
@@ -601,6 +715,15 @@ export function MultiOutputToolForm({
               <div>
                 <p className="text-sm font-medium text-text-primary">{error.title}</p>
                 <p className="mt-0.5 text-xs text-text-muted">{error.hint}</p>
+                {error.offerCredits && (
+                  <Link
+                    href="/pricing"
+                    onClick={() => trackCredits("credits_rate_limited", { tool: meteredToolKey })}
+                    className="mt-2 inline-block text-xs font-medium text-amber-400 underline-offset-4 hover:underline"
+                  >
+                    See credit packs →
+                  </Link>
+                )}
               </div>
             </div>
             <SupportBlock />
@@ -632,6 +755,8 @@ export function MultiOutputToolForm({
           </Button>
         )}
       </div>
+
+      {gate}
     </div>
   );
 }

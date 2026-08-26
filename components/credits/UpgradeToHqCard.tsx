@@ -169,6 +169,34 @@ export function UpgradeToHqCard({
   const remainingMs = deadline - now;
   const expired = now > 0 && !Number.isNaN(deadline) && remainingMs <= 0;
 
+  /**
+   * The ONE ineligible reason worth surfacing.
+   *
+   * Standard separation accepts 10-minute inputs; Studio Quality caps at
+   * 6. So an 8-minute track separates fine and then the upgrade card
+   * renders nothing — which looks like a missing feature rather than a
+   * documented limit, and leaves the user wondering why the option they
+   * read about didn't appear.
+   *
+   * Every OTHER reason stays silent: expired input, paywall off, tool
+   * not metered, already upgraded. Those are either self-evident or
+   * none of the user's business, and a card that explains why it can't
+   * help you is worse than no card.
+   */
+  if (enabled && info && !info.eligible && info.reason === "too_long_for_hq") {
+    const maxMinutes = info.max_seconds ? Math.floor(info.max_seconds / 60) : 6;
+    return (
+      <p className="flex items-start gap-2 rounded-lg border border-graphite-800 bg-graphite-850/40 px-3.5 py-3 text-xs leading-relaxed text-text-subtle">
+        <Clock className="mt-0.5 h-3 w-3 shrink-0" aria-hidden />
+        <span>
+          Studio Quality supports tracks up to {maxMinutes} minutes. This one is
+          longer, so the standard result above is the full-quality version
+          available for it.
+        </span>
+      </p>
+    );
+  }
+
   if (!enabled || !info?.eligible || expired) return null;
 
   const showExpiry =

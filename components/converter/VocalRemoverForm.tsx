@@ -16,14 +16,17 @@ import {
   type SeparationQuality,
 } from "@/lib/api/railway";
 import { getRateLimitLabel } from "@/lib/data/rate-limits";
-import type { SeparationUiState, StemType } from "@/lib/types/converter";
+import type { SeparationUiState, StemType, SubmitBilling } from "@/lib/types/converter";
 import type { MeteredToolKey } from "@/lib/types/credits";
 import { SupportBlock } from "@/components/ui/SupportBlock";
 import { cn } from "@/lib/utils/cn";
+import Link from "next/link";
+import { trackCredits } from "@/lib/analytics";
 import { useCreditGate } from "@/components/credits/useCreditGate";
 import { useCredits } from "@/components/credits/CreditProvider";
 import { FreeTierBadge } from "@/components/credits/FreeTierBadge";
 import { UpgradeToHqCard } from "@/components/credits/UpgradeToHqCard";
+import { CreditReceipt, StudioQualityTag } from "@/components/credits/CreditReceipt";
 
 interface VocalRemoverFormProps {
   hqAvailable?: boolean;
@@ -73,6 +76,33 @@ const HQ_SPEC: QualitySpec = {
 // someone renames a key in rate-limits.ts without updating this file) —
 // keeps the UI from rendering "undefined" instead of failing loudly in dev.
 const FALLBACK_RATE_LIMIT_LABEL = "rate limited";
+
+/**
+ * Renders the limit that applies to THIS visitor.
+ *
+ * lib/data/rate-limits.ts is a hand-maintained table and it physically
+ * cannot be right for a tiered limit: the metered routes are 2/hour on
+ * the free tier and 30/hour once you hold credits. Whichever number is
+ * in the table, it lies to one of those two groups.
+ *
+ * /credits/me returns the applicable limit resolved through the SAME
+ * code the limiter uses, so this prefers it and falls back to the static
+ * table only for unmetered tools (where the table is correct and there
+ * is nothing tier-dependent to resolve).
+ */
+function formatRateLimit(max: number, windowSeconds: number): string {
+  const unit =
+    windowSeconds >= 3600
+      ? windowSeconds === 3600
+        ? "hour"
+        : `${Math.round(windowSeconds / 3600)} hr`
+      : windowSeconds >= 60
+        ? windowSeconds === 60
+          ? "min"
+          : `${Math.round(windowSeconds / 60)} min`
+        : `${windowSeconds} sec`;
+  return `${max} per ${unit}`;
+}
 
 const STANDARD_STAGES = [
   { at: 0, label: "Uploading and queuing" },
@@ -129,7 +159,12 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
   const [file, setFile] = useState<File | null>(null);
   const [status, setStatus] = useState<SeparationUiState>("idle");
   const [validationError, setValidationError] = useState<string | null>(null);
-  const [error, setError] = useState<{ title: string; hint: string } | null>(null);
+  const [error, setError] = useState<{
+    title: string;
+    hint: string;
+    /** Free-tier rate limit on a metered tool — a conversion moment, not a dead end. */
+    offerCredits?: boolean;
+  } | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
   const [resultTitle, setResultTitle] = useState<string | null>(null);
   const [activeStem, setActiveStem] = useState<StemType>("vocals");
@@ -144,13 +179,19 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
    * would offer an upgrade on a job that already ran at Studio Quality.
    */
   const [completedQuality, setCompletedQuality] = useState<SeparationQuality>("standard");
+  /**
+   * What the server said it charged for the finished job. Kept verbatim
+   * rather than reconstructed, so the receipt reports the actual outcome
+   * — including the case where a metered route charged nothing.
+   */
+  const [billing, setBilling] = useState<SubmitBilling | null>(null);
   const [notifyEnabled, setNotifyEnabled] = useState(false);
   const [notifyPermission, setNotifyPermission] = useState<NotificationPermission | "unsupported">("default");
 
   // The entire per-form cost of the paywall — the same lines go in each
   // of the other three metered forms.
   const { catchCreditError, gate } = useCreditGate();
-  const { refresh: refreshCredits } = useCredits();
+  const { applyBalance, rateLimitFor } = useCredits();
 
   const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pollStartedAtRef = useRef(0);
@@ -302,20 +343,22 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
     cancelledRef.current = false;
 
     try {
-      const { job_id } = await submitSeparation(file, effectiveQuality);
+      const res = await submitSeparation(file, effectiveQuality);
       if (cancelledRef.current) return;
-      setJobId(job_id);
+      setJobId(res.job_id);
       setCompletedQuality(effectiveQuality);
       setStatus("processing");
-      startPolling(job_id, effectiveQuality);
+      startPolling(res.job_id, effectiveQuality);
 
-      // A metered submit has just spent a free run or a credit, but the
-      // submit response carries no billing block — only the upgrade route
-      // does. Without this, the navbar pill and the free-tier badge stay
-      // stale until the next tab refocus, so the user watches a number
-      // that says 2 while the server thinks 1. Fire-and-forget: the job
-      // is already running and nothing here should block on it.
-      if (effectiveQuality === "hq") void refreshCredits();
+      // The metered routes return what they just charged, so the pill and
+      // the badge update from THIS response rather than a follow-up
+      // /credits/me. That removes a round trip at the one moment the user
+      // is actually watching the number — a refetch would leave the old
+      // value on screen for a beat and then jump.
+      setBilling(res.billing ?? null);
+      if (res.billing) {
+        applyBalance(res.billing.balance, res.billing.free_remaining);
+      }
     } catch (err) {
       if (cancelledRef.current) return;
 
@@ -331,14 +374,24 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
       console.error("Separation submit error:", err);
 
       if (err instanceof ApiError && err.isRateLimit) {
+        // A FREE-tier rate limit on a metered tool is the best-qualified
+        // moment in the product: they've used the good mode twice and
+        // immediately wanted more. Credits lift the ceiling to 30/hour,
+        // which is true and useful — so this offers rather than just
+        // telling them to come back later.
+        const freeTierOnMetered =
+          err.rateLimit?.tier === "free" && effectiveQuality === "hq";
+
         setError({
-          title: effectiveQuality === "hq" ? "Studio quality limit reached" : "You've reached the free limit",
+          title: effectiveQuality === "hq" ? "Studio Quality limit reached" : "You've reached the free limit",
           // Pulled from lib/data/rate-limits.ts — do not hardcode this
           // hint again; it must match the quality-card labels above.
-          hint:
-            effectiveQuality === "hq"
+          hint: freeTierOnMetered
+            ? "That's the free-tier limit. Credits raise it to 30 per hour — and they never expire."
+            : effectiveQuality === "hq"
               ? `${hqLimitLabel}. Try again later.`
               : `${standardLimitLabel}. Try again later.`,
+          offerCredits: freeTierOnMetered,
         });
         setCooldownSeconds(err.retryAfterSeconds ?? 3600);
       } else {
@@ -380,6 +433,7 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
     setActiveStem("vocals");
     setElapsedSeconds(0);
     setCompletedQuality("standard");
+    setBilling(null);
   };
 
   const handleCancel = () => {
@@ -430,7 +484,11 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
             <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Separation quality">
               {[STANDARD_SPEC, HQ_SPEC].map((option) => {
                 const selected = quality === option.value;
-                const rateLimitLabel = getRateLimitLabel(option.rateLimitKey) ?? FALLBACK_RATE_LIMIT_LABEL;
+                // Live limit first, static table second. See formatRateLimit.
+                const liveLimit = option.toolKey ? rateLimitFor(option.toolKey) : null;
+                const rateLimitLabel = liveLimit
+                  ? formatRateLimit(liveLimit.max_requests, liveLimit.window_seconds)
+                  : (getRateLimitLabel(option.rateLimitKey) ?? FALLBACK_RATE_LIMIT_LABEL);
                 return (
                   <button
                     key={option.value}
@@ -546,7 +604,10 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
         {status === "complete" && jobId && (
           <div className="space-y-4" role="status" aria-live="polite">
             <div className="border-b border-graphite-800 pb-4">
-              <p className="text-[11px] uppercase tracking-[0.18em] text-teal-400">Done</p>
+              <div className="flex items-center gap-2">
+                <p className="text-[11px] uppercase tracking-[0.18em] text-teal-400">Done</p>
+                {completedQuality === "hq" && <StudioQualityTag />}
+              </div>
               <p className="mt-1.5 truncate text-sm font-medium text-text-primary">{resultTitle || "Separation complete"}</p>
             </div>
 
@@ -601,6 +662,8 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
 
             {/* Asking for a tip immediately after charging someone a
                 credit is a bad look. Free results keep it. */}
+            <CreditReceipt billing={billing} />
+
             {completedQuality === "standard" && <SupportBlock />}
 
             <Button variant="outline" size="md" className="w-full" onClick={handleReset}>
@@ -617,6 +680,15 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
               <div>
                 <p className="text-sm font-medium text-text-primary">{error.title}</p>
                 <p className="mt-0.5 text-xs text-text-muted">{error.hint}</p>
+                {error.offerCredits && (
+                  <Link
+                    href="/pricing"
+                    onClick={() => trackCredits("credits_rate_limited", { tool: "separate-hq" })}
+                    className="mt-2 inline-block text-xs font-medium text-amber-400 underline-offset-4 hover:underline"
+                  >
+                    See credit packs →
+                  </Link>
+                )}
               </div>
             </div>
             <SupportBlock />

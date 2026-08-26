@@ -6,7 +6,8 @@ import { usePathname } from "next/navigation";
 import { AudioWaveform, Coffee, Menu, X, ChevronDown, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { TOOLS, CATEGORY_ORDER, CATEGORY_LABELS, getToolsByCategory } from "@/lib/data/tools";
-import { BalancePill } from "@/components/credits/BalancePill";
+import { CreditMenu } from "@/components/credits/CreditMenu";
+import { useCredits } from "@/components/credits/CreditProvider";
 
 /**
  * PREFETCH IS DISABLED ON THE BULK TOOL LINKS BELOW (2026-08-16).
@@ -42,6 +43,18 @@ import { BalancePill } from "@/components/credits/BalancePill";
  */
 export function Navbar() {
   const pathname = usePathname();
+
+  /**
+   * Asking a paying customer for a tip, in the same row as the balance
+   * they just paid for, reads badly. So Donate steps aside once there IS
+   * a balance — and only on desktop, where the two amber-bordered pills
+   * would otherwise sit side by side and compete.
+   *
+   * It stays for everyone else, and stays in the mobile sheet and the
+   * footer for everyone, so the Ko-fi link is never actually unreachable.
+   */
+  const { balance } = useCredits();
+  const hideDonate = balance > 0;
 
   const [isToolsOpen, setIsToolsOpen] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
@@ -221,14 +234,15 @@ export function Navbar() {
           </div>
 
           <div className="flex items-center gap-2">
-            <BalancePill />
+            <CreditMenu />
 
             <a
               href="https://ko-fi.com/audioforges"
               target="_blank"
               rel="noopener noreferrer"
               className={cn(
-                "hidden items-center gap-1.5 rounded-md border px-4 py-2 text-sm font-medium sm:flex",
+                "items-center gap-1.5 rounded-md border px-4 py-2 text-sm font-medium",
+                hideDonate ? "hidden" : "hidden sm:flex",
                 "border-amber-500/25 bg-amber-500/5 text-amber-400/90",
                 "transition-colors duration-200 hover:border-amber-500/60 hover:bg-amber-500/10 hover:text-amber-300",
                 "outline-none focus-visible:ring-1 focus-visible:ring-amber-500/60"

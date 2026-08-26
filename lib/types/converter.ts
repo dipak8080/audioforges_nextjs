@@ -1,4 +1,3 @@
-
 // lib/types/converter.ts
 
 export type OutputFormat = "wav" | "mp3";
@@ -108,9 +107,23 @@ export type SeparationStatus =
   | "complete"
   | "failed";
 
+/** Billing outcome returned by a metered submit or upgrade route. */
+export interface SubmitBilling {
+  charged: "credit" | "free" | null;
+  balance: number;
+  free_remaining: number;
+}
+
 export interface SeparateResponse {
   job_id: string;
   status: SeparationStatus;
+  /**
+   * Present ONLY on the metered HQ routes (`rule_key` set server-side),
+   * absent on the free standard routes. Reading the balance from here
+   * instead of refetching /credits/me removes a round trip at the exact
+   * moment the user is watching the number change.
+   */
+  billing?: SubmitBilling;
 }
 
 export interface SeparateStatusResponse {
@@ -127,4 +140,3 @@ export type SeparationUiState =
   | "complete"
   | "failed"
   | "error";
-
