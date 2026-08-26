@@ -154,7 +154,7 @@ export function EmailCaptureStep({
           </span>
         </div>
         <p className="mt-1 text-xs text-text-subtle">
-          ${perCredit.toFixed(2)} per Studio Quality run · never expires
+          ${perCredit.toFixed(2)} per run · never expires
         </p>
       </div>
 

@@ -65,7 +65,7 @@ export function CreditReceipt({
 
   const text =
     charged === "free"
-      ? `Free Studio Quality run used · ${free_remaining} left this month`
+      ? `Free run used · ${free_remaining} left this month`
       : `1 credit used · ${balance} ${balance === 1 ? "credit" : "credits"} remaining`;
 
   return (

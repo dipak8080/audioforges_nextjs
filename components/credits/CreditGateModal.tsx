@@ -322,7 +322,10 @@ function PackStep({
           No subscription — pay once, nothing recurring
         </TrustLine>
         <TrustLine icon={<InfinityIcon className="h-3.5 w-3.5" />}>
-          Credits never expire
+          {/* Credits are a CURRENCY, not a ticket for this one tool. Says
+              so here because this is where someone decides whether $3 is
+              worth it for the single track in front of them. */}
+          Never expire, and work on every tool that takes credits
         </TrustLine>
         <TrustLine icon={<RotateCcw className="h-3.5 w-3.5" />}>
           If a run fails, your credit comes back automatically

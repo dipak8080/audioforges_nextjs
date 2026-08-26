@@ -26,9 +26,9 @@ import EmailLink from "@/components/EmailLink";
  * Flipping PAYWALL_ENABLED brings it back with no deploy.
  */
 
-const PAGE_TITLE = "Pricing — Studio Quality credits";
+const PAGE_TITLE = "Pricing — AudioForges credits";
 const PAGE_DESCRIPTION =
-  "Studio Quality separation runs on credits. No subscription, credits never expire, and every other AudioForges tool stays free.";
+  "Credits power the GPU-heavy tools on AudioForges. No subscription, credits never expire, and everything else stays free.";
 
 export const metadata: Metadata = {
   title: PAGE_TITLE,
@@ -53,12 +53,12 @@ const faqs: FAQItem[] = [
   {
     question: "Is AudioForges still free?",
     answer:
-      "Yes. Every tool on the site is free and unlimited, including standard vocal removal and stem splitting, with full-quality downloads and no watermark. Credits apply to one thing only: Studio Quality separation, which runs a much heavier model on a GPU.",
+      "Yes. Every tool on the site is free and unlimited, including standard vocal removal and stem splitting, with full-quality downloads and no watermark. Credits apply only to jobs that need a GPU, which today means Studio Quality separation. Anything that runs on ordinary CPU processing is free and will stay that way.",
   },
   {
     question: "Do credits expire?",
     answer:
-      "No. Credits stay on your account until you use them. There is no subscription, no monthly minimum, and nothing recurring to cancel.",
+      "No. Credits stay on your account until you use them, and they work on any tool that takes credits — including ones added after you bought them. There is no subscription, no monthly minimum, and nothing recurring to cancel.",
   },
   {
     question: "What happens if a run fails?",
@@ -73,7 +73,7 @@ const faqs: FAQItem[] = [
   {
     question: "How much does one credit get me?",
     answer:
-      "One Studio Quality separation of a track up to 6 minutes long. Longer tracks aren't supported at Studio Quality yet, and the site tells you before charging anything.",
+      "One GPU-backed job. Today that means one Studio Quality separation of a track up to 6 minutes long — vocal removal or a 4-stem split, from a file or a YouTube link, all the same price. Longer tracks aren't supported at Studio Quality yet, and the site tells you before charging anything.",
   },
   {
     question: "How do I use credits on another device?",
@@ -95,12 +95,29 @@ export default async function PricingPage() {
           Pricing
         </p>
         <h1 className="mt-3 text-3xl font-bold tracking-tight text-text-primary sm:text-4xl">
-          Studio Quality, when you need it
+          One credit, one heavy job
         </h1>
+        {/*
+          Framed around CREDITS, not around vocal separation.
+          Credits are the currency for anything that needs a GPU, and the
+          set of things that need one will grow — API access, longer
+          transcription, whatever comes next. Writing this page as "the
+          Studio Quality separation page" would mean rewriting it, and
+          re-earning its rankings, the first time that happens.
+
+          Studio Quality is named as TODAY'S use, not as the definition.
+        */}
         <p className="mt-4 leading-relaxed text-text-muted">
-          Standard separation is free and unlimited — it always will be. Studio
-          Quality runs a much heavier model on a GPU, and that costs real money
-          per track, so it runs on credits. Buy once, use them whenever.
+          Most of AudioForges runs on cheap CPU processing and is free and
+          unlimited — that never changes. A few jobs need a GPU, and those cost
+          real money per run, so they use credits. Buy once, spend them on
+          whatever needs them, whenever.
+        </p>
+        <p className="mt-3 text-sm leading-relaxed text-text-subtle">
+          Right now that&apos;s Studio Quality separation — the heavier model
+          for vocal removal and stem splitting. As more GPU-backed tools
+          arrive, the same credits cover those too. No separate plans, no
+          per-tool pricing.
         </p>
       </div>
 
@@ -163,7 +180,7 @@ export default async function PricingPage() {
         <SectionHeading
           eyebrow="Still free"
           title={`The other ${liveToolCount - 1}+ tools cost nothing`}
-          description="Credits apply to Studio Quality separation only. Everything else on the site runs on cheap CPU processing and stays free, unlimited, and sign-up free."
+          description="Credits apply only where a GPU is involved. Everything else on the site runs on cheap CPU processing and stays free, unlimited, and sign-up free."
         />
         <div className="mt-6 flex items-start gap-3 rounded-xl border border-graphite-800 bg-graphite-900 p-5">
           <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-amber-400" />

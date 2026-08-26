@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Loader2, Smartphone, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { createDeviceLink } from "@/lib/api/credits";
@@ -38,6 +38,12 @@ export function DeviceLinkQr() {
   const [meta, setMeta] = useState<{ email: string; expiresInSeconds: number } | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const resultRef = useRef<HTMLDivElement>(null);
+
+  // Runs after the QR block mounts, so the element exists to receive it.
+  useEffect(() => {
+    if (svg) resultRef.current?.focus();
+  }, [svg]);
 
   const generate = useCallback(async () => {
     if (loading) return;
@@ -88,7 +94,18 @@ export function DeviceLinkQr() {
   if (svg) {
     const minutes = meta ? Math.max(1, Math.round(meta.expiresInSeconds / 60)) : null;
     return (
-      <div className="space-y-3">
+      /*
+       * FOCUS IS MOVED HERE ON PURPOSE.
+       *
+       * The button the user just pressed UNMOUNTS when this replaces it,
+       * which drops focus to document.body. The next Tab then lands on
+       * the sr-only "Skip to content" link in the header, which becomes
+       * visible on focus — so a skip link appears out of nowhere in the
+       * middle of the navbar. Catching focus here keeps the tab order
+       * where the user actually is, and announces the result to screen
+       * readers instead of silently swapping the region.
+       */
+      <div ref={resultRef} tabIndex={-1} className="space-y-3 outline-none">
         <div
           className="mx-auto w-full max-w-[200px] rounded-lg bg-white p-3"
           // The encoder's own SVG output, not user content.

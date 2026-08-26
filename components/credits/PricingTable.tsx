@@ -128,7 +128,7 @@ export function PricingTable() {
               </div>
 
               <p className="mt-1.5 text-xs text-text-subtle">
-                ${perCredit.toFixed(2)} per Studio Quality run
+                ${perCredit.toFixed(2)} per run
               </p>
 
               <button
