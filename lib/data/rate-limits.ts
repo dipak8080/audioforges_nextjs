@@ -23,7 +23,7 @@
 // For input caps (file counts, byte ceilings, duration ceilings) see
 // tool-limits.ts — separate file, separate concern.
 //
-// ALL VALUES BELOW RE-VERIFIED against backend config.py on 2026-08-21.
+// ALL VALUES BELOW RE-VERIFIED against backend config.py on 2026-08-26.
 // The `envVar` field names the backend variable, so a limit changed on
 // the VPS can be traced back here without grepping Python.
 
@@ -98,8 +98,17 @@ export const RATE_LIMITS: Record<string, RateLimitSpec> = {
 
   // ---- Transcription ----
   //
-  // All three routes carry the same 2-per-5-minutes limit, but they are
-  // counted SEPARATELY: exhausting /speech-to-text doesn't block
+  // CHANGED 2026-08-26: 2 per 5 minutes -> 2 per hour, across all three
+  // routes. Tightened deliberately to bound worst-case GPU/CPU spend on
+  // whichever transcription backend is active (see TRANSCRIPTION_BACKEND
+  // in config.py) while the actual backend/model in production was being
+  // confirmed. If this was only meant as a temporary brake, remember to
+  // loosen it back up once that's settled — 2/hour is noticeably tighter
+  // than every other limit on the site and the most likely to be hit by
+  // an ordinary user doing a normal retry.
+  //
+  // All three routes carry the same limit, but they are counted
+  // SEPARATELY: exhausting /speech-to-text doesn't block
   // /youtube/transcribe. Worth knowing before writing any copy that
   // implies one shared transcription allowance.
   //
@@ -109,15 +118,15 @@ export const RATE_LIMITS: Record<string, RateLimitSpec> = {
   // blocked. That makes the countdown in the UI load-bearing rather
   // than decorative.
   "speech-to-text": {
-    limit: 2, windowSeconds: 300, label: "2 per 5 minutes",
+    limit: 2, windowSeconds: 3600, label: "2 per hour",
     envVar: "AUDIO_TRANSCRIBE_RATE_LIMIT_MAX_REQUESTS",
   },
   "youtube/transcribe": {
-    limit: 2, windowSeconds: 300, label: "2 per 5 minutes",
+    limit: 2, windowSeconds: 3600, label: "2 per hour",
     envVar: "YOUTUBE_TRANSCRIBE_RATE_LIMIT_MAX_REQUESTS",
   },
   "video-to-text": {
-    limit: 2, windowSeconds: 300, label: "2 per 5 minutes",
+    limit: 2, windowSeconds: 3600, label: "2 per hour",
     envVar: "VIDEO_TRANSCRIBE_RATE_LIMIT_MAX_REQUESTS",
   },
 
