@@ -6,7 +6,8 @@ import { usePathname } from "next/navigation";
 import { AudioWaveform, Coffee, Menu, X, ChevronDown, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { TOOLS, CATEGORY_ORDER, CATEGORY_LABELS, getToolsByCategory } from "@/lib/data/tools";
-import { CreditMenu } from "@/components/credits/CreditMenu";
+import { CreditMenu, CreditChipMobile } from "@/components/credits/CreditMenu";
+import { CreditAccountPanel } from "@/components/credits/CreditAccountPanel";
 import { useCredits } from "@/components/credits/CreditProvider";
 
 /**
@@ -252,6 +253,12 @@ export function Navbar() {
               <span>Donate</span>
             </a>
 
+            {/* Mobile: icon + number only. The word "credits" is what
+                makes the desktop pill too wide for a phone header, and
+                the number is the part people actually check. Tapping it
+                opens the sheet, where the full account block lives. */}
+            <CreditChipMobile onClick={() => setIsMobileOpen(true)} />
+
             <button
               type="button"
               onClick={() => setIsMobileOpen((open) => !open)}
@@ -343,6 +350,12 @@ export function Navbar() {
         style={{ scrollbarWidth: "thin", scrollbarColor: "#374151 transparent" }}
       >
         <div className="space-y-5 px-4 py-4">
+          {/* Top of the sheet, above the tool list. Someone who opened
+              this menu after tapping their balance expects to land on
+              their account, not scroll past forty tools to find it.
+              Renders nothing unless signed in. */}
+          <CreditAccountPanel variant="mobile" onNavigate={() => setIsMobileOpen(false)} />
+
           {CATEGORY_ORDER.map((category) => {
             const tools = getToolsByCategory(category);
             if (tools.length === 0) return null;
