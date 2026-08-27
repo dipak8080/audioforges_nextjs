@@ -1,19 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  X,
-  Check,
-  Sparkles,
-  ArrowLeft,
-  Mail,
-  Infinity as InfinityIcon,
-  RotateCcw,
-  CreditCard,
-} from "lucide-react";
+import { X, Check, ArrowLeft, Mail } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { Button } from "@/components/ui/Button";
 import { EmailCaptureStep } from "./EmailCaptureStep";
+import { PackRail, defaultPackKey } from "./PackRail";
 import { requestMagicLink } from "@/lib/api/credits";
 import { trackCredits } from "@/lib/analytics";
 import { ApiError } from "@/lib/api/railway";
@@ -22,33 +14,62 @@ import type { CreditPack, InsufficientCreditsPayload } from "@/lib/types/credits
 /**
  * THE GATE.
  *
- * Everything here renders from the 402 payload the server just sent. No
- * pack, price, or buy URL is hardcoded — change a price in the backend
- * config and this modal reflects it with no deploy. That is the whole
- * reason patch 1 in PR1 existed.
+ * Everything renders from the 402 payload the server just sent. No pack,
+ * price, or buy URL is hardcoded — change a price in the backend config and
+ * this reflects it with no deploy.
  *
- * POSITIONING, AND WHY IT'S NOT A GENERIC PAYWALL
+ * WHAT THIS SCREEN HAS TO DO, IN ORDER:
  *
- * The competition sells subscriptions with expiring minutes. LALAL.AI's
- * free tier can't even download its output. We have three facts none of
- * them can print on this screen:
- *
- *   1. No subscription. One payment, done.
- *   2. Credits never expire.
- *   3. A failed run refunds automatically.
- *
- * Those three lines are the pitch. Everything else on this screen is
- * supporting cast, which is why they sit directly under the packs rather
- * than in a footnote.
- *
- * The other thing this screen must never do is imply the free tool got
- * worse. The user reached here by choosing Studio Quality — standard
- * separation is still free, unlimited, and fully downloadable, and the
- * closing line says so. A paywall that makes people doubt the free tier
- * costs more traffic than it earns revenue.
+ *   1. Say what a credit gets you. The old version said "cleaner separation
+ *      with less bleed" and nothing else — an adjective, not an answer. One
+ *      line of spec does more work than a paragraph of pitch.
+ *   2. Price it, using the same control as /pricing so the two surfaces
+ *      teach one vocabulary.
+ *   3. Print the three facts a subscription competitor structurally cannot:
+ *      no subscription, never expires, failed run refunds.
+ *   4. Promise the return trip. The user has a track loaded and is being
+ *      asked to leave the page. Saying they come back matters more than any
+ *      trust badge.
+ *   5. Never imply the free tool got worse. They reached here by choosing
+ *      the better model; standard separation is untouched and the closing
+ *      line says so. A paywall that makes people doubt the free tier costs
+ *      more traffic than it earns revenue.
  */
 
 type Step = "packs" | "email" | "signin";
+
+/** Route keys → what the user calls the tool. Used only for the return trip
+ *  copy on /checkout/success; unknown keys degrade to a generic label. */
+const TOOL_LABELS: Record<string, string> = {
+  "separate-hq": "Vocal Remover",
+  "stems-hq": "Stem Splitter",
+  "youtube/separate-hq": "Vocal Remover",
+  "youtube/stems-hq": "Stem Splitter",
+};
+
+/**
+ * Checkout is a same-tab redirect to Ko-fi, so the tool page is torn down and
+ * the user lands on /checkout/success with no memory of where they were.
+ * Sending everyone to /vocal-remover afterwards is wrong the moment they
+ * were splitting stems from a YouTube link.
+ *
+ * Recorded from the live pathname rather than mapped from the tool key, so
+ * this needs no knowledge of the route table and cannot go stale.
+ */
+function rememberReturnPath(tool: string) {
+  if (typeof window === "undefined") return;
+  const path = window.location.pathname;
+  // /pricing and /checkout are not places to send someone back to.
+  if (path === "/pricing" || path.startsWith("/checkout")) return;
+  try {
+    window.localStorage.setItem(
+      "af_return_to",
+      JSON.stringify({ path, label: TOOL_LABELS[tool] ?? null })
+    );
+  } catch {
+    /* storage disabled — the success page falls back to a default route */
+  }
+}
 
 export function CreditGateModal({
   payload,
@@ -60,44 +81,66 @@ export function CreditGateModal({
   onClose: () => void;
 }) {
   const [step, setStep] = useState<Step>("packs");
-  const [selected, setSelected] = useState<CreditPack | null>(null);
+  const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [chosen, setChosen] = useState<CreditPack | null>(null);
 
   const dialogRef = useRef<HTMLDivElement>(null);
-  const closeRef = useRef<HTMLButtonElement>(null);
-  // Whatever had focus when the modal opened. Returning focus there on
-  // close is what keeps keyboard users from being dumped at the top of
-  // the document after dismissing a dialog.
+  // Whatever had focus when the modal opened. Returning focus there on close
+  // is what keeps keyboard users from being dumped at the top of the document
+  // after dismissing a dialog.
   const restoreFocusTo = useRef<HTMLElement | null>(null);
 
-  useEffect(() => {
-    if (!open) return;
-    restoreFocusTo.current = document.activeElement as HTMLElement | null;
-    trackCredits("credits_gate_shown", {
-      tool: payload.tool,
-      balance: payload.balance,
-      free_remaining: payload.free_remaining,
-    });
-    return () => {
-      restoreFocusTo.current?.focus?.();
-    };
-  }, [open, payload.tool, payload.balance, payload.free_remaining]);
-
   // Reset to the first step whenever the modal is dismissed, so reopening
-  // never lands mid-flow on a stale pack selection.
+  // never lands mid-flow on a stale selection.
   //
   // Adjusted DURING RENDER rather than in an effect. React documents this
-  // pattern for "reset state when a prop changes": it re-renders once
-  // before painting, so nobody ever sees the stale step — whereas an
-  // effect would paint the old step for a frame, and the React compiler
-  // lint rejects setState in an effect outright.
+  // pattern for "reset state when a prop changes": it re-renders once before
+  // painting, so nobody sees the stale step — whereas an effect would paint
+  // the old step for a frame, and the compiler lint rejects setState in an
+  // effect outright.
   const [prevOpen, setPrevOpen] = useState(open);
   if (prevOpen !== open) {
     setPrevOpen(open);
     if (!open) {
       setStep("packs");
-      setSelected(null);
+      setChosen(null);
+      setSelectedKey(null);
     }
   }
+
+  /**
+   * FIXED: focus restore used to share an effect with the analytics call,
+   * whose deps included payload.balance and payload.free_remaining. Any new
+   * 402 re-ran the cleanup and yanked focus back to the trigger button while
+   * the dialog was still open. Focus management now depends on `open` alone.
+   */
+  useEffect(() => {
+    if (!open) return;
+    restoreFocusTo.current = document.activeElement as HTMLElement | null;
+    // Focus the dialog itself, not the close button. Opening a payment dialog
+    // with "dismiss" pre-focused is a strange first offer, and focusing the
+    // container is what gets the title announced.
+    dialogRef.current?.focus();
+    return () => {
+      restoreFocusTo.current?.focus?.();
+    };
+  }, [open]);
+
+  const firedFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!open) {
+      firedFor.current = null;
+      return;
+    }
+    // Once per opening, not once per payload identity change.
+    if (firedFor.current === payload.tool) return;
+    firedFor.current = payload.tool;
+    trackCredits("credits_gate_shown", {
+      tool: payload.tool,
+      balance: payload.balance,
+      free_remaining: payload.free_remaining,
+    });
+  }, [open, payload.tool, payload.balance, payload.free_remaining]);
 
   useEffect(() => {
     if (!open) return;
@@ -108,9 +151,9 @@ export function CreditGateModal({
     };
   }, [open]);
 
-  // Escape to close, Tab cycles within the dialog. Without the trap, Tab
-  // walks into the page behind an open modal, which for a payment dialog
-  // means the user can focus a "Remove vocals" button they can't see.
+  // Escape closes, Tab cycles inside. Without the trap, Tab walks into the
+  // page behind an open modal — for a payment dialog that means focusing a
+  // "Remove vocals" button the user cannot see.
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -139,23 +182,6 @@ export function CreditGateModal({
     [onClose]
   );
 
-  useEffect(() => {
-    if (open) closeRef.current?.focus();
-  }, [open]);
-
-  /**
-   * "Best value" is COMPUTED from the payload, never authored. A hardcoded
-   * "Most popular" badge is a claim we can't support; lowest cost per
-   * credit is arithmetic on data the server just sent, and it stays
-   * correct if prices change.
-   */
-  const bestValueKey = useMemo(() => {
-    if (payload.packs.length < 2) return null;
-    return payload.packs.reduce((best, p) =>
-      p.price_usd / p.credits < best.price_usd / best.credits ? p : best
-    ).key;
-  }, [payload.packs]);
-
   const resetsOn = useMemo(() => {
     const d = new Date(payload.free_resets_at);
     if (Number.isNaN(d.getTime())) return null;
@@ -164,13 +190,29 @@ export function CreditGateModal({
 
   if (!open) return null;
 
+  const activeKey = selectedKey ?? defaultPackKey(payload.packs);
+  const activePack = payload.packs.find((p) => p.key === activeKey) ?? null;
+
+  function handleContinue() {
+    if (!activePack) return;
+    trackCredits("credits_pack_selected", {
+      pack: activePack.key,
+      credits: activePack.credits,
+      value: activePack.price_usd,
+      currency: "USD",
+    });
+    rememberReturnPath(payload.tool);
+    setChosen(activePack);
+    setStep("email");
+  }
+
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-end justify-center overflow-y-auto bg-graphite-950/80 p-0 backdrop-blur-sm sm:items-center sm:p-4"
+      className="fixed inset-0 z-[100] flex items-end justify-center overflow-y-auto bg-graphite-950/80 backdrop-blur-sm sm:items-center sm:p-4"
       onMouseDown={(e) => {
-        // mousedown, not click: a click that STARTS inside the dialog and
-        // ends on the backdrop (a sloppy drag while selecting text) would
-        // otherwise close the modal mid-purchase.
+        // mousedown, not click: a drag that STARTS inside the dialog and ends
+        // on the backdrop — selecting text, say — would otherwise dismiss a
+        // payment dialog mid-purchase.
         if (e.target === e.currentTarget) onClose();
       }}
     >
@@ -179,48 +221,62 @@ export function CreditGateModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="credit-gate-title"
+        tabIndex={-1}
         onKeyDown={handleKeyDown}
-        className="relative w-full max-w-lg rounded-t-2xl border border-graphite-800 bg-graphite-900 shadow-2xl sm:rounded-2xl"
+        className={cn(
+          "relative max-h-[92vh] w-full max-w-md overflow-y-auto outline-none",
+          "rounded-t-2xl border border-graphite-800 bg-graphite-900 shadow-2xl sm:rounded-2xl",
+          "pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:pb-0"
+        )}
       >
+        {/* Sheet grabber. Mobile only — it's a signal that this drags/dismisses,
+            which is meaningless on a centred desktop dialog. */}
+        <div className="flex justify-center pt-2.5 sm:hidden" aria-hidden>
+          <span className="h-1 w-9 rounded-full bg-graphite-700" />
+        </div>
+
         <button
-          ref={closeRef}
           type="button"
           onClick={onClose}
           aria-label="Close"
-          className="absolute right-3 top-3 rounded-md p-2 text-text-subtle outline-none transition-colors hover:bg-graphite-850 hover:text-text-primary focus-visible:ring-1 focus-visible:ring-amber-500/60"
+          className="absolute right-3 top-3 rounded-md p-2 text-text-subtle outline-none transition-colors hover:bg-graphite-850 hover:text-text-primary focus-visible:ring-2 focus-visible:ring-amber-400/70"
         >
           <X className="h-4 w-4" />
         </button>
 
-        <div className="px-5 pb-6 pt-6 sm:px-7 sm:pb-7">
-          {step === "packs" && (
+        <div className="px-5 pb-6 pt-5 sm:px-6 sm:pb-6 sm:pt-6">
+          {step === "packs" && activePack && (
             <PackStep
               payload={payload}
-              bestValueKey={bestValueKey}
+              activeKey={activeKey}
               resetsOn={resetsOn}
-              onSelect={(pack) => {
-                trackCredits("credits_pack_selected", {
-                  pack: pack.key,
-                  credits: pack.credits,
-                  value: pack.price_usd,
-                  currency: "USD",
-                });
-                setSelected(pack);
-                setStep("email");
-              }}
+              activePack={activePack}
+              onSelect={(p) => setSelectedKey(p.key)}
+              onContinue={handleContinue}
               onSignIn={() => setStep("signin")}
             />
           )}
 
-          {step === "email" && selected && (
+          {step === "email" && chosen && (
             <>
-              <h2 id="credit-gate-title" className="mb-1 text-lg font-semibold text-text-primary">
-                Almost there
+              <h2
+                id="credit-gate-title"
+                className="mb-1 text-lg font-semibold text-text-primary"
+              >
+                One detail before Ko-fi
               </h2>
-              <p className="mb-5 text-sm text-text-muted">
-                One detail and we&apos;ll hand you over to Ko-fi.
+              <p className="mb-5 text-sm leading-relaxed text-text-muted">
+                Ko-fi doesn&apos;t tell us who paid, so we use your email to
+                match the payment to this browser. No account, no password.
               </p>
-              <EmailCaptureStep pack={selected} onBack={() => setStep("packs")} />
+              {/* onPurchased closes the modal outright. With Ko-fi in a new
+                  tab the tool page behind this is still intact, file and all,
+                  so "Back to your track" has somewhere real to land. */}
+              <EmailCaptureStep
+                pack={chosen}
+                onBack={() => setStep("packs")}
+                onPurchased={onClose}
+              />
             </>
           )}
 
@@ -237,115 +293,127 @@ export function CreditGateModal({
 
 function PackStep({
   payload,
-  bestValueKey,
+  activeKey,
+  activePack,
   resetsOn,
   onSelect,
+  onContinue,
   onSignIn,
 }: {
   payload: InsufficientCreditsPayload;
-  bestValueKey: string | null;
+  activeKey: string | null;
+  activePack: CreditPack;
   resetsOn: string | null;
   onSelect: (pack: CreditPack) => void;
+  onContinue: () => void;
   onSignIn: () => void;
 }) {
+  const label = TOOL_LABELS[payload.tool];
+
   return (
     <>
-      <div className="mb-1 flex items-center gap-2">
-        <Sparkles className="h-4 w-4 text-amber-400" />
-        <h2 id="credit-gate-title" className="text-lg font-semibold text-text-primary">
-          Studio Quality
-        </h2>
-      </div>
-
       {/*
         NOT "You're out of credits." That frames the product as something
-        that ran out on you. The user came here by choosing the better
-        model — the sentence should describe what they're buying.
+        that ran out on you. The user got here by choosing the better model,
+        so the heading names what they're buying.
       */}
-      <p className="mb-5 text-sm leading-relaxed text-text-muted">
-        Cleaner separation with far less bleed between stems. Each run costs
-        one credit.
-        {resetsOn && payload.free_remaining === 0 && (
-          <>
-            {" "}
-            Your free monthly runs reset on{" "}
-            <span className="text-text-primary">{resetsOn}</span>.
-          </>
-        )}
-      </p>
-
-      <div className="space-y-2">
-        {payload.packs.map((pack) => {
-          const perCredit = pack.price_usd / pack.credits;
-          const isBest = pack.key === bestValueKey;
-          return (
-            <button
-              key={pack.key}
-              type="button"
-              onClick={() => onSelect(pack)}
-              className={cn(
-                "group flex w-full items-center justify-between gap-4 rounded-lg border px-4 py-3.5 text-left outline-none transition-all duration-150",
-                "focus-visible:ring-1 focus-visible:ring-amber-500/60",
-                isBest
-                  ? "border-amber-500/40 bg-amber-500/[0.07] hover:border-amber-500/70 hover:bg-amber-500/10"
-                  : "border-graphite-700 hover:border-graphite-600 hover:bg-graphite-850"
-              )}
-            >
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="font-medium text-text-primary">{pack.label}</span>
-                  {isBest && (
-                    <span className="rounded-full border border-amber-500/40 px-2 py-px text-[10px] font-semibold uppercase tracking-wide text-amber-400">
-                      Best value
-                    </span>
-                  )}
-                </div>
-                <p className="mt-0.5 text-xs text-text-subtle">
-                  ${perCredit.toFixed(2)} per run
-                </p>
-              </div>
-              <span className="shrink-0 font-mono text-lg text-text-primary transition-colors group-hover:text-amber-400">
-                ${pack.price_usd.toFixed(2)}
-              </span>
-            </button>
-          );
-        })}
-      </div>
+      <h2
+        id="credit-gate-title"
+        className="pr-8 text-lg font-semibold text-text-primary"
+      >
+        Studio Quality
+      </h2>
 
       {/*
-        The three lines the competition cannot print. Directly under the
-        prices, because this is where the "is this worth it" decision
-        happens — not in a footnote nobody scrolls to.
+        THE ANSWER TO "WHAT AM I ACTUALLY GETTING". One line of spec, in the
+        register of a plugin readout rather than a sales page. This was the
+        gap: the old copy offered an adjective ("cleaner") and left the buyer
+        to guess at everything else.
       */}
-      <ul className="mt-5 space-y-2 border-t border-graphite-800 pt-4">
-        <TrustLine icon={<CreditCard className="h-3.5 w-3.5" />}>
-          No subscription — pay once, nothing recurring
-        </TrustLine>
-        <TrustLine icon={<InfinityIcon className="h-3.5 w-3.5" />}>
-          {/* Credits are a CURRENCY, not a ticket for this one tool. Says
-              so here because this is where someone decides whether $3 is
-              worth it for the single track in front of them. */}
-          Never expire, and work on every tool that takes credits
-        </TrustLine>
-        <TrustLine icon={<RotateCcw className="h-3.5 w-3.5" />}>
-          If a run fails, your credit comes back automatically
-        </TrustLine>
+      <dl className="mt-3 overflow-hidden rounded-lg border border-graphite-800 bg-graphite-950/40 text-sm">
+        <SpecRow label="1 credit">
+          One run of this track through the heavier model
+        </SpecRow>
+        <SpecRow label="You get">
+          Cleaner stems — much less bleed between vocal and instrumental
+        </SpecRow>
+        <SpecRow label="Files back">WAV, full quality, no watermark</SpecRow>
+      </dl>
+
+      {/* Someone with free runs left should not be sold to. Only reachable
+          from /pricing, since a 402 means the allowance is already spent. */}
+      {payload.free_remaining > 0 && (
+        <p className="mt-4 rounded-lg border border-amber-500/25 bg-amber-500/5 px-3.5 py-2.5 text-sm text-text-muted">
+          You still have{" "}
+          <span className="font-medium text-amber-400">
+            {payload.free_remaining} free{" "}
+            {payload.free_remaining === 1 ? "run" : "runs"}
+          </span>{" "}
+          this month. Close this and use one first.
+        </p>
+      )}
+
+      {resetsOn && payload.free_remaining === 0 && (
+        <p className="mt-4 text-sm leading-relaxed text-text-muted">
+          Your free monthly runs reset on{" "}
+          <span className="text-text-primary">{resetsOn}</span>. Credits are for
+          when you don&apos;t want to wait.
+        </p>
+      )}
+
+      <div className="mt-5">
+        <PackRail packs={payload.packs} selectedKey={activeKey} onSelect={onSelect} />
+      </div>
+
+      <button
+        type="button"
+        onClick={onContinue}
+        className={cn(
+          "mt-4 w-full rounded-md bg-amber-500 px-4 py-3 text-sm font-semibold text-graphite-950 outline-none",
+          "shadow-[inset_0_1px_0_rgba(255,255,255,0.25)] transition-colors hover:bg-amber-400",
+          "focus-visible:ring-2 focus-visible:ring-amber-400/70 focus-visible:ring-offset-2 focus-visible:ring-offset-graphite-900"
+        )}
+      >
+        Continue — {activePack.credits} credits for ${activePack.price_usd.toFixed(2)}
+      </button>
+
+      {/*
+        The return trip, stated plainly. The user has a track loaded and is
+        being asked to navigate away to a payment page they may not have
+        heard of. "Do I lose what I'm doing" is the live worry, and it
+        outranks any trust badge we could put here.
+      */}
+      <p className="mt-3 text-center text-xs leading-relaxed text-text-subtle">
+        You&apos;ll pay on Ko-fi and come straight back
+        {label ? ` to ${label}` : ""}. Credits land on this browser
+        automatically — nothing to type.
+      </p>
+
+      {/* The three claims the competition structurally cannot print. One
+          hairline strip instead of three icon rows: same information, ~60px
+          less of a modal that has to fit on a phone. */}
+      <ul className="mt-4 flex flex-wrap items-center justify-center gap-x-3.5 gap-y-1.5 border-t border-graphite-800 pt-4 font-mono text-[11px] uppercase tracking-[0.12em] text-text-subtle">
+        <li>No subscription</li>
+        <li aria-hidden className="text-graphite-700">/</li>
+        <li>Never expires</li>
+        <li aria-hidden className="text-graphite-700">/</li>
+        <li>Failed run refunded</li>
       </ul>
 
-      <div className="mt-5 space-y-3 border-t border-graphite-800 pt-4">
+      <div className="mt-4 space-y-3 border-t border-graphite-800 pt-4">
         <button
           type="button"
           onClick={onSignIn}
-          className="flex w-full items-center justify-center gap-1.5 text-sm text-text-muted underline-offset-4 transition-colors hover:text-amber-400 hover:underline"
+          className="flex w-full items-center justify-center gap-1.5 rounded-md py-1 text-sm text-text-muted outline-none underline-offset-4 transition-colors hover:text-amber-400 hover:underline focus-visible:ring-2 focus-visible:ring-amber-400/70"
         >
           <Mail className="h-3.5 w-3.5" />
           Already bought? Sign in
         </button>
 
         {/*
-          The closing reassurance. Someone who decides not to pay must
-          leave knowing the free tool is untouched — otherwise this modal
-          costs us the visit AND the return visit.
+          The closing reassurance. Someone who decides not to pay must leave
+          knowing the free tool is untouched — otherwise this modal costs the
+          visit AND the return visit.
         */}
         <p className="text-center text-xs leading-relaxed text-text-subtle">
           Standard separation stays free and unlimited, with full downloads and
@@ -356,20 +424,14 @@ function PackStep({
   );
 }
 
-function TrustLine({
-  icon,
-  children,
-}: {
-  icon: React.ReactNode;
-  children: React.ReactNode;
-}) {
+function SpecRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <li className="flex items-center gap-2.5 text-sm text-text-muted">
-      <span className="text-amber-400/80" aria-hidden="true">
-        {icon}
-      </span>
-      {children}
-    </li>
+    <div className="flex gap-3 border-b border-graphite-800 px-3.5 py-2.5 last:border-b-0">
+      <dt className="w-[4.5rem] shrink-0 pt-px font-mono text-[10px] uppercase tracking-[0.14em] text-text-subtle">
+        {label}
+      </dt>
+      <dd className="text-[13px] leading-relaxed text-text-primary">{children}</dd>
+    </div>
   );
 }
 
@@ -378,10 +440,10 @@ function TrustLine({
 /* ------------------------------------------------------------------ */
 
 /**
- * The cross-device path. Someone buys on their phone, then opens the site
- * on a laptop — different browser, different subject id, invisible
- * balance. Without this they are stuck with credits they paid for, and
- * that is the single worst support ticket this system can generate.
+ * The cross-device path. Someone buys on their phone, then opens the site on
+ * a laptop — different browser, different subject id, invisible balance.
+ * Without this they're stuck with credits they paid for, which is the single
+ * worst support ticket this system can generate.
  */
 function SignInStep({ onBack }: { onBack: () => void }) {
   const [email, setEmail] = useState("");
@@ -400,7 +462,7 @@ function SignInStep({ onBack }: { onBack: () => void }) {
 
     const trimmed = email.trim();
     if (!trimmed || !trimmed.includes("@") || !trimmed.includes(".")) {
-      setError("That email doesn't look right — please check it.");
+      setError("That email doesn't look right — check it and try again.");
       return;
     }
 
@@ -412,9 +474,9 @@ function SignInStep({ onBack }: { onBack: () => void }) {
       setSent(true);
     } catch (err) {
       if (err instanceof ApiError && err.status === 429) {
-        setError("Too many sign-in emails. Please try again in an hour.");
+        setError("Too many sign-in emails from here. Try again in an hour.");
       } else {
-        setError("We couldn't send that right now. Please try again in a moment.");
+        setError("That didn't send. Try again in a moment.");
       }
     } finally {
       setSubmitting(false);
@@ -431,14 +493,14 @@ function SignInStep({ onBack }: { onBack: () => void }) {
           Check your email
         </h2>
         {/*
-          Conditional voice, deliberately. The backend returns 200 whether
-          or not the account exists, so that an attacker can't use this to
-          discover which emails have accounts. The copy has to match that
-          — claiming "we sent it" would be a lie half the time.
+          Conditional voice, deliberately. The backend returns 200 whether or
+          not the account exists, so an attacker can't use this to discover
+          which emails have accounts. Copy has to match — "we sent it" would
+          be a lie half the time.
         */}
         <p className="text-sm leading-relaxed text-text-muted">
-          If <span className="text-text-primary">{email.trim()}</span> has credits,
-          a sign-in link is on its way. It expires in 30 minutes.
+          If <span className="text-text-primary">{email.trim()}</span> has
+          credits, a sign-in link is on its way. It expires in 30 minutes.
         </p>
         <Button variant="outline" size="md" onClick={onBack} className="w-full">
           Back
@@ -452,7 +514,7 @@ function SignInStep({ onBack }: { onBack: () => void }) {
       <button
         type="button"
         onClick={onBack}
-        className="flex items-center gap-1.5 text-sm text-text-muted transition-colors hover:text-text-primary"
+        className="flex items-center gap-1.5 rounded-md text-sm text-text-muted outline-none transition-colors hover:text-text-primary focus-visible:ring-2 focus-visible:ring-amber-400/70"
       >
         <ArrowLeft className="h-3.5 w-3.5" />
         Back
@@ -483,7 +545,7 @@ function SignInStep({ onBack }: { onBack: () => void }) {
           disabled={submitting}
           placeholder="you@example.com"
           aria-invalid={!!error}
-          className="w-full rounded-md border border-graphite-700 bg-graphite-950 px-3 py-2.5 text-text-primary placeholder:text-text-subtle/60 outline-none transition-colors focus:border-amber-500/60 focus:ring-1 focus:ring-amber-500/40 disabled:opacity-50"
+          className="w-full rounded-md border border-graphite-700 bg-graphite-950 px-3 py-2.5 text-text-primary outline-none transition-colors placeholder:text-text-subtle/60 focus:border-amber-500/60 focus:ring-1 focus:ring-amber-500/40 disabled:opacity-50"
         />
         {error && (
           <p role="alert" className="text-sm text-red-400">

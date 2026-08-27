@@ -20,22 +20,44 @@ import type {
 /**
  * THE COST-CONTROL DECISION IN THIS FILE
  *
- * `paywallEnabled` arrives as a PROP, resolved server-side in the root
- * layout from `GET /` via getFeatureFlags(), which Next caches for 60s
- * and which fails closed. It is NOT fetched from the browser.
+ * `paywallEnabled` arrives as a PROP, resolved server-side in the root layout
+ * from `GET /` via getFeatureFlags(), which Next caches for 60s and which
+ * fails closed. It is NOT fetched from the browser.
  *
- * That matters because this provider wraps every page on the site — ~90
- * of them, nearly all static. If it called /credits/me on mount to find
- * out whether the paywall was even on, that would be one client request
- * per page view, sitewide, for a feature that is currently OFF. This
- * codebase has already had a Vercel Edge Request consumption incident
- * caused by exactly that shape of problem (navbar prefetching, see
- * Navbar.tsx's header comment), and repeating it to power a hidden
- * feature would be hard to defend.
+ * That matters because this provider wraps every page — ~90 of them, nearly
+ * all static. Calling /credits/me on mount to find out whether the paywall is
+ * even on would be one client request per page view, sitewide, for a feature
+ * that is currently OFF. This codebase has already had a Vercel Edge Request
+ * incident from exactly that shape of problem (navbar prefetching, see
+ * Navbar.tsx), and repeating it to power a hidden feature would be hard to
+ * defend.
  *
- * So: paywall off → zero client requests, ever. The provider still
- * mounts and still supplies a valid (inert) context, so no consumer
- * needs a null check and no component has to know why it's empty.
+ * So: paywall off → zero client requests, ever. The provider still mounts and
+ * still supplies a valid (inert) context, so no consumer needs a null check
+ * and no component has to know why it's empty.
+ *
+ * ── THIS PASS: THREE FIXES ─────────────────────────────────────────────
+ *
+ * 1. `refresh` IS NOW STABLE. It used to close over `me` (for the in-flight
+ *    early return), so it got a new identity on every balance change. Every
+ *    consumer that lists it in useCallback/useEffect deps therefore re-ran on
+ *    every refetch. That was not cosmetic: /checkout/success has a poll
+ *    effect keyed on a callback that depends on `refresh`, so each refetch
+ *    restarted the poll AND reset its baseline balance and its 60-second
+ *    deadline — meaning the "balance went up" comparison could never fire and
+ *    the timeout state was unreachable. It now returns the in-flight promise
+ *    from a ref and depends on `enabled` alone.
+ *
+ * 2. A FAILED REFETCH NO LONGER WIPES THE BALANCE. getCreditsMe() returns
+ *    null on failure by design ("treat as paywall off"), and this used to
+ *    write that null straight into state — so one flaky refocus refetch made
+ *    a paying customer's credits vanish from the navbar until the next
+ *    successful call. Null is now ignored and the last good value stands.
+ *
+ * 3. DEFENSIVE READS ON `rate_limit` AND `paywall`. These were dotted into
+ *    without optional chaining. A payload missing either key threw inside a
+ *    useMemo in a provider that wraps the entire site, which is a blank page
+ *    on every route rather than one broken pill.
  */
 
 interface CreditContextValue {
@@ -49,8 +71,8 @@ interface CreditContextValue {
   /** Optimistically overwrite after a route hands back fresh billing data. */
   applyBalance: (balance: number, freeRemaining?: number) => void;
 
-  /* Derived conveniences — these are read in enough places that
-     recomputing them per component invites drift. */
+  /* Derived conveniences — read in enough places that recomputing them per
+     component invites drift. */
   balance: number;
   freeRemaining: number;
   heldCredits: number;
@@ -83,12 +105,12 @@ export function useCredits(): CreditContextValue {
 }
 
 /**
- * Refocus revalidation is throttled rather than fired on every focus
- * event. Tab-switching is constant during a purchase flow (site → Ko-fi →
- * site), and an unthrottled refetch would hammer /credits/me at exactly
- * the moment the user is most likely to be watching for it to change.
- * 20s is short enough that a balance change is noticed almost
- * immediately, long enough that alt-tabbing costs nothing.
+ * Refocus revalidation is throttled rather than fired on every focus event.
+ * Tab-switching is constant during a purchase flow (site → Ko-fi → site), and
+ * an unthrottled refetch would hammer /credits/me at exactly the moment the
+ * user is most likely to be watching it change. 20s is short enough that a
+ * balance change is noticed almost immediately, long enough that alt-tabbing
+ * costs nothing.
  */
 const REFOCUS_THROTTLE_MS = 20_000;
 
@@ -104,8 +126,15 @@ export function CreditProvider({
   const [me, setMe] = useState<CreditsMe | null>(null);
   const [loading, setLoading] = useState(enabled);
   const lastFetchedAt = useRef(0);
-  const inFlight = useRef(false);
   const mounted = useRef(true);
+  /**
+   * The in-flight request itself, not a boolean. A second caller during a
+   * request used to get back the CURRENT `me` — so `await refresh()` right
+   * after a logout could resolve to the pre-logout account. Returning the
+   * promise means every caller awaits the same real answer, and it's what
+   * lets this callback stop depending on `me`.
+   */
+  const pending = useRef<Promise<CreditsMe | null> | null>(null);
 
   useEffect(() => {
     mounted.current = true;
@@ -116,47 +145,47 @@ export function CreditProvider({
 
   const refresh = useCallback(async (): Promise<CreditsMe | null> => {
     if (!enabled) return null;
-    // A second caller during an in-flight request would double the load on
-    // the one endpoint we're trying to keep cheap, and the loser's result
-    // would just overwrite the winner's with the same data.
-    if (inFlight.current) return me;
+    if (pending.current) return pending.current;
 
-    inFlight.current = true;
-    try {
-      const next = await getCreditsMe();
-      lastFetchedAt.current = Date.now();
-      // The provider unmounts on navigation away in some layouts; setting
-      // state after that is a React warning and a memory leak.
-      if (mounted.current) {
-        setMe(next);
-        setLoading(false);
+    const request = (async () => {
+      try {
+        const next = await getCreditsMe();
+        lastFetchedAt.current = Date.now();
+        if (mounted.current) {
+          // getCreditsMe() returns null on failure, meaning "treat as paywall
+          // off" — NOT "the balance is now nothing". Writing that null into
+          // state made a paying customer's credits disappear on any transient
+          // network error. Keep the last good value instead.
+          if (next) setMe(next);
+          setLoading(false);
+        }
+        return next;
+      } finally {
+        pending.current = null;
       }
-      return next;
-    } finally {
-      inFlight.current = false;
-    }
-  }, [enabled, me]);
+    })();
+
+    pending.current = request;
+    return request;
+  }, [enabled]);
 
   // Initial load. Guarded on `enabled`, which is the whole point of the file.
   //
   // The disabled branch deliberately does NOT reset state. `me` starts null
-  // and `loading` starts as `enabled`, so the off case is already correct
-  // from first render — and if the flag ever flipped true→false mid-session,
-  // the memo below returns InertContext regardless, so stale `me` is
-  // unreachable. Resetting here would be a synchronous setState in an
-  // effect, which the React compiler lint correctly rejects.
+  // and `loading` starts as `enabled`, so the off case is already correct from
+  // first render — and if the flag ever flipped true→false mid-session, the
+  // memo below returns InertContext regardless, so a stale `me` is
+  // unreachable. Resetting here would be a synchronous setState in an effect,
+  // which the React compiler lint correctly rejects.
   useEffect(() => {
     if (!enabled) return;
     void refresh();
-    // `refresh` intentionally omitted: it closes over `me`, so including it
-    // would re-run this effect on every balance change and refetch in a loop.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled]);
+  }, [enabled, refresh]);
 
-  // Revalidate when the user comes back to the tab. This is what makes
-  // credits appear "automatically" after a Ko-fi purchase completes in the
-  // same tab — the pending_claims match has usually landed by the time
-  // they're looking at the page again.
+  // Revalidate when the user comes back to the tab. This is what makes credits
+  // appear "automatically" after a Ko-fi purchase completes — by the time
+  // they're looking at the page again, the pending_claims match has usually
+  // landed.
   useEffect(() => {
     if (!enabled) return;
 
@@ -172,15 +201,14 @@ export function CreditProvider({
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onFocus);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled]);
+  }, [enabled, refresh]);
 
   /**
    * Routes that charge hand back fresh billing data in their own response
-   * (`billing: {charged, balance, free_remaining}`). Using it directly
-   * avoids a redundant /credits/me round-trip at the exact moment the user
-   * is watching the number, which would otherwise show a stale balance for
-   * a beat and then jump.
+   * (`billing: {charged, balance, free_remaining}`). Using it directly avoids
+   * a redundant /credits/me round-trip at the exact moment the user is
+   * watching the number, which would otherwise show a stale balance for a beat
+   * and then jump.
    */
   const applyBalance = useCallback((balance: number, freeRemaining?: number) => {
     setMe((prev) =>
@@ -197,25 +225,22 @@ export function CreditProvider({
   const value = useMemo<CreditContextValue>(() => {
     if (!enabled) return InertContext;
 
-    const balance = me?.balance ?? 0;
-    const isCredited = me?.rate_limit.tier === "credited";
-
     return {
       enabled: true,
       me,
       loading,
       refresh,
       applyBalance,
-      balance,
+      balance: me?.balance ?? 0,
       freeRemaining: me?.free_remaining ?? 0,
       heldCredits: me?.held_credits ?? 0,
-      isCredited,
+      isCredited: me?.rate_limit?.tier === "credited",
       // `paywall.tools[k].enabled` is the EFFECTIVE state — global AND
       // per-tool, already resolved server-side. Do not AND it with
-      // `paywall.enabled` again here; that's how a tool ends up looking
-      // free because two sources of truth disagreed.
-      isToolMetered: (tool) => Boolean(me?.paywall.tools?.[tool]?.enabled),
-      rateLimitFor: (tool) => me?.rate_limit.tools?.[tool] ?? null,
+      // `paywall.enabled` again here; that's how a tool ends up looking free
+      // because two sources of truth disagreed.
+      isToolMetered: (tool) => Boolean(me?.paywall?.tools?.[tool]?.enabled),
+      rateLimitFor: (tool) => me?.rate_limit?.tools?.[tool] ?? null,
     };
   }, [enabled, me, loading, refresh, applyBalance]);
 

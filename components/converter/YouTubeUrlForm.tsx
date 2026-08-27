@@ -18,6 +18,37 @@ import { cn } from "@/lib/utils/cn";
 import { validateYouTubeUrl, sanitizeUserInput } from "@/lib/utils/validation";
 import { getJobStatus, ApiError, type JobSubmitResponse } from "@/lib/api/railway";
 
+/**
+ * ── THIS PASS: FOUR FIXES ──────────────────────────────────────────────
+ *
+ * 1. AN UPGRADED JOB WAS POLLED WITH THE WRONG CEILING. `handleUpgraded` had
+ *    `[]` deps and an eslint-disable, so it captured the `startPolling` — and
+ *    through it the `maxPollMs` and `pollIntervalMs` — from FIRST MOUNT, when
+ *    the quality toggle still said Standard. An upgrade is always to HQ, whose
+ *    backend timeout is 1800s, but the captured frontend cap was the standard
+ *    720s. Any upgraded run past twelve minutes was declared "taking unusually
+ *    long" on a job the backend was still correctly processing and would have
+ *    completed. That is exactly the failure the maxPollMs comment warns about,
+ *    reintroduced through a stale closure. The upgrade path now takes its own
+ *    timings, passed explicitly by the caller.
+ *
+ * 2. THE UPGRADE PRODUCED NO RECEIPT. `handleUpgraded` took only a job id, so
+ *    `billing` stayed at whatever the ORIGINAL free run left it — null. After
+ *    spending a credit the result showed no "1 credit used" line and kept
+ *    asking for a tip.
+ *
+ * 3. THE GATE WAS A DEAD END. A 402 opened the modal, the user bought, and
+ *    they were returned to an idle form holding their link with no sign that
+ *    the thing they wanted is now possible. `onCredited` re-runs the submit
+ *    once the modal closes.
+ *
+ * 4. `poll` NO LONGER CHURNS ON EVERY RENDER. It depended on the `onComplete`
+ *    and `onFailed` props, which callers pass as inline arrows, so it was
+ *    rebuilt on every keystroke in the URL field. They're read through refs
+ *    now, which also means a caller's notification handler can never be
+ *    captured stale.
+ */
+
 type UiState = "idle" | "uploading" | "processing" | "complete" | "failed" | "error";
 
 export interface ProcessingStage {
@@ -93,6 +124,13 @@ function humanizeError(raw: string): { title: string; hint: string } {
   return { title: raw, hint: "Run it again. If it keeps failing, the video may not be supported." };
 }
 
+/** Timings for one polling run. Carried through the recursion so an upgraded
+ *  job cannot inherit the tier it was upgraded FROM. */
+interface PollTiming {
+  intervalMs: number;
+  maxMs: number;
+}
+
 interface YouTubeUrlFormProps {
   endpoint: string;
   onSubmit: (url: string) => Promise<JobSubmitResponse>;
@@ -106,15 +144,22 @@ interface YouTubeUrlFormProps {
   stages?: ProcessingStage[];
   maxPollMs?: number;
   /**
-   * Optional extra controls rendered between the URL input and the
-   * submit button (e.g. a quality tier toggle, a notification opt-in).
+   * Timings for a job started by the upgrade card. An upgrade always produces
+   * an HQ job, whose backend ceiling is far higher than the standard tier's —
+   * without these the upgraded run is polled against whatever the toggle
+   * happened to say, and gets declared stuck while the backend is still
+   * working. Default to the normal values for tools with no HQ tier.
+   */
+  upgradePollIntervalMs?: number;
+  upgradeMaxPollMs?: number;
+  /**
+   * Optional extra controls rendered between the URL input and the submit
+   * button (e.g. a quality tier toggle, a notification opt-in).
    *
-   * `hasUrl` mirrors MultiOutputToolForm's `file` argument: it's the
-   * "is there actually anything to act on yet?" signal, so a control
-   * like the notify toggle can stay disabled until a real link is
-   * present rather than being togglable on an empty form. Without it,
-   * the two YouTube forms drifted out of sync with the upload-based
-   * forms, which have always gated on `!file`.
+   * `hasUrl` mirrors MultiOutputToolForm's `file` argument: the "is there
+   * actually anything to act on yet?" signal, so a control like the notify
+   * toggle can stay disabled until a real link is present rather than being
+   * togglable on an empty form.
    */
   renderControls?: (disabled: boolean, hasUrl: boolean) => ReactNode;
   onComplete?: (title: string | null) => void;
@@ -123,13 +168,12 @@ interface YouTubeUrlFormProps {
   /**
    * OPT-IN CREDITS WIRING.
    *
-   * This component backs every /youtube/* tool, and most of them are
-   * never metered. Passing neither prop leaves behaviour byte-identical
-   * to before.
+   * This component backs every /youtube/* tool, and most of them are never
+   * metered. Passing neither prop leaves behaviour byte-identical to before.
    *
-   * `meteredToolKey` is the key for the CURRENTLY SELECTED tier, so the
-   * caller passes null while Standard is chosen. It drives only the
-   * free-tier 429 offer; the 402 gate is unconditional and harmless.
+   * `meteredToolKey` is the key for the CURRENTLY SELECTED tier, so the caller
+   * passes null while Standard is chosen. It drives only the free-tier 429
+   * offer; the 402 gate is unconditional and harmless.
    */
   meteredToolKey?: MeteredToolKey | null;
   /** Enables the upgrade CTA under the result. Omit for tools with no HQ tier. */
@@ -148,6 +192,8 @@ export function YouTubeUrlForm({
   toolMeta,
   stages,
   maxPollMs = DEFAULT_MAX_POLL_MS,
+  upgradePollIntervalMs,
+  upgradeMaxPollMs,
   renderControls,
   onComplete,
   onFailed,
@@ -166,16 +212,15 @@ export function YouTubeUrlForm({
   } | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
   /**
-   * Whether the FINISHED job ran on a metered route. Derived from the
-   * presence of the `billing` block — the server telling us directly —
-   * rather than from the caller's current toggle, which the user can
-   * still change while a result is on screen.
+   * Whether the FINISHED job ran on a metered route. Derived from the presence
+   * of the `billing` block — the server telling us directly — rather than from
+   * the caller's current toggle, which the user can still change while a
+   * result is on screen.
    */
   const [completedMetered, setCompletedMetered] = useState(false);
   /** What the server said it charged. Reported verbatim, never inferred. */
   const [billing, setBilling] = useState<SubmitBilling | null>(null);
 
-  const { catchCreditError, gate } = useCreditGate();
   const { applyBalance } = useCredits();
   const [resultTitle, setResultTitle] = useState<string | null>(null);
   const [cooldownSeconds, setCooldownSeconds] = useState(0);
@@ -189,10 +234,35 @@ export function YouTubeUrlForm({
   const cancelledRef = useRef(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  /**
+   * Callers pass these as inline arrows, so depending on them directly rebuilt
+   * `poll` on every keystroke. Through refs, `poll` is stable AND always calls
+   * the caller's latest handler — which is what keeps a notification opt-in
+   * from being captured in its off state.
+   */
+  const onCompleteRef = useRef(onComplete);
+  const onFailedRef = useRef(onFailed);
+  onCompleteRef.current = onComplete;
+  onFailedRef.current = onFailed;
+
+  // Re-runs the submit after a purchase closes the gate. Through a ref because
+  // handleSubmit is declared below.
+  const submitRef = useRef<() => void>(() => {});
+  const { catchCreditError, gate } = useCreditGate({
+    onCredited: () => submitRef.current(),
+  });
+
   const isBusy = status === "uploading" || status === "processing";
   const isFailed = status === "failed" || status === "error";
   const videoId = useMemo(() => extractVideoId(url.trim()), [url]);
   const canSubmit = Boolean(videoId) && !validationError && !isBusy && cooldownSeconds === 0;
+
+  /**
+   * Keyed on what was CHARGED, not on whether the route was metered. A
+   * free-tier Studio Quality run is still a free result, so it keeps the tip
+   * block; only a run someone paid a credit for loses it.
+   */
+  const completedCharged = billing?.charged === "credit";
 
   const stopPolling = useCallback(() => {
     if (pollRef.current) {
@@ -252,17 +322,17 @@ export function YouTubeUrlForm({
   }, [url]);
 
   const poll = useCallback(
-    async (id: string) => {
+    async (id: string, timing: PollTiming) => {
       if (cancelledRef.current) return;
 
-      if (Date.now() - pollStartedAtRef.current > maxPollMs) {
+      if (Date.now() - pollStartedAtRef.current > timing.maxMs) {
         stopPolling();
         setError({
           title: "This is taking unusually long",
           hint: "The job may be stuck. Paste the link again to start a fresh run.",
         });
         setStatus("failed");
-        onFailed?.("This is taking unusually long");
+        onFailedRef.current?.("This is taking unusually long");
         return;
       }
 
@@ -274,7 +344,7 @@ export function YouTubeUrlForm({
           stopPolling();
           setResultTitle(result.title);
           setStatus("complete");
-          onComplete?.(result.title);
+          onCompleteRef.current?.(result.title);
           return;
         }
         if (result.status === "failed") {
@@ -282,7 +352,7 @@ export function YouTubeUrlForm({
           const humanized = humanizeError(result.error || "Processing failed.");
           setError(humanized);
           setStatus("failed");
-          onFailed?.(humanized.title);
+          onFailedRef.current?.(humanized.title);
           return;
         }
       } catch (err) {
@@ -292,21 +362,21 @@ export function YouTubeUrlForm({
           const humanized = humanizeError("This job expired.");
           setError(humanized);
           setStatus("failed");
-          onFailed?.(humanized.title);
+          onFailedRef.current?.(humanized.title);
           return;
         }
       }
 
-      pollRef.current = setTimeout(() => poll(id), pollIntervalMs);
+      pollRef.current = setTimeout(() => poll(id, timing), timing.intervalMs);
     },
-    [endpoint, maxPollMs, pollIntervalMs, stopPolling, onComplete, onFailed]
+    [endpoint, stopPolling]
   );
 
   const startPolling = useCallback(
-    (id: string) => {
+    (id: string, timing: PollTiming) => {
       stopPolling();
       pollStartedAtRef.current = Date.now();
-      poll(id);
+      void poll(id, timing);
     },
     [poll, stopPolling]
   );
@@ -331,21 +401,33 @@ export function YouTubeUrlForm({
 
   /**
    * The upgrade route returns a NEW job id that works against the same
-   * status/preview/download routes, so the existing polling loop handles
-   * it unchanged.
+   * status/preview/download routes, so the existing polling loop handles it
+   * unchanged — but NOT with the same timings. An upgrade is always to HQ, so
+   * it gets the HQ ceiling explicitly rather than inheriting whatever tier the
+   * toggle was on.
    */
-  const handleUpgraded = useCallback((newJobId: string) => {
-    cancelledRef.current = false;
-    setJobId(newJobId);
-    setCompletedMetered(true);
-    setResultTitle(null);
-    setElapsedSeconds(0);
-    setError(null);
-    setStatus("processing");
-    startPolling(newJobId);
-    // startPolling closes over the stable poll/stopPolling pair.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const handleUpgraded = useCallback(
+    (newJobId: string, upgradeBilling?: SubmitBilling | null) => {
+      cancelledRef.current = false;
+      setJobId(newJobId);
+      setCompletedMetered(true);
+      setResultTitle(null);
+      setElapsedSeconds(0);
+      setError(null);
+      if (upgradeBilling !== undefined) {
+        setBilling(upgradeBilling);
+        if (upgradeBilling) {
+          applyBalance(upgradeBilling.balance, upgradeBilling.free_remaining);
+        }
+      }
+      setStatus("processing");
+      startPolling(newJobId, {
+        intervalMs: upgradePollIntervalMs ?? pollIntervalMs,
+        maxMs: upgradeMaxPollMs ?? maxPollMs,
+      });
+    },
+    [startPolling, applyBalance, upgradePollIntervalMs, pollIntervalMs, upgradeMaxPollMs, maxPollMs]
+  );
 
   const handleReset = () => {
     stopPolling();
@@ -359,6 +441,10 @@ export function YouTubeUrlForm({
     setRetryNotice(null);
     setPreview(null);
     setElapsedSeconds(0);
+    // A cleared form describes no job, so it must not carry the last one's
+    // receipt into the next render.
+    setBilling(null);
+    setCompletedMetered(false);
     inputRef.current?.focus();
   };
 
@@ -397,11 +483,11 @@ export function YouTubeUrlForm({
         setJobId(res.job_id);
         setCompletedMetered(Boolean(res.billing));
         setStatus("processing");
-        startPolling(res.job_id);
+        startPolling(res.job_id, { intervalMs: pollIntervalMs, maxMs: maxPollMs });
 
-        // Metered routes report what they just charged, so the navbar
-        // pill updates from THIS response rather than a follow-up
-        // /credits/me — no stale number, no extra round trip.
+        // Metered routes report what they just charged, so the navbar pill
+        // updates from THIS response rather than a follow-up /credits/me — no
+        // stale number, no extra round trip.
         setBilling(res.billing ?? null);
         if (res.billing) {
           applyBalance(res.billing.balance, res.billing.free_remaining);
@@ -431,8 +517,8 @@ export function YouTubeUrlForm({
         setRetryNotice(null);
 
         if (err instanceof ApiError && err.isRateLimit) {
-          // The best-qualified moment in the product: they used the good
-          // mode up to its free ceiling and immediately wanted more.
+          // The best-qualified moment in the product: they used the good mode
+          // up to its free ceiling and immediately wanted more.
           const freeTierOnMetered =
             err.rateLimit?.tier === "free" && Boolean(meteredToolKey);
 
@@ -453,10 +539,15 @@ export function YouTubeUrlForm({
     }
   };
 
+  // Assigned during render so onCredited always calls the CURRENT handleSubmit.
+  submitRef.current = () => {
+    void handleSubmit();
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" && canSubmit) {
       e.preventDefault();
-      handleSubmit();
+      void handleSubmit();
     }
   };
 
@@ -474,9 +565,6 @@ export function YouTubeUrlForm({
     <div className="overflow-hidden rounded-2xl border border-graphite-800 bg-graphite-900">
       <div className="flex items-center justify-between border-b border-graphite-800 px-6 py-3.5 sm:px-8">
         <div className="flex items-center gap-2.5">
-          {/* Was a ternary picking bg-amber-500 in both branches - the
-              only real difference was the pulse. Same shape as every
-              other form's header dot now. */}
           <span
             className={cn(
               "h-1.5 w-1.5 rounded-full bg-amber-500",
@@ -484,7 +572,7 @@ export function YouTubeUrlForm({
             )}
             aria-hidden
           />
-          <span className="text-[11px] font-medium uppercase tracking-[0.18em] text-text-muted">
+          <span className="font-mono text-[11px] font-medium uppercase tracking-[0.18em] text-text-muted">
             {toolLabel || submitLabel}
           </span>
         </div>
@@ -540,7 +628,7 @@ export function YouTubeUrlForm({
                     type="button"
                     onClick={handleReset}
                     aria-label="Clear link"
-                    className="rounded-md p-1.5 text-text-subtle transition-colors hover:bg-graphite-800 hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40"
+                    className="rounded-md p-1.5 text-text-subtle outline-none transition-colors hover:bg-graphite-800 hover:text-text-primary focus-visible:ring-2 focus-visible:ring-amber-400/70"
                   >
                     <X className="h-4 w-4" />
                   </button>
@@ -550,9 +638,9 @@ export function YouTubeUrlForm({
                     type="button"
                     onClick={handlePaste}
                     disabled={isBusy}
-                    className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-text-muted transition-colors hover:bg-graphite-800 hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40 disabled:pointer-events-none disabled:opacity-40"
+                    className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-text-muted outline-none transition-colors hover:bg-graphite-800 hover:text-text-primary focus-visible:ring-2 focus-visible:ring-amber-400/70 disabled:pointer-events-none disabled:opacity-40"
                   >
-                    <ClipboardPaste className="h-3.5 w-3.5" />
+                    <ClipboardPaste className="h-3.5 w-3.5" aria-hidden />
                     Paste
                   </button>
                 )}
@@ -561,7 +649,7 @@ export function YouTubeUrlForm({
 
             {validationError ? (
               <p id="url-error" role="alert" className="flex items-center gap-1.5 text-sm text-red-400">
-                <AlertTriangle className="h-4 w-4 shrink-0" />
+                <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden />
                 {validationError}
               </p>
             ) : (
@@ -573,10 +661,9 @@ export function YouTubeUrlForm({
         )}
 
         {/* ---------- Video preview ----------
-            Moved above renderControls (Quality/Notify) so it sits
-            immediately below the URL input on every tool, matching the
-            simplest form (Key & BPM Finder) that has no extra controls
-            to push it further down. */}
+            Above renderControls (Quality/Notify) so it sits immediately below
+            the URL input on every tool, matching the simplest form (Key & BPM
+            Finder) that has no extra controls to push it further down. */}
         {preview && !isBusy && status !== "complete" && (
           <div className="flex items-center gap-4 rounded-lg border border-graphite-800 bg-graphite-850/60 p-3">
             <div className="relative h-14 w-24 shrink-0 overflow-hidden rounded-md bg-graphite-800">
@@ -617,9 +704,16 @@ export function YouTubeUrlForm({
               </span>
             </div>
 
-            <div className="h-1 w-full overflow-hidden rounded-full bg-graphite-800">
+            <div
+              role="progressbar"
+              aria-valuenow={progress}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label="Processing progress"
+              className="h-1 w-full overflow-hidden rounded-full bg-graphite-800"
+            >
               <div
-                className="h-full rounded-full bg-amber-500 transition-[width] duration-1000 ease-out"
+                className="h-full rounded-full bg-amber-500 transition-[width] duration-1000 ease-out motion-reduce:transition-none"
                 style={{ width: `${progress}%` }}
               />
             </div>
@@ -628,18 +722,18 @@ export function YouTubeUrlForm({
               <div className="opacity-60 motion-reduce:hidden">
                 <Waveform />
               </div>
-              {/* Underlined text link, not a button shape - deliberately
-                  not run through <Button>. */}
+              {/* Underlined text link, not a button shape — deliberately not
+                  run through <Button>. */}
               <button
                 type="button"
                 onClick={handleCancel}
-                className="rounded px-1 text-xs text-text-subtle underline underline-offset-2 transition-colors hover:text-red-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40"
+                className="rounded px-1 text-xs text-text-subtle underline underline-offset-2 outline-none transition-colors hover:text-red-400 focus-visible:ring-2 focus-visible:ring-amber-400/70"
               >
                 Cancel
               </button>
             </div>
 
-            <p className="text-xs text-text-subtle">
+            <p className="text-xs leading-relaxed text-text-subtle">
               {expectedRange ? `Typically ${expectedRange}. ` : ""}Keep this tab open.
             </p>
           </div>
@@ -673,9 +767,9 @@ export function YouTubeUrlForm({
 
             {renderComplete(jobId, resultTitle)}
 
-            {/* Under the result, where the user has just heard the bleed
-                in their own track. Silent unless the server says this job
-                is eligible, and never on a job that already ran at Studio
+            {/* Under the result, where the user has just heard the bleed in
+                their own track. Silent unless the server says this job is
+                eligible, and never on a job that already ran at Studio
                 Quality. */}
             {upgradeFamily && !completedMetered && (
               <UpgradeToHqCard
@@ -685,11 +779,11 @@ export function YouTubeUrlForm({
               />
             )}
 
-            {/* Asking for a tip right after charging someone a credit is a
-                bad look. Free results keep it. */}
             <CreditReceipt billing={billing} />
 
-            {!completedMetered && <SupportBlock />}
+            {/* Asking for a tip right after charging someone a credit is a bad
+                look. A free-tier run is still free, so it keeps the block. */}
+            {!completedCharged && <SupportBlock />}
 
             <Button variant="outline" size="md" className="w-full" onClick={handleReset}>
               <RotateCcw />
@@ -707,12 +801,16 @@ export function YouTubeUrlForm({
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-400" aria-hidden />
               <div>
                 <p className="text-sm font-medium text-text-primary">{error.title}</p>
-                <p className="mt-0.5 text-xs text-text-muted">{error.hint}</p>
+                <p className="mt-0.5 text-xs leading-relaxed text-text-muted">{error.hint}</p>
                 {error.offerCredits && (
                   <Link
                     href="/pricing"
-                    onClick={() => trackCredits("credits_rate_limited", { tool: meteredToolKey })}
-                    className="mt-2 inline-block text-xs font-medium text-amber-400 underline-offset-4 hover:underline"
+                    onClick={() =>
+                      trackCredits("credits_rate_limited", {
+                        tool: meteredToolKey ?? undefined,
+                      })
+                    }
+                    className="mt-2 inline-block rounded text-xs font-medium text-amber-400 outline-none underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-amber-400/70"
                   >
                     See credit packs →
                   </Link>
@@ -724,12 +822,12 @@ export function YouTubeUrlForm({
         )}
 
         {status !== "complete" && (
-          /* Stays visible with no link, unlike the upload forms which
-             hide their submit: here the input is directly above it and
-             the pair reads as one control, so removing half of it would
-             be stranger than dimming it. Neutral until the link parses -
-             a disabled amber fill at 40% opacity renders as a muddy
-             brown bar rather than an inactive one. */
+          /* Stays visible with no link, unlike the upload forms which hide
+             their submit: here the input is directly above it and the pair
+             reads as one control, so removing half of it would be stranger
+             than dimming it. Neutral until the link parses — a disabled amber
+             fill at 40% opacity renders as a muddy brown bar rather than an
+             inactive one. */
           <Button
             variant={videoId || isFailed ? "primary" : "secondary"}
             size="lg"
