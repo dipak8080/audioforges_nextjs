@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { CreditCard, Infinity as InfinityIcon, RotateCcw, ShieldCheck } from "lucide-react";
+import { ShieldCheck } from "lucide-react";
 import { getFeatureFlags } from "@/lib/api/railway";
 import { SectionHeading } from "@/components/ui/SectionHeading";
 import { FAQSection, type FAQItem } from "@/components/faq/FAQSection";
 import { PricingTable } from "@/components/credits/PricingTable";
+import { StemCompare } from "@/components/credits/StemCompare";
 import { TOOLS } from "@/lib/data/tools";
 import { SITE_URL } from "@/lib/constants";
 import EmailLink from "@/components/EmailLink";
@@ -13,31 +14,42 @@ import EmailLink from "@/components/EmailLink";
 /**
  * WHY THIS PAGE 404s WHILE THE PAYWALL IS OFF
  *
- * The Ko-fi shop is a public URL that exists whether or not this site
- * links to it. An env var can't take it down. So while PAYWALL_ENABLED is
- * false, the job of the frontend is to make sure there is NO reachable
- * path from audioforges.com to a buy button — otherwise someone can pay
- * for credits that have nothing to spend on.
+ * The Ko-fi shop is a public URL that exists whether or not this site links
+ * to it. An env var can't take it down. So while PAYWALL_ENABLED is false,
+ * the job of the frontend is to make sure there is NO reachable path from
+ * audioforges.com to a buy button — otherwise someone can pay for credits
+ * that have nothing to spend on.
  *
  * notFound() is the right tool: no partial page, no flash of prices, and
- * Next serves the real 404. Combined with the noindex below, Google never
- * banks a pricing page that doesn't work yet.
- *
- * Flipping PAYWALL_ENABLED brings it back with no deploy.
+ * Next serves the real 404. Flipping PAYWALL_ENABLED brings it back with no
+ * deploy.
  */
+
+/**
+ * Two level-matched clips of the same bar of the same track, ~20s each,
+ * dropped in /public/audio/. StemCompare renders nothing until BOTH are set,
+ * so this page ships correct today and gains its best asset with no code
+ * change. Pick a dense mix with a long reverb tail — the standard model's
+ * bleed has to be audible on laptop speakers or the demo argues against us.
+ */
+const DEMO_STANDARD = "";
+const DEMO_STUDIO = "";
+
+/** Mirrors separation_hq_max_duration_seconds from GET /limits. */
+const HQ_MAX_SECONDS = 360;
 
 const PAGE_TITLE = "Pricing — AudioForges credits";
 const PAGE_DESCRIPTION =
-  "Credits power the GPU-heavy tools on AudioForges. No subscription, credits never expire, and everything else stays free.";
+  "One credit runs one GPU-heavy job. No subscription, credits never expire, and every other tool on AudioForges stays free.";
 
 export const metadata: Metadata = {
   title: PAGE_TITLE,
   description: PAGE_DESCRIPTION,
   alternates: { canonical: `${SITE_URL}/pricing` },
-  // Deliberate. Until real buyers have completed the flow in production,
-  // an indexed pricing page is a liability: it competes with the "free X"
-  // queries the tool pages rank on, and a 404 that Google has already
-  // crawled as a live page is worse than one it never saw.
+  // Deliberate. Until real buyers have completed the flow in production, an
+  // indexed pricing page is a liability: it competes with the "free X"
+  // queries the tool pages rank on, and a 404 Google has already crawled as
+  // a live page is worse than one it never saw.
   //
   // Remove this block once the paywall has been on and stable for a week.
   robots: { index: false, follow: true },
@@ -56,6 +68,11 @@ const faqs: FAQItem[] = [
       "Yes. Every tool on the site is free and unlimited, including standard vocal removal and stem splitting, with full-quality downloads and no watermark. Credits apply only to jobs that need a GPU, which today means Studio Quality separation. Anything that runs on ordinary CPU processing is free and will stay that way.",
   },
   {
+    question: "What's the difference between standard and Studio Quality?",
+    answer:
+      "The same job run through a heavier model. Standard separation is good enough for reference tracks, practice, and DJ edits, and it's what most people need. Studio Quality pulls cleaner stems out of dense mixes — less instrumental bleed in the vocal, less vocal ghost in the instrumental — which matters when the stem is going into a release rather than a rehearsal. Run both on the same track and keep whichever you prefer; your first two Studio Quality runs each month are free.",
+  },
+  {
     question: "Do credits expire?",
     answer:
       "No. Credits stay on your account until you use them, and they work on any tool that takes credits — including ones added after you bought them. There is no subscription, no monthly minimum, and nothing recurring to cancel.",
@@ -71,14 +88,9 @@ const faqs: FAQItem[] = [
       "No. Credits are tied to your browser. You give an email at checkout only so we can match your Ko-fi payment back to you — Ko-fi's payment notification doesn't tell us who paid, so the email is the link. If you later want your credits on a different device, you can sign in with that same email.",
   },
   {
-    question: "How much does one credit get me?",
-    answer:
-      "One GPU-backed job. Today that means one Studio Quality separation of a track up to 6 minutes long — vocal removal or a 4-stem split, from a file or a YouTube link, all the same price. Longer tracks aren't supported at Studio Quality yet, and the site tells you before charging anything.",
-  },
-  {
     question: "How do I use credits on another device?",
     answer:
-      "Choose 'Already bought? Sign in' and enter the email you paid with. We'll send a sign-in link that attaches your credits to that browser. The link expires after 30 minutes.",
+      "Choose 'Already bought? Sign in' and enter the email you paid with. We'll send a sign-in link that attaches your credits to that browser. The link expires after 30 minutes. If both devices are in front of you, the account menu can show a QR code instead, which is faster.",
   },
 ];
 
@@ -89,73 +101,90 @@ export default async function PricingPage() {
   const liveToolCount = TOOLS.filter((t) => t.status === "live").length;
 
   return (
-    <main id="main" className="mx-auto max-w-4xl px-4 py-12 sm:py-16">
-      <div className="max-w-2xl">
-        <p className="font-mono text-xs uppercase tracking-[0.16em] text-amber-500">
-          Pricing
-        </p>
-        <h1 className="mt-3 text-3xl font-bold tracking-tight text-text-primary sm:text-4xl">
-          One credit, one heavy job
-        </h1>
-        {/*
-          Framed around CREDITS, not around vocal separation.
-          Credits are the currency for anything that needs a GPU, and the
-          set of things that need one will grow — API access, longer
-          transcription, whatever comes next. Writing this page as "the
-          Studio Quality separation page" would mean rewriting it, and
-          re-earning its rankings, the first time that happens.
+    <main id="main" className="mx-auto max-w-3xl px-4 py-12 sm:py-16">
+      {/*
+        Framed around CREDITS, not around vocal separation. Credits are the
+        currency for anything needing a GPU, and that set will grow — API
+        access, long transcription, whatever's next. Writing this as "the
+        Studio Quality page" would mean rewriting it, and re-earning its
+        rankings, the first time that happens.
+      */}
+      <p className="font-mono text-xs uppercase tracking-[0.16em] text-amber-500">
+        Credits
+      </p>
+      <h1 className="mt-3 text-3xl font-bold tracking-tight text-text-primary sm:text-4xl">
+        What one credit buys
+      </h1>
+      <p className="mt-4 max-w-xl leading-relaxed text-text-muted">
+        Most of AudioForges runs on cheap CPU processing and is free and
+        unlimited — that never changes. A few jobs need a GPU and cost real
+        money per run, so those use credits. Buy once, spend them whenever.
+      </p>
 
-          Studio Quality is named as TODAY'S use, not as the definition.
-        */}
-        <p className="mt-4 leading-relaxed text-text-muted">
-          Most of AudioForges runs on cheap CPU processing and is free and
-          unlimited — that never changes. A few jobs need a GPU, and those cost
-          real money per run, so they use credits. Buy once, spend them on
-          whatever needs them, whenever.
-        </p>
-        <p className="mt-3 text-sm leading-relaxed text-text-subtle">
-          Right now that&apos;s Studio Quality separation — the heavier model
-          for vocal removal and stem splitting. As more GPU-backed tools
-          arrive, the same credits cover those too. No separate plans, no
-          per-tool pricing.
-        </p>
+      {/*
+        THE SPEC PANEL. This is the whole reason the page exists.
+        The old H1 was "One credit, one heavy job" — a slogan that never said
+        what arrives. Six rows of plain fact do more work than any amount of
+        pricing copy, and they read like the file-info panel of a DAW, which
+        is the register this audience already trusts.
+      */}
+      <dl className="mt-8 overflow-hidden rounded-xl border border-graphite-800 bg-graphite-900">
+        <div className="flex items-baseline justify-between border-b border-graphite-800 bg-graphite-950/40 px-4 py-3">
+          <span className="font-mono text-sm font-semibold tabular-nums text-amber-400">
+            1 credit
+          </span>
+          <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-text-subtle">
+            Studio Quality separation
+          </span>
+        </div>
+        <SpecRow label="You get">
+          Vocals and instrumental, or a full four-stem split
+        </SpecRow>
+        <SpecRow label="Source">An audio file, or a YouTube link</SpecRow>
+        <SpecRow label="Track length">
+          Up to {Math.floor(HQ_MAX_SECONDS / 60)} minutes. Longer tracks are
+          blocked before anything is charged
+        </SpecRow>
+        <SpecRow label="Files back">
+          WAV, full quality, no watermark, no length limit on playback
+        </SpecRow>
+        <SpecRow label="Turnaround">Usually one to two minutes</SpecRow>
+        <SpecRow label="If it fails">
+          The credit comes straight back, without you asking
+        </SpecRow>
+      </dl>
+
+      {/* Silent until the clips exist. */}
+      <div className="mt-8">
+        <StemCompare
+          standardSrc={DEMO_STANDARD}
+          studioSrc={DEMO_STUDIO}
+          stemLabel="Vocals"
+          trackLabel="Dense mix, long reverb tail"
+        />
       </div>
 
       <div className="mt-10">
         <PricingTable />
       </div>
 
-      {/* The three facts that matter, stated once, prominently. */}
-      <ul className="mt-8 grid gap-3 sm:grid-cols-3">
-        <ValueProp icon={<CreditCard className="h-4 w-4" />} title="No subscription">
-          One payment. Nothing recurring, nothing to cancel.
-        </ValueProp>
-        <ValueProp icon={<InfinityIcon className="h-4 w-4" />} title="Never expires">
-          Credits sit on your account until you use them.
-        </ValueProp>
-        <ValueProp icon={<RotateCcw className="h-4 w-4" />} title="Automatic refunds">
-          A failed run returns its credit without you asking.
-        </ValueProp>
-      </ul>
-
       {/*
-        The comparison. No competitor is named — naming them dates the page
-        the moment they change their plans, and it reads as insecure. The
-        contrast speaks for itself because the left column is what everyone
-        who has shopped for this already recognises.
+        No competitor is named. Naming one dates the page the day they change
+        their plans, and it reads as insecure. The left column is already
+        recognisable to anyone who has shopped for this.
       */}
       <section className="mt-16">
         <SectionHeading
           eyebrow="How this differs"
           title="Credits, not a subscription"
-          description="Most tools in this category sell monthly minutes. If you don't use them, they're gone, and the charge repeats whether you opened the site or not."
+          description="Most tools in this category sell monthly minutes. If you don't use them they're gone, and the charge repeats whether or not you opened the site."
         />
         <div className="mt-6 overflow-hidden rounded-xl border border-graphite-800">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-graphite-800 bg-graphite-900">
                 <th className="w-1/3 px-4 py-3 text-left font-medium text-text-subtle">
-                  &nbsp;
+                  <span className="sr-only">Comparison</span>
                 </th>
                 <th className="px-4 py-3 text-left font-medium text-text-muted">
                   Typical subscription tool
@@ -167,10 +196,22 @@ export default async function PricingPage() {
             </thead>
             <tbody className="divide-y divide-graphite-800">
               <CompareRow label="Billing" them="Monthly, recurring" us="One payment" />
-              <CompareRow label="Unused capacity" them="Expires each month" us="Never expires" />
-              <CompareRow label="Free tier" them="Preview only, no download" us="Full download, no watermark" />
+              <CompareRow
+                label="Unused capacity"
+                them="Expires each month"
+                us="Never expires"
+              />
+              <CompareRow
+                label="Free tier"
+                them="Preview only, no download"
+                us="Full download, no watermark"
+              />
               <CompareRow label="Account" them="Required to start" us="Not required" />
-              <CompareRow label="Failed job" them="Usually still counted" us="Refunded automatically" />
+              <CompareRow
+                label="Failed job"
+                them="Usually still counted"
+                us="Refunded automatically"
+              />
             </tbody>
           </table>
         </div>
@@ -180,7 +221,7 @@ export default async function PricingPage() {
         <SectionHeading
           eyebrow="Still free"
           title={`The other ${liveToolCount - 1}+ tools cost nothing`}
-          description="Credits apply only where a GPU is involved. Everything else on the site runs on cheap CPU processing and stays free, unlimited, and sign-up free."
+          description="Credits apply only where a GPU is involved. Everything else runs on cheap CPU processing and stays free, unlimited, and sign-up free."
         />
         <div className="mt-6 flex items-start gap-3 rounded-xl border border-graphite-800 bg-graphite-900 p-5">
           <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-amber-400" />
@@ -221,23 +262,20 @@ export default async function PricingPage() {
   );
 }
 
-function ValueProp({
-  icon,
-  title,
+function SpecRow({
+  label,
   children,
 }: {
-  icon: React.ReactNode;
-  title: string;
+  label: string;
   children: React.ReactNode;
 }) {
   return (
-    <li className="rounded-xl border border-graphite-800 bg-graphite-900 p-4">
-      <div className="flex items-center gap-2 text-amber-400">
-        {icon}
-        <span className="text-sm font-medium text-text-primary">{title}</span>
-      </div>
-      <p className="mt-1.5 text-sm leading-relaxed text-text-muted">{children}</p>
-    </li>
+    <div className="flex flex-col gap-0.5 border-b border-graphite-800 px-4 py-3 last:border-b-0 sm:flex-row sm:gap-4">
+      <dt className="shrink-0 font-mono text-[11px] uppercase tracking-[0.14em] text-text-subtle sm:w-36 sm:pt-0.5">
+        {label}
+      </dt>
+      <dd className="text-sm leading-relaxed text-text-primary">{children}</dd>
+    </div>
   );
 }
 
