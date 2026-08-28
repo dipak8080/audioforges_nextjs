@@ -579,8 +579,18 @@ export function YouTubeUrlForm({
         {toolMeta && <span className="font-mono text-[11px] text-text-subtle">{toolMeta}</span>}
       </div>
 
-      <div className="space-y-6 p-6 sm:p-8">
+      {/*
+        ZONES SEPARATED BY HAIRLINES, NOT BY MORE VERTICAL SPACE.
+        This was one padded box with `space-y-6` between every block, so the
+        URL field, the video preview, the tool's controls and the progress
+        panel all sat at the same level with nothing grouping them. `divide-y`
+        draws a rule between whichever sections render — the layout contract
+        TranscriptionForm already documents. Applies to every /youtube/* tool.
+      */}
+      <div className="divide-y divide-graphite-800">
+        {/* SOURCE — the link, and what it resolved to. */}
         {status !== "complete" && (
+          <section className="space-y-4 p-6 sm:p-8">
           <div className="space-y-2">
             <label htmlFor="youtube-url" className="text-sm font-medium text-text-primary">
               Paste a YouTube link
@@ -658,13 +668,11 @@ export function YouTubeUrlForm({
               </p>
             )}
           </div>
-        )}
 
-        {/* ---------- Video preview ----------
-            Above renderControls (Quality/Notify) so it sits immediately below
-            the URL input on every tool, matching the simplest form (Key & BPM
-            Finder) that has no extra controls to push it further down. */}
-        {preview && !isBusy && status !== "complete" && (
+          {/* The video the link resolved to, inside the same zone as the field
+              that produced it — it is confirmation OF the input, not a
+              separate block of its own. */}
+          {preview && !isBusy && (
           <div className="flex items-center gap-4 rounded-lg border border-graphite-800 bg-graphite-850/60 p-3">
             <div className="relative h-14 w-24 shrink-0 overflow-hidden rounded-md bg-graphite-800">
               {!thumbFailed && (
@@ -685,12 +693,19 @@ export function YouTubeUrlForm({
               <p className="mt-0.5 truncate text-xs text-text-muted">{preview.author || preview.id}</p>
             </div>
             <CheckCircle2 className="h-4 w-4 shrink-0 text-teal-400" aria-hidden />
-          </div>
+            </div>
+          )}
+          </section>
         )}
 
-        {status !== "complete" && renderControls && renderControls(isBusy, Boolean(videoId))}
+        {/* SETTINGS — whatever this tool needs before it can run. */}
+        {status !== "complete" && renderControls && (
+          <section className="p-6 sm:p-8">{renderControls(isBusy, Boolean(videoId))}</section>
+        )}
 
+        {/* WORKING */}
         {isBusy && (
+          <section className="p-6 sm:p-8">
           <div
             className="space-y-3 rounded-lg border border-graphite-800 bg-graphite-850/60 p-4"
             role="status"
@@ -737,10 +752,12 @@ export function YouTubeUrlForm({
               {expectedRange ? `Typically ${expectedRange}. ` : ""}Keep this tab open.
             </p>
           </div>
+          </section>
         )}
 
+        {/* RESULT */}
         {status === "complete" && jobId && (
-          <div className="space-y-4" role="status" aria-live="polite">
+          <section className="space-y-4 p-6 sm:p-8" role="status" aria-live="polite">
             {preview && (
               <div className="flex items-center gap-3 border-b border-graphite-800 pb-4">
                 {!thumbFailed && (
@@ -789,11 +806,12 @@ export function YouTubeUrlForm({
               <RotateCcw />
               Process another link
             </Button>
-          </div>
+          </section>
         )}
 
+        {/* FAILED */}
         {isFailed && error && (
-          <div className="space-y-4">
+          <section className="space-y-4 p-6 sm:p-8">
             <div
               className="flex items-start gap-3 rounded-lg border border-red-500/25 bg-red-500/[0.07] p-4"
               role="alert"
@@ -818,16 +836,19 @@ export function YouTubeUrlForm({
               </div>
             </div>
             <SupportBlock />
-          </div>
+          </section>
         )}
 
+        {/* ACTION BAR. Recessed and pinned to the bottom edge so the primary
+            control sits in the same place in every state. */}
         {status !== "complete" && (
-          /* Stays visible with no link, unlike the upload forms which hide
+          <div className="rounded-b-2xl bg-graphite-950/40 p-4 sm:px-8 sm:py-5">
+          {/* Stays visible with no link, unlike the upload forms which hide
              their submit: here the input is directly above it and the pair
              reads as one control, so removing half of it would be stranger
              than dimming it. Neutral until the link parses — a disabled amber
              fill at 40% opacity renders as a muddy brown bar rather than an
-             inactive one. */
+             inactive one. */}
           <Button
             variant={videoId || isFailed ? "primary" : "secondary"}
             size="lg"
@@ -845,6 +866,7 @@ export function YouTubeUrlForm({
                   ? "Try again"
                   : submitLabel}
           </Button>
+          </div>
         )}
       </div>
 

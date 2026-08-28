@@ -490,15 +490,20 @@ export function YouTubeStemForm({ hqAvailable = false }: YouTubeStemFormProps) {
             </fieldset>
           )}
 
-          {notifyPermission !== "unsupported" && (
-            /* aria-pressed: this is a toggle, and without it a screen reader
-               announces the same thing whether notifications are on or off. The
-               visible label changes; the accessible state didn't. The other two
-               separation forms already carried this — it was missed here. */
+          {/*
+            HIDDEN UNTIL THERE IS A LINK, not shown disabled. With an empty
+            field this was a full-width greyed-out row that does nothing, and a
+            disabled control is still a control the eye has to process and
+            dismiss. Nothing to notify you about until there's a job.
+
+            aria-pressed: it's a toggle, and without it a screen reader
+            announces the same thing whether notifications are on or off.
+          */}
+          {notifyPermission !== "unsupported" && hasUrl && (
             <button
               type="button"
               onClick={handleNotifyToggle}
-              disabled={disabled || !hasUrl}
+              disabled={disabled}
               aria-pressed={notifyEnabled && notifyPermission === "granted"}
               className={cn(
                 "flex w-full items-center gap-2.5 rounded-lg border px-3.5 py-2.5 text-left text-sm transition-colors",

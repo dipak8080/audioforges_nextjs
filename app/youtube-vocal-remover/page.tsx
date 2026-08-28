@@ -208,15 +208,20 @@ export default async function YouTubeVocalRemoverPage() {
         {/* Tool stays first — SEO content supports it, doesn't bury it */}
         <YouTubeSeparateForm hqAvailable={separationHqEnabled} />
 
-        <section className="grid gap-4 sm:grid-cols-3">
+        {/* One bordered strip with hairline dividers, matching /vocal-remover
+            and /stems: three floating boxes under the tool read as three more
+            things to deal with; divided cells read as one row of facts. */}
+        <section className="grid divide-y divide-graphite-800 overflow-hidden rounded-xl border border-graphite-800 bg-graphite-900 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
           {[
             { title: "No download step", desc: "Paste a link, skip the save-and-reupload." },
             { title: "Both tracks", desc: "Isolated vocals and the instrumental, downloaded separately." },
             { title: "Free", desc: "No sign-up, no watermark, free for everyone." },
           ].map((f) => (
-            <div key={f.title} className="rounded-xl border border-graphite-800 bg-graphite-900 p-5 space-y-2">
-              <p className="font-semibold text-text-primary">{f.title}</p>
-              <p className="text-sm text-text-muted">{f.desc}</p>
+            <div key={f.title} className="space-y-1.5 p-5">
+              <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-amber-400">
+                {f.title}
+              </p>
+              <p className="text-sm leading-relaxed text-text-muted">{f.desc}</p>
             </div>
           ))}
         </section>
@@ -307,42 +312,54 @@ export default async function YouTubeVocalRemoverPage() {
             <h2 className="text-2xl font-bold text-text-primary">Standard vs. Studio Quality</h2>
             <div className="overflow-x-auto rounded-xl border border-graphite-800">
               <table className="w-full text-sm text-left text-text-muted">
-                <thead className="bg-graphite-900 text-text-primary">
+                <thead className="bg-graphite-900">
                   <tr>
-                    <th className="px-4 py-3 font-semibold">&nbsp;</th>
-                    <th className="px-4 py-3 font-semibold">Standard</th>
-                    <th className="px-4 py-3 font-semibold">Studio Quality</th>
+                    <th className="w-1/4 px-4 py-3">
+                      <span className="sr-only">Comparison</span>
+                    </th>
+                    <th className="px-4 py-3 font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-text-subtle">
+                      Standard
+                    </th>
+                    <th className="px-4 py-3 font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-amber-400">
+                      Studio Quality
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-graphite-800">
                   <tr>
-                    <td className="px-4 py-3 font-medium text-text-primary">Processing time</td>
-                    <td className="px-4 py-3">30 sec–1 minute</td>
-                    <td className="px-4 py-3">1–2 minutes</td>
+                    <td className="px-4 py-3 font-medium text-text-subtle">Processing time</td>
+                    <td className="px-4 py-3 font-mono tabular-nums">30 sec–1 min</td>
+                    <td className="px-4 py-3 font-mono tabular-nums text-text-primary">
+                      1–2 min
+                    </td>
                   </tr>
                   <tr>
                     {/* Pulled from lib/data/tool-limits.ts (getDurationLabel).
                         The two tiers have genuinely different caps — HQ holds
                         the single separation slot several times longer — so
                         this row is not decorative. Do not hardcode it. */}
-                    <td className="px-4 py-3 font-medium text-text-primary">Max video length</td>
-                    <td className="px-4 py-3">{standardDurationLabel}</td>
-                    <td className="px-4 py-3">{hqDurationLabel}</td>
+                    <td className="px-4 py-3 font-medium text-text-subtle">Max video length</td>
+                    <td className="px-4 py-3 font-mono tabular-nums">{standardDurationLabel}</td>
+                    <td className="px-4 py-3 font-mono tabular-nums text-text-primary">
+                      {hqDurationLabel}
+                    </td>
                   </tr>
                   <tr>
-                    <td className="px-4 py-3 font-medium text-text-primary">Separation quality</td>
+                    <td className="px-4 py-3 font-medium text-text-subtle">Separation quality</td>
                     <td className="px-4 py-3">Good for most tracks</td>
                     <td className="px-4 py-3">Noticeably cleaner on both stems</td>
                   </tr>
                   <tr>
                     {/* Pulled from lib/data/rate-limits.ts (getRateLimitLabel) —
                         do not hardcode these two cells again. */}
-                    <td className="px-4 py-3 font-medium text-text-primary">Usage limit</td>
-                    <td className="px-4 py-3">{standardLimitLabel}</td>
-                    <td className="px-4 py-3">{hqLimitLabel}</td>
+                    <td className="px-4 py-3 font-medium text-text-subtle">Usage limit</td>
+                    <td className="px-4 py-3 font-mono tabular-nums">{standardLimitLabel}</td>
+                    <td className="px-4 py-3 font-mono tabular-nums text-text-primary">
+                      {hqLimitLabel}
+                    </td>
                   </tr>
                   <tr>
-                    <td className="px-4 py-3 font-medium text-text-primary">Best for</td>
+                    <td className="px-4 py-3 font-medium text-text-subtle">Best for</td>
                     <td className="px-4 py-3">Quick previews, casual use</td>
                     <td className="px-4 py-3">Sampling, remixing, anything going into a final mix</td>
                   </tr>

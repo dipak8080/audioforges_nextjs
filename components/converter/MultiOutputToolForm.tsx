@@ -636,8 +636,20 @@ export function MultiOutputToolForm({
         {toolMeta && <span className="font-mono text-[11px] text-text-subtle">{toolMeta}</span>}
       </div>
 
-      <div className="space-y-6 p-6 sm:p-8">
+      {/*
+        ZONES SEPARATED BY HAIRLINES, NOT BY MORE VERTICAL SPACE.
+        This was one padded box with `space-y-6` between every block, so the
+        dropzone, the tool's own controls and the progress panel all sat at the
+        same level with nothing grouping them — a pile of widgets rather than a
+        panel with parts. `divide-y` draws a rule between whichever sections
+        actually render, which is the layout contract TranscriptionForm already
+        documents. Applies to every caller: /stems, /silence-split and
+        /youtube/stems.
+      */}
+      <div className="divide-y divide-graphite-800">
+        {/* SOURCE — the file, and anything wrong with it. */}
         {status !== "complete" && (
+          <section className="space-y-4 p-6 sm:p-8">
           <FileDropZone
             onFileSelect={handleFileSelect}
             currentFile={file}
@@ -645,21 +657,29 @@ export function MultiOutputToolForm({
             disabled={isBusy}
             accept={fileAccept}
           />
+
+          {/* An error about the file belongs beside the file, not below the
+              tool's controls. */}
+          {validationError && (
+            <div
+              className="flex items-start gap-3 rounded-lg border border-red-500/25 bg-red-500/[0.07] p-4"
+              role="alert"
+            >
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-400" aria-hidden />
+              <span className="text-sm text-text-primary">{validationError}</span>
+            </div>
+          )}
+          </section>
         )}
 
-        {validationError && (
-          <div
-            className="flex items-start gap-3 rounded-lg border border-red-500/25 bg-red-500/[0.07] p-4"
-            role="alert"
-          >
-            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-400" aria-hidden />
-            <span className="text-sm text-text-primary">{validationError}</span>
-          </div>
+        {/* SETTINGS — whatever this tool needs before it can run. */}
+        {status !== "complete" && controls && (
+          <section className="p-6 sm:p-8">{controls}</section>
         )}
 
-        {status !== "complete" && controls && <div>{controls}</div>}
-
+        {/* WORKING */}
         {isBusy && (
+          <section className="p-6 sm:p-8">
           <div
             className="space-y-3 rounded-lg border border-graphite-800 bg-graphite-850/60 p-4"
             role="status"
@@ -713,10 +733,12 @@ export function MultiOutputToolForm({
               {chargedRun && " This run has already used its credit — stopping here won't return it."}
             </p>
           </div>
+          </section>
         )}
 
+        {/* RESULT */}
         {status === "complete" && jobId && (
-          <div className="space-y-4" role="status" aria-live="polite">
+          <section className="space-y-4 p-6 sm:p-8" role="status" aria-live="polite">
             <div className="border-b border-graphite-800 pb-4">
               <div className="flex items-center gap-2">
                 <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-teal-400">
@@ -845,11 +867,12 @@ export function MultiOutputToolForm({
               <RotateCcw />
               Process another file
             </Button>
-          </div>
+          </section>
         )}
 
+        {/* FAILED */}
         {isFailed && error && (
-          <div className="space-y-4">
+          <section className="space-y-4 p-6 sm:p-8">
             <div
               className="flex items-start gap-3 rounded-lg border border-red-500/25 bg-red-500/[0.07] p-4"
               role="alert"
@@ -874,15 +897,20 @@ export function MultiOutputToolForm({
               </div>
             </div>
             <SupportBlock />
-          </div>
+          </section>
         )}
 
-        {/* Hidden until there's a file, rather than shown disabled — a
+        {/* ACTION BAR. Recessed and pinned to the bottom edge so the primary
+            control sits in the same place in every state, rather than being
+            the last item in whichever stack happens to be rendered.
+
+            Hidden until there's a file, rather than shown disabled — a
             full-width h-12 slab at 40% opacity carries the weight of the
             primary action while doing nothing, and a dimmed amber fill renders
             as a muddy brown bar. isFailed keeps "Try again" reachable after an
             error. */}
         {status !== "complete" && (file || isFailed) && (
+          <div className="rounded-b-2xl bg-graphite-950/40 p-4 sm:px-8 sm:py-5">
           <Button
             variant="primary"
             size="lg"
@@ -900,6 +928,7 @@ export function MultiOutputToolForm({
                   ? "Try again"
                   : submitLabel}
           </Button>
+          </div>
         )}
       </div>
 

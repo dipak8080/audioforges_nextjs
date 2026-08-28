@@ -154,8 +154,12 @@ export default async function StemsPage() {
     },
     {
       question: "Do I need to sign up or install anything?",
+      // CORRECTED: claimed "Everything runs in your browser". Separation runs
+      // Demucs on GPU infrastructure server-side, which this page states
+      // plainly further down — the two contradicted each other. Same fix
+      // already applied to the equivalent answer on /vocal-remover (FIX 5).
       answer:
-        "No. Everything runs in your browser — upload a track, wait for processing, and download the stems directly. No app, software, or account required.",
+        "No app, plugin, or account required. You upload a track through your browser, separation runs on the server, and you download the stems when it finishes. Nothing runs locally on your machine.",
     },
     {
       question: "Can I split a YouTube video into stems directly?",
@@ -198,15 +202,25 @@ export default async function StemsPage() {
 
         <StemsForm hqAvailable={separationHqEnabled} />
 
-        <section className="grid gap-4 sm:grid-cols-3">
+        {/* One bordered strip with hairline dividers, matching /vocal-remover:
+            three floating boxes under the tool read as three more things to
+            deal with; divided cells read as one row of facts about it. */}
+        <section className="grid divide-y divide-graphite-800 overflow-hidden rounded-xl border border-graphite-800 bg-graphite-900 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
           {[
             { title: "4 stems", desc: "Vocals, drums, bass, and other — not just a 2-way split." },
-            { title: "No download", desc: "Runs entirely in your browser. Upload, process, download." },
+            // CORRECTED: said "Runs entirely in your browser", which is false —
+            // separation runs server-side on GPU, and this page's own "How
+            // 4-stem separation works" section says so three screens down. The
+            // identical claim was already fixed on /vocal-remover (FIX 4); this
+            // copy of it was missed.
+            { title: "No install", desc: "Nothing to download. Upload, process, download in your browser." },
             { title: "Free", desc: "No sign-up, no watermark, free for everyone." },
           ].map((f) => (
-            <div key={f.title} className="rounded-xl border border-graphite-800 bg-graphite-900 p-5 space-y-2">
-              <p className="font-semibold text-text-primary">{f.title}</p>
-              <p className="text-sm text-text-muted">{f.desc}</p>
+            <div key={f.title} className="space-y-1.5 p-5">
+              <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-amber-400">
+                {f.title}
+              </p>
+              <p className="text-sm leading-relaxed text-text-muted">{f.desc}</p>
             </div>
           ))}
         </section>
@@ -291,36 +305,44 @@ export default async function StemsPage() {
           <h2 className="text-2xl font-bold text-text-primary">Stem Splitter vs. Vocal Remover</h2>
           <div className="overflow-x-auto rounded-xl border border-graphite-800">
             <table className="w-full text-sm text-left text-text-muted">
-              <thead className="bg-graphite-900 text-text-primary">
+              <thead className="bg-graphite-900">
                 <tr>
-                  <th className="px-4 py-3 font-semibold">&nbsp;</th>
-                  <th className="px-4 py-3 font-semibold">Stem Splitter</th>
-                  <th className="px-4 py-3 font-semibold">Vocal Remover</th>
+                  <th className="w-1/4 px-4 py-3">
+                    <span className="sr-only">Comparison</span>
+                  </th>
+                  {/* This page's own tool is the subject; amber says which
+                      column the reader is being asked to weigh. */}
+                  <th className="px-4 py-3 font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-amber-400">
+                    Stem Splitter
+                  </th>
+                  <th className="px-4 py-3 font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-text-subtle">
+                    Vocal Remover
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-graphite-800">
                 <tr>
-                  <td className="px-4 py-3 font-medium text-text-primary">Vocals</td>
+                  <td className="px-4 py-3 font-medium text-text-subtle">Vocals</td>
                   <td className="px-4 py-3"><CheckMark /></td>
                   <td className="px-4 py-3"><CheckMark /></td>
                 </tr>
                 <tr>
-                  <td className="px-4 py-3 font-medium text-text-primary">Drums</td>
+                  <td className="px-4 py-3 font-medium text-text-subtle">Drums</td>
                   <td className="px-4 py-3"><CheckMark /></td>
                   <td className="px-4 py-3">Combined into instrumental</td>
                 </tr>
                 <tr>
-                  <td className="px-4 py-3 font-medium text-text-primary">Bass</td>
+                  <td className="px-4 py-3 font-medium text-text-subtle">Bass</td>
                   <td className="px-4 py-3"><CheckMark /></td>
                   <td className="px-4 py-3">Combined into instrumental</td>
                 </tr>
                 <tr>
-                  <td className="px-4 py-3 font-medium text-text-primary">Output</td>
+                  <td className="px-4 py-3 font-medium text-text-subtle">Output</td>
                   <td className="px-4 py-3">4 separate stems</td>
                   <td className="px-4 py-3">2 stems (vocal + instrumental)</td>
                 </tr>
                 <tr>
-                  <td className="px-4 py-3 font-medium text-text-primary">Best for</td>
+                  <td className="px-4 py-3 font-medium text-text-subtle">Best for</td>
                   <td className="px-4 py-3">Sampling, remixing individual elements</td>
                   <td className="px-4 py-3">Karaoke, simple instrumentals</td>
                 </tr>
@@ -391,33 +413,43 @@ export default async function StemsPage() {
             <h2 className="text-2xl font-bold text-text-primary">Standard vs. Studio Quality</h2>
             <div className="overflow-x-auto rounded-xl border border-graphite-800">
               <table className="w-full text-sm text-left text-text-muted">
-                <thead className="bg-graphite-900 text-text-primary">
+                <thead className="bg-graphite-900">
                   <tr>
-                    <th className="px-4 py-3 font-semibold">&nbsp;</th>
-                    <th className="px-4 py-3 font-semibold">Standard</th>
-                    <th className="px-4 py-3 font-semibold">Studio Quality</th>
+                    <th className="w-1/4 px-4 py-3">
+                      <span className="sr-only">Comparison</span>
+                    </th>
+                    <th className="px-4 py-3 font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-text-subtle">
+                      Standard
+                    </th>
+                    <th className="px-4 py-3 font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-amber-400">
+                      Studio Quality
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-graphite-800">
                   <tr>
-                    <td className="px-4 py-3 font-medium text-text-primary">Processing time</td>
-                    <td className="px-4 py-3">20 sec–1 minute</td>
-                    <td className="px-4 py-3">1–2 minutes</td>
+                    <td className="px-4 py-3 font-medium text-text-subtle">Processing time</td>
+                    <td className="px-4 py-3 font-mono tabular-nums">20 sec–1 min</td>
+                    <td className="px-4 py-3 font-mono tabular-nums text-text-primary">
+                      1–2 min
+                    </td>
                   </tr>
                   <tr>
-                    <td className="px-4 py-3 font-medium text-text-primary">Separation quality</td>
+                    <td className="px-4 py-3 font-medium text-text-subtle">Separation quality</td>
                     <td className="px-4 py-3">Good for most tracks</td>
                     <td className="px-4 py-3">Noticeably cleaner across all four stems</td>
                   </tr>
                   <tr>
                     {/* Pulled from lib/data/rate-limits.ts (getRateLimitLabel) —
                         do not hardcode these two cells again. */}
-                    <td className="px-4 py-3 font-medium text-text-primary">Usage limit</td>
-                    <td className="px-4 py-3">{standardLimitLabel}</td>
-                    <td className="px-4 py-3">{hqLimitLabel}</td>
+                    <td className="px-4 py-3 font-medium text-text-subtle">Usage limit</td>
+                    <td className="px-4 py-3 font-mono tabular-nums">{standardLimitLabel}</td>
+                    <td className="px-4 py-3 font-mono tabular-nums text-text-primary">
+                      {hqLimitLabel}
+                    </td>
                   </tr>
                   <tr>
-                    <td className="px-4 py-3 font-medium text-text-primary">Best for</td>
+                    <td className="px-4 py-3 font-medium text-text-subtle">Best for</td>
                     <td className="px-4 py-3">Quick previews, casual use</td>
                     <td className="px-4 py-3">Sampling, remixing, anything going into a final mix</td>
                   </tr>
