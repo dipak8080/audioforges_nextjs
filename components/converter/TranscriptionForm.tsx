@@ -44,6 +44,11 @@ import {
 import { TranscriptView } from "@/components/converter/TranscriptView";
 import { SAMPLE_TRANSCRIPT } from "@/lib/data/sample-transcript";
 import { getRateLimitLabel, getRetryAfterFallback } from "@/lib/data/rate-limits";
+import { useCreditGate } from "@/components/credits/useCreditGate";
+import { useCredits } from "@/components/credits/CreditProvider";
+import { FreeTierBadge } from "@/components/credits/FreeTierBadge";
+import { CreditReceipt } from "@/components/credits/CreditReceipt";
+import type { SubmitBilling } from "@/lib/types/converter";
 
 /* ==================================================================== */
 /* Layout contract                                                      */
@@ -313,6 +318,29 @@ export function TranscriptionForm({ mode, languages: initialLanguages }: Transcr
   const [serverTitle, setServerTitle] = useState<string | null>(null);
   const [cooldownSeconds, setCooldownSeconds] = useState(0);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  /** What the server said it charged. Reported verbatim, never inferred. */
+  const [billing, setBilling] = useState<SubmitBilling | null>(null);
+
+  /**
+   * CREDITS.
+   *
+   * All three transcription routes are metered under ONE shared rule key,
+   * "transcribe" — they hit one RunPod endpoint and one concurrency pool, so
+   * three keys would hand a caller three budgets for one resource. Everything
+   * below therefore badges, charges and reports against that single key, and
+   * the copy says the allowance is shared rather than letting someone assume
+   * two free runs per tool.
+   *
+   * onCredited re-runs the submit once the gate closes on a purchase, so
+   * buying mid-task doesn't dump the user back onto a form they have to
+   * re-trigger by hand.
+   */
+  const submitRef = useRef<() => void>(() => {});
+  const { catchCreditError, gate } = useCreditGate({
+    onCredited: () => submitRef.current(),
+  });
+  const { applyBalance, isToolMetered, freeRemaining, balance } = useCredits();
+  const metered = isToolMetered("transcribe");
 
   const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pollStartedAtRef = useRef(0);
@@ -576,6 +604,9 @@ export function TranscriptionForm({ mode, languages: initialLanguages }: Transcr
     setServerTitle(null);
     setIsSample(false);
     setElapsedSeconds(0);
+    // A cleared form describes no job, so it must not carry the last one's
+    // receipt into the next render.
+    setBilling(null);
     if (isUrlMode) inputRef.current?.focus();
   };
 
@@ -611,6 +642,7 @@ export function TranscriptionForm({ mode, languages: initialLanguages }: Transcr
 
     try {
       let jobId: string;
+      let jobBilling: SubmitBilling | null = null;
 
       if (isUrlMode) {
         const check = validateYouTubeUrl(url.trim());
@@ -623,6 +655,7 @@ export function TranscriptionForm({ mode, languages: initialLanguages }: Transcr
           signal: controller.signal,
         });
         jobId = res.job_id;
+        jobBilling = res.billing ?? null;
       } else if (mode === "video") {
         const res = await submitVideoToText(file!, options, {
           signal: controller.signal,
@@ -632,6 +665,7 @@ export function TranscriptionForm({ mode, languages: initialLanguages }: Transcr
           },
         });
         jobId = res.job_id;
+        jobBilling = res.billing ?? null;
       } else {
         const res = await submitSpeechToText(file!, options, {
           signal: controller.signal,
@@ -641,17 +675,41 @@ export function TranscriptionForm({ mode, languages: initialLanguages }: Transcr
           },
         });
         jobId = res.job_id;
+        jobBilling = res.billing ?? null;
       }
 
       if (cancelledRef.current) return;
       setUpload(null);
       setStatus("processing");
+
+      // The metered route reports what it just charged, so the navbar pill
+      // updates from THIS response rather than a follow-up /credits/me — no
+      // stale number on screen, and no extra request at the one moment the
+      // user is watching the count change.
+      setBilling(jobBilling);
+      if (jobBilling) {
+        applyBalance(jobBilling.balance, jobBilling.free_remaining);
+      }
+
       pollStartedAtRef.current = Date.now();
       poll(jobId);
     } catch (err) {
       // A cancelled request rejects with a raw AbortError, not an
       // ApiError — check that before anything else.
       if (cancelledRef.current || controller.signal.aborted) return;
+
+      // Out of credits is a DECISION POINT, not a failure. Returning to idle
+      // keeps the file or link and the language/output choices, so buying and
+      // pressing the button again just works — and nothing red is rendered.
+      //
+      // Before this, a 402 had no case in toTranscriptionError() either, so it
+      // surfaced as "The request failed. Please try again." with no gate and
+      // no prices: a hard dead end reached by anyone whose per-IP monthly
+      // allowance ran out.
+      if (catchCreditError(err)) {
+        setStatus("idle");
+        return;
+      }
 
       if (err instanceof ApiError) {
         setError({ message: err.message, retryable: err.retryable !== false });
@@ -668,6 +726,12 @@ export function TranscriptionForm({ mode, languages: initialLanguages }: Transcr
     } finally {
       abortRef.current = null;
     }
+  };
+
+  // Assigned during render so onCredited always calls the CURRENT
+  // handleSubmit rather than the one captured at first mount.
+  submitRef.current = () => {
+    void handleSubmit();
   };
 
   /* --- derived ----------------------------------------------------- */
@@ -1113,9 +1177,22 @@ export function TranscriptionForm({ mode, languages: initialLanguages }: Transcr
             previewSrc={isSample ? SAMPLE_TRANSCRIPT.audioUrl : previewUrl}
             sampleNote={isSample ? SAMPLE_TRANSCRIPT.attribution : undefined}
           />
-          <div className="mt-5">
-            <SupportBlock />
-          </div>
+
+          {/* Renders nothing on a free tool, a free run, or the canned demo —
+              only a real run that spent something says so. */}
+          {!isSample && (
+            <div className="mt-5">
+              <CreditReceipt billing={billing} />
+            </div>
+          )}
+
+          {/* Asking for a tip immediately after charging someone a credit is a
+              bad look. A free run is still free, so it keeps the block. */}
+          {billing?.charged !== "credit" && (
+            <div className="mt-5">
+              <SupportBlock />
+            </div>
+          )}
         </section>
       )}
 
@@ -1169,6 +1246,10 @@ export function TranscriptionForm({ mode, languages: initialLanguages }: Transcr
               disabled={!canSubmit}
             >
               {isUrlMode ? <Link2 /> : mode === "video" ? <Film /> : <Mic />}
+              {/* Renders nothing while the paywall is off or this rule is
+                  disabled. When it is on, this is the only thing on the page
+                  that says a run costs something before it's spent. */}
+              <FreeTierBadge tool="transcribe" className="ml-0.5" />
               {cooldownSeconds > 0
                 ? `Try again in ${formatCooldown(cooldownSeconds)}`
                 : status === "failed" && error?.retryable
@@ -1186,6 +1267,30 @@ export function TranscriptionForm({ mode, languages: initialLanguages }: Transcr
                   <span className="text-text-muted">
                     Rate limit reached. The window clears in {formatCooldown(cooldownSeconds)}.
                   </span>
+                ) : metered ? (
+                  /*
+                    THE SHARED ALLOWANCE, SAID OUT LOUD.
+                    All three transcription tools draw on ONE "transcribe"
+                    budget. Someone who reads "2 free" on this page and spends
+                    one here will find one — not two — waiting on
+                    /youtube-to-text, and discovering that by surprise feels
+                    like being short-changed. So it's stated before the click,
+                    not after.
+
+                    No per-hour figure while metered: the shared rule is tiered
+                    (2/hour free, 30/hour credited) and /credits/me's
+                    rate_limit.tools does not yet carry "transcribe", so any
+                    number printed here would be right for one tier and a lie
+                    to the other. The duration cap is safe — it applies to
+                    everyone, paid or not.
+                  */
+                  <>
+                    {balance > 0
+                      ? "1 credit per transcription"
+                      : `${freeRemaining} free ${freeRemaining === 1 ? "run" : "runs"} left this month`}
+                    , shared across all three transcription tools. Up to{" "}
+                    {TRANSCRIPTION_LIMITS.durationSeconds / 60} min per file.
+                  </>
                 ) : (
                   <>
                     Free, no account. Up to {TRANSCRIPTION_LIMITS.durationSeconds / 60} min per file
@@ -1210,6 +1315,8 @@ export function TranscriptionForm({ mode, languages: initialLanguages }: Transcr
           </>
         )}
       </div>
+
+      {gate}
     </div>
   );
 }

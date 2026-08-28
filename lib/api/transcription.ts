@@ -22,6 +22,8 @@
 // want two copies of.
 
 import { ApiError, RAILWAY_API_BASE, fetchWithTimeout, readRetryAfter, type RequestOptions } from "@/lib/api/railway";
+import type { InsufficientCreditsPayload } from "@/lib/types/credits";
+import type { SubmitBilling } from "@/lib/types/converter";
 
 /* ------------------------------------------------------------------ */
 /* Endpoints                                                           */
@@ -164,15 +166,26 @@ export type TranscriptionErrorKind =
   | "server_error"
   | "unknown";
 
-async function readDetail(res: Response): Promise<string> {
+/**
+ * Reads the body ONCE and returns both shapes, because a 402's `detail` is an
+ * OBJECT carrying the whole gate payload while every other status carries a
+ * string. The body is a stream — reading it twice throws — so the object had
+ * to come out of the same pass that produced the message.
+ */
+async function readDetail(res: Response): Promise<{ text: string; obj: Record<string, unknown> | null }> {
   try {
     const body = await res.json();
-    if (typeof body?.detail === "string") return body.detail;
-    if (Array.isArray(body?.detail) && body.detail[0]?.msg) return body.detail[0].msg;
+    const detail = body?.detail;
+    if (typeof detail === "string") return { text: detail, obj: null };
+    if (Array.isArray(detail) && detail[0]?.msg) return { text: detail[0].msg, obj: null };
+    if (detail && typeof detail === "object") {
+      const obj = detail as Record<string, unknown>;
+      return { text: typeof obj.message === "string" ? obj.message : "", obj };
+    }
   } catch {
     /* Cloudflare error page, empty body, HTML */
   }
-  return "";
+  return { text: "", obj: null };
 }
 
 /**
@@ -187,8 +200,31 @@ async function readDetail(res: Response): Promise<string> {
  * to render, and to supply copy only where the server sent none.
  */
 async function toTranscriptionError(res: Response): Promise<ApiError> {
-  const detail = await readDetail(res);
+  const { text: detail, obj } = await readDetail(res);
   const retryAfter = readRetryAfter(res);
+
+  /**
+   * OUT OF CREDITS — a decision point, not a failure.
+   *
+   * This case did not exist. All three transcription routes have been metered
+   * since the paywall change, and a 402 from any of them fell through to
+   * `default` and rendered "The request failed. Please try again." with no
+   * gate, no prices and no way forward. Because `free_remaining` is
+   * min(owner_remaining, ip_remaining) and the IP counter survives a missing
+   * cookie, the 402 arrives for real once the per-IP monthly allowance is
+   * spent — so this was a hard dead end, reached by anyone who transcribes a
+   * few files in a month.
+   *
+   * `insufficientCredits` is what useCreditGate branches on; without it
+   * catchCreditError() can never return true and the modal is unreachable.
+   */
+  if (res.status === 402 && obj?.error === "insufficient_credits") {
+    return new ApiError(detail || "You're out of credits for transcription.", 402, {
+      kind: "insufficient_credits",
+      retryable: false,
+      insufficientCredits: obj as unknown as InsufficientCreditsPayload,
+    });
+  }
 
   const build = (
     fallback: string,
@@ -314,6 +350,23 @@ function uploadWithProgress(
     const xhr = new XMLHttpRequest();
     xhr.open("POST", url);
     xhr.timeout = opts.timeoutMs;
+    /**
+     * THE IDENTITY FIX. Without this, `af_sid` is neither sent nor stored on a
+     * cross-origin request to api.audioforges.com — XHR drops cookies by
+     * default exactly as fetch does. Every upload therefore arrived as a
+     * brand-new anonymous subject, so no balance was ever visible and the
+     * owner-side free counter reset on every request.
+     *
+     * The IP-side counter does NOT reset, and `free_remaining` is
+     * min(owner_remaining, ip_remaining) — which is why the failure showed up
+     * as a sudden unexplained 402 once the monthly per-IP allowance ran out,
+     * rather than as a billing problem.
+     *
+     * Unconditional, unlike railway.ts's `isMetered` gate: there is no tier
+     * toggle here, all three routes are metered under one rule, and an
+     * identity that only forms sometimes is worse than one that always does.
+     */
+    xhr.withCredentials = true;
 
     const onAbort = () => xhr.abort();
     opts.signal?.addEventListener("abort", onAbort, { once: true });
@@ -381,6 +434,15 @@ export interface TranscriptionSubmitResponse {
   job_id: string;
   status: "processing";
   /**
+   * Present on all three routes now that they are metered. Was missing from
+   * this type, so the block the server sends was silently dropped: no receipt,
+   * no balance update, no navbar refresh after a run.
+   *
+   * `charged` is the string "none" when the tool's rule is off — never JSON
+   * null. See SubmitBilling.
+   */
+  billing?: SubmitBilling;
+  /**
    * The RESOLVED options after normalisation — not an echo of what was
    * sent. `language` is null when auto-detecting. Use this to render
    * accurate progress text ("Translating to English…") instead of
@@ -437,7 +499,9 @@ export async function submitYoutubeTranscribe(
 
   const res = await fetchWithTimeout(
     `${RAILWAY_API_BASE}/youtube/transcribe`,
-    { method: "POST", body: fd, signal: opts.signal },
+    // credentials: see the note on xhr.withCredentials above. This route is
+    // metered under the same "transcribe" rule as the two upload routes.
+    { method: "POST", body: fd, credentials: "include", signal: opts.signal },
     URL_SUBMIT_TIMEOUT_MS
   );
   if (!res.ok) throw await toTranscriptionError(res);

@@ -76,9 +76,16 @@ export function CreditReceipt({
 
   const { charged, balance, free_remaining } = billing;
 
-  // `charged: null` means the route was metered but nothing was taken —
-  // paywall mid-flight, or an already-upgraded job. Nothing to report.
-  if (charged === null) return null;
+  // "none" means the route was metered but nothing was taken — the global
+  // paywall is off, or this tool's own rule is disabled, so paywall.guard
+  // passed billable=False and charge_for_job took its not-billable branch.
+  //
+  // This read `charged === null` and could never fire: the backend sends the
+  // STRING "none" (Charge.charge_type is Literal["free","credit","none"]),
+  // never JSON null. A job on a disabled tool therefore fell through to the
+  // free branch and rendered "Free run used · 0 left this month" on a run
+  // that was never metered at all.
+  if (charged === "none") return null;
 
   const isCredit = charged === "credit";
 

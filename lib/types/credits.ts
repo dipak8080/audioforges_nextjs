@@ -191,9 +191,15 @@ export interface UpgradeInfoIneligible {
 
 export type UpgradeInfo = UpgradeInfoEligible | UpgradeInfoIneligible;
 
-/** POST /separate|stems/upgrade/{job_id} */
+/**
+ * POST /separate|stems/upgrade/{job_id}
+ *
+ * `charged` is the string "none", never JSON null — same shape and same
+ * reasoning as SubmitBilling in lib/types/converter.ts. Kept structurally
+ * identical so the two can be used interchangeably at call sites.
+ */
 export interface UpgradeBilling {
-  charged: "credit" | "free" | null;
+  charged: "credit" | "free" | "none";
   balance: number;
   free_remaining: number;
 }

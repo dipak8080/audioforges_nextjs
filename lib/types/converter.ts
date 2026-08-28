@@ -107,9 +107,24 @@ export type SeparationStatus =
   | "complete"
   | "failed";
 
-/** Billing outcome returned by a metered submit or upgrade route. */
+/**
+ * Billing outcome returned by a metered submit or upgrade route.
+ *
+ * `charged` is the string "none", NOT JSON null. It mirrors
+ * Charge.charge_type in credits/ledger.py, typed there as
+ * Literal["free", "credit", "none"], and every route serialises it
+ * verbatim. `charge_for_job` sets "none" in its `if not billable:` branch,
+ * which `paywall.guard` reaches whenever the global paywall is off OR that
+ * tool's own rule is disabled.
+ *
+ * This was declared as `| null` and no null is ever sent, so a
+ * `charged === null` guard could never fire. Consequence: flip any tool's
+ * rule off and every job returns "none", falls past the guard, and renders
+ * a receipt reading "Free run used" for a job that was never metered.
+ * Branch on "none".
+ */
 export interface SubmitBilling {
-  charged: "credit" | "free" | null;
+  charged: "credit" | "free" | "none";
   balance: number;
   free_remaining: number;
 }
