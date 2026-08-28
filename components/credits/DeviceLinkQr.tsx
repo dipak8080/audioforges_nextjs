@@ -59,7 +59,6 @@ export function DeviceLinkQr() {
   const [expiresAt, setExpiresAt] = useState<number | null>(null);
   const [now, setNow] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [expired, setExpired] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const resultRef = useRef<HTMLDivElement>(null);
   // Guards re-entry without putting `loading` in the callback's deps, which
@@ -93,23 +92,21 @@ export function DeviceLinkQr() {
   const remainingMs = expiresAt && now > 0 ? expiresAt - now : null;
 
   /**
-   * The credential leaves the screen the moment it stops working. Dropping the
-   * markup rather than just captioning it "expired" is the point: a dead QR
+   * The credential leaves the screen the moment it stops working. A dead QR
    * still on screen is a photograph waiting to be taken of something that was
    * live a minute ago.
+   *
+   * DERIVED, not stored. This used to be an effect that nulled the markup and
+   * set an `expired` flag — a synchronous setState in an effect body, which
+   * renders once with the dead code still visible before clearing it. Deriving
+   * it means the expired QR is never committed to the DOM at all, which is
+   * both correct and strictly safer for the thing this guard exists to protect.
    */
-  useEffect(() => {
-    if (remainingMs !== null && remainingMs <= 0 && svg) {
-      setSvg(null);
-      setExpiresAt(null);
-      setExpired(true);
-    }
-  }, [remainingMs, svg]);
+  const isExpired = remainingMs !== null && remainingMs <= 0;
 
   const clear = useCallback(() => {
     setSvg(null);
     setExpiresAt(null);
-    setExpired(false);
     setEmail(null);
   }, []);
 
@@ -118,7 +115,6 @@ export function DeviceLinkQr() {
     busy.current = true;
     setLoading(true);
     setError(null);
-    setExpired(false);
 
     try {
       const res = await createDeviceLink();
@@ -165,7 +161,7 @@ export function DeviceLinkQr() {
     }
   }, []);
 
-  if (svg) {
+  if (svg && !isExpired) {
     const urgent = remainingMs !== null && remainingMs < URGENT_REMAINING_MS;
     return (
       /*
@@ -248,13 +244,13 @@ export function DeviceLinkQr() {
         className="w-full"
       >
         <Smartphone className="h-4 w-4" aria-hidden />
-        {expired ? "Show a new code" : "Use on my phone"}
+        {isExpired ? "Show a new code" : "Use on my phone"}
       </Button>
       {error ? (
         <p role="alert" className="text-[11px] leading-relaxed text-red-400">
           {error}
         </p>
-      ) : expired ? (
+      ) : isExpired ? (
         <p role="status" className="text-[11px] leading-relaxed text-text-subtle">
           That code expired and has been cleared. Generate another whenever you
           need one.

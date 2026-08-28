@@ -365,6 +365,8 @@ export function VocalRemoverForm({
    * rather than an inference from a control the user can still change.
    */
   const completedCharged = billing?.charged === "credit";
+  /** Drives the honest cancel copy while a paid run is in flight. */
+  const chargedRun = billing?.charged === "credit";
 
   // Looked up here (not hardcoded) so the quality cards and the
   // rate-limit-exceeded hint always agree with each other and with
@@ -932,7 +934,7 @@ export function VocalRemoverForm({
                   onClick={handleCancel}
                   className="rounded px-1 text-xs text-text-subtle underline underline-offset-2 outline-none transition-colors hover:text-red-400 focus-visible:ring-2 focus-visible:ring-amber-400/70"
                 >
-                  Cancel
+                  {chargedRun ? "Stop watching" : "Cancel"}
                 </button>
               </div>
               <p className="text-xs leading-relaxed text-text-subtle">

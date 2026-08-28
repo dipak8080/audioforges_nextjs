@@ -58,12 +58,16 @@ export function CreditAccountPanel({
     onNavigate?.();
   }, [signingOut, refresh, onNavigate]);
 
+  // Hoisted out of the dep list: `me?.free_resets_at` as a dependency is an
+  // optional member expression the compiler can't track, so it can't verify
+  // the memo. A plain local reads identically and is checkable.
+  const resetsAt = me?.free_resets_at;
   const resetsOn = useMemo(() => {
-    if (!me?.free_resets_at) return null;
-    const d = new Date(me.free_resets_at);
+    if (!resetsAt) return null;
+    const d = new Date(resetsAt);
     if (Number.isNaN(d.getTime())) return null;
     return d.toLocaleDateString(undefined, { month: "long", day: "numeric" });
-  }, [me?.free_resets_at]);
+  }, [resetsAt]);
 
   const isMobile = variant === "mobile";
 
@@ -135,9 +139,21 @@ export function CreditAccountPanel({
           {me.email}
         </p>
         {heldCredits > 0 && (
+          /*
+            This said "held by a running job — returned automatically if it
+            fails", which is true and still leaves someone stuck. The common way
+            to see it is: start a job, press Cancel, and find a credit still
+            held. Cancel stops the PAGE watching; it does not stop the job, so
+            the hold is correct and the user has no way to know that.
+            So it now says what the hold is waiting for and that it resolves
+            without them — the two facts that turn a worry into a wait.
+          */
           <p className="mt-2 border-t border-amber-500/15 pt-2 text-[11px] leading-relaxed text-text-muted">
-            {heldCredits} held by a running job — returned automatically if it
-            fails.
+            {heldCredits === 1 ? "1 credit is" : `${heldCredits} credits are`} held
+            while a run finishes. Closing the page or pressing Cancel doesn&apos;t
+            stop the run — it keeps going on our servers. If it succeeds the
+            credit is spent; if it fails or never finishes, it comes back on its
+            own. Nothing to do either way.
           </p>
         )}
       </div>

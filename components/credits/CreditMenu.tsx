@@ -108,11 +108,21 @@ export function CreditMenu({ className }: { className?: string }) {
   );
 
   /**
-   * Nothing to show and nothing to sign out of — but the paywall IS on, so
-   * there is something to buy. A quiet link, not a pill: this person has no
-   * balance, and dressing an empty state in amber is a badge for zero.
+   * ORDER MATTERS HERE, and it was wrong.
+   *
+   * The zero-balance branch below used to run BEFORE this check, so a signed-in
+   * customer who spent their last credit lost the entire account menu — sign
+   * out, the device QR, their email, "buy more credits" — and got a bare
+   * "Credits" link indistinguishable from a visitor who had never paid. That is
+   * precisely the person most likely to buy again, and the one who most needs
+   * the device link.
+   *
+   * A signed-in account is worth a menu at any balance, including zero. Zero is
+   * a real number and worth showing.
    */
-  if (!hasCredits && !hasFree) {
+  if (!me?.authenticated && !hasCredits && !hasFree) {
+    // Genuinely nothing: no account, no balance, no free runs. A quiet link,
+    // not a pill — dressing an empty state in amber is a badge for zero.
     return (
       <Link
         href="/pricing"
@@ -148,7 +158,11 @@ export function CreditMenu({ className }: { className?: string }) {
 
   const label = hasCredits
     ? `${balance} ${balance === 1 ? "credit" : "credits"}`
-    : `${freeRemaining} free`;
+    : hasFree
+      ? `${freeRemaining} free`
+      // Signed in and empty. Says so plainly rather than reading as a balance
+      // the UI failed to load.
+      : "0 credits";
 
   return (
     <div
@@ -219,7 +233,11 @@ export function CreditChipMobile({ onOpenSheet }: { onOpenSheet: () => void }) {
   if (!enabled || loading) return null;
 
   const hasCredits = balance > 0;
-  if (!hasCredits && freeRemaining <= 0) return null;
+  // A signed-in account always gets a chip, even at zero — it is the ONLY
+  // route to the account sheet on a phone, and hiding it stranded exactly the
+  // customer who had already paid. Only a visitor with no account and nothing
+  // to spend gets nothing.
+  if (!me?.authenticated && !hasCredits && freeRemaining <= 0) return null;
 
   const value = hasCredits ? balance : freeRemaining;
   const title = hasCredits

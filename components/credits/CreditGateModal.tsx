@@ -157,12 +157,20 @@ export function CreditGateModal({
   payload,
   open,
   onClose,
+  initialStep = "packs",
 }: {
   payload: InsufficientCreditsPayload;
   open: boolean;
   onClose: () => void;
+  /**
+   * Opens straight onto a step. "signin" exists because recovering an existing
+   * purchase was buried: the only route to it was to start a NEW checkout and
+   * spot a link inside it. Someone who bought on a laptop and opened the site
+   * on their phone was shown a page that looked like they had to pay twice.
+   */
+  initialStep?: Step;
 }) {
-  const [step, setStep] = useState<Step>("packs");
+  const [step, setStep] = useState<Step>(initialStep);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [chosen, setChosen] = useState<CreditPack | null>(null);
 
@@ -184,7 +192,7 @@ export function CreditGateModal({
   if (prevOpen !== open) {
     setPrevOpen(open);
     if (!open) {
-      setStep("packs");
+      setStep(initialStep);
       setChosen(null);
       setSelectedKey(null);
     }

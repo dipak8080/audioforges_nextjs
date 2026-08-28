@@ -273,6 +273,8 @@ export function YouTubeUrlForm({
    * block; only a run someone paid a credit for loses it.
    */
   const completedCharged = billing?.charged === "credit";
+  /** Drives the honest cancel copy while a paid run is in flight. */
+  const chargedRun = billing?.charged === "credit";
 
   const stopPolling = useCallback(() => {
     if (pollRef.current) {
@@ -751,17 +753,25 @@ export function YouTubeUrlForm({
               </div>
               {/* Underlined text link, not a button shape — deliberately not
                   run through <Button>. */}
+              {/* "Cancel" is a promise this button cannot keep on a charged
+                  run: it stops the poll, not the job, and the credit is
+                  already held. Telling someone they can cancel and then
+                  keeping both their credit and their result is the worst
+                  outcome this form produces — so on a charged run it says
+                  what it actually does. Same fix as MultiOutputToolForm. */}
               <button
                 type="button"
                 onClick={handleCancel}
                 className="rounded px-1 text-xs text-text-subtle underline underline-offset-2 outline-none transition-colors hover:text-red-400 focus-visible:ring-2 focus-visible:ring-amber-400/70"
               >
-                Cancel
+                {chargedRun ? "Stop watching" : "Cancel"}
               </button>
             </div>
 
             <p className="text-xs leading-relaxed text-text-subtle">
               {expectedRange ? `Typically ${expectedRange}. ` : ""}Keep this tab open.
+              {chargedRun &&
+                " This run has already used its credit — stopping here won't return it."}
             </p>
           </div>
           </section>

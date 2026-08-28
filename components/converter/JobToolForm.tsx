@@ -278,6 +278,8 @@ export function JobToolForm({
   const [retryNotice, setRetryNotice] = useState<string | null>(null);
   /** What the server said it charged. Reported verbatim, never inferred. */
   const [billing, setBilling] = useState<SubmitBilling | null>(null);
+  /** Drives the honest cancel copy while a paid run is in flight. */
+  const chargedRun = billing?.charged === "credit";
 
   // Re-runs the submit after a purchase closes the gate, so someone who hits
   // the 402 and buys isn't returned to an idle form holding their file with no
@@ -615,12 +617,14 @@ export function JobToolForm({
                 onClick={handleCancel}
                 className="rounded px-1 text-xs text-text-subtle underline underline-offset-2 transition-colors hover:text-red-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40"
               >
-                Cancel
+                {chargedRun ? "Stop watching" : "Cancel"}
               </button>
             </div>
 
             <p className="text-xs text-text-subtle">
               {expectedRange ? `Typically ${expectedRange}. ` : ""}Keep this tab open.
+              {chargedRun &&
+                " This run has already used its credit — stopping here won't return it."}
             </p>
           </div>
         )}

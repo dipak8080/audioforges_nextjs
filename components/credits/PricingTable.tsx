@@ -27,6 +27,8 @@ export function PricingTable() {
   const { me, loading, balance, freeRemaining } = useCredits();
   const [chosenKey, setChosenKey] = useState<string | null>(null);
   const [openPayload, setOpenPayload] = useState<InsufficientCreditsPayload | null>(null);
+  /** Which step the modal opens on — "signin" for someone recovering a purchase. */
+  const [openStep, setOpenStep] = useState<"packs" | "signin">("packs");
 
   // Memoized rather than `me?.packs ?? []` inline: the `?? []` allocates a
   // fresh array on every render, invalidating every downstream useMemo.
@@ -39,8 +41,34 @@ export function PricingTable() {
       : defaultPackKey(packs);
   const selected = packs.find((p) => p.key === selectedKey) ?? null;
 
+  /**
+   * Recovery, reachable WITHOUT starting a purchase.
+   *
+   * Credits live on a browser cookie, so someone who paid on a laptop and then
+   * opens the site on their phone sees a balance of zero and a pricing page —
+   * which reads as being asked to pay a second time. The sign-in link existed,
+   * but only inside the checkout flow, two clicks deep behind a buy button. The
+   * one person who must never be asked to buy again was the one who had to
+   * start buying again to find the way out.
+   */
+  function openSignIn() {
+    if (!me) return;
+    setOpenStep("signin");
+    setOpenPayload({
+      error: "insufficient_credits",
+      message: "",
+      tool: "separate-hq",
+      credits_needed: 1,
+      balance: me.balance,
+      free_remaining: me.free_remaining,
+      free_resets_at: me.free_resets_at,
+      packs: me.packs,
+    });
+  }
+
   function openCheckout(pack: CreditPack) {
     if (!me) return;
+    setOpenStep("packs");
     trackCredits("credits_pack_selected", {
       pack: pack.key,
       credits: pack.credits,
@@ -140,6 +168,14 @@ export function PricingTable() {
 
         {/* The three claims a subscription competitor structurally cannot
             print, at the moment of decision rather than in a footnote. */}
+        <button
+          type="button"
+          onClick={openSignIn}
+          className="mt-4 w-full rounded-md border-t border-graphite-800 pt-4 text-center text-sm text-text-muted outline-none transition-colors hover:text-amber-400 focus-visible:ring-2 focus-visible:ring-amber-400/70"
+        >
+          Already bought? Sign in to use your credits here
+        </button>
+
         <ul className="mt-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 border-t border-graphite-800 pt-4 font-mono text-[11px] uppercase tracking-[0.12em] text-text-subtle">
           <li>No subscription</li>
           <li aria-hidden className="text-graphite-700">/</li>
@@ -153,6 +189,7 @@ export function PricingTable() {
         <CreditGateModal
           payload={openPayload}
           open
+          initialStep={openStep}
           onClose={() => setOpenPayload(null)}
         />
       )}
