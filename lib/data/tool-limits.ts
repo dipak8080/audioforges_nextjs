@@ -27,7 +27,10 @@
 //
 //   MAX_VIDEO_DURATION_SECONDS        2400 (40 min)  — the download
 //   MAX_SEPARATION_DURATION_SECONDS    600 (10 min)  — separation
-//   MAX_SEPARATION_DURATION_SECONDS_HQ 360 ( 6 min)  — separation, HQ
+//   MAX_SEPARATION_DURATION_SECONDS_HQ 600 (10 min)  — separation, HQ
+//                                    RAISED from 360 on 2026-08-28;
+//                                    HQ now matches the standard tier,
+//                                    so the two no longer differ here.
 //   MAX_TRANSCRIPTION_DURATION_SECONDS 1200 (20 min) — transcription
 //
 // The SMALLER of the pair is what a user hits, and it is the only one
@@ -95,7 +98,7 @@ export const TOOL_LIMITS: Record<string, ToolLimits> = {
   },
   "separate-hq": {
     maxFileBytes: 80 * MB,
-    maxTotalDurationSeconds: 360,
+    maxTotalDurationSeconds: 600,
     envVars: ["MAX_UPLOAD_BYTES", "MAX_SEPARATION_DURATION_SECONDS_HQ"],
   },
   stems: {
@@ -105,7 +108,7 @@ export const TOOL_LIMITS: Record<string, ToolLimits> = {
   },
   "stems-hq": {
     maxFileBytes: 80 * MB,
-    maxTotalDurationSeconds: 360,
+    maxTotalDurationSeconds: 600,
     envVars: ["MAX_UPLOAD_BYTES", "MAX_SEPARATION_DURATION_SECONDS_HQ"],
   },
 
@@ -123,7 +126,7 @@ export const TOOL_LIMITS: Record<string, ToolLimits> = {
     envVars: ["MAX_SEPARATION_DURATION_SECONDS", "MAX_VIDEO_DURATION_SECONDS"],
   },
   "youtube/separate-hq": {
-    maxTotalDurationSeconds: 360,
+    maxTotalDurationSeconds: 600,
     envVars: ["MAX_SEPARATION_DURATION_SECONDS_HQ", "MAX_VIDEO_DURATION_SECONDS"],
   },
   "youtube/stems": {
@@ -131,7 +134,7 @@ export const TOOL_LIMITS: Record<string, ToolLimits> = {
     envVars: ["MAX_SEPARATION_DURATION_SECONDS", "MAX_VIDEO_DURATION_SECONDS"],
   },
   "youtube/stems-hq": {
-    maxTotalDurationSeconds: 360,
+    maxTotalDurationSeconds: 600,
     envVars: ["MAX_SEPARATION_DURATION_SECONDS_HQ", "MAX_VIDEO_DURATION_SECONDS"],
   },
 

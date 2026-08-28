@@ -175,14 +175,37 @@ export default function HomePage() {
     },
     {
       question: "Are the tools actually free?",
+      /*
+        REWRITTEN 2026-08-28. This said "no paywall, and no hidden tier — the
+        free tools are the only tools", which stopped being true the day
+        Studio Quality separation started charging credits. It is the direct
+        answer to the one question a sceptical visitor asks, it ships in the
+        page's JSON-LD, and being caught overstating it costs more trust than
+        the paid tier could ever earn back.
+        It also claimed transcription allows "two files every five minutes" —
+        stale since the limit moved to per hour.
+        The claim is now scoped rather than dropped: everything people
+        actually arrive for IS free and unlimited, and the one exception is
+        named plainly instead of hidden behind an absolute.
+      */
       answer:
-        "Yes. There's no watermark, no paywall, and no hidden tier — the free tools are the only tools. Fair-use limits apply so one person can't tie up the servers: most tools cap file length, and transcription allows two files every five minutes.",
+        "Almost entirely. Every tool works free with no watermark, no sign-up and full-quality downloads — including vocal removal and stem splitting. The one exception is Studio Quality separation, a heavier model that costs real money per run on a GPU; everyone gets free runs of it each month, and after that it's a credit. Nothing recurring, and credits never expire. Fair-use limits apply so one person can't tie up the servers.",
       answerNode: (
         <>
-          Yes. There&apos;s no watermark, no paywall, and no hidden tier — the
-          free tools are the only tools. Fair-use limits apply so one person
-          can&apos;t tie up the servers: most tools cap file length, and
-          transcription allows two files every five minutes. More on{" "}
+          Almost entirely. Every tool works free with no watermark, no sign-up
+          and full-quality downloads — including vocal removal and stem
+          splitting. The one exception is Studio Quality separation, a heavier
+          model that costs real money per run on a GPU: everyone gets free runs
+          of it each month, and after that it&apos;s{" "}
+          <Link
+            href="/pricing"
+            prefetch={false}
+            className="text-amber-400 underline underline-offset-2 hover:text-amber-300"
+          >
+            a credit
+          </Link>
+          . Nothing recurring, and credits never expire. Fair-use limits apply
+          so one person can&apos;t tie up the servers. More on{" "}
           <Link
             href="/free-transcription-no-sign-up"
             prefetch={false}

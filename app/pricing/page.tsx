@@ -36,7 +36,10 @@ const DEMO_STANDARD = "";
 const DEMO_STUDIO = "";
 
 /** Mirrors separation_hq_max_duration_seconds from GET /limits. */
-const HQ_MAX_SECONDS = 360;
+// RAISED 360 -> 600 on 2026-08-28: HQ now accepts the same 10 minutes as
+// the standard tier. Mirrors features.separation_hq_max_duration_seconds
+// from GET /limits.
+const HQ_MAX_SECONDS = 600;
 
 const PAGE_TITLE = "Pricing — AudioForges credits";
 const PAGE_DESCRIPTION =

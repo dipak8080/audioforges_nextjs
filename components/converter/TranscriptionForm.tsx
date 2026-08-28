@@ -13,6 +13,7 @@ import {
   Check,
   Loader2,
 } from "lucide-react";
+import Link from "next/link";
 import { Button } from "@/components/ui/Button";
 import { SearchableSelect } from "@/components/ui/SearchableSelect";
 import { FileDropZone } from "@/components/ui/FileDropZone";
@@ -1285,9 +1286,33 @@ export function TranscriptionForm({ mode, languages: initialLanguages }: Transcr
                     everyone, paid or not.
                   */
                   <>
-                    {balance > 0
-                      ? "1 credit per transcription"
-                      : `${freeRemaining} free ${freeRemaining === 1 ? "run" : "runs"} left this month`}
+                    {balance > 0 ? (
+                      <>1 credit per transcription</>
+                    ) : freeRemaining > 0 ? (
+                      <>
+                        {freeRemaining} free {freeRemaining === 1 ? "run" : "runs"} left this
+                        month
+                      </>
+                    ) : (
+                      /*
+                        Nothing left. Stating "0 free runs left" and stopping
+                        there describes the wall without showing the door —
+                        and this is a REAL state, not an edge case: the free
+                        allowance is min(owner, per-IP), so a shared or
+                        returning IP reaches it routinely. The gate still
+                        opens on submit, but a link here means nobody has to
+                        press a button and be refused to find out what to do.
+                      */
+                      <>
+                        No free runs left this month.{" "}
+                        <Link
+                          href="/pricing"
+                          className="rounded text-amber-400 underline underline-offset-2 outline-none transition-colors hover:text-amber-300 focus-visible:ring-2 focus-visible:ring-amber-400/70"
+                        >
+                          Credits are $0.20–0.30 a run
+                        </Link>
+                      </>
+                    )}
                     , shared across all three transcription tools. Up to{" "}
                     {TRANSCRIPTION_LIMITS.durationSeconds / 60} min per file.
                   </>

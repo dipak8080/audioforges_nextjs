@@ -1,6 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { SITE_URL } from "@/lib/constants";
+import { getRateLimitLabel } from "@/lib/data/rate-limits";
+
+/**
+ * Read, never written as a literal. This page said "3 separations per hour"
+ * long after the backend moved to 6, and "1 per hour at Studio Quality"
+ * after that became a tiered 2/30. A page whose whole argument is that it
+ * states real numbers cannot be the page carrying stale ones.
+ */
+const STANDARD_SEPARATION_LIMIT = getRateLimitLabel("separate") ?? "a few per hour";
 
 const PAGE_TITLE = "About AudioForges — Free Online Audio Tools";
 const PAGE_DESCRIPTION =
@@ -113,9 +122,15 @@ export default function AboutPage() {
             source-separation processing to split a track into vocal and instrumental
             stems — not a simple center-channel filter, which only partially removes
             vocals and often damages the mix. Separation runs on GPU-accelerated
-            infrastructure and is rate-limited per person to keep it available for
-            everyone: 3 separations per hour at standard quality, 1 per hour at
-            Studio Quality.
+            infrastructure, so it&apos;s rate-limited per person to keep it
+            available for everyone — {STANDARD_SEPARATION_LIMIT} at standard
+            quality, which is free with no account. Studio Quality runs a
+            heavier model that costs real money per run; everyone gets free runs
+            of it each month, and beyond that it takes{" "}
+            <Link href="/pricing" className="text-amber-400 hover:underline">
+              a credit
+            </Link>
+            .
           </p>
           <p>
             {/* Names the model rather than saying "AI-powered". Every
@@ -187,9 +202,22 @@ export default function AboutPage() {
               the footer already said costs come out of pocket — so the two
               pages contradicted each other, on the page a reviewer is most
               likely to read. Revisit this wording if ads are ever added. */}
+          {/*
+            REWRITTEN 2026-08-28. This said "no paid tier" and closed with
+            "there isn't anything to pay for". Both stopped being true when
+            Studio Quality separation started charging credits. This page is
+            the one a reviewer, a journalist or a suspicious user reads to
+            decide whether the site is honest — being caught overstating here
+            costs far more than the paid tier earns.
+
+            The fix is not to bury it. Naming the one thing that costs money,
+            and saying plainly why, is a stronger position than an absolute
+            that can be disproved in one click.
+          */}
           <p>
-            There are no ads on this site and no paid tier. Servers, GPU time and
-            bandwidth come out of my own pocket, offset by voluntary support via{" "}
+            There are no ads on this site and no accounts. Servers, GPU time and
+            bandwidth come out of my own pocket, offset by voluntary support
+            via{" "}
             <a
               href="https://ko-fi.com/audioforges"
               target="_blank"
@@ -201,12 +229,25 @@ export default function AboutPage() {
             .
           </p>
           <p>
-            That&apos;s also why some tools carry usage limits — vocal separation and
-            transcription both run on GPU time that costs real money per minute, so
-            they&apos;re capped per person to keep them available for everyone rather
-            than gated behind an account. Everything else stays as unrestricted as the
-            infrastructure allows. No tool is limited to push you toward paying for
-            anything, because there isn&apos;t anything to pay for.
+            Almost everything here is free and stays that way — conversion,
+            editing, cleanup, analysis, practice tools, transcription, and
+            standard vocal removal and stem splitting, all with full-quality
+            downloads and no watermark. The tools that run on GPU time carry
+            fair-use caps per person rather than an account, so one person
+            can&apos;t tie up a shared machine.
+          </p>
+          <p>
+            The single exception is Studio Quality separation. It runs a much
+            heavier model, it costs real money every time it runs, and giving it
+            away without limit isn&apos;t something one person paying out of
+            pocket can sustain. So everyone gets free runs of it each month, and
+            past that it takes{" "}
+            <Link href="/pricing" className="text-amber-400 hover:underline">
+              a credit
+            </Link>{" "}
+            — bought once, never expiring, with nothing recurring to cancel. If
+            a run fails, the credit comes back automatically. Nothing else on
+            the site is limited to push you toward it.
           </p>
           <p>
             Questions, feedback, or a tool you wish existed?{" "}

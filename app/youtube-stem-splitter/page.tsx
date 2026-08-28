@@ -94,7 +94,7 @@ const hqLimitLabel = getRateLimitLabel("youtube/stems-hq") ?? FALLBACK_RATE_LIMI
 // the note at the top of tool-limits.ts.
 const FALLBACK_DURATION_LABEL = "10 minutes";
 const standardDurationLabel = getDurationLabel("youtube/stems") ?? FALLBACK_DURATION_LABEL;
-const hqDurationLabel = getDurationLabel("youtube/stems-hq") ?? "6 minutes";
+const hqDurationLabel = getDurationLabel("youtube/stems-hq") ?? "10 minutes";
 
 export default async function YouTubeStemSplitterPage() {
   const relatedTools = getRelatedTools("youtube-stem-splitter", 5);

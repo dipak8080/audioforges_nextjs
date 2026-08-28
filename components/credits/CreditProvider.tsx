@@ -114,6 +114,28 @@ export function useCredits(): CreditContextValue {
  */
 const REFOCUS_THROTTLE_MS = 20_000;
 
+/**
+ * MODULE SCOPE, DELIBERATELY — these outlive any single mount.
+ *
+ * The throttle used to be a `useRef(0)`, and a ref is reborn empty on every
+ * mount. So the 20-second window only ever applied WITHIN one provider
+ * instance: every fresh page load started with an empty throttle and fired
+ * /credits/me immediately, and SiteChrome mounts a second provider on /admin
+ * routes with its own refs again. Request logs showed hits one second apart,
+ * which no per-instance 20s throttle can produce.
+ *
+ * At module scope the window survives remounts inside a tab, and `cachedMe`
+ * lets a remount paint the balance it already knows instead of flashing empty
+ * while it refetches.
+ *
+ * SAFE UNDER SSR: this is a "use client" module, so the server evaluates it
+ * but only ever reads these — `refresh()` runs from an effect, which is
+ * client-only. Nothing a server render produces can leak one visitor's
+ * balance into another's HTML.
+ */
+let lastFetchedAt = 0;
+let cachedMe: CreditsMe | null = null;
+
 export function CreditProvider({
   flags,
   children,
@@ -123,9 +145,10 @@ export function CreditProvider({
 }) {
   const enabled = flags.paywallEnabled;
 
-  const [me, setMe] = useState<CreditsMe | null>(null);
-  const [loading, setLoading] = useState(enabled);
-  const lastFetchedAt = useRef(0);
+  // Seeded from the module cache so a remount within the window renders the
+  // known balance immediately rather than blanking the navbar pill.
+  const [me, setMe] = useState<CreditsMe | null>(cachedMe);
+  const [loading, setLoading] = useState(enabled && cachedMe === null);
   const mounted = useRef(true);
   /**
    * The in-flight request itself, not a boolean. A second caller during a
@@ -150,7 +173,8 @@ export function CreditProvider({
     const request = (async () => {
       try {
         const next = await getCreditsMe();
-        lastFetchedAt.current = Date.now();
+        lastFetchedAt = Date.now();
+        if (next) cachedMe = next;
         if (mounted.current) {
           // getCreditsMe() returns null on failure, meaning "treat as paywall
           // off" — NOT "the balance is now nothing". Writing that null into
@@ -179,6 +203,11 @@ export function CreditProvider({
   // which the React compiler lint correctly rejects.
   useEffect(() => {
     if (!enabled) return;
+    // A remount inside the window already has the answer. This is the check
+    // that turns "one request per page view" into "one request per 20s of
+    // browsing", which on a site of ~90 static pages is most of the traffic
+    // this endpoint sees.
+    if (cachedMe && Date.now() - lastFetchedAt < REFOCUS_THROTTLE_MS) return;
     void refresh();
   }, [enabled, refresh]);
 
@@ -191,7 +220,7 @@ export function CreditProvider({
 
     const onFocus = () => {
       if (document.visibilityState !== "visible") return;
-      if (Date.now() - lastFetchedAt.current < REFOCUS_THROTTLE_MS) return;
+      if (Date.now() - lastFetchedAt < REFOCUS_THROTTLE_MS) return;
       void refresh();
     };
 
@@ -211,15 +240,19 @@ export function CreditProvider({
    * and then jump.
    */
   const applyBalance = useCallback((balance: number, freeRemaining?: number) => {
-    setMe((prev) =>
-      prev
-        ? {
-            ...prev,
-            balance,
-            free_remaining: freeRemaining ?? prev.free_remaining,
-          }
-        : prev
-    );
+    setMe((prev) => {
+      if (!prev) return prev;
+      const next = {
+        ...prev,
+        balance,
+        free_remaining: freeRemaining ?? prev.free_remaining,
+      };
+      // Keep the module cache in step. Without this a remount inside the
+      // throttle window would restore the PRE-charge balance from cache and
+      // silently undo the number the user just watched go down.
+      cachedMe = next;
+      return next;
+    });
   }, []);
 
   const value = useMemo<CreditContextValue>(() => {

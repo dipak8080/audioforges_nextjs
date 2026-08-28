@@ -89,7 +89,7 @@ const hqLimitLabel = getRateLimitLabel("youtube/separate-hq") ?? FALLBACK_RATE_L
 // one to show on a page like this.
 const FALLBACK_DURATION_LABEL = "10 minutes";
 const standardDurationLabel = getDurationLabel("youtube/separate") ?? FALLBACK_DURATION_LABEL;
-const hqDurationLabel = getDurationLabel("youtube/separate-hq") ?? "6 minutes";
+const hqDurationLabel = getDurationLabel("youtube/separate-hq") ?? "10 minutes";
 
 export default async function YouTubeVocalRemoverPage() {
   const relatedTools = getRelatedTools("youtube-vocal-remover", 5);

@@ -252,7 +252,9 @@ export function UpgradeToHqCard({
    * than no card.
    */
   if (enabled && info && !info.eligible && info.reason === "too_long_for_hq") {
-    const maxMinutes = info.max_seconds ? Math.floor(info.max_seconds / 60) : 6;
+    // Fallback only — the server sends max_seconds with the reason. 10, not
+    // 6, since the HQ cap was raised to match the standard tier.
+    const maxMinutes = info.max_seconds ? Math.floor(info.max_seconds / 60) : 10;
     return (
       <p className="flex items-start gap-2 rounded-lg border border-graphite-800 bg-graphite-850/40 px-3.5 py-3 text-xs leading-relaxed text-text-subtle">
         <Clock className="mt-0.5 h-3 w-3 shrink-0" aria-hidden />

@@ -40,6 +40,73 @@ type Step = "packs" | "email" | "signin";
 
 /** Route keys → what the user calls the tool. Used only for the return trip
  *  copy on /checkout/success; unknown keys degrade to a generic label. */
+/**
+ * WHAT THIS TOOL ACTUALLY GIVES YOU, PER TOOL.
+ *
+ * This screen used to hardcode the Studio Quality separation spec — "vocal and
+ * instrumental", "WAV, full quality, no watermark" — no matter which route
+ * sent the 402. The moment transcription became metered, someone on
+ * /audio-to-text asking for a transcript was shown a spec sheet for audio
+ * stems. Wrong on the one screen that has to say what a credit buys.
+ *
+ * Keyed by `payload.tool`, which is the backend's own rule key, so a new
+ * metered tool either appears here or falls back to copy that claims nothing.
+ */
+interface ToolCopy {
+  title: string;
+  spec: Array<[string, string]>;
+  /** The reassurance on the way out. Must be TRUE for this tool. */
+  closing: string;
+}
+
+const SEPARATION_CLOSING =
+  "Standard separation stays free and unlimited, with full downloads and no watermark.";
+
+const TOOL_COPY: Record<string, ToolCopy> = {
+  "separate-hq": {
+    title: "Studio Quality",
+    spec: [
+      ["1 credit", "One run of this track through the heavier model"],
+      ["You get", "Vocals and instrumental, with much less bleed between them"],
+      ["Files back", "WAV, full quality, no watermark"],
+    ],
+    closing: SEPARATION_CLOSING,
+  },
+  "stems-hq": {
+    title: "Studio Quality",
+    spec: [
+      ["1 credit", "One run of this track through the heavier model"],
+      ["You get", "Vocals, drums, bass and other — much less bleed"],
+      ["Files back", "WAV, full quality, no watermark"],
+    ],
+    closing: SEPARATION_CLOSING,
+  },
+  transcribe: {
+    title: "Transcription",
+    spec: [
+      ["1 credit", "One transcript, up to 20 minutes of audio"],
+      ["You get", "Full text with timestamps, language detected automatically"],
+      // Stated HERE because this is where someone decides. All three
+      // transcription tools draw on one "transcribe" allowance, and finding
+      // that out after spending a run reads as being short-changed.
+      ["Shared", "One allowance across audio, video and YouTube transcription"],
+    ],
+    closing:
+      "Your free runs reset every month, and every tool that doesn't need a GPU stays free.",
+  },
+};
+
+// The YouTube variants run the same model on the same audio — same promise.
+TOOL_COPY["youtube/separate-hq"] = TOOL_COPY["separate-hq"];
+TOOL_COPY["youtube/stems-hq"] = TOOL_COPY["stems-hq"];
+
+/** Claims nothing specific, so an unmapped tool key can't lie. */
+const FALLBACK_COPY: ToolCopy = {
+  title: "This run needs a credit",
+  spec: [["1 credit", "One run of this job on a GPU"]],
+  closing: "Everything on the site that doesn't need a GPU stays free and unlimited.",
+};
+
 const TOOL_LABELS: Record<string, string> = {
   "separate-hq": "Vocal Remover",
   "stems-hq": "Stem Splitter",
@@ -224,7 +291,7 @@ export function CreditGateModal({
         tabIndex={-1}
         onKeyDown={handleKeyDown}
         className={cn(
-          "relative max-h-[92vh] w-full max-w-md overflow-y-auto outline-none",
+          "relative flex max-h-[92dvh] w-full max-w-md flex-col overflow-hidden outline-none",
           "rounded-t-2xl border border-graphite-800 bg-graphite-900 shadow-2xl sm:rounded-2xl",
           "pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:pb-0"
         )}
@@ -244,15 +311,39 @@ export function CreditGateModal({
           <X className="h-4 w-4" />
         </button>
 
-        <div className="px-5 pb-6 pt-5 sm:px-6 sm:pb-6 sm:pt-6">
+        {/*
+          SCROLLS THE BODY, NOT THE DIALOG.
+          The whole panel used to be one overflow-y-auto box, so on a short
+          window the title scrolled away and — worse — the buy button sat below
+          the fold behind a full-height native scrollbar. Now the dialog is a
+          column, this is the only part that moves, and PackStep pins its own
+          action bar underneath.
+
+          The scrollbar is styled to match the mobile nav sheet. An unstyled
+          one renders as a wide light-grey track on Windows Chrome, which is
+          what that screenshot showed: the brightest object on a dark modal.
+
+          overscroll-contain stops a flick at the end of this list from
+          scrolling the page behind the dialog.
+        */}
+        <div
+          className={cn(
+            "min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pt-5 sm:px-6 sm:pt-6",
+            step === "packs" ? "pb-2" : "pb-6",
+            "[&::-webkit-scrollbar]:w-1.5",
+            "[&::-webkit-scrollbar-track]:bg-transparent",
+            "[&::-webkit-scrollbar-thumb]:rounded-full",
+            "[&::-webkit-scrollbar-thumb]:bg-graphite-700",
+            "hover:[&::-webkit-scrollbar-thumb]:bg-graphite-600"
+          )}
+          style={{ scrollbarWidth: "thin", scrollbarColor: "#374151 transparent" }}
+        >
           {step === "packs" && activePack && (
             <PackStep
               payload={payload}
               activeKey={activeKey}
               resetsOn={resetsOn}
-              activePack={activePack}
               onSelect={(p) => setSelectedKey(p.key)}
-              onContinue={handleContinue}
               onSignIn={() => setStep("signin")}
             />
           )}
@@ -282,6 +373,15 @@ export function CreditGateModal({
 
           {step === "signin" && <SignInStep onBack={() => setStep("packs")} />}
         </div>
+
+        {/* Outside the scroll region: always visible, never chased. */}
+        {step === "packs" && activePack && (
+          <PackStepAction
+            activePack={activePack}
+            toolLabel={TOOL_LABELS[payload.tool]}
+            onContinue={handleContinue}
+          />
+        )}
       </div>
     </div>
   );
@@ -294,50 +394,43 @@ export function CreditGateModal({
 function PackStep({
   payload,
   activeKey,
-  activePack,
   resetsOn,
   onSelect,
-  onContinue,
   onSignIn,
 }: {
   payload: InsufficientCreditsPayload;
   activeKey: string | null;
-  activePack: CreditPack;
   resetsOn: string | null;
   onSelect: (pack: CreditPack) => void;
-  onContinue: () => void;
   onSignIn: () => void;
 }) {
   const label = TOOL_LABELS[payload.tool];
+  const copy = TOOL_COPY[payload.tool] ?? FALLBACK_COPY;
 
   return (
     <>
       {/*
-        NOT "You're out of credits." That frames the product as something
-        that ran out on you. The user got here by choosing the better model,
-        so the heading names what they're buying.
+        NOT "You're out of credits." That frames the product as something that
+        ran out on you. The user got here by choosing the better tool, so the
+        heading names what they're buying — and it names the RIGHT one, which
+        it did not before: every tool got the separation title.
       */}
-      <h2
-        id="credit-gate-title"
-        className="pr-8 text-lg font-semibold text-text-primary"
-      >
-        Studio Quality
+      <h2 id="credit-gate-title" className="pr-8 text-lg font-semibold text-text-primary">
+        {copy.title}
       </h2>
 
       {/*
-        THE ANSWER TO "WHAT AM I ACTUALLY GETTING". One line of spec, in the
-        register of a plugin readout rather than a sales page. This was the
-        gap: the old copy offered an adjective ("cleaner") and left the buyer
-        to guess at everything else.
+        THE ANSWER TO "WHAT AM I ACTUALLY GETTING". Plain spec, in the register
+        of a plugin readout rather than a sales page — and drawn from the tool
+        that actually 402'd, so a transcription user is no longer shown a spec
+        sheet for audio stems.
       */}
       <dl className="mt-3 overflow-hidden rounded-lg border border-graphite-800 bg-graphite-950/40 text-sm">
-        <SpecRow label="1 credit">
-          One run of this track through the heavier model
-        </SpecRow>
-        <SpecRow label="You get">
-          Cleaner stems — much less bleed between vocal and instrumental
-        </SpecRow>
-        <SpecRow label="Files back">WAV, full quality, no watermark</SpecRow>
+        {copy.spec.map(([term, detail]) => (
+          <SpecRow key={term} label={term}>
+            {detail}
+          </SpecRow>
+        ))}
       </dl>
 
       {/* Someone with free runs left should not be sold to. Only reachable
@@ -365,34 +458,10 @@ function PackStep({
         <PackRail packs={payload.packs} selectedKey={activeKey} onSelect={onSelect} />
       </div>
 
-      <button
-        type="button"
-        onClick={onContinue}
-        className={cn(
-          "mt-4 w-full rounded-md bg-amber-500 px-4 py-3 text-sm font-semibold text-graphite-950 outline-none",
-          "shadow-[inset_0_1px_0_rgba(255,255,255,0.25)] transition-colors hover:bg-amber-400",
-          "focus-visible:ring-2 focus-visible:ring-amber-400/70 focus-visible:ring-offset-2 focus-visible:ring-offset-graphite-900"
-        )}
-      >
-        Continue — {activePack.credits} credits for ${activePack.price_usd.toFixed(2)}
-      </button>
-
-      {/*
-        The return trip, stated plainly. The user has a track loaded and is
-        being asked to navigate away to a payment page they may not have
-        heard of. "Do I lose what I'm doing" is the live worry, and it
-        outranks any trust badge we could put here.
-      */}
-      <p className="mt-3 text-center text-xs leading-relaxed text-text-subtle">
-        You&apos;ll pay on Ko-fi and come straight back
-        {label ? ` to ${label}` : ""}. Credits land on this browser
-        automatically — nothing to type.
-      </p>
-
       {/* The three claims the competition structurally cannot print. One
-          hairline strip instead of three icon rows: same information, ~60px
-          less of a modal that has to fit on a phone. */}
-      <ul className="mt-4 flex flex-wrap items-center justify-center gap-x-3.5 gap-y-1.5 border-t border-graphite-800 pt-4 font-mono text-[11px] uppercase tracking-[0.12em] text-text-subtle">
+          hairline strip rather than three icon rows: same information, far
+          less of a modal that has to fit a phone. */}
+      <ul className="mt-5 flex flex-wrap items-center justify-center gap-x-3.5 gap-y-1.5 border-t border-graphite-800 pt-4 font-mono text-[11px] uppercase tracking-[0.12em] text-text-subtle">
         <li>No subscription</li>
         <li aria-hidden className="text-graphite-700">/</li>
         <li>Never expires</li>
@@ -400,7 +469,7 @@ function PackStep({
         <li>Failed run refunded</li>
       </ul>
 
-      <div className="mt-4 space-y-3 border-t border-graphite-800 pt-4">
+      <div className="mt-4 space-y-3 pt-1">
         <button
           type="button"
           onClick={onSignIn}
@@ -411,16 +480,60 @@ function PackStep({
         </button>
 
         {/*
-          The closing reassurance. Someone who decides not to pay must leave
-          knowing the free tool is untouched — otherwise this modal costs the
-          visit AND the return visit.
+          The closing reassurance, per tool. Someone who decides not to pay
+          must leave knowing what's still free — otherwise this modal costs the
+          visit AND the return visit. It said "standard separation stays free"
+          to everyone, which is not the relevant promise on a transcription
+          page.
         */}
         <p className="text-center text-xs leading-relaxed text-text-subtle">
-          Standard separation stays free and unlimited, with full downloads and
-          no watermark.
+          {copy.closing}
         </p>
       </div>
     </>
+  );
+}
+
+/**
+ * The action bar. Pinned OUTSIDE the scroll region, so the one control this
+ * screen exists for is never below the fold — which is exactly where it ended
+ * up on a short window when the whole dialog scrolled as one box.
+ */
+export function PackStepAction({
+  activePack,
+  toolLabel,
+  onContinue,
+}: {
+  activePack: CreditPack;
+  toolLabel?: string;
+  onContinue: () => void;
+}) {
+  return (
+    <div className="shrink-0 border-t border-graphite-800 bg-graphite-950/40 px-5 py-4 sm:px-6">
+      <button
+        type="button"
+        onClick={onContinue}
+        className={cn(
+          "w-full rounded-md bg-amber-500 px-4 py-3 text-sm font-semibold text-graphite-950 outline-none",
+          "shadow-[inset_0_1px_0_rgba(255,255,255,0.25)] transition-colors hover:bg-amber-400",
+          "focus-visible:ring-2 focus-visible:ring-amber-400/70 focus-visible:ring-offset-2 focus-visible:ring-offset-graphite-950"
+        )}
+      >
+        Continue — {activePack.credits} credits for ${activePack.price_usd.toFixed(2)}
+      </button>
+
+      {/*
+        The return trip, stated plainly. The user has work loaded and is being
+        asked to navigate away to a payment page they may not have heard of.
+        "Do I lose what I'm doing" is the live worry, and it outranks any trust
+        badge we could put here.
+      */}
+      <p className="mt-2.5 text-center text-xs leading-relaxed text-text-subtle">
+        You&apos;ll pay on Ko-fi and come straight back
+        {toolLabel ? ` to ${toolLabel}` : ""}. Credits land on this browser
+        automatically — nothing to type.
+      </p>
+    </div>
   );
 }
 
