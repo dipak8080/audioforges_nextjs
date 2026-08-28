@@ -106,18 +106,24 @@ const hqLimitLabel = getRateLimitLabel("separate-hq") ?? FALLBACK_RATE_LIMIT_LAB
 
 export default async function VocalRemoverPage() {
   const relatedTools = getRelatedTools("vocal-remover", 5);
-  const { separationHqEnabled, paywallTools } = await getFeatureFlags();
-  /**
-   * The free Studio Quality allowance is the single strongest thing this
-   * page can say against a subscription competitor, and right now it's
-   * only discoverable by scrolling to the quality toggle. Putting it in
-   * the subhead costs one line and reaches everyone who reads the page.
-   *
-   * Only rendered when the tool is ACTUALLY metered — otherwise Studio
-   * Quality is simply unlimited and free, and advertising "2 free" would
-   * understate it.
-   */
-  const showFreeTierNote = Boolean(paywallTools["separate-hq"]);
+  const { separationHqEnabled } = await getFeatureFlags();
+
+  /*
+    REMOVED 2026-08-28: a third header line reading "Includes 2 free Studio
+    Quality runs every month".
+
+    It was added to surface the allowance above the fold, and it backfired two
+    ways. This is a Server Component, so it cannot know how many runs a given
+    visitor has left — it could only ever print the static monthly figure. A
+    visitor who has spent theirs therefore read "2 free runs every month" in
+    the header while the badge on the quality toggle, twenty pixels below,
+    read "1 CREDIT". The page contradicted itself, and the header was the half
+    that was wrong.
+
+    Second, it front-loaded a paywall concept above a tool nobody had used
+    yet. FreeTierBadge already states the real, per-visitor answer at the
+    exact moment it matters — on the control being chosen.
+  */
 
   const faqs: FAQItem[] = [
     {
@@ -246,18 +252,17 @@ export default async function VocalRemoverPage() {
             or acapella, no sign-up, no download required. Free for karaoke,
             practice, remixing, and sampling.
           </p>
-          {showFreeTierNote && (
-            <p className="text-sm text-text-subtle">
-              Includes{" "}
-              <span className="text-amber-400">2 free Studio Quality runs</span>{" "}
-              every month — no account, no subscription.
-            </p>
-          )}
         </header>
 
         <VocalRemoverForm hqAvailable={separationHqEnabled} />
 
-        <section className="grid gap-4 sm:grid-cols-3">
+        {/*
+          One bordered strip with hairline dividers, not three floating cards.
+          Three separate boxes directly under the tool read as three more
+          things to deal with; divided cells read as one row of facts about
+          the thing above them. Text unchanged — this is purely how it sits.
+        */}
+        <section className="grid divide-y divide-graphite-800 overflow-hidden rounded-xl border border-graphite-800 bg-graphite-900 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
           {[
             { title: "GPU-accelerated AI", desc: "Real source separation, not a basic center-channel filter." },
             // FIX 4: was "Runs entirely in your browser" — factually wrong,
@@ -266,9 +271,11 @@ export default async function VocalRemoverPage() {
             { title: "No install", desc: "Nothing to download. Upload, process, download in your browser." },
             { title: "Free", desc: "No sign-up, no watermark, free for everyone." },
           ].map((f) => (
-            <div key={f.title} className="rounded-xl border border-graphite-800 bg-graphite-900 p-5 space-y-2">
-              <p className="font-semibold text-text-primary">{f.title}</p>
-              <p className="text-sm text-text-muted">{f.desc}</p>
+            <div key={f.title} className="space-y-1.5 p-5">
+              <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-amber-400">
+                {f.title}
+              </p>
+              <p className="text-sm leading-relaxed text-text-muted">{f.desc}</p>
             </div>
           ))}
         </section>
@@ -424,33 +431,46 @@ export default async function VocalRemoverPage() {
             <h2 className="text-2xl font-bold text-text-primary">Standard vs. Studio Quality</h2>
             <div className="overflow-x-auto rounded-xl border border-graphite-800">
               <table className="w-full text-sm text-left text-text-muted">
-                <thead className="bg-graphite-900 text-text-primary">
+                <thead className="bg-graphite-900">
                   <tr>
-                    <th className="px-4 py-3 font-semibold">&nbsp;</th>
-                    <th className="px-4 py-3 font-semibold">Standard</th>
-                    <th className="px-4 py-3 font-semibold">Studio Quality</th>
+                    <th className="w-1/4 px-4 py-3">
+                      <span className="sr-only">Comparison</span>
+                    </th>
+                    {/* The paid column is the one being weighed. Amber marks it
+                        as the subject rather than leaving two identical
+                        headings for the eye to sort out. */}
+                    <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-[0.16em] font-medium text-text-subtle">
+                      Standard
+                    </th>
+                    <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-[0.16em] font-medium text-amber-400">
+                      Studio Quality
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-graphite-800">
                   <tr>
-                    <td className="px-4 py-3 font-medium text-text-primary">Processing time</td>
-                    <td className="px-4 py-3">20 sec–1 minute</td>
-                    <td className="px-4 py-3">1–2 minutes</td>
+                    <td className="px-4 py-3 font-medium text-text-subtle">Processing time</td>
+                    <td className="px-4 py-3 font-mono tabular-nums">20 sec–1 min</td>
+                    <td className="px-4 py-3 font-mono tabular-nums text-text-primary">
+                      1–2 min
+                    </td>
                   </tr>
                   <tr>
-                    <td className="px-4 py-3 font-medium text-text-primary">Separation quality</td>
+                    <td className="px-4 py-3 font-medium text-text-subtle">Separation quality</td>
                     <td className="px-4 py-3">Good for most tracks</td>
                     <td className="px-4 py-3">Noticeably cleaner on both stems</td>
                   </tr>
                   <tr>
                     {/* Pulled from lib/data/rate-limits.ts (getRateLimitLabel) —
                         do not hardcode these two cells again. */}
-                    <td className="px-4 py-3 font-medium text-text-primary">Usage limit</td>
-                    <td className="px-4 py-3">{standardLimitLabel}</td>
-                    <td className="px-4 py-3">{hqLimitLabel}</td>
+                    <td className="px-4 py-3 font-medium text-text-subtle">Usage limit</td>
+                    <td className="px-4 py-3 font-mono tabular-nums">{standardLimitLabel}</td>
+                    <td className="px-4 py-3 font-mono tabular-nums text-text-primary">
+                      {hqLimitLabel}
+                    </td>
                   </tr>
                   <tr>
-                    <td className="px-4 py-3 font-medium text-text-primary">Best for</td>
+                    <td className="px-4 py-3 font-medium text-text-subtle">Best for</td>
                     <td className="px-4 py-3">Quick previews, casual use</td>
                     <td className="px-4 py-3">Sampling, remixing, anything going into a final mix</td>
                   </tr>

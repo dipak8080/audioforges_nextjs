@@ -26,7 +26,11 @@ import {
   type SeparationQuality,
 } from "@/lib/api/railway";
 import { getRateLimitLabel } from "@/lib/data/rate-limits";
-import type { SeparationUiState, StemType, SubmitBilling } from "@/lib/types/converter";
+import type {
+  SeparationUiState,
+  StemType,
+  SubmitBilling,
+} from "@/lib/types/converter";
 import type { MeteredToolKey } from "@/lib/types/credits";
 import { SupportBlock } from "@/components/ui/SupportBlock";
 import { cn } from "@/lib/utils/cn";
@@ -36,7 +40,10 @@ import { useCreditGate } from "@/components/credits/useCreditGate";
 import { useCredits } from "@/components/credits/CreditProvider";
 import { FreeTierBadge } from "@/components/credits/FreeTierBadge";
 import { UpgradeToHqCard } from "@/components/credits/UpgradeToHqCard";
-import { CreditReceipt, StudioQualityTag } from "@/components/credits/CreditReceipt";
+import {
+  CreditReceipt,
+  StudioQualityTag,
+} from "@/components/credits/CreditReceipt";
 
 /**
  * ── THIS PASS: FOUR FIXES ──────────────────────────────────────────────
@@ -202,7 +209,10 @@ function humanizeError(raw: string): { title: string; hint: string } {
     };
   }
   if (text.includes("expired")) {
-    return { title: "This job expired", hint: "Upload the file again to re-run it." };
+    return {
+      title: "This job expired",
+      hint: "Upload the file again to re-run it.",
+    };
   }
   if (text.includes("network") || text.includes("timeout")) {
     return {
@@ -225,7 +235,7 @@ function humanizeError(raw: string): { title: string; hint: string } {
 function useRovingRadio<T extends string>(
   values: readonly T[],
   current: T,
-  onChange: (next: T) => void
+  onChange: (next: T) => void,
 ) {
   const refs = useRef<Array<HTMLButtonElement | null>>([]);
 
@@ -259,7 +269,9 @@ function useRovingRadio<T extends string>(
   return { refs, onKeyDown };
 }
 
-export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps) {
+export function VocalRemoverForm({
+  hqAvailable = false,
+}: VocalRemoverFormProps) {
   const [file, setFile] = useState<File | null>(null);
   const [status, setStatus] = useState<SeparationUiState>("idle");
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -321,7 +333,9 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
    * never fired for anyone.
    */
   const notifyEnabledRef = useRef(false);
-  const notifyPermissionRef = useRef<NotificationPermission | "unsupported">("default");
+  const notifyPermissionRef = useRef<NotificationPermission | "unsupported">(
+    "default",
+  );
   notifyEnabledRef.current = notifyEnabled;
   notifyPermissionRef.current = notifyPermission;
 
@@ -347,17 +361,18 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
   // lib/data/rate-limits.ts.
   const standardLimitLabel =
     getRateLimitLabel(STANDARD_SPEC.rateLimitKey) ?? FALLBACK_RATE_LIMIT_LABEL;
-  const hqLimitLabel = getRateLimitLabel(HQ_SPEC.rateLimitKey) ?? FALLBACK_RATE_LIMIT_LABEL;
+  const hqLimitLabel =
+    getRateLimitLabel(HQ_SPEC.rateLimitKey) ?? FALLBACK_RATE_LIMIT_LABEL;
 
   const qualityRadio = useRovingRadio(
     ["standard", "hq"] as const,
     quality,
-    (v) => setQuality(v)
+    (v) => setQuality(v),
   );
   const stemRadio = useRovingRadio(
     ["vocals", "instrumental"] as const,
     activeStem,
-    (v) => setActiveStem(v)
+    (v) => setActiveStem(v),
   );
 
   useEffect(() => {
@@ -379,7 +394,10 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
 
   useEffect(() => {
     if (cooldownSeconds <= 0) return;
-    const id = setTimeout(() => setCooldownSeconds((s) => Math.max(0, s - 1)), 1000);
+    const id = setTimeout(
+      () => setCooldownSeconds((s) => Math.max(0, s - 1)),
+      1000,
+    );
     return () => clearTimeout(id);
   }, [cooldownSeconds]);
 
@@ -391,7 +409,8 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
 
   /** Refs, not state — see notifyEnabledRef above. */
   const notifyOnDone = useCallback((title: string, body: string) => {
-    if (!notifyEnabledRef.current || notifyPermissionRef.current !== "granted") return;
+    if (!notifyEnabledRef.current || notifyPermissionRef.current !== "granted")
+      return;
     if (typeof document !== "undefined" && !document.hidden) return;
     try {
       new Notification(title, { body, icon: "/favicon.ico" });
@@ -416,7 +435,8 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
     (id: string, forQuality: SeparationQuality) => {
       if (cancelledRef.current) return;
 
-      const maxPollMs = forQuality === "hq" ? MAX_POLL_MS_HQ : MAX_POLL_MS_STANDARD;
+      const maxPollMs =
+        forQuality === "hq" ? MAX_POLL_MS_HQ : MAX_POLL_MS_STANDARD;
       if (Date.now() - pollStartedAtRef.current > maxPollMs) {
         stopPolling();
         const humanized = {
@@ -438,12 +458,17 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
             stopPolling();
             setResultTitle(result.title);
             setStatus("complete");
-            notifyOnDone("Vocals separated", "Your vocal and instrumental tracks are ready.");
+            notifyOnDone(
+              "Vocals separated",
+              "Your vocal and instrumental tracks are ready.",
+            );
             return;
           }
           if (result.status === "failed") {
             stopPolling();
-            const humanized = humanizeError(result.error || "Separation failed.");
+            const humanized = humanizeError(
+              result.error || "Separation failed.",
+            );
             setError(humanized);
             setStatus("failed");
             notifyOnDone("Separation failed", humanized.title);
@@ -464,7 +489,7 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
           pollRef.current = setTimeout(() => poll(id, forQuality), intervalMs);
         });
     },
-    [stopPolling, notifyOnDone]
+    [stopPolling, notifyOnDone],
   );
 
   const startPolling = useCallback(
@@ -473,7 +498,7 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
       pollStartedAtRef.current = Date.now();
       poll(id, forQuality);
     },
-    [poll, stopPolling]
+    [poll, stopPolling],
   );
 
   const handleFileSelect = (selectedFile: File) => {
@@ -497,7 +522,9 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
   const handleSubmit = async () => {
     if (!file) return;
 
-    const effectiveQuality: SeparationQuality = hqAvailable ? quality : "standard";
+    const effectiveQuality: SeparationQuality = hqAvailable
+      ? quality
+      : "standard";
 
     setStatus("uploading");
     setElapsedSeconds(0);
@@ -561,7 +588,9 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
         setCooldownSeconds(err.retryAfterSeconds ?? 3600);
       } else {
         setError(
-          humanizeError(err instanceof ApiError ? err.message : "Something went wrong.")
+          humanizeError(
+            err instanceof ApiError ? err.message : "Something went wrong.",
+          ),
         );
       }
       setStatus("error");
@@ -602,7 +631,7 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
       setStatus("processing");
       startPolling(newJobId, "hq");
     },
-    [startPolling, applyBalance]
+    [startPolling, applyBalance],
   );
 
   const handleReset = () => {
@@ -641,7 +670,9 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
   // expected duration above. Keyed on the RUNNING job's tier, not the toggle.
   const progress = Math.min(
     92,
-    Math.round((1 - Math.exp(-elapsedSeconds / (jobQuality === "hq" ? 40 : 12))) * 100)
+    Math.round(
+      (1 - Math.exp(-elapsedSeconds / (jobQuality === "hq" ? 40 : 12))) * 100,
+    ),
   );
 
   return (
@@ -651,7 +682,7 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
           <span
             className={cn(
               "h-1.5 w-1.5 rounded-full bg-amber-500",
-              isBusy && "animate-pulse motion-reduce:animate-none"
+              isBusy && "animate-pulse motion-reduce:animate-none",
             )}
             aria-hidden
           />
@@ -664,192 +695,249 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
         </span>
       </div>
 
-      <div className="space-y-6 p-6 sm:p-8">
+      {/*
+        ZONES SEPARATED BY HAIRLINES, NOT BY MORE VERTICAL SPACE.
+        This was one padded box with `space-y-6` between every block, so the
+        dropzone, the quality picker, the notify toggle and the progress panel
+        all sat at the same level with nothing grouping them — a pile of
+        widgets rather than a panel with parts. `divide-y` draws a rule between
+        whichever sections actually render, which is the same layout contract
+        TranscriptionForm already documents and is the better-designed form on
+        this site.
+      */}
+      <div className="divide-y divide-graphite-800">
+        {/* SOURCE — the file, and anything wrong with it. */}
         {status !== "complete" && (
-          <FileDropZone
-            onFileSelect={handleFileSelect}
-            currentFile={file}
-            onClear={handleReset}
-            disabled={isBusy}
-            accept="audio/*,.mp3,.wav,.m4a,.aac,.ogg,.flac"
-          />
+          <section className="space-y-4 p-6 sm:p-8">
+            <FileDropZone
+              onFileSelect={handleFileSelect}
+              currentFile={file}
+              onClear={handleReset}
+              disabled={isBusy}
+              accept="audio/*,.mp3,.wav,.m4a,.aac,.ogg,.flac"
+            />
+
+            {/* Moved here from further down: an error about the file belongs
+              beside the file, not below two unrelated controls. */}
+            {validationError && (
+              <div
+                className="flex items-start gap-3 rounded-lg border border-red-500/25 bg-red-500/[0.07] p-4"
+                role="alert"
+              >
+                <AlertTriangle
+                  className="mt-0.5 h-4 w-4 shrink-0 text-red-400"
+                  aria-hidden
+                />
+                <span className="text-sm text-text-primary">
+                  {validationError}
+                </span>
+              </div>
+            )}
+          </section>
         )}
 
-        {hqAvailable && status !== "complete" && (
-          <div className="space-y-2">
-            <label id="quality-label" className="text-sm font-medium text-text-primary">
-              Quality
-            </label>
-            <div
-              className="grid gap-2 sm:grid-cols-2"
-              role="radiogroup"
-              aria-labelledby="quality-label"
-              onKeyDown={qualityRadio.onKeyDown}
-            >
-              {[STANDARD_SPEC, HQ_SPEC].map((option, i) => {
-                const selected = quality === option.value;
-                // Live limit first, static table second. See formatRateLimit.
-                const liveLimit = option.toolKey ? rateLimitFor(option.toolKey) : null;
-                const rateLimitLabel = liveLimit
-                  ? formatRateLimit(liveLimit.max_requests, liveLimit.window_seconds)
-                  : (getRateLimitLabel(option.rateLimitKey) ?? FALLBACK_RATE_LIMIT_LABEL);
-                return (
-                  <button
-                    key={option.value}
-                    ref={(el) => {
-                      qualityRadio.refs.current[i] = el;
-                    }}
-                    type="button"
-                    role="radio"
-                    aria-checked={selected}
-                    tabIndex={selected ? 0 : -1}
-                    onClick={() => setQuality(option.value)}
-                    disabled={isBusy}
-                    className={cn(
-                      "rounded-lg border p-3.5 text-left transition-all",
-                      "outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70",
-                      "disabled:cursor-not-allowed disabled:opacity-40",
-                      selected
-                        ? "border-amber-500/60 bg-amber-500/[0.07]"
-                        : "border-graphite-700 bg-graphite-850 hover:border-graphite-700/60 hover:bg-graphite-800/60"
-                    )}
+        {/* SETTINGS — the two choices, in one zone with one baseline. */}
+        {status !== "complete" &&
+          (hqAvailable || notifyPermission !== "unsupported") && (
+            <section className="space-y-5 p-6 sm:p-8">
+              {hqAvailable && (
+                <div className="space-y-2">
+                  <label
+                    id="quality-label"
+                    className="text-sm font-medium text-text-primary"
                   >
-                    <div className="flex items-center justify-between gap-2">
-                      <span
-                        className={cn(
-                          "flex items-center gap-1.5 text-sm font-semibold",
-                          selected ? "text-amber-400" : "text-text-primary"
-                        )}
-                      >
-                        {option.value === "hq" && (
-                          <Sparkles className="h-3.5 w-3.5" aria-hidden />
-                        )}
-                        {option.label}
-                        {/* Renders nothing unless this tool is metered right
+                    Quality
+                  </label>
+                  <div
+                    className="grid gap-2 sm:grid-cols-2"
+                    role="radiogroup"
+                    aria-labelledby="quality-label"
+                    onKeyDown={qualityRadio.onKeyDown}
+                  >
+                    {[STANDARD_SPEC, HQ_SPEC].map((option, i) => {
+                      const selected = quality === option.value;
+                      // Live limit first, static table second. See formatRateLimit.
+                      const liveLimit = option.toolKey
+                        ? rateLimitFor(option.toolKey)
+                        : null;
+                      const rateLimitLabel = liveLimit
+                        ? formatRateLimit(
+                            liveLimit.max_requests,
+                            liveLimit.window_seconds,
+                          )
+                        : (getRateLimitLabel(option.rateLimitKey) ??
+                          FALLBACK_RATE_LIMIT_LABEL);
+                      return (
+                        <button
+                          key={option.value}
+                          ref={(el) => {
+                            qualityRadio.refs.current[i] = el;
+                          }}
+                          type="button"
+                          role="radio"
+                          aria-checked={selected}
+                          tabIndex={selected ? 0 : -1}
+                          onClick={() => setQuality(option.value)}
+                          disabled={isBusy}
+                          className={cn(
+                            "rounded-lg border p-3.5 text-left transition-all",
+                            "outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70",
+                            "disabled:cursor-not-allowed disabled:opacity-40",
+                            selected
+                              ? "border-amber-500/60 bg-amber-500/[0.07]"
+                              : "border-graphite-700 bg-graphite-850 hover:border-graphite-700/60 hover:bg-graphite-800/60",
+                          )}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span
+                              className={cn(
+                                "flex items-center gap-1.5 text-sm font-semibold",
+                                selected
+                                  ? "text-amber-400"
+                                  : "text-text-primary",
+                              )}
+                            >
+                              {option.value === "hq" && (
+                                <Sparkles className="h-3.5 w-3.5" aria-hidden />
+                              )}
+                              {option.label}
+                              {/* Renders nothing unless this tool is metered right
                             now. "2 free runs left" is what makes a first-timer
                             click Studio Quality at all. */}
-                        {option.toolKey && <FreeTierBadge tool={option.toolKey} />}
-                      </span>
-                      <span
-                        className={cn(
-                          "font-mono text-[10px]",
-                          selected ? "text-amber-500/80" : "text-text-subtle"
-                        )}
-                      >
-                        {option.time}
-                      </span>
-                    </div>
-                    <p className="mt-1 text-[11px] leading-snug text-text-muted">
-                      {option.detail}
+                              {option.toolKey && (
+                                <FreeTierBadge tool={option.toolKey} />
+                              )}
+                            </span>
+                            <span
+                              className={cn(
+                                "font-mono text-[10px]",
+                                selected
+                                  ? "text-amber-500/80"
+                                  : "text-text-subtle",
+                              )}
+                            >
+                              {option.time}
+                            </span>
+                          </div>
+                          <p className="mt-1 text-[11px] leading-snug text-text-muted">
+                            {option.detail}
+                          </p>
+                          <p className="mt-1 font-mono text-[10px] text-text-subtle">
+                            {rateLimitLabel}
+                          </p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {isHq && (
+                    <p className="flex items-start gap-1.5 text-[11px] leading-relaxed text-text-subtle">
+                      <Info className="mt-0.5 h-3 w-3 shrink-0" aria-hidden />
+                      Studio Quality can take a minute or two. The notification
+                      below saves you from babysitting this tab.
                     </p>
-                    <p className="mt-1 font-mono text-[10px] text-text-subtle">
-                      {rateLimitLabel}
-                    </p>
-                  </button>
-                );
-              })}
-            </div>
-            {isHq && (
-              <p className="flex items-start gap-1.5 text-[11px] leading-relaxed text-text-subtle">
-                <Info className="mt-0.5 h-3 w-3 shrink-0" aria-hidden />
-                Studio Quality can take a minute or two. The notification below
-                saves you from babysitting this tab.
-              </p>
-            )}
-          </div>
-        )}
+                  )}
+                </div>
+              )}
 
-        {notifyPermission !== "unsupported" && status !== "complete" && (
-          <button
-            type="button"
-            onClick={handleNotifyToggle}
-            disabled={isBusy || !file}
-            aria-pressed={notifyEnabled && notifyPermission === "granted"}
-            className={cn(
-              "flex w-full items-center gap-2.5 rounded-lg border px-3.5 py-2.5 text-left text-sm transition-colors",
-              "outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70",
-              "disabled:pointer-events-none disabled:opacity-40",
-              notifyEnabled && notifyPermission === "granted"
-                ? "border-amber-500/60 bg-amber-500/[0.07] text-amber-400"
-                : "border-graphite-700 bg-graphite-850 text-text-muted hover:border-graphite-700/60 hover:text-text-primary"
-            )}
-          >
-            {notifyEnabled && notifyPermission === "granted" ? (
-              <Bell className="h-4 w-4 shrink-0" aria-hidden />
-            ) : (
-              <BellOff className="h-4 w-4 shrink-0" aria-hidden />
-            )}
-            <span className="flex-1">
-              {notifyPermission === "denied"
-                ? "Notifications blocked — enable them in your browser settings to use this"
-                : notifyEnabled && notifyPermission === "granted"
-                  ? "We'll notify you when it's done"
-                  : "Notify me when it's done"}
-            </span>
-          </button>
-        )}
+              {/*
+          HIDDEN UNTIL THERE IS A FILE, not shown disabled.
+          This form already states that rule in the comment on its submit
+          button, and then broke it here: with no file chosen, the resting
+          state ended on a full-width greyed-out row that does nothing. A
+          disabled control is still a control the eye has to process and
+          dismiss. Nothing to notify you about until there's a job.
+        */}
+              {notifyPermission !== "unsupported" && file && (
+                <button
+                  type="button"
+                  onClick={handleNotifyToggle}
+                  disabled={isBusy}
+                  aria-pressed={notifyEnabled && notifyPermission === "granted"}
+                  className={cn(
+                    "flex w-full items-center gap-2.5 rounded-lg border px-3.5 py-2.5 text-left text-sm transition-colors",
+                    "outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70",
+                    "disabled:pointer-events-none disabled:opacity-40",
+                    notifyEnabled && notifyPermission === "granted"
+                      ? "border-amber-500/60 bg-amber-500/[0.07] text-amber-400"
+                      : "border-graphite-700 bg-graphite-850 text-text-muted hover:border-graphite-700/60 hover:text-text-primary",
+                  )}
+                >
+                  {notifyEnabled && notifyPermission === "granted" ? (
+                    <Bell className="h-4 w-4 shrink-0" aria-hidden />
+                  ) : (
+                    <BellOff className="h-4 w-4 shrink-0" aria-hidden />
+                  )}
+                  <span className="flex-1">
+                    {notifyPermission === "denied"
+                      ? "Notifications blocked — enable them in your browser settings to use this"
+                      : notifyEnabled && notifyPermission === "granted"
+                        ? "We'll notify you when it's done"
+                        : "Notify me when it's done"}
+                  </span>
+                </button>
+              )}
+            </section>
+          )}
 
-        {validationError && (
-          <div
-            className="flex items-start gap-3 rounded-lg border border-red-500/25 bg-red-500/[0.07] p-4"
-            role="alert"
-          >
-            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-400" aria-hidden />
-            <span className="text-sm text-text-primary">{validationError}</span>
-          </div>
-        )}
-
+        {/* WORKING */}
         {isBusy && (
-          <div
-            className="space-y-3 rounded-lg border border-graphite-800 bg-graphite-850/60 p-4"
+          <section className="p-6 sm:p-8">
+            <div
+              className="space-y-3 rounded-lg border border-graphite-800 bg-graphite-850/60 p-4"
+              role="status"
+              aria-live="polite"
+              aria-busy="true"
+            >
+              <div className="flex items-center justify-between gap-3">
+                <span className="min-w-0 truncate text-sm text-text-primary">
+                  {status === "uploading" ? "Uploading your file" : stageLabel}
+                </span>
+                <span className="shrink-0 font-mono text-xs tabular-nums text-text-subtle">
+                  {formatElapsed(elapsedSeconds)}
+                </span>
+              </div>
+              <div
+                role="progressbar"
+                aria-valuenow={progress}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-label="Separation progress"
+                className="h-1 w-full overflow-hidden rounded-full bg-graphite-800"
+              >
+                <div
+                  className="h-full rounded-full bg-amber-500 transition-[width] duration-1000 ease-out motion-reduce:transition-none"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="opacity-60 motion-reduce:hidden">
+                  <Waveform />
+                </div>
+                {/* Underlined text link, not a button shape — deliberately not
+                  run through <Button>. */}
+                <button
+                  type="button"
+                  onClick={handleCancel}
+                  className="rounded px-1 text-xs text-text-subtle underline underline-offset-2 outline-none transition-colors hover:text-red-400 focus-visible:ring-2 focus-visible:ring-amber-400/70"
+                >
+                  Cancel
+                </button>
+              </div>
+              <p className="text-xs leading-relaxed text-text-subtle">
+                Typically {activeSpec.time}. Keep this tab open, or use the
+                notification above.
+              </p>
+            </div>
+          </section>
+        )}
+
+        {/* RESULT */}
+        {status === "complete" && jobId && (
+          <section
+            className="space-y-4 p-6 sm:p-8"
             role="status"
             aria-live="polite"
-            aria-busy="true"
           >
-            <div className="flex items-center justify-between gap-3">
-              <span className="min-w-0 truncate text-sm text-text-primary">
-                {status === "uploading" ? "Uploading your file" : stageLabel}
-              </span>
-              <span className="shrink-0 font-mono text-xs tabular-nums text-text-subtle">
-                {formatElapsed(elapsedSeconds)}
-              </span>
-            </div>
-            <div
-              role="progressbar"
-              aria-valuenow={progress}
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-label="Separation progress"
-              className="h-1 w-full overflow-hidden rounded-full bg-graphite-800"
-            >
-              <div
-                className="h-full rounded-full bg-amber-500 transition-[width] duration-1000 ease-out motion-reduce:transition-none"
-                style={{ width: `${progress}%` }}
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="opacity-60 motion-reduce:hidden">
-                <Waveform />
-              </div>
-              {/* Underlined text link, not a button shape — deliberately not
-                  run through <Button>. */}
-              <button
-                type="button"
-                onClick={handleCancel}
-                className="rounded px-1 text-xs text-text-subtle underline underline-offset-2 outline-none transition-colors hover:text-red-400 focus-visible:ring-2 focus-visible:ring-amber-400/70"
-              >
-                Cancel
-              </button>
-            </div>
-            <p className="text-xs leading-relaxed text-text-subtle">
-              Typically {activeSpec.time}. Keep this tab open, or use the
-              notification above.
-            </p>
-          </div>
-        )}
-
-        {status === "complete" && jobId && (
-          <div className="space-y-4" role="status" aria-live="polite">
             <div className="border-b border-graphite-800 pb-4">
               <div className="flex items-center gap-2">
                 <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-teal-400">
@@ -886,7 +974,7 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
                       "outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70",
                       selected
                         ? "border-amber-500/60 bg-amber-500/10 text-amber-400"
-                        : "border-graphite-700 bg-graphite-850 text-text-muted hover:text-text-primary"
+                        : "border-graphite-700 bg-graphite-850 text-text-muted hover:text-text-primary",
                     )}
                   >
                     {stem === "vocals" ? (
@@ -911,7 +999,11 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
                 says this job is eligible, and never on a job that already ran
                 at Studio Quality. */}
             {jobQuality === "standard" && (
-              <UpgradeToHqCard family="separate" jobId={jobId} onUpgraded={handleUpgraded} />
+              <UpgradeToHqCard
+                family="separate"
+                jobId={jobId}
+                onUpgraded={handleUpgraded}
+              />
             )}
 
             {/* Stays an <a> — a real download URL, so middle-click and
@@ -937,15 +1029,21 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
                 Quality run still gets the block — nobody paid for that one. */}
             {!completedCharged && <SupportBlock />}
 
-            <Button variant="outline" size="md" className="w-full" onClick={handleReset}>
+            <Button
+              variant="outline"
+              size="md"
+              className="w-full"
+              onClick={handleReset}
+            >
               <RotateCcw />
               Separate another track
             </Button>
-          </div>
+          </section>
         )}
 
+        {/* FAILED */}
         {isFailed && error && (
-          <div className="space-y-4">
+          <section className="space-y-4 p-6 sm:p-8">
             <div
               className="flex items-start gap-3 rounded-lg border border-red-500/25 bg-red-500/[0.07] p-4"
               role="alert"
@@ -955,14 +1053,20 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
                 aria-hidden
               />
               <div>
-                <p className="text-sm font-medium text-text-primary">{error.title}</p>
+                <p className="text-sm font-medium text-text-primary">
+                  {error.title}
+                </p>
                 <p className="mt-0.5 text-xs leading-relaxed text-text-muted">
                   {error.hint}
                 </p>
                 {error.offerCredits && (
                   <Link
                     href="/pricing"
-                    onClick={() => trackCredits("credits_rate_limited", { tool: "separate-hq" })}
+                    onClick={() =>
+                      trackCredits("credits_rate_limited", {
+                        tool: "separate-hq",
+                      })
+                    }
                     className="mt-2 inline-block rounded text-xs font-medium text-amber-400 outline-none underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-amber-400/70"
                   >
                     See credit packs →
@@ -971,32 +1075,38 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
               </div>
             </div>
             <SupportBlock />
-          </div>
+          </section>
         )}
 
-        {/* Hidden until there's a file, rather than shown disabled — see the
+        {/* ACTION BAR. Recessed and pinned to the bottom edge so the primary
+            control sits in the same place in every state, rather than being
+            the last item in whichever stack happens to be rendered.
+
+            Hidden until there's a file, rather than shown disabled — see the
             matching note in JobToolForm. isFailed keeps "Try again"
             reachable after an error. */}
         {status !== "complete" && (file || isFailed) && (
-          <Button
-            variant="primary"
-            size="lg"
-            className="w-full"
-            onClick={handleSubmit}
-            disabled={!canSubmit && !isBusy}
-            loading={isBusy}
-          >
-            {!isBusy && <Mic2 />}
-            {isBusy
-              ? "Working"
-              : cooldownSeconds > 0
-                ? `Try again in ${formatCooldown(cooldownSeconds)}`
-                : isFailed
-                  ? "Try again"
-                  : isHq
-                    ? "Remove vocals (Studio Quality)"
-                    : "Remove vocals"}
-          </Button>
+          <div className="rounded-b-2xl bg-graphite-950/40 p-4 sm:px-8 sm:py-5">
+            <Button
+              variant="primary"
+              size="lg"
+              className="w-full"
+              onClick={handleSubmit}
+              disabled={!canSubmit && !isBusy}
+              loading={isBusy}
+            >
+              {!isBusy && <Mic2 />}
+              {isBusy
+                ? "Working"
+                : cooldownSeconds > 0
+                  ? `Try again in ${formatCooldown(cooldownSeconds)}`
+                  : isFailed
+                    ? "Try again"
+                    : isHq
+                      ? "Remove vocals (Studio Quality)"
+                      : "Remove vocals"}
+            </Button>
+          </div>
         )}
       </div>
 

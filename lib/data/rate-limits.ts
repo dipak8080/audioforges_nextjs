@@ -13,12 +13,15 @@
 // what the limit is. There is no way to verify these from the frontend
 // alone — they have to be kept in sync by hand.
 //
-// SCOPE: every limit below is per IP address, per endpoint. Two
-// endpoints sharing a number don't share a budget — someone who has
-// used their transcription allowance can still submit to /stems. This
-// is not a convention, it's how rate_limit.py's `_requests` map is
-// keyed: `(ip, path)`. Nothing in the backend can make two paths draw
-// from one pool without changing that key.
+// SCOPE: most limits below are per IP address, per endpoint — two endpoints
+// sharing a number don't share a budget, because rate_limit.py's `_requests`
+// map is keyed `(ip, path)`.
+//
+// THE THREE TRANSCRIPTION ROUTES ARE THE EXCEPTION. They were moved onto
+// tiered_rate_limit("transcribe"), which keys on the RULE rather than the
+// path, so /speech-to-text, /video-to-text and /youtube/transcribe now draw
+// from ONE pool. See the transcription block below before writing copy about
+// them.
 //
 // For input caps (file counts, byte ceilings, duration ceilings) see
 // tool-limits.ts — separate file, separate concern.
@@ -51,8 +54,21 @@ export const RATE_LIMITS: Record<string, RateLimitSpec> = {
     limit: 6, windowSeconds: 3600, label: "6 per hour",
     envVar: "SEPARATION_RATE_LIMIT_MAX_REQUESTS",
   },
+  // ---- The four HQ routes ----
+  //
+  // CORRECTED 2026-08-28: these said 1/hour. GET /credits/me returns
+  // max_requests: 2 for the free tier on all four, so every page falling back
+  // to this table was under-reporting the real allowance by half — the same
+  // class of bug already found on audio-to-midi and download.
+  //
+  // THESE ARE THE FREE-TIER NUMBERS ONLY. The HQ routes are TIERED: 2/hour
+  // free, 30/hour once the visitor holds credits. A static string cannot be
+  // right for both, which is why the forms call rateLimitFor(toolKey) and only
+  // fall back here. Server-rendered pages have no visitor to resolve against,
+  // so they get the free number — correct for a first-time reader, and the
+  // form corrects it the moment it hydrates.
   "separate-hq": {
-    limit: 1, windowSeconds: 3600, label: "1 per hour",
+    limit: 2, windowSeconds: 3600, label: "2 per hour",
     envVar: "SEPARATION_HQ_RATE_LIMIT_MAX_REQUESTS",
   },
   // CHANGED 2026-08-21: 15 → 6, and the envVar moved off the shared
@@ -68,7 +84,7 @@ export const RATE_LIMITS: Record<string, RateLimitSpec> = {
     envVar: "YOUTUBE_SEPARATE_RATE_LIMIT_MAX_REQUESTS",
   },
   "youtube/separate-hq": {
-    limit: 1, windowSeconds: 3600, label: "1 per hour",
+    limit: 2, windowSeconds: 3600, label: "2 per hour",
     envVar: "YOUTUBE_SEPARATE_HQ_RATE_LIMIT_MAX_REQUESTS",
   },
 
@@ -80,7 +96,7 @@ export const RATE_LIMITS: Record<string, RateLimitSpec> = {
     envVar: "STEMS_RATE_LIMIT_MAX_REQUESTS",
   },
   "stems-hq": {
-    limit: 1, windowSeconds: 3600, label: "1 per hour",
+    limit: 2, windowSeconds: 3600, label: "2 per hour",
     envVar: "STEMS_HQ_RATE_LIMIT_MAX_REQUESTS",
   },
   // CHANGED 2026-08-21: 15 → 6, same reasoning as youtube/separate
@@ -92,7 +108,7 @@ export const RATE_LIMITS: Record<string, RateLimitSpec> = {
     envVar: "YOUTUBE_STEMS_RATE_LIMIT_MAX_REQUESTS",
   },
   "youtube/stems-hq": {
-    limit: 1, windowSeconds: 3600, label: "1 per hour",
+    limit: 2, windowSeconds: 3600, label: "2 per hour",
     envVar: "YOUTUBE_STEMS_HQ_RATE_LIMIT_MAX_REQUESTS",
   },
 
@@ -107,10 +123,24 @@ export const RATE_LIMITS: Record<string, RateLimitSpec> = {
   // than every other limit on the site and the most likely to be hit by
   // an ordinary user doing a normal retry.
   //
-  // All three routes carry the same limit, but they are counted
-  // SEPARATELY: exhausting /speech-to-text doesn't block
-  // /youtube/transcribe. Worth knowing before writing any copy that
-  // implies one shared transcription allowance.
+  // CHANGED 2026-08-28: THESE THREE NOW SHARE ONE POOL. Each route passes
+  // tiered_rate_limit("transcribe") — a single shared rule key, chosen
+  // because all three hit one RunPod endpoint and one
+  // MAX_CONCURRENT_TRANSCRIPTIONS pool, and three keys would hand one caller
+  // three independent budgets for one resource.
+  //
+  // The previous comment here said the opposite ("counted SEPARATELY:
+  // exhausting /speech-to-text doesn't block /youtube/transcribe"). That was
+  // true while they used the per-path limiter and is false now. Any copy
+  // implying three separate transcription allowances is wrong.
+  //
+  // THESE NUMBERS ARE THE FREE TIER ONLY. The shared rule is TIERED: 2/hour
+  // free, 30/hour once the visitor holds credits. A static string can only
+  // ever be right for one of the two, which is what rateLimitFor() exists to
+  // solve on the separation forms — but /credits/me's rate_limit.tools does
+  // not yet include "transcribe" (_free_route_limits() in credits/ledger.py
+  // lists only the four separation keys). Until it does, do not print a
+  // per-hour figure to a credited user from this table.
   //
   // These are the tightest limits on the site by a wide margin, and the
   // most likely to be hit by an ordinary user — someone who picks the
