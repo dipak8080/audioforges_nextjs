@@ -329,8 +329,18 @@ export function MultiOutputToolForm({
    */
   const onCompleteRef = useRef(onComplete);
   const onFailedRef = useRef(onFailed);
-  onCompleteRef.current = onComplete;
-  onFailedRef.current = onFailed;
+  /*
+    Synced in an EFFECT, not assigned during render. Writing to a ref while
+    rendering is what react-hooks/refs rejects, and it stops being merely
+    untidy the moment the React Compiler is enabled: a memoised render can be
+    skipped, and the assignment with it. An effect with no dependency array
+    runs after every render, so the value a callback reads is always the
+    latest one.
+  */
+  useEffect(() => {
+    onCompleteRef.current = onComplete;
+    onFailedRef.current = onFailed;
+  });
 
   // Re-runs the submit after a purchase closes the gate. Through a ref because
   // handleSubmit is declared below.
@@ -595,9 +605,11 @@ export function MultiOutputToolForm({
   };
 
   // Assigned during render so onCredited always calls the CURRENT handleSubmit.
-  submitRef.current = () => {
-    void handleSubmit();
-  };
+  useEffect(() => {
+    submitRef.current = () => {
+      void handleSubmit();
+    };
+  });
 
   const stageLabel = (() => {
     if (status === "uploading") return retryNotice || "Uploading your file";

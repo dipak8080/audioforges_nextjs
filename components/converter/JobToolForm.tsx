@@ -7,6 +7,10 @@ import { FileDropZone } from "@/components/ui/FileDropZone";
 import { Waveform } from "@/components/ui/Waveform";
 import { AudioPlayer } from "@/components/ui/AudioPlayer";
 import { SupportBlock } from "@/components/ui/SupportBlock";
+import { useCreditGate } from "@/components/credits/useCreditGate";
+import { useCredits } from "@/components/credits/CreditProvider";
+import { CreditReceipt } from "@/components/credits/CreditReceipt";
+import type { SubmitBilling } from "@/lib/types/converter";
 import { cn } from "@/lib/utils/cn";
 import { validateAudioFile } from "@/lib/utils/validation";
 import type { FileValidationResult } from "@/lib/types/converter";
@@ -212,6 +216,25 @@ interface JobToolFormProps {
    * tool leaves this unset and keeps its player exactly as before.
    */
   hidePreview?: boolean;
+  /**
+   * OPT-IN CREDITS WIRING.
+   *
+   * This component backs ~17 tools and all but one are free forever, so
+   * credits are a prop rather than built in. Passing neither leaves behaviour
+   * byte-identical to before: no cookie sent, no gate, no receipt.
+   *
+   * Set `metered` for a route the paywall can charge for. It does two things:
+   * sends `credentials: "include"` so `af_sid` reaches the API cross-origin
+   * (without it every request is a new anonymous subject and no balance is
+   * ever seen or spent), and captures the `billing` block off the response.
+   */
+  metered?: boolean;
+  /**
+   * Extra content rendered in the complete state, under the download button —
+   * for a tool whose output can't be previewed as audio and therefore has
+   * nothing to show for itself otherwise.
+   */
+  renderResult?: (jobId: string) => ReactNode;
 }
 
 /* ------------------------------------------------------------------ */
@@ -241,6 +264,8 @@ export function JobToolForm({
   downloadFilename,
   maxSubmitRetries = 1,
   hidePreview = false,
+  metered = false,
+  renderResult,
 }: JobToolFormProps) {
   const [file, setFile] = useState<File | null>(null);
   const [status, setStatus] = useState<UiState>("idle");
@@ -251,6 +276,18 @@ export function JobToolForm({
   const [cooldownSeconds, setCooldownSeconds] = useState(0);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [retryNotice, setRetryNotice] = useState<string | null>(null);
+  /** What the server said it charged. Reported verbatim, never inferred. */
+  const [billing, setBilling] = useState<SubmitBilling | null>(null);
+
+  // Re-runs the submit after a purchase closes the gate, so someone who hits
+  // the 402 and buys isn't returned to an idle form holding their file with no
+  // sign that the thing they wanted is now possible. Through a ref because
+  // handleSubmit is declared below.
+  const submitRef = useRef<() => void>(() => {});
+  const { catchCreditError, gate } = useCreditGate({
+    onCredited: () => submitRef.current(),
+  });
+  const { applyBalance } = useCredits();
 
   const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pollStartedAtRef = useRef(0);
@@ -378,6 +415,9 @@ export function JobToolForm({
     setResultTitle(null);
     setRetryNotice(null);
     setElapsedSeconds(0);
+    // A cleared form describes no job, so it must not carry the last one's
+    // receipt into the next render.
+    setBilling(null);
   };
 
   const handleSubmit = async () => {
@@ -406,15 +446,35 @@ export function JobToolForm({
 
     while (true) {
       try {
-        const { job_id } = await submitJob(endpoint, formData, submitTimeoutMs);
+        const res = await submitJob(endpoint, formData, submitTimeoutMs, {}, metered);
         if (cancelledRef.current) return;
         setRetryNotice(null);
-        setJobId(job_id);
+        setJobId(res.job_id);
         setStatus("processing");
-        startPolling(job_id);
+        startPolling(res.job_id);
+
+        // The metered route reports what it just charged, so the navbar pill
+        // updates from THIS response rather than a follow-up /credits/me — no
+        // stale number at the one moment the user is watching it change.
+        //
+        // A free tool returns no `billing` key at all, so this stays null and
+        // CreditReceipt renders nothing.
+        setBilling(res.billing ?? null);
+        if (res.billing) {
+          applyBalance(res.billing.balance, res.billing.free_remaining);
+        }
         return;
       } catch (err) {
         if (cancelledRef.current) return;
+
+        // Out of credits is a DECISION POINT, not a failure. Back to idle
+        // keeps the file and every control setting, so buying and pressing the
+        // button again just works — and nothing red is rendered for it.
+        if (catchCreditError(err)) {
+          setRetryNotice(null);
+          setStatus("idle");
+          return;
+        }
 
         if (attempt < maxSubmitRetries && isRetryableSubmitError(err)) {
           attempt += 1;
@@ -443,6 +503,14 @@ export function JobToolForm({
   };
 
   /* --- derived display --------------------------------------------- */
+
+  // Assigned during render so onCredited always calls the CURRENT handleSubmit
+  // rather than the one captured at first mount.
+  useEffect(() => {
+    submitRef.current = () => {
+      void handleSubmit();
+    };
+  });
 
   const stageLabel = (() => {
     if (status === "uploading") return retryNotice || "Uploading your file";
@@ -587,7 +655,16 @@ export function JobToolForm({
               Download
             </a>
 
-            <SupportBlock />
+            {/* Anything the tool wants to say about its own output. For a
+                result that can't be played back, this is the only evidence
+                the run produced what it promised. */}
+            {renderResult?.(jobId)}
+
+            <CreditReceipt billing={billing} />
+
+            {/* Asking for a tip right after charging someone a credit is a bad
+                look. A free run is still free, so it keeps the block. */}
+            {billing?.charged !== "credit" && <SupportBlock />}
 
             <Button variant="outline" size="md" className="w-full" onClick={handleReset}>
               <RotateCcw />
@@ -645,6 +722,8 @@ export function JobToolForm({
           </Button>
         )}
       </div>
+
+      {gate}
     </div>
   );
 }

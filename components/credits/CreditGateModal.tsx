@@ -96,6 +96,21 @@ const TOOL_COPY: Record<string, ToolCopy> = {
   },
 };
 
+TOOL_COPY["audio-to-midi-hq"] = {
+  title: "Multi-track MIDI",
+  spec: [
+    ["1 credit", "One transcription of this file, up to 10 minutes"],
+    ["You get", "One MIDI track per instrument, each with a General MIDI program"],
+    // Named because it is the honest limit and it prevents the refund
+    // request: on a solo instrument or a short clip the model frequently
+    // returns a single track, and someone who paid expecting separation
+    // would be right to be annoyed.
+    ["Best on", "Real multi-instrument material — a solo part may come back as one track"],
+  ],
+  closing:
+    "Single-track MIDI stays free and unlimited, with the same formats and the same .mid download.",
+};
+
 // The YouTube variants run the same model on the same audio — same promise.
 TOOL_COPY["youtube/separate-hq"] = TOOL_COPY["separate-hq"];
 TOOL_COPY["youtube/stems-hq"] = TOOL_COPY["stems-hq"];
@@ -404,7 +419,7 @@ function PackStep({
   onSelect: (pack: CreditPack) => void;
   onSignIn: () => void;
 }) {
-  const label = TOOL_LABELS[payload.tool];
+  // TOOL_LABELS is read by the action bar for the return-trip line, not here.
   const copy = TOOL_COPY[payload.tool] ?? FALLBACK_COPY;
 
   return (

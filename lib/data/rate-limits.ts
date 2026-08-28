@@ -170,6 +170,14 @@ export const RATE_LIMITS: Record<string, RateLimitSpec> = {
     limit: 5, windowSeconds: 300, label: "5 per 5 minutes",
     envVar: "MIDI_RATE_LIMIT_MAX_REQUESTS",
   },
+  // The paid multi-track tool. FREE-TIER number, like the four HQ separation
+  // routes above — the rule is tiered and /credits/me's rate_limit.tools does
+  // not carry this key, so a server-rendered page gets the free figure and the
+  // form corrects it on hydrate.
+  "audio-to-midi-hq": {
+    limit: 2, windowSeconds: 3600, label: "2 per hour",
+    envVar: "MIDI_HQ_RATE_LIMIT_MAX_REQUESTS",
+  },
 
   // ---- YouTube / TikTok download ----
   //

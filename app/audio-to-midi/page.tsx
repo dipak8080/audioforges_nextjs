@@ -4,6 +4,7 @@ import { AudioToMidiForm } from "@/components/converter/AudioToMidiForm";
 import { FAQSection, type FAQItem } from "@/components/faq/FAQSection";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
+import { getFeatureFlags } from "@/lib/api/railway";
 
 const PAGE_TITLE = "Audio to MIDI Converter – MP3 & WAV to MIDI";
 const PAGE_DESCRIPTION =
@@ -149,8 +150,16 @@ const ADVANCED_SETTINGS = [
 
 const DAWS = ["Ableton Live", "FL Studio", "Logic Pro", "GarageBand", "Cubase", "Studio One", "Reaper"];
 
-export default function AudioToMidiPage() {
+export default async function AudioToMidiPage() {
   const relatedTools = getRelatedTools("audio-to-midi", 5);
+  /**
+   * Read server-side and cached, never from the browser — one client request
+   * across ~90 static pages is the shape of problem that already caused a
+   * Vercel Edge Request incident here. While this is false, the page is
+   * byte-identical to before: no engine picker, no mention of credits.
+   */
+  const { paywallTools } = await getFeatureFlags();
+  const midiHqAvailable = Boolean(paywallTools["audio-to-midi-hq"]);
 
   const faqs: FAQItem[] = [
     {
@@ -249,7 +258,7 @@ export default function AudioToMidiPage() {
           </p>
         </header>
 
-        <AudioToMidiForm />
+        <AudioToMidiForm hqAvailable={midiHqAvailable} />
 
         <section className="grid gap-4 sm:grid-cols-3">
           {[
@@ -422,6 +431,53 @@ export default function AudioToMidiPage() {
           </div>
         </section>
 
+        {midiHqAvailable && (
+          /*
+            ADDED LAST, DELIBERATELY LOW ON THE PAGE.
+            This page ranks #1 on Bing for its head terms, so nothing above
+            this point moves — no title change, no description change, no
+            reordering of existing sections. This is additive only, and it
+            targets a distinct query set ("multitrack midi", "separate
+            instruments to midi") that the free tool cannot honestly claim,
+            rather than competing with the terms already won.
+
+            Renders nothing while the tool is off, so the page cannot advertise
+            something a visitor can't buy.
+          */
+          <section className="space-y-4">
+            <h2 className="text-2xl font-bold text-text-primary">
+              Multi-track MIDI: one track per instrument
+            </h2>
+            <p className="text-text-muted leading-relaxed">
+              The free converter returns a single MIDI track containing every
+              note it detected, whatever played them. Multi-track mode runs a
+              different model that separates the performance by instrument
+              instead — a bass line, a piano part and a drum pattern arrive as
+              three tracks, each with a General MIDI program already assigned,
+              so they land on the right instruments the moment you open the file
+              in a DAW.
+            </p>
+            <p className="text-text-muted leading-relaxed">
+              It is worth being straight about when this helps. On a solo guitar
+              recording, a hummed melody, or a short clip, the model often
+              returns a single track — there is only one instrument to find. The
+              difference shows on real multi-instrument material: a full
+              arrangement, a band recording, a loop with drums and bass playing
+              together. If your source is one instrument, the free converter is
+              the right tool and costs nothing.
+            </p>
+            <p className="text-text-muted leading-relaxed">
+              Multi-track runs on GPU time that costs real money per job, so it
+              uses a credit — with free runs every month and nothing recurring.
+              Single-track transcription stays free and unlimited.{" "}
+              <Link href="/pricing" className="text-amber-400 hover:underline">
+                See what credits cost
+              </Link>
+              .
+            </p>
+          </section>
+        )}
+
         <section className="space-y-4">
           <h2 className="text-2xl font-bold text-text-primary">Tips for better results</h2>
           <ul className="text-text-muted leading-relaxed space-y-2 list-disc list-inside">
@@ -430,7 +486,7 @@ export default function AudioToMidiPage() {
             <li>For a full song, isolate the part you want first.</li>
             <li>Try the matching preset before adjusting settings manually.</li>
             <li>Narrow the frequency range to cut out unrelated instruments.</li>
-            <li>Raise minimum note length if you're getting lots of tiny false notes.</li>
+            <li>Raise minimum note length if you&apos;re getting lots of tiny false notes.</li>
           </ul>
         </section>
 

@@ -1,10 +1,32 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { ChevronDown, Music4, RotateCcw } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ChevronDown, Music4, RotateCcw, Sparkles, Layers } from "lucide-react";
 import { JobToolForm } from "@/components/converter/JobToolForm";
 import { getRateLimitLabel } from "@/lib/data/rate-limits";
 import { cn } from "@/lib/utils/cn";
+import { FreeTierBadge } from "@/components/credits/FreeTierBadge";
+import { getAudioToMidiHqResult, type MidiHqResult } from "@/lib/api/railway";
+
+/**
+ * TWO ENGINES, NOT TWO QUALITY LEVELS.
+ *
+ * /audio-to-midi runs basic-pitch: one MIDI track, tunable onset and sustain
+ * detection. /audio-to-midi-hq runs YourMT3, a transformer that emits note
+ * events — there is NO detector to tune, so the sensitivity sliders do not
+ * exist on that side. FastAPI silently drops unknown form fields, so sending
+ * them anyway would fail quietly rather than error.
+ *
+ * That is why the two tiers show different controls rather than the same panel
+ * with a quality switch, and why HQ has no presets: four of the six free
+ * presets differ ONLY in sensitivity, so they would all collapse into the same
+ * request. Presenting six options that do three things is worse than
+ * presenting the two controls that actually exist.
+ *
+ * The other trap: HQ pitch bounds are MIDI NOTE NUMBERS, not Hz. The free tool
+ * converts note→Hz at submit because basic-pitch's API takes Hz; that
+ * conversion must NOT happen here.
+ */
 
 /**
  * PLACEHOLDER COPY - every string in TOOL_COPY below is a placeholder,
@@ -470,14 +492,159 @@ function Toggle({ checked, disabled, label, onChange }: ToggleProps) {
 }
 
 /* ------------------------------------------------------------------ *
+ * Multi-track result summary (HQ only)
+ * ------------------------------------------------------------------ */
+
+/**
+ * The ONLY evidence the paid tier did what it promised.
+ *
+ * MIDI is not playable audio in a browser, so unlike every separation tool
+ * there is nothing to listen to — the user downloads a file and finds out in
+ * their DAW. Per-instrument track names, note counts and ranges are
+ * recognisable to a musician immediately, and they are the one thing the free
+ * tool cannot produce at any setting.
+ *
+ * Renders nothing on failure. The download already works; a broken summary
+ * must not make a successful run look failed.
+ */
+function MidiHqResultSummary({ jobId }: { jobId: string }) {
+  const [result, setResult] = useState<MidiHqResult | null>(null);
+
+  // No `setResult(null)` here: the caller keys this component on jobId, so a
+  // new job mounts a fresh one with empty state. Resetting inside the effect
+  // would be a synchronous setState in an effect body, which the compiler lint
+  // rejects and which renders once with stale data before clearing it.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const next = await getAudioToMidiHqResult(jobId);
+        if (!cancelled) setResult(next);
+      } catch {
+        /* silent — see above */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [jobId]);
+
+  if (!result || result.tracks.length === 0) return null;
+
+  return (
+    <div className="overflow-hidden rounded-lg border border-graphite-800 bg-graphite-950/40">
+      <div className="flex items-baseline justify-between gap-3 border-b border-graphite-800 px-4 py-2.5">
+        <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-text-subtle">
+          Detected
+        </span>
+        <span className="font-mono text-[11px] tabular-nums text-amber-400">
+          {result.track_count} {result.track_count === 1 ? "track" : "tracks"} ·{" "}
+          {result.note_count.toLocaleString()} notes
+        </span>
+      </div>
+
+      <ul className="divide-y divide-graphite-800">
+        {result.tracks.map((track, i) => (
+          <li
+            key={`${track.program}-${i}`}
+            className="flex items-baseline justify-between gap-3 px-4 py-2.5"
+          >
+            <span className="min-w-0 truncate text-sm text-text-primary">
+              {track.name}
+              {track.is_drum && (
+                <span className="ml-1.5 font-mono text-[10px] uppercase tracking-wide text-text-subtle">
+                  drums
+                </span>
+              )}
+            </span>
+            <span className="shrink-0 font-mono text-[11px] tabular-nums text-text-subtle">
+              {track.notes.toLocaleString()} · {midiToName(track.low)}–{midiToName(track.high)}
+            </span>
+          </li>
+        ))}
+      </ul>
+
+      {result.notes_dropped_by_filter > 0 && (
+        /*
+          The honest answer to "why does this look sparse?". It points at the
+          user's OWN shortest-note or pitch-range setting rather than at the
+          model, which is both true and the version they can act on.
+        */
+        <p className="border-t border-graphite-800 px-4 py-2.5 text-[11px] leading-relaxed text-text-subtle">
+          {result.notes_dropped_by_filter.toLocaleString()} more{" "}
+          {result.notes_dropped_by_filter === 1 ? "note was" : "notes were"} detected
+          and removed by your shortest-note and pitch-range settings. Loosen them to
+          keep more.
+        </p>
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ *
  * Main form
  * ------------------------------------------------------------------ */
 
-export function AudioToMidiForm() {
+type Tier = "free" | "hq";
+
+const TIERS: { id: Tier; label: string; blurb: string }[] = [
+  {
+    id: "free",
+    label: "Single track",
+    blurb: "One MIDI track with every detected note. Free, unlimited.",
+  },
+  {
+    id: "hq",
+    label: "Multi-track",
+    blurb: "One track per instrument, each with a General MIDI program set.",
+  },
+];
+
+/** A radiogroup is ONE tab stop with arrows between the options — matching
+ *  every other tier picker on the site. */
+function useRovingRadio<T extends string>(
+  values: readonly T[],
+  current: T,
+  onChange: (next: T) => void
+) {
+  const refs = useRef<Array<HTMLButtonElement | null>>([]);
+  function onKeyDown(e: React.KeyboardEvent) {
+    const i = values.indexOf(current);
+    if (i < 0) return;
+    let next: number;
+    switch (e.key) {
+      case "ArrowRight":
+      case "ArrowDown":
+        next = (i + 1) % values.length;
+        break;
+      case "ArrowLeft":
+      case "ArrowUp":
+        next = (i - 1 + values.length) % values.length;
+        break;
+      case "Home":
+        next = 0;
+        break;
+      case "End":
+        next = values.length - 1;
+        break;
+      default:
+        return;
+    }
+    e.preventDefault();
+    onChange(values[next]);
+    refs.current[next]?.focus();
+  }
+  return { refs, onKeyDown };
+}
+
+export function AudioToMidiForm({ hqAvailable = false }: { hqAvailable?: boolean }) {
+  const [tier, setTier] = useState<Tier>("free");
+  const isHq = hqAvailable && tier === "hq";
+  const tierRadio = useRovingRadio(["free", "hq"] as const, tier, (v) => setTier(v));
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [settings, setSettings] = useState<Settings>(DEFAULTS);
 
-  const rateLimitLabel = getRateLimitLabel("audio-to-midi");
+  const rateLimitLabel = getRateLimitLabel(isHq ? "audio-to-midi-hq" : "audio-to-midi");
 
   const activePresetId = useMemo(
     () => PRESETS.find((p) => sameSettings(settings, p.values))?.id ?? null,
@@ -502,11 +669,18 @@ export function AudioToMidiForm() {
 
   return (
     <JobToolForm
-      endpoint="audio-to-midi"
+      // Different ROUTE, not a quality flag — the two tiers are different
+      // models with different parameter sets.
+      key={isHq ? "hq" : "free"}
+      endpoint={isHq ? "audio-to-midi-hq" : "audio-to-midi"}
+      // Sends af_sid so a balance can be seen and spent. False on the free
+      // route, which returns no billing block at all.
+      metered={isHq}
+      renderResult={isHq ? (jobId) => <MidiHqResultSummary key={jobId} jobId={jobId} /> : undefined}
       fileAccept="audio/*,.mp3,.wav,.m4a,.aac,.ogg,.flac,.aiff,.opus,.webm"
-      submitLabel={TOOL_COPY.submitLabel}
+      submitLabel={isHq ? "Convert to multi-track MIDI" : TOOL_COPY.submitLabel}
       toolLabel={TOOL_COPY.toolLabel}
-      toolMeta={TOOL_COPY.toolMeta}
+      toolMeta={isHq ? "multi-track · up to 10 min" : TOOL_COPY.toolMeta}
       processingLabel={TOOL_COPY.processingLabel}
       expectedRange={TOOL_COPY.expectedRange}
       resultVerb={TOOL_COPY.resultVerb}
@@ -516,15 +690,32 @@ export function AudioToMidiForm() {
       submitTimeoutMs={90_000}
       rateLimitMessage={rateLimitHint}
       buildExtraFields={() => {
+        // Pitch limiting is opt-in on both tiers. When it's off nothing is
+        // sent at all and the backend uses its unbounded defaults — safer than
+        // sending a bound, and one less thing that can fail validation.
+        const bounded = settings.limitPitch && settings.lowNote < settings.highNote;
+
+        if (isHq) {
+          // NOTE NUMBERS, NOT Hz — no midiToHz here. And `min_note_ms`, not
+          // `minimum_note_length`. Sending the free tool's field names would
+          // be dropped silently by FastAPI and produce an unfiltered result
+          // that looks like the setting did nothing.
+          const fields: Record<string, string> = {
+            min_note_ms: String(settings.minimumNoteLength),
+          };
+          if (bounded) {
+            fields.min_pitch = String(settings.lowNote);
+            fields.max_pitch = String(settings.highNote);
+          }
+          return fields;
+        }
+
         const fields: Record<string, string> = {
           onset_threshold: String(settings.onsetThreshold),
           frame_threshold: String(settings.frameThreshold),
           minimum_note_length: String(settings.minimumNoteLength),
         };
-        // Pitch limiting is opt-in. When it's off we send nothing at all
-        // and let the backend use its unbounded defaults, which is both
-        // safer and one less thing that can fail validation.
-        if (settings.limitPitch && settings.lowNote < settings.highNote) {
+        if (bounded) {
           fields.minimum_frequency = String(clampHz(midiToHz(settings.lowNote)));
           fields.maximum_frequency = String(clampHz(midiToHz(settings.highNote)));
         }
@@ -532,7 +723,77 @@ export function AudioToMidiForm() {
       }}
       renderControls={(file, disabled) => (
         <div className="space-y-3">
-          {/* ---- Presets: the primary control, always visible ---- */}
+          {/*
+            ENGINE, not quality. Named for what the user gets — one track vs
+            one track per instrument — because that is the difference they can
+            verify the moment they open the file, and it is the only thing the
+            free tier genuinely cannot do at any setting.
+
+            Deliberately NOT sold as "more accurate": on a solo guitar or a
+            short clip YourMT3 often returns a single track at program 0, and
+            promising separate instruments for that upload would be a refund
+            request waiting to happen.
+          */}
+          {hqAvailable && (
+            <fieldset disabled={disabled} className="space-y-2">
+              <legend className="mb-2 text-sm font-medium text-text-primary">Output</legend>
+              <div
+                className="grid gap-2 sm:grid-cols-2"
+                role="radiogroup"
+                aria-label="Transcription engine"
+                onKeyDown={tierRadio.onKeyDown}
+              >
+                {TIERS.map((option, i) => {
+                  const active = tier === option.id;
+                  return (
+                    <button
+                      key={option.id}
+                      ref={(el) => {
+                        tierRadio.refs.current[i] = el;
+                      }}
+                      type="button"
+                      role="radio"
+                      aria-checked={active}
+                      tabIndex={active ? 0 : -1}
+                      onClick={() => setTier(option.id)}
+                      disabled={disabled}
+                      className={cn(
+                        "rounded-lg border p-3.5 text-left transition-all",
+                        "outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70",
+                        "disabled:cursor-not-allowed disabled:opacity-40",
+                        active
+                          ? "border-amber-500/60 bg-amber-500/[0.07]"
+                          : "border-graphite-700 bg-graphite-850 hover:border-graphite-700/60"
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "flex items-center gap-1.5 text-sm font-semibold",
+                          active ? "text-amber-400" : "text-text-primary"
+                        )}
+                      >
+                        {option.id === "hq" ? (
+                          <Layers className="h-3.5 w-3.5" aria-hidden />
+                        ) : (
+                          <Music4 className="h-3.5 w-3.5" aria-hidden />
+                        )}
+                        {option.label}
+                        {/* Renders nothing while this rule is off. */}
+                        {option.id === "hq" && <FreeTierBadge tool="audio-to-midi-hq" />}
+                      </span>
+                      <span className="mt-1 block text-[11px] leading-snug text-text-muted">
+                        {option.blurb}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </fieldset>
+          )}
+
+          {/* ---- Presets: free tier only. On HQ four of the six would send
+                 an identical request, so there is nothing to choose. ---- */}
+          {!isHq && (
           <fieldset disabled={disabled} className="space-y-2">
             <legend className="mb-2 flex w-full items-baseline justify-between gap-3">
               <span className="text-sm font-medium text-text-primary">
@@ -579,6 +840,7 @@ export function AudioToMidiForm() {
               })}
             </div>
           </fieldset>
+          )}
 
           {/* ---- Fine tuning ---- */}
           <button
@@ -615,7 +877,12 @@ export function AudioToMidiForm() {
                 className="space-y-5 rounded-lg border border-graphite-800 bg-graphite-850/60 p-4"
                 disabled={disabled}
               >
-                {/* Detection */}
+                {/* Detection — FREE TIER ONLY.
+                    YourMT3 emits note events directly; there is no onset or
+                    sustain detector behind it to tune. The API accepts these
+                    fields and ignores them, so showing the sliders on HQ would
+                    be two controls that visibly do nothing. */}
+                {!isHq && (
                 <div className="space-y-4">
                   <p className="text-[10px] font-medium uppercase tracking-widest text-text-subtle">
                     Note detection
@@ -651,8 +918,9 @@ export function AudioToMidiForm() {
                     onChange={(v) => patch({ frameThreshold: Number(v.toFixed(2)) })}
                   />
                 </div>
+                )}
 
-                <div className="h-px bg-graphite-800" />
+                {!isHq && <div className="h-px bg-graphite-800" />}
 
                 {/* Cleanup */}
                 <div className="space-y-4">
@@ -670,7 +938,10 @@ export function AudioToMidiForm() {
                     leftEnd="Keep everything"
                     rightEnd="Long notes only"
                     min={10}
-                    max={1000}
+                    // 2000 is the real backend ceiling on BOTH tools; the free
+                    // tool's 1000 was a UI choice. HQ gets the full range since
+                    // it has fewer controls to reach for.
+                    max={isHq ? 2000 : 1000}
                     step={0.1}
                     value={settings.minimumNoteLength}
                     onChange={(v) => patch({ minimumNoteLength: Math.round(v * 10) / 10 })}

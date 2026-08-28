@@ -951,6 +951,86 @@ export function getAudioToMidiDownloadUrl(jobId: string): string {
   return getJobDownloadUrl("audio-to-midi", jobId);
 }
 
+// ============ AUDIO TO MIDI — HQ (metered) ============
+//
+// A SEPARATE TOOL, not a quality tier of /audio-to-midi. Different model
+// (YourMT3 vs basic-pitch) and a different parameter set:
+//
+//   - onset_threshold / frame_threshold DO NOT EXIST here. YourMT3 is a
+//     transformer that emits note events; there is no detector to tune. FastAPI
+//     silently drops unknown form fields, so sending them fails quietly rather
+//     than erroring — which is exactly how a UI ends up shipping four presets
+//     that all make the same request.
+//   - Pitch is MIDI NOTE NUMBERS, not Hz. Do not reuse the free tool's
+//     midiToHz conversion. Valid range is the full 0–127, not 21–108 — YourMT3
+//     emits bass and percussion outside a piano keyboard.
+//   - minimum_note_length becomes min_note_ms. 10–2000 on both tools.
+//
+// Metered, so `withCredentials` is TRUE: without it `af_sid` never reaches
+// api.audioforges.com cross-origin, every request arrives as a new anonymous
+// subject, and no balance is ever seen or spent.
+
+// JobToolForm builds and sends the request itself via submitJob(endpoint, ...)
+// with `metered` true, so there is no submit/status/download wrapper here —
+// one would be dead code. What it cannot do generically is read the result
+// summary, which is below.
+//
+// The HQ parameter set, for whoever writes the form fields:
+//   min_pitch / max_pitch  MIDI NOTE NUMBERS, not Hz. Do not reuse the free
+//                          tool's midiToHz. Omit entirely for no filter —
+//                          never send 0, which is a real note (C-1).
+//   min_note_ms            10–2000. Replaces minimum_note_length.
+//   onset_threshold /      DO NOT EXIST. YourMT3 is a transformer with no
+//   frame_threshold        detector to tune, and FastAPI drops unknown form
+//                          fields silently, so sending them fails quietly.
+
+/** One detected instrument. `program` is a General MIDI program number. */
+export interface MidiHqTrack {
+  program: number;
+  is_drum: boolean;
+  /** GM instrument name, already resolved server-side. */
+  name: string;
+  notes: number;
+  /** MIDI note numbers. */
+  low: number;
+  high: number;
+}
+
+export interface MidiHqResult {
+  duration_seconds: number;
+  track_count: number;
+  note_count: number;
+  input_seconds: number;
+  /**
+   * Notes removed by the user's own min_note_ms / pitch-range settings. Worth
+   * surfacing when non-zero: it is the honest answer to "why is this sparse?",
+   * and it points at a setting the user can change rather than at the model.
+   */
+  notes_dropped_by_filter: number;
+  tracks: MidiHqTrack[];
+}
+
+/**
+ * Call ONCE, after status reports complete. Same contract as
+ * /speech-to-text/result: 404 once expired, 409 if the job isn't finished.
+ *
+ * This is the only proof the paid tier did something the free one can't — MIDI
+ * isn't playable in a browser, so per-instrument track names are the entire
+ * verifiable result.
+ */
+export async function getAudioToMidiHqResult(
+  jobId: string,
+  opts: RequestOptions = {}
+): Promise<MidiHqResult> {
+  const res = await fetchWithTimeout(
+    `${RAILWAY_API_BASE}/audio-to-midi-hq/result/${jobId}`,
+    { method: "GET", credentials: "include", signal: opts.signal },
+    15_000
+  );
+  if (!res.ok) throw await toApiError(res, "job");
+  return readJson<MidiHqResult>(res);
+}
+
 // ============ TIKTOK TO MP3 (synchronous) ============
 // Unlike every other endpoint here, this one returns a structured error
 // object — { message, kind, retryable } — rather than a plain string

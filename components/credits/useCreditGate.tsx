@@ -74,7 +74,10 @@ export function useCreditGate(options?: {
   // Read through a ref so a caller passing an inline arrow doesn't change this
   // hook's behaviour on every render.
   const onCredited = useRef(options?.onCredited);
-  onCredited.current = options?.onCredited;
+  // Synced in an effect rather than during render — see the note in the forms.
+  useEffect(() => {
+    onCredited.current = options?.onCredited;
+  });
 
   /**
    * Returns true when the error was an insufficient-credits 402 and the gate

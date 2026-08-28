@@ -14,13 +14,21 @@
  *   - `paywall.tools[k]`  an OBJECT, not a boolean
  */
 
-/** The four metered separation routes, plus the declared-but-off transcribe rule. */
+/**
+ * Every rule key the paywall can meter.
+ *
+ * `transcribe` is declared but currently OFF — transcription is free, and the
+ * three transcription routes share this one key when it is on.
+ * `audio-to-midi-hq` is a SEPARATE TOOL, not a tier of `audio-to-midi`: a
+ * different model (YourMT3 vs basic-pitch) with a different parameter set.
+ */
 export type MeteredToolKey =
   | "separate-hq"
   | "stems-hq"
   | "youtube/separate-hq"
   | "youtube/stems-hq"
-  | "transcribe";
+  | "transcribe"
+  | "audio-to-midi-hq";
 
 /** Pack keys as configured in Ko-fi. */
 export type PackKey = "starter" | "regular" | "bulk";

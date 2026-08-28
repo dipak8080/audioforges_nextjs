@@ -206,11 +206,10 @@ function StemsResult({ jobId, title }: { jobId: string; title: string | null }) 
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    // The component is keyed on jobId by its caller, so a new job mounts fresh
+    // and there is no stale error to clear — which also keeps a synchronous
+    // setState out of this effect body.
     let cancelled = false;
-    // Cleared on every jobId change. Without this, a failed first load left the
-    // error on screen permanently — including after an upgrade produced a new
-    // job whose stems loaded perfectly.
-    setError(null);
     (async () => {
       try {
         const result = await getYoutubeStemsStatus(jobId);
@@ -339,8 +338,18 @@ export function YouTubeStemForm({ hqAvailable = false }: YouTubeStemFormProps) {
    */
   const notifyEnabledRef = useRef(false);
   const notifyPermissionRef = useRef<NotificationPermission | "unsupported">("default");
-  notifyEnabledRef.current = notifyEnabled;
-  notifyPermissionRef.current = notifyPermission;
+  /*
+    Synced in an EFFECT, not assigned during render. Writing to a ref while
+    rendering is what react-hooks/refs rejects, and it stops being merely
+    untidy the moment the React Compiler is enabled: a memoised render can be
+    skipped, and the assignment with it. An effect with no dependency array
+    runs after every render, so the value a callback reads is always the
+    latest one.
+  */
+  useEffect(() => {
+    notifyEnabledRef.current = notifyEnabled;
+    notifyPermissionRef.current = notifyPermission;
+  });
 
   useEffect(() => {
     if (typeof window === "undefined" || !("Notification" in window)) {
@@ -530,7 +539,7 @@ export function YouTubeStemForm({ hqAvailable = false }: YouTubeStemFormProps) {
           )}
         </div>
       )}
-      renderComplete={(jobId, title) => <StemsResult jobId={jobId} title={title} />}
+      renderComplete={(jobId, title) => <StemsResult key={jobId} jobId={jobId} title={title} />}
     />
   );
 }

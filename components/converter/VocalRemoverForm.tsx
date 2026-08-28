@@ -336,8 +336,18 @@ export function VocalRemoverForm({
   const notifyPermissionRef = useRef<NotificationPermission | "unsupported">(
     "default",
   );
-  notifyEnabledRef.current = notifyEnabled;
-  notifyPermissionRef.current = notifyPermission;
+  /*
+    Synced in an EFFECT, not assigned during render. Writing to a ref while
+    rendering is what react-hooks/refs rejects, and it stops being merely
+    untidy the moment the React Compiler is enabled: a memoised render can be
+    skipped, and the assignment with it. An effect with no dependency array
+    runs after every render, so the value a callback reads is always the
+    latest one.
+  */
+  useEffect(() => {
+    notifyEnabledRef.current = notifyEnabled;
+    notifyPermissionRef.current = notifyPermission;
+  });
 
   const isBusy = status === "uploading" || status === "processing";
   const isFailed = status === "failed" || status === "error";
@@ -599,9 +609,11 @@ export function VocalRemoverForm({
 
   // Assigned during render, like the notify refs above, so onCredited always
   // calls the CURRENT handleSubmit rather than the one from first mount.
-  submitRef.current = () => {
-    void handleSubmit();
-  };
+  useEffect(() => {
+    submitRef.current = () => {
+      void handleSubmit();
+    };
+  });
 
   /**
    * The upgrade route returns a NEW job id, and the existing polling loop

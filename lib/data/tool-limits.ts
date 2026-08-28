@@ -176,6 +176,15 @@ export const TOOL_LIMITS: Record<string, ToolLimits> = {
     minDurationSeconds: 1,
     envVars: ["MAX_UPLOAD_BYTES", "MAX_MIDI_DURATION_SECONDS", "MIN_MIDI_DURATION_SECONDS"],
   },
+  // The paid multi-track tool. Same ceilings as the free one today, but they
+  // are separate backend variables and can diverge — mirrored separately so
+  // that when they do, only one entry needs changing.
+  "audio-to-midi-hq": {
+    maxFileBytes: 80 * MB,
+    maxTotalDurationSeconds: 600,
+    minDurationSeconds: 1,
+    envVars: ["MAX_UPLOAD_BYTES", "MIDI_HQ_MAX_DURATION_SECONDS"],
+  },
 
   // ---- VIDEO ----
   "video-to-audio": {

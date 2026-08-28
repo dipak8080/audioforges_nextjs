@@ -68,7 +68,7 @@ const faqs: FAQItem[] = [
   {
     question: "Is AudioForges still free?",
     answer:
-      "Yes. Every tool on the site is free and unlimited, including standard vocal removal and stem splitting, with full-quality downloads and no watermark. Credits apply only to jobs that need a GPU, which today means Studio Quality separation. Anything that runs on ordinary CPU processing is free and will stay that way.",
+      "Yes. Every tool on the site is free and unlimited, including standard vocal removal and stem splitting, with full-quality downloads and no watermark. Credits apply only to jobs that need a GPU, which today means Studio Quality separation and multi-track MIDI. Anything that runs on ordinary CPU processing is free and will stay that way — including standard audio-to-MIDI transcription.",
   },
   {
     question: "What's the difference between standard and Studio Quality?",
@@ -137,11 +137,21 @@ export default async function PricingPage() {
             1 credit
           </span>
           <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-text-subtle">
-            Studio Quality separation
+            Any GPU-backed job
           </span>
         </div>
+        {/* Was headed "Studio Quality separation" and described only that.
+            Multi-track MIDI is now metered under the same 1-credit rule, and a
+            spec panel that names one of two tools makes the other look like a
+            surprise charge. The rows stay concrete — the point of this panel is
+            that it answers "what do I actually get", which a generic
+            "GPU-backed job" alone would not. */}
         <SpecRow label="You get">
-          Vocals and instrumental, or a full four-stem split
+          Studio Quality separation — vocals and instrumental, or a full
+          four-stem split
+        </SpecRow>
+        <SpecRow label="Or">
+          Multi-track MIDI — one track per detected instrument
         </SpecRow>
         <SpecRow label="Source">An audio file, or a YouTube link</SpecRow>
         <SpecRow label="Track length">

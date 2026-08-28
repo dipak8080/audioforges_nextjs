@@ -216,9 +216,11 @@ export function UpgradeToHqCard({
   ]);
 
   // Assigned during render so onCredited calls the CURRENT handleUpgrade.
-  upgradeRef.current = () => {
-    void handleUpgrade();
-  };
+  useEffect(() => {
+    upgradeRef.current = () => {
+      void handleUpgrade();
+    };
+  });
 
   // All derived from `now`, so this stays a pure render.
   const deadline = info?.eligible ? Date.parse(info.input_expires_at) : Number.NaN;

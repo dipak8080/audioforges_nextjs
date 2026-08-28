@@ -274,8 +274,18 @@ export function YouTubeSeparateForm({ hqAvailable = false }: YouTubeSeparateForm
    */
   const notifyEnabledRef = useRef(false);
   const notifyPermissionRef = useRef<NotificationPermission | "unsupported">("default");
-  notifyEnabledRef.current = notifyEnabled;
-  notifyPermissionRef.current = notifyPermission;
+  /*
+    Synced in an EFFECT, not assigned during render. Writing to a ref while
+    rendering is what react-hooks/refs rejects, and it stops being merely
+    untidy the moment the React Compiler is enabled: a memoised render can be
+    skipped, and the assignment with it. An effect with no dependency array
+    runs after every render, so the value a callback reads is always the
+    latest one.
+  */
+  useEffect(() => {
+    notifyEnabledRef.current = notifyEnabled;
+    notifyPermissionRef.current = notifyPermission;
+  });
 
   useEffect(() => {
     if (typeof window === "undefined" || !("Notification" in window)) {
