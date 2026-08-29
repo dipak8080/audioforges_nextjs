@@ -37,7 +37,7 @@ const MAX_MINUTES = TRANSCRIPTION_LIMITS.durationSeconds / 60;
  * that get refreshed quarterly, that's the one signal worth having.
  */
 const PUBLISHED: string = "2026-08-20";
-const LAST_VERIFIED: string = "2026-08-21";
+const LAST_VERIFIED: string = "2026-08-29";
 
 const formatDate = (iso: string) =>
   new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
@@ -212,11 +212,11 @@ const faqs = [
   {
     question: "Is there a free transcription tool with no credit card?",
     answer:
-      "Yes — this one never asks for payment details, because there is no paid tier to upgrade to. Worth checking specifically: a card requested before the first file usually means a trial that converts, not a free tier, and the two get described with the same word.",
+      "This one never asks for payment details before a file, and never asks for an account at all. There is a paid option — credits, bought once, for people who transcribe a lot — but nothing is required up front and no card is stored. Worth checking specifically elsewhere: a card requested before the first file usually means a trial that converts, not a free tier, and the two get described with the same word.",
   },
   {
     question: "What's the catch here?",
-    answer: `Length and frequency. ${MAX_MINUTES} minutes per file and ${RATE_LIMIT}, both stated up front. There's no account, no credits, no export paywall and no paid tier — which also means there's nothing for those limits to push you toward.`,
+    answer: `Length, frequency, and a monthly allowance. ${MAX_MINUTES} minutes per file, ${RATE_LIMIT}, and a couple of free transcriptions a month — after that a run costs one credit, roughly 20–30 cents. All stated up front. There is still no account, no card, and no export paywall: every transcript downloads as TXT, SRT and VTT whether you paid or not.`,
   },
   {
     question: "Can I download SRT subtitles without paying?",
@@ -353,12 +353,23 @@ export default function FreeTranscriptionPage() {
                   </td>
                 </tr>
                 <tr>
+                  {/*
+                    THIS ROW USED TO SAY "No credits, no total cap." That was
+                    true until transcription became metered, and leaving it
+                    would have made this the page that runs Pattern 01 while
+                    printing a checklist for spotting it. Answering it against
+                    ourselves is the only version of this page worth having.
+                  */}
                   <td className="px-4 py-3">Any number that goes down?</td>
-                  <td className="px-4 py-3 text-text-primary">No credits, no total cap.</td>
+                  <td className="px-4 py-3 text-text-primary">
+                    Yes — a small free monthly allowance, then credits.
+                  </td>
                 </tr>
                 <tr>
                   <td className="px-4 py-3">Card before the first file?</td>
-                  <td className="px-4 py-3 text-text-primary">Never. There&apos;s nothing to buy.</td>
+                  <td className="px-4 py-3 text-text-primary">
+                    Never. Nothing is stored, ever.
+                  </td>
                 </tr>
                 <tr>
                   <td className="px-4 py-3">Longest file?</td>
@@ -367,7 +378,7 @@ export default function FreeTranscriptionPage() {
                 <tr>
                   <td className="px-4 py-3">What do the limits protect?</td>
                   <td className="px-4 py-3 text-text-primary">
-                    GPU cost. There is no paid tier.
+                    GPU cost — and past the free allowance, yes, a paid tier.
                   </td>
                 </tr>
                 <tr>
@@ -379,12 +390,37 @@ export default function FreeTranscriptionPage() {
           </div>
 
           <div className="mt-6 space-y-3 leading-relaxed text-text-muted">
+            {/*
+              The page has to say this itself. Its whole argument is that these
+              tools disclose the gate after you have committed — so the moment
+              one of the patterns applies here, it belongs above the fold of
+              the honesty section rather than inferred from a table row.
+            */}
+            <p className="rounded-xl border border-amber-500/25 bg-amber-500/[0.05] p-4">
+              <span className="font-medium text-text-primary">
+                Which pattern do we use?
+              </span>{" "}
+              Pattern 01, the credit wall — partly. There is a small free
+              allowance each month, and past it a transcription costs one
+              credit. What we don&apos;t do is the other five: no account, no
+              email, no card, no export paywall, no watermark, and the length
+              limit is on this page rather than in small print. The download
+              button works identically whether you paid or not — export is the
+              most commonly gated feature in this category and it is never gated
+              here.{" "}
+              <Link href="/pricing" prefetch={false} className="text-amber-400 hover:underline">
+                What credits cost
+              </Link>
+              .
+            </p>
             <p>
               The honest downsides, since the checklist above doesn&apos;t ask
               for them: no speaker labels, no transcript editor, no batch mode,
               and {RATE_LIMIT.toLowerCase()} means a couple of quick retries will
-              hit a cooldown. If you need to process fifty files or label who
-              said what, a paid tool is the right answer and this isn&apos;t it.
+              hit a cooldown. The free allowance is also shared with the Studio
+              Quality separation tools, so a heavy week on those leaves less
+              here. If you need to process fifty files or label who said what, a
+              paid tool is the right answer and this isn&apos;t it.
             </p>
             {/* Was "in under a minute". The transcription worker spins
                 down when idle and takes about a minute to wake, so the

@@ -116,18 +116,24 @@ export const TRANSCRIPTION_LIMITS = {
   /**
    * Applies to the audio track on all three endpoints.
    *
-   * CORRECTED 2026-08-29: was 20 minutes. The backend reports
-   * features.transcription_max_duration_seconds = 600, so the real cap is TEN.
-   * While this said 20, all three transcription pages advertised 20-minute
-   * uploads and validateTranscriptionDuration() below accepted a 15-minute file
-   * — which the server then refused after the entire transfer had completed.
-   * Exactly the failure that hit /youtube-vocal-remover with its 15-vs-10
-   * minute claim.
+   * 1200 = 20 minutes, matching features.transcription_max_duration_seconds.
    *
-   * Still a hand-mirrored number. lib/api/limits.ts now fetches the real one;
-   * this becomes its fallback once the call sites are converted.
+   * THIS NUMBER HAS NOW DRIFTED TWICE IN ONE DAY, in both directions, and the
+   * two failures are not symmetrical:
+   *
+   *   - Frontend HIGHER than backend (said 20, cap was 10): pages advertise
+   *     uploads the server refuses AFTER the whole file has transferred.
+   *   - Frontend LOWER than backend (said 10, cap was 20): validateTranscription-
+   *     Duration() below REJECTS valid files client-side. The upload never
+   *     happens, the user is told the limit is 20 minutes lower than it is,
+   *     and nothing appears in any log because the request was never made.
+   *
+   * The second is worse: it is silent. Whoever changes
+   * MAX_TRANSCRIPTION_DURATION_SECONDS must change this line in the same
+   * commit. lib/api/limits.ts holds the fetched value if this ever moves often
+   * enough to be worth wiring through.
    */
-  durationSeconds: 10 * 60,
+  durationSeconds: 20 * 60,
   /**
    * YouTube DOWNLOAD allows 40 minutes but transcription only allows 20,
    * so a 30-minute video downloads successfully and then fails. Warn on
