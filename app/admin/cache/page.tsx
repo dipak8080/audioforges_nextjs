@@ -1,19 +1,38 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+/**
+ * app/admin/cache/page.tsx — redesigned to match the credits console.
+ *
+ * Same shell as the other admin screens: the page fills the viewport, the
+ * header and KPI rail hold still, and one region scrolls. Same primitives, same
+ * palette, same toast behaviour — so moving between Cache, Credits and Logs
+ * doesn't feel like moving between three different products.
+ *
+ * The information hierarchy is unchanged on purpose, because it was right:
+ * disk before cache (a full disk breaks deploys, downloads and logging; a full
+ * cache just evicts itself), and the single most urgent condition stated once,
+ * at the top, in plain words.
+ */
+
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
+  AlertTriangle,
+  Check,
   Database,
-  RefreshCw,
-  Trash2,
-  Loader2,
   HardDrive,
+  Loader2,
+  RefreshCw,
   Save,
   Server,
-  AlertTriangle,
-  AlertOctagon,
-  Check,
+  Trash2,
+  X,
 } from "lucide-react";
+import { cn } from "@/lib/utils/cn";
 import { ConfirmDialog } from "../_components/ConfirmDialog";
+
+/* ------------------------------------------------------------------ */
+/* types                                                               */
+/* ------------------------------------------------------------------ */
 
 interface CacheStats {
   enabled: boolean;
@@ -29,6 +48,10 @@ interface CacheStats {
   disk_free_gb: number;
   disk_percent_used: number;
 }
+
+/* ------------------------------------------------------------------ */
+/* formatting                                                          */
+/* ------------------------------------------------------------------ */
 
 function fmtSize(gb: number): string {
   if (gb >= 1) return `${gb.toFixed(gb >= 10 ? 1 : 2)} GB`;
@@ -46,22 +69,311 @@ function relativeAge(ms: number): string {
   return `${Math.floor(m / 60)}h ago`;
 }
 
-// Cache's own allowance fills up fast in normal use (it's designed to),
-// so it gets a stricter threshold.
-function cacheHealthTone(percent: number): { bar: string; text: string; label: string } {
-  if (percent >= 95) return { bar: "bg-red-500", text: "text-red-500", label: "Full" };
+type Health = { bar: string; text: string; label: string };
+
+// The cache's own allowance fills up fast in normal use — it's designed to — so
+// it gets a stricter threshold than the disk.
+function cacheHealthTone(percent: number): Health {
+  if (percent >= 95) return { bar: "bg-red-500", text: "text-red-400", label: "Full" };
   if (percent >= 75) return { bar: "bg-amber-500", text: "text-amber-400", label: "Filling up" };
   return { bar: "bg-teal-400", text: "text-teal-400", label: "Healthy" };
 }
 
-// The whole disk normally sits at 40-70% just from the OS and Docker, so
-// this uses a more relaxed threshold - otherwise a perfectly ordinary VPS
-// would show amber/red for existing.
-function diskHealthTone(percent: number): { bar: string; text: string; label: string } {
-  if (percent >= 90) return { bar: "bg-red-500", text: "text-red-500", label: "Critical" };
+// A whole disk normally sits at 40–70% just from the OS and Docker, so this
+// threshold is looser — otherwise a perfectly ordinary VPS shows amber for
+// simply existing.
+function diskHealthTone(percent: number): Health {
+  if (percent >= 90) return { bar: "bg-red-500", text: "text-red-400", label: "Critical" };
   if (percent >= 80) return { bar: "bg-amber-500", text: "text-amber-400", label: "High" };
   return { bar: "bg-teal-400", text: "text-teal-400", label: "Healthy" };
 }
+
+/* ------------------------------------------------------------------ */
+/* styles — shared vocabulary with the credits console                 */
+/* ------------------------------------------------------------------ */
+
+const STYLES = `
+.af-scroll { scrollbar-width: thin; scrollbar-color: rgb(120 113 108 / .45) transparent; }
+.af-scroll::-webkit-scrollbar { width: 11px; height: 11px; }
+.af-scroll::-webkit-scrollbar-track { background: transparent; }
+.af-scroll::-webkit-scrollbar-thumb {
+  background: rgb(120 113 108 / .38); border-radius: 99px;
+  border: 3px solid transparent; background-clip: content-box;
+}
+.af-scroll::-webkit-scrollbar-thumb:hover { background: rgb(245 158 11 / .55); background-clip: content-box; }
+.af-railless { scrollbar-width: none; -ms-overflow-style: none; }
+.af-railless::-webkit-scrollbar { display: none; }
+@keyframes af-rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.af-rise { animation: af-rise .24s cubic-bezier(.22,.9,.32,1) both; }
+@keyframes af-toast { from { opacity: 0; transform: translateY(10px) scale(.98); } to { opacity: 1; transform: none; } }
+.af-toast { animation: af-toast .2s cubic-bezier(.22,.9,.32,1) both; }
+@keyframes af-shimmer { 100% { transform: translateX(100%); } }
+.af-skel { position: relative; overflow: hidden; }
+.af-skel::after {
+  content: ""; position: absolute; inset: 0; transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / .05), transparent);
+  animation: af-shimmer 1.4s infinite;
+}
+@media (prefers-reduced-motion: reduce) { .af-rise, .af-toast, .af-skel::after { animation: none !important; } }
+`;
+
+/* ------------------------------------------------------------------ */
+/* shell + toasts                                                      */
+/* ------------------------------------------------------------------ */
+
+/** The page fills from wherever it starts to the bottom of the window.
+ *  Measured rather than hardcoded, because the admin chrome above this page can
+ *  change height and a wrong constant is what strands content below the fold. */
+function useShellHeight() {
+  const ref = useRef<HTMLDivElement>(null);
+  const [height, setHeight] = useState<number | null>(null);
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () =>
+      setHeight(Math.max(360, Math.round(window.innerHeight - el.getBoundingClientRect().top)));
+    measure();
+    window.addEventListener("resize", measure);
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(measure) : null;
+    if (ro && el.parentElement) ro.observe(el.parentElement);
+    return () => {
+      window.removeEventListener("resize", measure);
+      ro?.disconnect();
+    };
+  }, []);
+
+  return [ref, height] as const;
+}
+
+type Toast = { id: number; tone: "ok" | "warn" | "bad"; text: string };
+
+function useToasts() {
+  const [toasts, setToasts] = useState<Toast[]>([]);
+  const push = useCallback((tone: Toast["tone"], text: string) => {
+    const id = Date.now() + Math.random();
+    setToasts((t) => [...t, { id, tone, text }]);
+    window.setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 6000);
+  }, []);
+  const dismiss = useCallback((id: number) => setToasts((t) => t.filter((x) => x.id !== id)), []);
+  return { toasts, push, dismiss };
+}
+
+function ToastStack({ toasts, dismiss }: { toasts: Toast[]; dismiss: (id: number) => void }) {
+  return (
+    <div
+      className="pointer-events-none fixed bottom-4 right-4 z-50 flex w-[min(24rem,calc(100vw-2rem))] flex-col gap-2"
+      aria-live="polite"
+    >
+      {toasts.map((t) => (
+        <div
+          key={t.id}
+          className={cn(
+            "af-toast pointer-events-auto flex items-start gap-2.5 rounded-xl border p-3 text-xs leading-relaxed shadow-2xl shadow-black/40 backdrop-blur",
+            t.tone === "ok" && "border-teal-500/30 bg-teal-500/10 text-teal-300",
+            t.tone === "warn" && "border-amber-500/30 bg-amber-500/10 text-amber-300",
+            t.tone === "bad" && "border-red-500/30 bg-red-500/10 text-red-300"
+          )}
+        >
+          {t.tone === "ok" ? (
+            <Check className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+          ) : (
+            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+          )}
+          <span className="flex-1">{t.text}</span>
+          <button
+            type="button"
+            onClick={() => dismiss(t.id)}
+            aria-label="Dismiss"
+            className="rounded p-0.5 opacity-60 outline-none transition-opacity hover:opacity-100 focus-visible:ring-2 focus-visible:ring-current"
+          >
+            <X className="h-3.5 w-3.5" aria-hidden />
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* primitives                                                          */
+/* ------------------------------------------------------------------ */
+
+function Card({ className, children }: { className?: string; children: React.ReactNode }) {
+  return (
+    <section className={cn("rounded-2xl border border-graphite-800 bg-graphite-900/70", className)}>
+      {children}
+    </section>
+  );
+}
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-text-subtle">{children}</p>;
+}
+
+function Button({
+  children,
+  onClick,
+  type = "button",
+  variant = "ghost",
+  size = "md",
+  disabled,
+  busy,
+  title,
+  className,
+}: {
+  children: React.ReactNode;
+  onClick?: () => void;
+  type?: "button" | "submit";
+  variant?: "primary" | "ghost" | "danger";
+  size?: "sm" | "md";
+  disabled?: boolean;
+  busy?: boolean;
+  title?: string;
+  className?: string;
+}) {
+  return (
+    <button
+      type={type}
+      title={title}
+      onClick={onClick}
+      disabled={disabled || busy}
+      className={cn(
+        "inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg font-medium outline-none transition-all",
+        "focus-visible:ring-2 focus-visible:ring-amber-400/70 focus-visible:ring-offset-2 focus-visible:ring-offset-graphite-950",
+        "disabled:cursor-not-allowed disabled:opacity-40",
+        size === "sm" ? "h-9 px-3 text-[13px]" : "h-10 px-4 text-sm",
+        variant === "primary" &&
+          "bg-amber-500 font-semibold text-graphite-950 shadow-lg shadow-amber-500/10 hover:bg-amber-400 active:scale-[0.98]",
+        variant === "ghost" &&
+          "border border-graphite-700 bg-graphite-850/80 text-text-muted hover:border-graphite-600 hover:text-text-primary active:scale-[0.98]",
+        variant === "danger" &&
+          "border border-red-500/40 bg-red-500/10 text-red-300 hover:bg-red-500/20 active:scale-[0.98]",
+        className
+      )}
+    >
+      {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />}
+      {children}
+    </button>
+  );
+}
+
+function Pill({ label, value, tone = "plain" }: { label: string; value: string; tone?: "plain" | "accent" | "alarm" }) {
+  return (
+    <div
+      className={cn(
+        "flex shrink-0 items-baseline gap-2 rounded-lg border px-2.5 py-1.5",
+        tone === "alarm" ? "border-red-500/30 bg-red-500/[0.07]" : "border-graphite-800 bg-graphite-900/60"
+      )}
+    >
+      <span className="font-mono text-[9px] uppercase tracking-[0.16em] text-text-subtle">{label}</span>
+      <span
+        className={cn(
+          "font-mono text-[13px] font-semibold tabular-nums",
+          tone === "alarm" ? "text-red-400" : tone === "accent" ? "text-amber-400" : "text-text-primary"
+        )}
+      >
+        {value}
+      </span>
+    </div>
+  );
+}
+
+/** Both bars on this page. One component so a percentage can never be drawn two
+ *  different ways depending on which card it lands in. */
+function Meter({ percent, health, thick }: { percent: number; health: Health; thick?: boolean }) {
+  return (
+    <div className={cn("overflow-hidden rounded-full bg-graphite-850", thick ? "h-2.5" : "h-2")}>
+      <div
+        className={cn("h-full rounded-full transition-all duration-500", health.bar)}
+        style={{ width: `${Math.min(100, Math.max(0, percent))}%` }}
+        role="progressbar"
+        aria-valuenow={Math.round(percent)}
+        aria-valuemin={0}
+        aria-valuemax={100}
+      />
+    </div>
+  );
+}
+
+function Figure({ label, value, sub }: { label: string; value: string; sub?: string }) {
+  return (
+    <div>
+      <SectionLabel>{label}</SectionLabel>
+      <p className="mt-1 font-mono text-lg font-semibold leading-none tabular-nums text-text-primary">{value}</p>
+      {sub && <p className="mt-1.5 text-[11px] leading-snug text-text-subtle">{sub}</p>}
+    </div>
+  );
+}
+
+/** Pre-action warnings stay inline next to the control that would cause them.
+ *  Results of an action go to a toast. Mixing the two is how a warning ends up
+ *  reading like a failure report. */
+function Notice({ tone, children }: { tone: "amber" | "red"; children: React.ReactNode }) {
+  return (
+    <div
+      className={cn(
+        "flex items-start gap-2 rounded-lg border px-2.5 py-2 text-xs leading-relaxed",
+        tone === "red"
+          ? "border-red-500/25 bg-red-500/[0.06] text-red-300"
+          : "border-amber-500/25 bg-amber-500/[0.06] text-amber-300"
+      )}
+    >
+      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+      <span>{children}</span>
+    </div>
+  );
+}
+
+/** The single most urgent condition, stated once at the top. */
+function AlertBanner({
+  tone,
+  title,
+  children,
+}: {
+  tone: "red" | "amber";
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      className={cn(
+        "af-rise flex items-start gap-3 rounded-2xl border p-3.5",
+        tone === "red" ? "border-red-500/40 bg-red-500/10" : "border-amber-500/40 bg-amber-500/10"
+      )}
+    >
+      <AlertTriangle
+        className={cn("mt-0.5 h-4 w-4 shrink-0", tone === "red" ? "text-red-400" : "text-amber-400")}
+        aria-hidden
+      />
+      <div className="min-w-0">
+        <p className={cn("text-sm font-semibold", tone === "red" ? "text-red-300" : "text-amber-300")}>{title}</p>
+        <p className="mt-0.5 text-xs leading-relaxed text-text-muted">{children}</p>
+      </div>
+    </div>
+  );
+}
+
+function Skeleton({ className }: { className?: string }) {
+  return <div className={cn("af-skel rounded-lg bg-graphite-850/70", className)} />;
+}
+
+function CacheSkeleton() {
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Skeleton className="h-[190px] rounded-2xl" />
+        <Skeleton className="h-[190px] rounded-2xl" />
+      </div>
+      <Skeleton className="h-[210px] rounded-2xl" />
+      <Skeleton className="h-[88px] rounded-2xl" />
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* page                                                                */
+/* ------------------------------------------------------------------ */
 
 export default function AdminCachePage() {
   const [stats, setStats] = useState<CacheStats | null>(null);
@@ -73,11 +385,12 @@ export default function AdminCachePage() {
 
   const [clearing, setClearing] = useState(false);
   const [confirmingClear, setConfirmingClear] = useState(false);
-  const [lastCleared, setLastCleared] = useState<string | null>(null);
 
   const [gbInput, setGbInput] = useState("");
   const [savingLimit, setSavingLimit] = useState(false);
-  const [limitResult, setLimitResult] = useState<{ ok: boolean; message: string } | null>(null);
+
+  const { toasts, push, dismiss } = useToasts();
+  const [shellRef, shellHeight] = useShellHeight();
 
   const load = useCallback(async () => {
     try {
@@ -97,9 +410,10 @@ export default function AdminCachePage() {
   }, []);
 
   useEffect(() => {
-    load();
+    void load();
   }, [load]);
 
+  // Only the "updated Ns ago" line depends on the clock, so the tick is cheap.
   useEffect(() => {
     const id = setInterval(() => forceTick((n) => n + 1), 10000);
     return () => clearInterval(id);
@@ -112,35 +426,33 @@ export default function AdminCachePage() {
 
   async function handleClear() {
     setClearing(true);
-    setLastCleared(null);
     try {
       const res = await fetch("/api/admin/cache", { method: "POST" });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || `Server returned ${res.status}`);
       const n = data.files_removed ?? 0;
-      setLastCleared(
+      push(
+        "ok",
         n === 0
           ? "Nothing to remove — the cache was already empty."
           : `Removed ${n.toLocaleString()} cached ${n === 1 ? "file" : "files"}.`
       );
       await load();
     } catch (e) {
-      setError((e as Error).message);
+      push("bad", (e as Error).message);
     } finally {
       setClearing(false);
       setConfirmingClear(false);
     }
   }
 
-  async function handleSaveLimit(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleSaveLimit() {
     const gb = parseFloat(gbInput);
     if (!gb || gb <= 0) {
-      setLimitResult({ ok: false, message: "Enter a valid number of GB." });
+      push("bad", "Enter a valid number of GB.");
       return;
     }
     setSavingLimit(true);
-    setLimitResult(null);
     try {
       const res = await fetch("/api/admin/cache", {
         method: "PATCH",
@@ -151,367 +463,320 @@ export default function AdminCachePage() {
       if (!res.ok) throw new Error(data?.error || `Server returned ${res.status}`);
       setStats(data);
       setLastLoadedAt(Date.now());
-      setLimitResult({ ok: true, message: `Cache can now use up to ${fmtSize(gb)}.` });
+      push("ok", `Cache can now use up to ${fmtSize(gb)}.`);
     } catch (e) {
-      setLimitResult({ ok: false, message: (e as Error).message });
+      push("bad", (e as Error).message);
     } finally {
       setSavingLimit(false);
     }
   }
 
-  // ---- Derived values ----
+  /* ---- derived ---- */
   const percent = Math.min(100, stats?.percent_full ?? 0);
   const cacheHealth = cacheHealthTone(percent);
   const diskHealth = diskHealthTone(stats?.disk_percent_used ?? 0);
 
   const requestedGb = parseFloat(gbInput);
-  const hasValidRequest = stats && !isNaN(requestedGb) && requestedGb > 0;
-  const isDirty = hasValidRequest && requestedGb !== stats!.max_gb;
+  const hasValidRequest = Boolean(stats) && !isNaN(requestedGb) && requestedGb > 0;
+  const isDirty = Boolean(hasValidRequest && stats && requestedGb !== stats.max_gb);
 
   const maxPossibleGb = stats ? Math.max(0.5, stats.total_gb + stats.disk_free_gb) : 0.5;
   const wouldExceedDisk = Boolean(hasValidRequest && requestedGb > maxPossibleGb);
   const wouldEvict = Boolean(hasValidRequest && stats && requestedGb < stats.total_gb);
   const sliderMax = stats ? Math.max(0.5, Math.floor(maxPossibleGb * 10) / 10) : 10;
 
-  // Space the cache isn't accounting for - if this is large while the
-  // cache itself is small, something other than the cache is eating the
-  // disk (Docker images, logs, old builds) and the user needs to know
-  // that clearing the cache alone won't fix a full disk.
+  // Space the cache isn't accounting for. If this is large while the cache
+  // itself is small, something else is eating the disk (Docker images, logs,
+  // old builds) and clearing the cache alone won't fix a full disk.
   const unaccountedGb = stats ? Math.max(0, stats.disk_used_gb - stats.total_gb) : 0;
 
-  // Single most urgent thing to surface at the top of the page - disk
-  // takes priority over cache since a full disk breaks everything
-  // (deploys, downloads, logging), while a full cache just evicts itself.
-  const diskCritical = (stats?.disk_percent_used ?? 0) >= 90;
-  const diskHigh = !diskCritical && (stats?.disk_percent_used ?? 0) >= 80;
+  // One banner, not three. Disk outranks cache: a full disk breaks deploys,
+  // downloads and logging, while a full cache just evicts itself.
+  const diskPct = stats?.disk_percent_used ?? 0;
+  const diskCritical = diskPct >= 90;
+  const diskHigh = !diskCritical && diskPct >= 80;
   const cacheCritical = !diskCritical && !diskHigh && percent >= 95;
 
   return (
-    <div className="mx-auto max-w-5xl w-full px-4 sm:px-6 py-4 sm:py-5 flex-1 min-h-0 overflow-y-auto scrollbar-thin flex flex-col gap-4 sm:gap-5">
-      {/* ===== Header ===== */}
-      <div>
-        <div className="flex items-start justify-between gap-3 mb-1">
-          <h1 className="text-lg sm:text-xl font-semibold tracking-tight">Download Cache</h1>
-          <div className="flex items-center gap-2 shrink-0">
-            {lastLoadedAt && !loading && (
-              <span className="hidden sm:inline text-[11px] text-text-subtle tabular-nums">
-                Updated {relativeAge(Date.now() - lastLoadedAt)}
-              </span>
-            )}
-            <button
-              onClick={handleRefresh}
-              disabled={refreshing}
-              className="flex items-center gap-1.5 rounded-md border border-graphite-700 px-2.5 py-1.5 text-xs text-text-muted hover:text-text-primary hover:bg-graphite-900 transition-colors disabled:opacity-60"
-            >
-              <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
-              <span className="hidden sm:inline">Refresh</span>
-            </button>
-          </div>
-        </div>
-        <p className="text-xs sm:text-sm text-text-muted">
-          Previously downloaded audio kept on disk so repeat requests skip re-downloading.
-        </p>
-      </div>
+    <div
+      ref={shellRef}
+      style={shellHeight ? { height: shellHeight } : undefined}
+      className="flex w-full flex-col overflow-hidden bg-graphite-950 text-text-primary"
+    >
+      <style dangerouslySetInnerHTML={{ __html: STYLES }} />
 
-      {loading ? (
-        <CacheSkeleton />
-      ) : error ? (
-        <div className="rounded-lg border border-red-500/25 bg-red-500/5 p-5 flex items-start gap-3">
-          <AlertTriangle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
-          <div>
-            <p className="text-sm font-medium text-text-primary">Couldn&apos;t load cache stats</p>
-            <p className="text-xs text-text-muted mt-1 break-words">{error}</p>
-            <button
-              onClick={handleRefresh}
-              className="mt-3 rounded-md border border-graphite-700 px-2.5 py-1.5 text-xs text-text-muted hover:text-text-primary hover:bg-graphite-900 transition-colors"
-            >
-              Try again
-            </button>
-          </div>
-        </div>
-      ) : stats ? (
-        <>
-          {/* ===== Top-of-page urgent banner - impossible to miss ===== */}
-          {diskCritical && (
-            <AlertBanner tone="red" title="Disk almost full">
-              Only <strong>{fmtSize(stats.disk_free_gb)}</strong> is left on the whole server. New downloads,
-              deploys, and logging can start failing. Clear the cache below or free up space now.
-            </AlertBanner>
-          )}
-          {diskHigh && (
-            <AlertBanner tone="amber" title="Disk usage is high">
-              <strong>{fmtSize(stats.disk_free_gb)}</strong> free out of {fmtSize(stats.disk_total_gb)}. Worth
-              clearing the cache or checking what else is using space soon.
-            </AlertBanner>
-          )}
-          {cacheCritical && (
-            <AlertBanner tone="amber" title="Cache is full">
-              The cache has hit its {fmtSize(stats.max_gb)} allowance. Oldest files are being deleted automatically
-              to make room — increase the allowance below if that's happening too often.
-            </AlertBanner>
-          )}
-
-          {/* ===== 1 & 2. Disk + cache storage side by side on wide screens ===== */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5">
-            <section className="rounded-lg border border-graphite-800 bg-graphite-900 p-4 sm:p-5 flex flex-col gap-2.5">
-              <div className="flex items-center gap-2">
-                <Server className="h-4 w-4 text-text-muted shrink-0" />
-                <span className="text-sm font-semibold">Your VPS disk</span>
-                <span className={`text-xs font-medium ml-auto ${diskHealth.text}`}>{diskHealth.label}</span>
-              </div>
-              <div>
-                <div className="flex justify-between items-baseline text-xs mb-1.5">
-                  <span className="text-text-subtle tabular-nums">
-                    {fmtSize(stats.disk_used_gb)} of {fmtSize(stats.disk_total_gb)}
-                  </span>
-                  <span className={`tabular-nums font-semibold ${diskHealth.text}`}>{stats.disk_percent_used}%</span>
-                </div>
-                <div className="h-2 rounded-full bg-graphite-800 overflow-hidden">
-                  <div
-                    className={`h-full rounded-full ${diskHealth.bar} transition-all duration-500`}
-                    style={{ width: `${Math.min(100, stats.disk_percent_used)}%` }}
-                  />
-                </div>
-              </div>
-              <p className="text-xs text-text-subtle">
-                {fmtSize(stats.disk_free_gb)} free — shared by the operating system, Docker, and this cache.
+      {/* ===== fixed chrome ===== */}
+      <header className="shrink-0 border-b border-graphite-800 px-4 pb-3 pt-3 sm:px-6">
+        <div className="mx-auto w-full max-w-5xl">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-amber-500/30 bg-amber-500/10">
+              <Database className="h-4 w-4 text-amber-400" aria-hidden />
+            </span>
+            <div className="min-w-0">
+              <h1 className="text-[17px] font-semibold leading-tight tracking-tight">Download cache</h1>
+              <p className="truncate text-[11px] text-text-subtle">
+                Audio kept on disk so repeat requests skip re-downloading
               </p>
-              {unaccountedGb > 1 && stats.total_gb < unaccountedGb && (
-                <p className="text-[11px] text-text-subtle border-t border-graphite-800 pt-2 leading-relaxed">
-                  Only {fmtSize(stats.total_gb)} of the {fmtSize(stats.disk_used_gb)} in use is this cache — the
-                  other {fmtSize(unaccountedGb)} is the OS, Docker images, or other files. Clearing the cache
-                  below won&apos;t free that space.
-                </p>
+            </div>
+
+            <div className="ml-auto flex items-center gap-2">
+              {lastLoadedAt && !loading && (
+                <span className="hidden text-[11px] tabular-nums text-text-subtle sm:inline">
+                  Updated {relativeAge(Date.now() - lastLoadedAt)}
+                </span>
               )}
-            </section>
+              <Button size="sm" busy={refreshing} onClick={handleRefresh}>
+                <RefreshCw className={cn("h-3.5 w-3.5", refreshing && "animate-spin")} aria-hidden />
+                Refresh
+              </Button>
+            </div>
+          </div>
 
-            <section className="rounded-lg border border-graphite-800 bg-graphite-900 p-4 sm:p-5 flex flex-col gap-3">
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2 min-w-0">
-                  <Database className="h-4 w-4 text-amber-500 shrink-0" />
-                  <span className="text-sm font-semibold truncate">Cache storage</span>
+          {stats && (
+            <div className="af-railless -mx-4 mt-3 flex gap-2 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+              <Pill label="Cached files" value={stats.entry_count.toLocaleString()} />
+              <Pill label="Cache used" value={fmtSize(stats.total_gb)} tone="accent" />
+              <Pill label="Allowance" value={fmtSize(stats.max_gb)} />
+              <Pill
+                label="Disk free"
+                value={fmtSize(stats.disk_free_gb)}
+                tone={diskCritical ? "alarm" : "plain"}
+              />
+              <Pill label="Backend" value={stats.backend} />
+            </div>
+          )}
+        </div>
+      </header>
+
+      {/* ===== the one scrolling region ===== */}
+      <main className="af-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6">
+        <div className="mx-auto w-full max-w-5xl space-y-4">
+          {loading ? (
+            <CacheSkeleton />
+          ) : error ? (
+            <Card className="flex items-start gap-3 border-red-500/25 bg-red-500/[0.06] p-5">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-400" aria-hidden />
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-text-primary">Couldn&apos;t load cache stats</p>
+                <p className="mt-1 break-words text-xs text-text-muted">{error}</p>
+                <div className="mt-3">
+                  <Button size="sm" variant="danger" onClick={handleRefresh}>
+                    <RefreshCw className="h-3.5 w-3.5" aria-hidden />
+                    Try again
+                  </Button>
                 </div>
-                <span className={`text-xs font-medium shrink-0 ${cacheHealth.text}`}>{cacheHealth.label}</span>
+              </div>
+            </Card>
+          ) : stats ? (
+            <>
+              {diskCritical && (
+                <AlertBanner tone="red" title="Disk almost full">
+                  Only <strong className="text-text-primary">{fmtSize(stats.disk_free_gb)}</strong> is left on the
+                  whole server. New downloads, deploys and logging can start failing. Clear the cache below or free
+                  up space now.
+                </AlertBanner>
+              )}
+              {diskHigh && (
+                <AlertBanner tone="amber" title="Disk usage is high">
+                  <strong className="text-text-primary">{fmtSize(stats.disk_free_gb)}</strong> free out of{" "}
+                  {fmtSize(stats.disk_total_gb)}. Worth clearing the cache or checking what else is using space
+                  soon.
+                </AlertBanner>
+              )}
+              {cacheCritical && (
+                <AlertBanner tone="amber" title="Cache is full">
+                  The cache has hit its {fmtSize(stats.max_gb)} allowance. Oldest files are being deleted
+                  automatically to make room — raise the allowance below if that&apos;s happening too often.
+                </AlertBanner>
+              )}
+
+              {/* ===== disk + cache, side by side ===== */}
+              <div className="grid gap-4 lg:grid-cols-2">
+                <Card className="flex flex-col gap-3 p-4 sm:p-5">
+                  <div className="flex items-center gap-2">
+                    <Server className="h-4 w-4 shrink-0 text-text-muted" aria-hidden />
+                    <span className="text-sm font-semibold">Your VPS disk</span>
+                    <span className={cn("ml-auto text-xs font-medium", diskHealth.text)}>{diskHealth.label}</span>
+                  </div>
+
+                  <div>
+                    <div className="mb-1.5 flex items-baseline justify-between text-xs">
+                      <span className="tabular-nums text-text-subtle">
+                        {fmtSize(stats.disk_used_gb)} of {fmtSize(stats.disk_total_gb)}
+                      </span>
+                      <span className={cn("font-mono font-semibold tabular-nums", diskHealth.text)}>
+                        {stats.disk_percent_used}%
+                      </span>
+                    </div>
+                    <Meter percent={stats.disk_percent_used} health={diskHealth} />
+                  </div>
+
+                  <p className="text-xs text-text-subtle">
+                    {fmtSize(stats.disk_free_gb)} free — shared by the operating system, Docker and this cache.
+                  </p>
+
+                  {unaccountedGb > 1 && stats.total_gb < unaccountedGb && (
+                    <p className="border-t border-graphite-800 pt-2.5 text-[11px] leading-relaxed text-text-subtle">
+                      Only {fmtSize(stats.total_gb)} of the {fmtSize(stats.disk_used_gb)} in use is this cache — the
+                      other {fmtSize(unaccountedGb)} is the OS, Docker images or other files. Clearing the cache
+                      below won&apos;t free that space.
+                    </p>
+                  )}
+                </Card>
+
+                <Card className="flex flex-col gap-3 p-4 sm:p-5">
+                  <div className="flex items-center gap-2">
+                    <HardDrive className="h-4 w-4 shrink-0 text-amber-400" aria-hidden />
+                    <span className="text-sm font-semibold">Cache storage</span>
+                    <span className={cn("ml-auto text-xs font-medium", cacheHealth.text)}>{cacheHealth.label}</span>
+                  </div>
+
+                  <div>
+                    <div className="mb-1.5 flex items-baseline justify-between text-xs">
+                      <span className="tabular-nums text-text-subtle">
+                        {fmtSize(stats.total_gb)} used of {fmtSize(stats.max_gb)} allowed
+                      </span>
+                      <span className={cn("font-mono font-semibold tabular-nums", cacheHealth.text)}>{percent}%</span>
+                    </div>
+                    <Meter percent={percent} health={cacheHealth} thick />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 border-t border-graphite-800 pt-3">
+                    <Figure label="Cached files" value={stats.entry_count.toLocaleString()} />
+                    <Figure label="Room left" value={fmtSize(Math.max(0, stats.max_gb - stats.total_gb))} />
+                  </div>
+
+                  <p className="text-[11px] leading-relaxed text-text-subtle">
+                    When cached files fill this space, the oldest are deleted automatically to make room. This never
+                    touches disk outside its own allowance.
+                  </p>
+                </Card>
               </div>
 
-              <div>
-                <div className="flex justify-between items-baseline text-xs mb-1.5">
-                  <span className="text-text-subtle tabular-nums">
-                    {fmtSize(stats.total_gb)} used of {fmtSize(stats.max_gb)} allowed
-                  </span>
-                  <span className={`tabular-nums font-semibold ${cacheHealth.text}`}>{percent}%</span>
+              {/* ===== allowance ===== */}
+              <Card className="p-4 sm:p-5">
+                <div className="flex items-baseline justify-between gap-3">
+                  <p className="text-sm font-semibold">Change cache allowance</p>
+                  {isDirty && <span className="shrink-0 text-[11px] text-amber-400">Unsaved</span>}
                 </div>
-                <div className="h-3 rounded-full bg-graphite-800 overflow-hidden">
-                  <div
-                    className={`h-full rounded-full ${cacheHealth.bar} transition-all duration-500`}
-                    style={{ width: `${percent}%` }}
-                  />
-                </div>
-              </div>
+                <p className="mt-1 text-xs text-text-muted">
+                  How much of the disk the cache may use. Applies right away, no restart needed.
+                </p>
 
-              <div className="grid grid-cols-2 gap-3 pt-1 border-t border-graphite-800">
-                <div>
-                  <p className="text-[11px] uppercase tracking-wider text-text-subtle">Cached files</p>
-                  <p className="text-base font-semibold tabular-nums mt-0.5">{stats.entry_count.toLocaleString()}</p>
-                </div>
-                <div>
-                  <p className="text-[11px] uppercase tracking-wider text-text-subtle">Room left</p>
-                  <p className="text-base font-semibold tabular-nums mt-0.5">
-                    {fmtSize(Math.max(0, stats.max_gb - stats.total_gb))}
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    void handleSaveLimit();
+                  }}
+                  className="mt-4 flex flex-col gap-3"
+                >
+                  <div>
+                    <input
+                      type="range"
+                      min={0.5}
+                      max={sliderMax}
+                      step={0.5}
+                      value={hasValidRequest ? Math.min(requestedGb, sliderMax) : 0.5}
+                      onChange={(e) => setGbInput(e.target.value)}
+                      className="w-full cursor-pointer accent-amber-500"
+                      aria-label="Cache allowance in GB"
+                    />
+                    <div className="mt-1 flex justify-between font-mono text-[10px] uppercase tracking-[0.14em] text-text-subtle">
+                      <span>0.5 GB</span>
+                      <span>{fmtSize(sliderMax)} max possible</span>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center">
+                    <div className="relative flex-1 sm:max-w-[150px]">
+                      <input
+                        type="number"
+                        min={0.5}
+                        max={sliderMax}
+                        step="0.5"
+                        value={gbInput}
+                        onChange={(e) => setGbInput(e.target.value)}
+                        aria-label="Cache allowance, gigabytes"
+                        className={cn(
+                          "h-10 w-full rounded-lg border border-graphite-700 bg-graphite-850/80 px-3 pr-10 text-sm tabular-nums text-text-primary outline-none transition-colors",
+                          "hover:border-graphite-600 focus-visible:border-amber-500/50 focus-visible:ring-2 focus-visible:ring-amber-500/20"
+                        )}
+                      />
+                      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 font-mono text-[11px] text-text-subtle">
+                        GB
+                      </span>
+                    </div>
+                    <Button type="submit" variant="primary" busy={savingLimit} disabled={!isDirty || wouldExceedDisk}>
+                      {!savingLimit && <Save className="h-3.5 w-3.5" aria-hidden />}
+                      {savingLimit ? "Saving…" : isDirty ? "Save allowance" : "Saved"}
+                    </Button>
+                    {isDirty && !savingLimit && (
+                      <button
+                        type="button"
+                        onClick={() => setGbInput(String(stats.max_gb))}
+                        className="rounded px-1 text-xs text-text-subtle outline-none transition-colors hover:text-text-primary focus-visible:ring-2 focus-visible:ring-amber-400/70 sm:self-center"
+                      >
+                        Cancel
+                      </button>
+                    )}
+                  </div>
+
+                  {wouldEvict && (
+                    <Notice tone="amber">
+                      This is lower than what&apos;s already cached ({fmtSize(stats.total_gb)}) — saving deletes the
+                      oldest files immediately to fit the smaller allowance.
+                    </Notice>
+                  )}
+                  {wouldExceedDisk && (
+                    <Notice tone="red">
+                      Only {fmtSize(maxPossibleGb)} is actually available for the cache on this disk. Setting it
+                      higher isn&apos;t possible right now — free up disk space first.
+                    </Notice>
+                  )}
+                </form>
+              </Card>
+
+              {/* ===== danger zone ===== */}
+              <Card className="flex flex-col gap-3 border-red-500/20 bg-red-500/[0.05] p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-text-primary">Clear cache</p>
+                  <p className="mt-0.5 text-xs leading-relaxed text-text-muted">
+                    {stats.entry_count > 0
+                      ? `Deletes all ${stats.entry_count.toLocaleString()} cached files right now. Each re-downloads next time it's requested.`
+                      : "Nothing is cached right now — this button is here for a manual sanity check."}
                   </p>
                 </div>
-              </div>
-
-              <p className="text-[11px] text-text-subtle leading-relaxed">
-                When cached files fill this space, the oldest unplayed ones are deleted automatically to make room —
-                this never affects the disk outside its own allowance above.
-              </p>
-            </section>
-          </div>
-
-          {/* ===== 3. Change the allowance ===== */}
-          <section className="rounded-lg border border-graphite-800 bg-graphite-900 p-4 sm:p-5">
-            <div className="flex items-baseline justify-between gap-3 mb-1">
-              <p className="text-sm font-medium">Change cache allowance</p>
-              {isDirty && <span className="text-[11px] text-amber-400 shrink-0">Unsaved</span>}
-            </div>
-            <p className="text-xs text-text-muted mb-3.5">
-              Drag to pick how much of your disk the cache is allowed to use. Applies right away, no restart needed.
-            </p>
-
-            <form onSubmit={handleSaveLimit} className="flex flex-col gap-3">
-              <div>
-                <input
-                  type="range"
-                  min={0.5}
-                  max={sliderMax}
-                  step={0.5}
-                  value={hasValidRequest ? Math.min(requestedGb, sliderMax) : 0.5}
-                  onChange={(e) => setGbInput(e.target.value)}
-                  className="w-full accent-amber-500 cursor-pointer"
-                  aria-label="Cache allowance in GB"
-                />
-                <div className="flex justify-between text-[11px] text-text-subtle mt-1">
-                  <span>0.5 GB</span>
-                  <span>{fmtSize(sliderMax)} max possible</span>
-                </div>
-              </div>
-
-              <div className="flex flex-col sm:flex-row gap-2.5">
-                <div className="relative flex-1 sm:max-w-[150px]">
-                  <input
-                    type="number"
-                    min={0.5}
-                    max={sliderMax}
-                    step="0.5"
-                    value={gbInput}
-                    onChange={(e) => setGbInput(e.target.value)}
-                    className="w-full rounded-md border border-graphite-700 bg-graphite-850 px-2.5 py-2 pr-10 text-sm text-text-primary tabular-nums focus:outline-none focus:border-amber-500/60"
-                  />
-                  <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-text-subtle pointer-events-none">
-                    GB
-                  </span>
-                </div>
-                <button
-                  type="submit"
-                  disabled={savingLimit || !isDirty || wouldExceedDisk}
-                  className="flex items-center justify-center gap-1.5 rounded-md bg-amber-500 text-graphite-950 px-4 py-2 text-xs font-semibold hover:bg-amber-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                <Button
+                  variant="danger"
+                  busy={clearing}
+                  disabled={stats.entry_count === 0}
+                  onClick={() => setConfirmingClear(true)}
                 >
-                  {savingLimit ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-                  {savingLimit ? "Saving…" : isDirty ? "Save" : "Saved"}
-                </button>
-                {isDirty && !savingLimit && (
-                  <button
-                    type="button"
-                    onClick={() => setGbInput(String(stats.max_gb))}
-                    className="text-xs text-text-subtle hover:text-text-primary transition-colors sm:self-center px-1"
-                  >
-                    Cancel
-                  </button>
-                )}
-              </div>
+                  {!clearing && <Trash2 className="h-3.5 w-3.5" aria-hidden />}
+                  {clearing ? "Clearing…" : "Clear cache"}
+                </Button>
+              </Card>
 
-              {wouldEvict && (
-                <Notice tone="amber">
-                  This is lower than what&apos;s already cached ({fmtSize(stats.total_gb)}) — saving will delete
-                  the oldest files immediately to fit the new, smaller allowance.
-                </Notice>
+              {confirmingClear && (
+                <ConfirmDialog
+                  title="Clear the entire cache?"
+                  body={
+                    stats.entry_count > 0
+                      ? `This deletes all ${stats.entry_count.toLocaleString()} cached files right now. Each re-downloads the next time it's requested. This can't be undone.`
+                      : "The cache is already empty — this just confirms nothing is left tracked."
+                  }
+                  confirmLabel="Clear cache"
+                  loading={clearing}
+                  onConfirm={handleClear}
+                  onCancel={() => setConfirmingClear(false)}
+                />
               )}
-              {wouldExceedDisk && (
-                <Notice tone="red">
-                  Only {fmtSize(maxPossibleGb)} is actually available for the cache on this disk. Setting it any
-                  higher isn&apos;t possible right now — free up disk space first.
-                </Notice>
-              )}
-              {limitResult && (
-                <p className={`text-xs flex items-center gap-1.5 ${limitResult.ok ? "text-teal-400" : "text-red-500"}`}>
-                  {limitResult.ok && <Check className="h-3.5 w-3.5" />}
-                  {limitResult.message}
-                </p>
-              )}
-            </form>
-          </section>
-
-          {/* ===== 4. Danger zone ===== */}
-          <section className="rounded-lg border border-red-500/20 bg-red-500/5 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-sm font-medium text-text-primary">Clear cache</p>
-              <p className="text-xs text-text-muted mt-0.5 leading-relaxed">
-                {stats.entry_count > 0
-                  ? `Deletes all ${stats.entry_count.toLocaleString()} cached files right now. Each will re-download next time it's requested.`
-                  : "Nothing is cached right now — this button is just here for a manual sanity check."}
-              </p>
-            </div>
-
-            <button
-              onClick={() => setConfirmingClear(true)}
-              disabled={clearing || stats.entry_count === 0}
-              className="flex items-center justify-center gap-1.5 rounded-md border border-red-500/40 text-red-500 px-3.5 py-2 text-xs font-medium hover:bg-red-500/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
-            >
-              {clearing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-              {clearing ? "Clearing…" : "Clear cache"}
-            </button>
-          </section>
-
-          {confirmingClear && (
-            <ConfirmDialog
-              title="Clear the entire cache?"
-              body={
-                stats.entry_count > 0
-                  ? `This deletes all ${stats.entry_count.toLocaleString()} cached files right now. Each will re-download the next time it's requested. This can't be undone.`
-                  : "The cache is already empty — this just runs a sanity check to confirm nothing is left tracked."
-              }
-              confirmLabel="Clear cache"
-              loading={clearing}
-              onConfirm={handleClear}
-              onCancel={() => setConfirmingClear(false)}
-            />
-          )}
-
-          {lastCleared && (
-            <p className="text-xs text-teal-400 flex items-center gap-1.5 -mt-1 px-1">
-              <Check className="h-3.5 w-3.5 shrink-0" />
-              {lastCleared}
-            </p>
-          )}
-
-          <p className="text-[11px] text-text-subtle text-center px-2">Storage backend: {stats.backend}</p>
-        </>
-      ) : null}
-    </div>
-  );
-}
-
-/* ===== Small building blocks ===== */
-
-function AlertBanner({
-  tone, title, children,
-}: {
-  tone: "red" | "amber";
-  title: string;
-  children: React.ReactNode;
-}) {
-  const toneClass =
-    tone === "red"
-      ? "border-red-500/40 bg-red-500/10"
-      : "border-amber-500/40 bg-amber-500/10";
-  const iconClass = tone === "red" ? "text-red-500" : "text-amber-400";
-  const titleClass = tone === "red" ? "text-red-500" : "text-amber-400";
-
-  return (
-    <div className={`rounded-lg border p-3.5 flex items-start gap-3 ${toneClass}`}>
-      <AlertOctagon className={`h-4 w-4 shrink-0 mt-0.5 ${iconClass}`} />
-      <div className="min-w-0">
-        <p className={`text-sm font-semibold ${titleClass}`}>{title}</p>
-        <p className="text-xs text-text-muted mt-0.5 leading-relaxed">{children}</p>
-      </div>
-    </div>
-  );
-}
-
-function Notice({ tone, children }: { tone: "amber" | "red"; children: React.ReactNode }) {
-  const toneClass =
-    tone === "red"
-      ? "border-red-500/25 bg-red-500/5 text-red-500"
-      : "border-amber-500/25 bg-amber-500/5 text-amber-400";
-  return (
-    <div className={`flex items-start gap-2 rounded-md border px-2.5 py-2 text-xs leading-relaxed ${toneClass}`}>
-      <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-      <span>{children}</span>
-    </div>
-  );
-}
-
-function CacheSkeleton() {
-  return (
-    <div className="flex flex-col gap-4 sm:gap-5 animate-pulse">
-      {[0, 1, 2].map((i) => (
-        <div key={i} className="rounded-lg border border-graphite-800 bg-graphite-900 p-4 sm:p-5 flex flex-col gap-3">
-          <div className="h-4 w-32 rounded bg-graphite-800" />
-          <div className="h-3 w-full rounded-full bg-graphite-800" />
-          <div className="h-3 w-2/3 rounded bg-graphite-800" />
+            </>
+          ) : null}
         </div>
-      ))}
+      </main>
+
+      <ToastStack toasts={toasts} dismiss={dismiss} />
     </div>
   );
 }
