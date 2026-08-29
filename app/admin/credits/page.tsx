@@ -524,13 +524,24 @@ function SkeletonPanel() {
   );
 }
 
-/** Vertical scroll region with a real, styled scrollbar and a sticky head. */
-function TableShell({ children }: { children: React.ReactNode }) {
+/**
+ * The table is NOT its own scroll box. A capped, inner-scrolling table means
+ * the last rows sit below the fold with no page scrollbar to reach them — the
+ * bug this replaced. Rows flow into the document instead, and the header row
+ * sticks to the bottom of the page chrome via --af-head.
+ *
+ * `scrollX` is for tables with server-shaped columns (ledger, webhooks) whose
+ * width can't be predicted; it trades the sticky header for horizontal scroll.
+ */
+function TableShell({ scrollX, children }: { scrollX?: boolean; children: React.ReactNode }) {
   return (
-    <div className="af-rise overflow-hidden rounded-2xl border border-graphite-800 bg-graphite-900/50">
-      <div className="af-scroll max-h-[min(68vh,640px)] overflow-auto">
-        <table className="w-full border-collapse text-left text-sm">{children}</table>
-      </div>
+    <div
+      className={cn(
+        "af-rise af-scroll rounded-2xl border border-graphite-800 bg-graphite-900/50",
+        scrollX ? "overflow-x-auto" : "overflow-x-auto lg:overflow-visible"
+      )}
+    >
+      <table className="w-full border-collapse text-left text-sm">{children}</table>
     </div>
   );
 }
@@ -565,8 +576,9 @@ function Th({
   return (
     <th
       scope="col"
+      style={{ top: "var(--af-head, 0px)" }}
       className={cn(
-        "sticky top-0 z-10 whitespace-nowrap border-b border-graphite-800 bg-graphite-900/95 px-3 py-2.5 font-mono text-[10px] font-medium uppercase tracking-[0.14em] backdrop-blur",
+        "sticky z-10 whitespace-nowrap border-b border-graphite-800 bg-graphite-900 px-3 py-2.5 font-mono text-[10px] font-medium uppercase tracking-[0.14em]",
         active ? "text-amber-400" : "text-text-subtle",
         right && "text-right",
         className
@@ -714,6 +726,8 @@ export default function AdminCreditsPage() {
   const [view, setView] = useState<View>("lookup");
   const [tick, setTick] = useState(0);
   const [auto, setAuto] = useState(false);
+  const [headH, setHeadH] = useState(0);
+  const headRef = useRef<HTMLElement>(null);
   const { toasts, push, dismiss } = useToasts();
   const overview = useOverview(tick);
 
@@ -724,6 +738,18 @@ export default function AdminCreditsPage() {
     const id = window.setInterval(refresh, 30_000);
     return () => window.clearInterval(id);
   }, [auto, refresh]);
+
+  // Table headers stick to the bottom edge of this bar, whatever height it
+  // wraps to. Hardcoding an offset breaks the moment the KPI rail wraps.
+  useEffect(() => {
+    const el = headRef.current;
+    if (!el) return;
+    const measure = () => setHeadH(el.getBoundingClientRect().height);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   // Keyboard: 1–5 switch views, r refreshes. Ignored while typing.
   useEffect(() => {
@@ -742,10 +768,16 @@ export default function AdminCreditsPage() {
   const active = VIEWS.find((v) => v.id === view) ?? VIEWS[0];
 
   return (
-    <div className="min-h-screen w-full bg-graphite-950 text-text-primary">
+    <div
+      className="min-h-screen w-full overflow-x-hidden bg-graphite-950 text-text-primary"
+      style={{ "--af-head": `${headH}px` } as React.CSSProperties}
+    >
       <style dangerouslySetInnerHTML={{ __html: STYLES }} />
 
-      <header className="sticky top-0 z-30 border-b border-graphite-800 bg-graphite-950/85 backdrop-blur-xl">
+      <header
+        ref={headRef}
+        className="sticky top-0 z-30 border-b border-graphite-800 bg-graphite-950/85 backdrop-blur-xl"
+      >
         <div className="mx-auto w-full max-w-7xl px-4 pt-4 sm:px-6">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
             <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-amber-500/30 bg-amber-500/10">
@@ -833,7 +865,7 @@ export default function AdminCreditsPage() {
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-7xl px-4 py-5 sm:px-6 sm:py-6">
+      <main className="mx-auto w-full max-w-7xl px-4 pb-24 pt-5 sm:px-6 sm:pt-6">
         {view === "lookup" ? (
           <LookupPanel onToast={push} onChanged={refresh} />
         ) : view === "overview" ? (
@@ -904,28 +936,43 @@ function LookupPanel({
     inputRef.current?.focus();
   }, []);
 
-  const lookup = useCallback(
-    async (address: string) => {
-      const trimmed = address.trim().toLowerCase();
-      if (!trimmed) return;
-      setLoading(true);
-      setError(null);
-      try {
-        const data = await api<Record<string, unknown>>(
-          `/api/admin/credits?view=lookup&email=${encodeURIComponent(trimmed)}`
-        );
-        setResult(data);
-        setSubject(trimmed);
-        setRecent((r) => [trimmed, ...r.filter((x) => x !== trimmed)].slice(0, 5));
-      } catch (err) {
-        setError(msg(err, "Lookup failed."));
-        setResult(null);
-      } finally {
-        setLoading(false);
-      }
-    },
-    []
-  );
+  const reset = useCallback(() => {
+    setResult(null);
+    setSubject("");
+    setError(null);
+  }, []);
+
+  // Emptying the field clears the record with it. A stats block left behind
+  // from the last search is the one thing on this page that can make you grant
+  // credits to the wrong person.
+  const onEmailChange = (v: string) => {
+    setEmail(v);
+    if (!v.trim()) reset();
+  };
+
+  const lookup = useCallback(async (address: string) => {
+    const trimmed = address.trim().toLowerCase();
+    if (!trimmed) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await api<Record<string, unknown>>(
+        `/api/admin/credits?view=lookup&email=${encodeURIComponent(trimmed)}`
+      );
+      setResult(data);
+      setSubject(trimmed);
+      setRecent((r) => [trimmed, ...r.filter((x) => x !== trimmed)].slice(0, 5));
+    } catch (err) {
+      setError(msg(err, "Lookup failed."));
+      setResult(null);
+      setSubject("");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const target = (email.trim() || subject).toLowerCase();
+  const stale = Boolean(subject) && Boolean(email.trim()) && email.trim().toLowerCase() !== subject;
 
   return (
     <div className="space-y-4">
@@ -937,7 +984,7 @@ function LookupPanel({
           }}
           className="flex flex-wrap gap-2"
         >
-          <div className="relative min-w-0 flex-1">
+          <div className="relative min-w-0 flex-1 basis-64">
             <Search
               className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-subtle"
               aria-hidden
@@ -946,18 +993,19 @@ function LookupPanel({
               ref={inputRef}
               type="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => onEmailChange(e.target.value)}
               placeholder="Email they paid with"
               autoComplete="off"
               spellCheck={false}
               aria-label="Customer email"
-              className={cn(inputClass, "h-11 pl-10 pr-3")}
+              className={cn(inputClass, "h-11 pl-10 pr-9")}
             />
             {email && (
               <button
                 type="button"
                 onClick={() => {
                   setEmail("");
+                  reset();
                   inputRef.current?.focus();
                 }}
                 aria-label="Clear email"
@@ -996,37 +1044,64 @@ function LookupPanel({
 
       {error && <ErrorNote message={error} onRetry={() => void lookup(email)} />}
 
-      {loading && !result && (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          {[0, 1, 2].map((i) => (
-            <Skeleton key={i} className="h-[86px] rounded-2xl" />
-          ))}
+      {/* Account on the left, the grant panel on the right — and on mobile the
+          grant panel sits directly under the balances, above the ledger, so it
+          is never something you have to scroll a long table to find. */}
+      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_24rem]">
+        <div className="min-w-0 space-y-3">
+          {loading && !result ? (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              {[0, 1, 2].map((i) => (
+                <Skeleton key={i} className="h-[86px] rounded-2xl" />
+              ))}
+            </div>
+          ) : result ? (
+            <AccountStats
+              data={result}
+              email={subject}
+              stale={stale}
+              onClear={() => {
+                setEmail("");
+                reset();
+              }}
+            />
+          ) : (
+            !error && (
+              <Empty
+                icon={Users}
+                title="Search an account to begin"
+                body="Enter the email from the Ko-fi order. You can grant credits on the right without searching first — an unknown email creates the account."
+              />
+            )
+          )}
         </div>
-      )}
 
-      {!loading && !result && !error && (
-        <Empty
-          icon={Users}
-          title="Search an account to begin"
-          body="Enter the email from the Ko-fi order. If the webhook never matched it, the account will not exist yet — adjusting the balance creates it."
+        <AdjustForm
+          email={target}
+          onToast={onToast}
+          onApplied={() => {
+            void lookup(target);
+            onChanged();
+          }}
         />
-      )}
+      </div>
 
-      {result && <LookupResult data={result} email={subject} />}
-
-      <AdjustForm
-        email={email || subject}
-        onToast={onToast}
-        onApplied={() => {
-          void lookup(email || subject);
-          onChanged();
-        }}
-      />
+      {result && <LedgerSection data={result} />}
     </div>
   );
 }
 
-function LookupResult({ data, email }: { data: Record<string, unknown>; email: string }) {
+function AccountStats({
+  data,
+  email,
+  stale,
+  onClear,
+}: {
+  data: Record<string, unknown>;
+  email: string;
+  stale: boolean;
+  onClear: () => void;
+}) {
   const pickNum = (k: string) => (typeof data[k] === "number" ? (data[k] as number) : undefined);
   const known = [
     { label: "Balance", value: pickNum("balance"), tone: "accent" as const, icon: Coins },
@@ -1034,16 +1109,24 @@ function LookupResult({ data, email }: { data: Record<string, unknown>; email: s
     { label: "Held", value: pickNum("held_credits"), tone: "plain" as const, icon: Clock },
   ].filter((s) => s.value !== undefined);
 
-  const ledger = Array.isArray(data.ledger) ? (data.ledger as Record<string, unknown>[]) : null;
-
   return (
-    <section className="space-y-3">
-      <div className="flex items-center gap-2">
-        <SectionLabel>Account</SectionLabel>
-        <span className="group inline-flex items-center gap-1 font-mono text-xs text-text-muted">
-          {email}
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <SectionLabel>Showing</SectionLabel>
+        <span className="group inline-flex min-w-0 items-center gap-1 font-mono text-xs text-text-muted">
+          <span className="truncate">{email}</span>
           <CopyButton value={email} label="Copy email" />
         </span>
+        {stale && (
+          <Badge tone="accent">Search box changed — press Look up to refresh</Badge>
+        )}
+        <button
+          type="button"
+          onClick={onClear}
+          className="rounded text-[11px] text-text-subtle underline-offset-2 outline-none hover:text-text-primary hover:underline focus-visible:ring-2 focus-visible:ring-amber-400/70"
+        >
+          Clear
+        </button>
       </div>
 
       {known.length > 0 ? (
@@ -1055,15 +1138,21 @@ function LookupResult({ data, email }: { data: Record<string, unknown>; email: s
       ) : (
         <Empty
           icon={Users}
-          title="No balance fields on this record"
-          body="The account exists but returned no numeric balance. Open the full record below to see what came back."
+          title="No balance on this record"
+          body="The lookup returned no numeric balance for this email. Open the full record below to see what came back."
         />
       )}
+    </div>
+  );
+}
 
+function LedgerSection({ data }: { data: Record<string, unknown> }) {
+  const ledger = Array.isArray(data.ledger) ? (data.ledger as Record<string, unknown>[]) : null;
+  return (
+    <div className="space-y-3">
       {ledger && ledger.length > 0 && <LedgerTable rows={ledger} />}
-
       <Raw label="Full record" data={data} />
-    </section>
+    </div>
   );
 }
 
@@ -1093,7 +1182,7 @@ function LedgerTable({ rows }: { rows: Record<string, unknown>[] }) {
   return (
     <div className="space-y-2">
       <SectionLabel>Ledger — {rows.length} entries</SectionLabel>
-      <TableShell>
+      <TableShell scrollX>
         <thead>
           <tr>
             {cols.map((c) => (
@@ -1126,6 +1215,11 @@ function LedgerTable({ rows }: { rows: Record<string, unknown>[] }) {
   );
 }
 
+/**
+ * Always mounted, never behind a search. Granting credits to an email the
+ * webhook never matched is the whole reason this screen exists, and that email
+ * has no account to look up yet.
+ */
 function AdjustForm({
   email,
   onApplied,
@@ -1145,7 +1239,8 @@ function AdjustForm({
   const validDelta = Number.isInteger(parsed) && parsed !== 0 && Math.abs(parsed) <= 1000;
   const validNote = note.trim().length >= 3 && note.trim().length <= 200;
   const target = email.trim().toLowerCase();
-  const ready = Boolean(target) && validDelta && validNote && !busy;
+  const validEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(target);
+  const ready = validEmail && validDelta && validNote && !busy;
 
   useEffect(() => setConfirming(false), [delta, note, email]);
 
@@ -1166,9 +1261,15 @@ function AdjustForm({
       // and nothing was written twice. Reporting both as "done" would let
       // someone click three times and believe they granted 30.
       if (res.applied === false) {
-        onToast("warn", `Already applied earlier. Nothing written twice. Balance is ${res.balance ?? "?"}.`);
+        onToast(
+          "warn",
+          `Already applied earlier. Nothing written twice. Balance is ${res.balance ?? "?"}.`
+        );
       } else {
-        onToast("ok", `Applied ${parsed > 0 ? "+" : ""}${parsed}. Balance is now ${res.balance ?? "?"}.`);
+        onToast(
+          "ok",
+          `Applied ${parsed > 0 ? "+" : ""}${parsed} to ${target}. Balance is now ${res.balance ?? "?"}.`
+        );
       }
       setDelta("");
       setNote("");
@@ -1184,19 +1285,29 @@ function AdjustForm({
   }
 
   return (
-    <Card className="border-amber-500/25 bg-amber-500/[0.04] p-4">
+    <Card className="border-amber-500/25 bg-amber-500/[0.05] p-4">
       <div className="flex items-start gap-2.5">
         <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" aria-hidden />
         <div className="min-w-0">
-          <h2 className="text-sm font-semibold">Adjust balance</h2>
+          <h2 className="text-sm font-semibold">Grant or remove credits</h2>
           <p className="mt-1 text-xs leading-relaxed text-text-muted">
-            Writes a new ledger row against{" "}
-            <span className="font-mono text-text-primary">{target || "the email above"}</span>. The
-            ledger is append-only, so a negative delta adds a −N entry rather than undoing a grant.
-            Creates the account if the email is unknown — the normal case for a payment the webhook
-            never matched.
+            Writes an append-only ledger row. A negative delta adds a −N entry rather than undoing
+            a grant. An unknown email creates the account — the normal case for a payment the
+            webhook never matched.
           </p>
         </div>
+      </div>
+
+      <div className="mt-3 rounded-lg border border-graphite-800 bg-graphite-950/50 px-3 py-2">
+        <SectionLabel>Applying to</SectionLabel>
+        <p
+          className={cn(
+            "mt-0.5 truncate font-mono text-[12px]",
+            validEmail ? "text-amber-300" : "text-text-subtle"
+          )}
+        >
+          {target || "Type an email in the search box above"}
+        </p>
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-1.5">
@@ -1208,21 +1319,26 @@ function AdjustForm({
             key={p}
             type="button"
             onClick={() => setDelta(String(p))}
-            className="rounded-md border border-amber-500/30 bg-amber-500/[0.06] px-2 py-0.5 font-mono text-[11px] text-amber-300 outline-none transition-colors hover:bg-amber-500/15 focus-visible:ring-2 focus-visible:ring-amber-400/70"
+            className={cn(
+              "rounded-md border px-2 py-0.5 font-mono text-[11px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-amber-400/70",
+              delta === String(p)
+                ? "border-amber-400 bg-amber-500/20 text-amber-200"
+                : "border-amber-500/30 bg-amber-500/[0.06] text-amber-300 hover:bg-amber-500/15"
+            )}
           >
             +{p}
           </button>
         ))}
       </div>
 
-      <div className="mt-3 flex flex-wrap gap-2">
+      <div className="mt-2.5 space-y-2">
         <input
           type="number"
           value={delta}
           onChange={(e) => setDelta(e.target.value)}
-          placeholder="Delta"
+          placeholder="Delta — e.g. 30"
           aria-label="Credit delta"
-          className={cn(inputClass, "h-11 w-28 px-3 tabular-nums")}
+          className={cn(inputClass, "h-11 px-3 tabular-nums")}
         />
         <input
           type="text"
@@ -1231,26 +1347,27 @@ function AdjustForm({
           maxLength={200}
           placeholder="Note — e.g. Ko-fi order #1234, webhook never fired"
           aria-label="Adjustment note"
-          className={cn(inputClass, "h-11 min-w-0 flex-1 px-3")}
+          className={cn(inputClass, "h-11 px-3")}
         />
         {confirming ? (
-          <>
-            <Button variant="danger" busy={busy} onClick={() => void submit()}>
+          <div className="flex gap-2">
+            <Button variant="danger" busy={busy} onClick={() => void submit()} className="flex-1">
               Confirm {parsed}
             </Button>
             <Button onClick={() => setConfirming(false)}>Cancel</Button>
-          </>
+          </div>
         ) : (
           <Button
             variant="primary"
             disabled={!ready}
             busy={busy}
+            className="w-full"
             onClick={() => {
               if (parsed < 0) setConfirming(true);
               else void submit();
             }}
           >
-            Apply
+            {parsed > 0 ? `Grant ${parsed} credits` : "Apply"}
           </Button>
         )}
       </div>
@@ -1258,14 +1375,15 @@ function AdjustForm({
       {/* The note is required and deliberately has no default. Six months from
           now an unexplained +30 is indistinguishable from a bug, and the only
           person who can tell is whoever made it today. */}
-      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] leading-relaxed text-text-subtle">
-        <span className={cn(delta && !validDelta && "text-red-400")}>
-          Non-zero integer, −1000 to 1000
-        </span>
-        <span className={cn(note && !validNote && "text-red-400")}>
-          Note 3–200 characters ({note.trim().length})
-        </span>
-        {confirming && <span className="text-red-400">Negative adjustment — confirm to write it.</span>}
+      <div className="mt-2 space-y-1 text-[11px] leading-relaxed text-text-subtle">
+        {!validEmail && <p>Enter the customer email above to enable this.</p>}
+        <p className={cn(delta && !validDelta && "text-red-400")}>
+          Non-zero integer, −1000 to 1000.
+        </p>
+        <p className={cn(note && !validNote && "text-red-400")}>
+          Note 3–200 characters ({note.trim().length}).
+        </p>
+        {confirming && <p className="text-red-400">Negative adjustment — confirm to write it.</p>}
       </div>
 
       {error && (
@@ -1936,7 +2054,7 @@ function WebhooksPanel({ rows }: { rows: unknown[] }) {
       <ErrorNote
         message={`${objs.length} payment${objs.length === 1 ? "" : "s"} never matched an account. Copy the email, then grant the credits by hand from the Customer tab.`}
       />
-      <TableShell>
+      <TableShell scrollX>
         <thead>
           <tr>
             {cols.map((c) => (
