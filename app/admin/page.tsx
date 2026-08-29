@@ -2,7 +2,13 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Database, Cookie, ScrollText, ArrowRight, Loader2 } from "lucide-react";
+import { Database, Cookie, ScrollText, ArrowRight, Loader2, Coins } from "lucide-react";
+
+interface CreditsOverview {
+  accounts?: number;
+  credits_outstanding?: number;
+  webhooks_unprocessed?: number;
+}
 
 interface CacheStats {
   enabled: boolean;
@@ -23,16 +29,21 @@ interface CookieSlot {
 export default function AdminDashboardPage() {
   const [cache, setCache] = useState<CacheStats | null>(null);
   const [cookies, setCookies] = useState<Record<string, CookieSlot> | null>(null);
+  const [credits, setCredits] = useState<CreditsOverview | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     Promise.all([
       fetch("/api/admin/cache", { cache: "no-store" }).then((r) => (r.ok ? r.json() : null)),
       fetch("/api/admin/cookies", { cache: "no-store" }).then((r) => (r.ok ? r.json() : null)),
+      fetch("/api/admin/credits?view=overview", { cache: "no-store" }).then((r) =>
+        r.ok ? r.json() : null
+      ),
     ])
-      .then(([c, k]) => {
+      .then(([c, k, cr]) => {
         setCache(c);
         setCookies(k);
+        setCredits(cr);
       })
       .finally(() => setLoading(false));
   }, []);
@@ -73,6 +84,28 @@ export default function AdminDashboardPage() {
             icon={Cookie}
             title="Cookies"
             body={`${cookiesPresent} of 3 slots configured.`}
+          />
+          {/* Outstanding credits are a LIABILITY — money already taken for
+              work not yet done. Unprocessed webhooks are payments that never
+              reached an account, i.e. someone waiting on a support reply. Both
+              belong on the first screen rather than three clicks in. */}
+          <DashboardCard
+            href="/admin/credits"
+            icon={Coins}
+            title="Credits"
+            body={
+              credits
+                ? `${credits.credits_outstanding ?? 0} outstanding · ${
+                    credits.accounts ?? 0
+                  } accounts${
+                    credits.webhooks_unprocessed
+                      ? ` · ${credits.webhooks_unprocessed} webhook${
+                          credits.webhooks_unprocessed === 1 ? "" : "s"
+                        } unmatched`
+                      : ""
+                  }`
+                : "Unable to load credit stats."
+            }
           />
         </div>
       )}
