@@ -403,12 +403,25 @@ async function toApiError(res: Response, context: ErrorContext): Promise<ApiErro
 // broken one is not.
 export interface FeatureFlags {
   separationHqEnabled: boolean;
+  /**
+   * Kill switch for the multi-track MIDI tool. FALSE means the route returns
+   * 503, so the option must not be offered at all.
+   *
+   * DIFFERENT QUESTION from paywallTools["audio-to-midi-hq"], which answers
+   * whether it costs a credit. Gating visibility on the paywall flag — which is
+   * what this code did before this flag existed — meant turning off charging
+   * made the tool vanish instead of becoming free, and the free-flow test
+   * couldn't be run at all. Gate visibility here; gate the "1 credit" badge and
+   * the 402 handling on paywallTools.
+   */
+  midiHqEnabled: boolean;
   paywallEnabled: boolean;
   paywallTools: Partial<Record<MeteredToolKey, boolean>>;
 }
 
 const FLAGS_OFF: FeatureFlags = {
   separationHqEnabled: false,
+  midiHqEnabled: false,
   paywallEnabled: false,
   paywallTools: {},
 };
@@ -429,6 +442,7 @@ export async function getFeatureFlags(): Promise<FeatureFlags> {
     const tools = data?.features?.paywall_tools;
     return {
       separationHqEnabled: Boolean(data?.features?.separation_hq_enabled),
+      midiHqEnabled: Boolean(data?.features?.midi_hq_enabled),
       paywallEnabled: Boolean(data?.features?.paywall_enabled),
       paywallTools:
         tools && typeof tools === "object"

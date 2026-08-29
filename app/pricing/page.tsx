@@ -49,13 +49,23 @@ export const metadata: Metadata = {
   title: PAGE_TITLE,
   description: PAGE_DESCRIPTION,
   alternates: { canonical: `${SITE_URL}/pricing` },
-  // Deliberate. Until real buyers have completed the flow in production, an
-  // indexed pricing page is a liability: it competes with the "free X"
-  // queries the tool pages rank on, and a 404 Google has already crawled as
-  // a live page is worse than one it never saw.
-  //
-  // Remove this block once the paywall has been on and stable for a week.
-  robots: { index: false, follow: true },
+  /*
+    INDEXED as of 2026-08-29. This was noindex while the paywall was still
+    provisional, for two reasons that no longer hold:
+
+      - "a 404 Google has crawled as a live page is worse than one it never
+        saw" — true while PAYWALL_ENABLED might be flipped back off, which
+        makes this route call notFound(). It is now load-bearing for five
+        metered tools and is not going off.
+      - "it competes with the 'free X' queries the tool pages rank on" — the
+        tool pages own those terms and this page targets a different intent
+        entirely: someone who has already met a limit and is looking for a
+        price. Those are not the same searcher.
+
+    The cost of leaving it hidden was concrete: the only route to the page
+    that sells anything was to hit a paywall first, so it earned no organic
+    traffic at all.
+  */
   openGraph: {
     title: PAGE_TITLE,
     description: PAGE_DESCRIPTION,

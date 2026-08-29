@@ -342,11 +342,51 @@ function AdjustForm({ email, onApplied }: { email: string; onApplied: () => void
   );
 }
 
+interface Filters {
+  tools?: string[];
+  statuses?: string[];
+  charge_types?: string[];
+}
+
+/**
+ * Option lists come from GET /admin/credits/jobs/filters, never a constant
+ * here. Four hand-maintained "which tools exist" lists have already drifted
+ * apart in this codebase inside one week — a fifth in a React component would
+ * be the one nobody remembers to update when a tool is added.
+ */
+function useJobFilters() {
+  const [filters, setFilters] = useState<Filters>({});
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const d = (await api("/api/admin/credits?view=filters")) as Filters;
+        if (!cancelled) setFilters(d);
+      } catch {
+        /* dropdowns fall back to "any" — the view still works unfiltered */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  return filters;
+}
+
+const PAGE_SIZE = 50;
+
 function ReadPanel({ view }: { view: View }) {
   const [data, setData] = useState<unknown>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [days, setDays] = useState("30");
+  const [tool, setTool] = useState("");
+  const [status, setStatus] = useState("");
+  const [chargeType, setChargeType] = useState("");
+  const [email, setEmail] = useState("");
+  const [emailApplied, setEmailApplied] = useState("");
+  const [offset, setOffset] = useState(0);
+  const filters = useJobFilters();
 
   const load = useCallback(
     async (signal?: AbortSignal) => {
@@ -355,8 +395,22 @@ function ReadPanel({ view }: { view: View }) {
       try {
         const params = new URLSearchParams({ view });
         if (view === "webhooks") params.set("unprocessed_only", "true");
-        if (view === "costs") params.set("days", days);
-        if (view === "jobs") params.set("limit", "100");
+        if (view === "costs") {
+          params.set("days", days);
+          // `totals` stays unfiltered server-side on purpose — "what am I
+          // spending across everything?" is a different question, and quietly
+          // narrowing it would make a partial figure look complete.
+          if (tool) params.set("tool", tool);
+        }
+        if (view === "jobs") {
+          params.set("limit", String(PAGE_SIZE));
+          params.set("offset", String(offset));
+          params.set("days", days);
+          if (tool) params.set("tool", tool);
+          if (status) params.set("status", status);
+          if (chargeType) params.set("charge_type", chargeType);
+          if (emailApplied) params.set("email", emailApplied);
+        }
         const next = await api(`/api/admin/credits?${params.toString()}`);
         if (signal?.aborted) return;
         setData(next);
@@ -368,7 +422,7 @@ function ReadPanel({ view }: { view: View }) {
         if (!signal?.aborted) setLoading(false);
       }
     },
-    [view, days]
+    [view, days, tool, status, chargeType, emailApplied, offset]
   );
 
   /*
@@ -386,18 +440,109 @@ function ReadPanel({ view }: { view: View }) {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
-        {view === "costs" && (
-          <select
+        {(view === "costs" || view === "jobs") && (
+          <Select
             value={days}
-            onChange={(e) => setDays(e.target.value)}
-            className="h-9 rounded-lg border border-graphite-700 bg-graphite-850 px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-amber-500/20"
+            onChange={(v) => {
+              setDays(v);
+              // MUST reset the page. Narrowing 90 days to 1 while sitting on
+              // page 3 would request offset=100 against maybe five rows: an
+              // empty table under a pager reading "Showing 101–101 of 5",
+              // which looks like the endpoint broke rather than like a filter
+              // that moved.
+              setOffset(0);
+            }}
           >
-            {["7", "30", "90"].map((d) => (
+            {["1", "7", "30", "90", "365"].map((d) => (
               <option key={d} value={d}>
-                Last {d} days
+                Last {d} {d === "1" ? "day" : "days"}
               </option>
             ))}
-          </select>
+          </Select>
+        )}
+
+        {(view === "costs" || view === "jobs") && (
+          <Select
+            value={tool}
+            onChange={(v) => {
+              setTool(v);
+              setOffset(0);
+            }}
+          >
+            <option value="">Any tool</option>
+            {(filters.tools ?? []).map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </Select>
+        )}
+
+        {view === "jobs" && (
+          <>
+            <Select
+              value={status}
+              onChange={(v) => {
+                setStatus(v);
+                setOffset(0);
+              }}
+            >
+              <option value="">Any status</option>
+              {(filters.statuses ?? []).map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </Select>
+            <Select
+              value={chargeType}
+              onChange={(v) => {
+                setChargeType(v);
+                setOffset(0);
+              }}
+            >
+              <option value="">Any charge</option>
+              {(filters.charge_types ?? []).map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </Select>
+            {/*
+              The support query. /users/lookup returns a customer's charges but
+              not their GPU costs or failure reasons, so "they say it failed
+              twice, what happened?" took two endpoints and a manual join.
+            */}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                setOffset(0);
+                setEmailApplied(email.trim().toLowerCase());
+              }}
+              className="flex gap-2"
+            >
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="filter by email"
+                className="h-9 w-52 rounded-lg border border-graphite-700 bg-graphite-850 px-3 text-sm outline-none placeholder:text-text-subtle focus-visible:ring-2 focus-visible:ring-amber-500/20"
+              />
+              {emailApplied && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEmail("");
+                    setEmailApplied("");
+                    setOffset(0);
+                  }}
+                  className="h-9 rounded-lg border border-graphite-700 px-3 text-sm text-text-muted outline-none hover:text-text-primary focus-visible:ring-2 focus-visible:ring-amber-400/70"
+                >
+                  Clear
+                </button>
+              )}
+            </form>
+          </>
         )}
         <button
           type="button"
@@ -418,12 +563,22 @@ function ReadPanel({ view }: { view: View }) {
         </p>
       )}
 
-      {data !== null && view === "overview" && <OverviewPanel data={data as Overview} />}
+      {data !== null && view === "overview" && (
+        <OverviewPanel data={data as Overview} onSwept={() => void load()} />
+      )}
       {data !== null && view === "costs" && (
         <CostsTable rows={(data as { daily?: CostRow[] }).daily ?? []} />
       )}
       {data !== null && view === "jobs" && (
-        <JobsTable rows={(data as { jobs?: JobRow[] }).jobs ?? []} />
+        <>
+          <JobsTable rows={(data as { jobs?: JobRow[] }).jobs ?? []} />
+          <Pager
+            offset={offset}
+            count={((data as { jobs?: JobRow[] }).jobs ?? []).length}
+            total={(data as { total?: number }).total}
+            onOffset={setOffset}
+          />
+        </>
       )}
       {data !== null && view === "webhooks" && (
         <WebhooksPanel rows={(data as { webhooks?: unknown[] }).webhooks ?? []} />
@@ -432,8 +587,25 @@ function ReadPanel({ view }: { view: View }) {
   );
 }
 
-function OverviewPanel({ data }: { data: Overview }) {
+function OverviewPanel({ data, onSwept }: { data: Overview; onSwept: () => void }) {
   const pw = data.paywall ?? {};
+  const [sweeping, setSweeping] = useState(false);
+  const [sweepMsg, setSweepMsg] = useState<string | null>(null);
+
+  async function sweep() {
+    setSweeping(true);
+    setSweepMsg(null);
+    try {
+      await api("/api/admin/credits?action=sweep", { method: "POST" });
+      setSweepMsg("Sweep run. Any orphaned holds have been released.");
+      onSwept();
+    } catch (err) {
+      setSweepMsg(err instanceof Error ? err.message : "Sweep failed.");
+    } finally {
+      setSweeping(false);
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
@@ -441,7 +613,10 @@ function OverviewPanel({ data }: { data: Overview }) {
             the closest thing this business has to a balance-sheet liability. */}
         <Stat label="Outstanding" value={num(data.credits_outstanding)} accent />
         <Stat label="Accounts" value={num(data.accounts)} />
-        <Stat label="Holds open" value={num(data.holds_open)} />
+        {/* A hold is a credit taken for a job with no terminal state yet. The
+            sweeper releases orphans on a 90-minute cycle; a non-zero count
+            here that does not clear is the signal to force it. */}
+        <Stat label="Holds open" value={num(data.holds_open)} alarm={Boolean(data.holds_open)} />
         <Stat label="Jobs refunded" value={num(data.jobs_refunded)} />
         <Stat
           label="Webhooks unmatched"
@@ -478,6 +653,26 @@ function OverviewPanel({ data }: { data: Overview }) {
               </span>
             ))}
           </div>
+        )}
+      </section>
+
+      <section className="flex flex-wrap items-center gap-3 rounded-xl border border-graphite-800 bg-graphite-900 p-4">
+        <button
+          type="button"
+          onClick={() => void sweep()}
+          disabled={sweeping}
+          className="h-9 rounded-lg border border-graphite-700 px-3 text-sm text-text-muted outline-none transition-colors hover:text-text-primary focus-visible:ring-2 focus-visible:ring-amber-400/70 disabled:opacity-40"
+        >
+          {sweeping ? <Loader2 className="h-4 w-4 animate-spin" /> : "Force hold sweep"}
+        </button>
+        <span className="text-xs leading-relaxed text-text-subtle">
+          Releases credits held by jobs that never reported a terminal state. Runs on its
+          own every 90 minutes — this is for when someone is waiting.
+        </span>
+        {sweepMsg && (
+          <span className="w-full text-xs text-teal-400" role="status">
+            {sweepMsg}
+          </span>
         )}
       </section>
     </div>
@@ -610,6 +805,74 @@ function WebhooksPanel({ rows }: { rows: unknown[] }) {
   }
   // Shape unconfirmed until one appears. Replace with a table then.
   return <Raw label="Unmatched webhooks" data={rows} />;
+}
+
+function Select({
+  value,
+  onChange,
+  children,
+}: {
+  value: string;
+  onChange: (next: string) => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="h-9 rounded-lg border border-graphite-700 bg-graphite-850 px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-amber-500/20"
+    >
+      {children}
+    </select>
+  );
+}
+
+/**
+ * "Showing 50 of 1,842" rather than leaving the operator to guess whether they
+ * are seeing everything. The backend runs the count against the same WHERE
+ * clause as the rows, so the two can never disagree.
+ */
+function Pager({
+  offset,
+  count,
+  total,
+  onOffset,
+}: {
+  offset: number;
+  count: number;
+  total?: number;
+  onOffset: (next: number) => void;
+}) {
+  const knownTotal = typeof total === "number" ? total : undefined;
+  const hasMore = knownTotal !== undefined ? offset + count < knownTotal : count === PAGE_SIZE;
+  if (offset === 0 && !hasMore) return null;
+
+  return (
+    <div className="flex items-center justify-between gap-3 text-sm">
+      <span className="text-text-subtle">
+        Showing {offset + 1}–{offset + count}
+        {knownTotal !== undefined ? ` of ${knownTotal.toLocaleString()}` : ""}
+      </span>
+      <span className="flex gap-2">
+        <button
+          type="button"
+          disabled={offset === 0}
+          onClick={() => onOffset(Math.max(0, offset - PAGE_SIZE))}
+          className="h-9 rounded-lg border border-graphite-700 px-3 text-text-muted outline-none transition-colors hover:text-text-primary focus-visible:ring-2 focus-visible:ring-amber-400/70 disabled:opacity-40"
+        >
+          Previous
+        </button>
+        <button
+          type="button"
+          disabled={!hasMore}
+          onClick={() => onOffset(offset + PAGE_SIZE)}
+          className="h-9 rounded-lg border border-graphite-700 px-3 text-text-muted outline-none transition-colors hover:text-text-primary focus-visible:ring-2 focus-visible:ring-amber-400/70 disabled:opacity-40"
+        >
+          Next
+        </button>
+      </span>
+    </div>
+  );
 }
 
 function Stat({

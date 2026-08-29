@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { TRANSCRIPTION_MODEL } from "@/lib/api/transcription";
 import { SITE_URL } from "@/lib/constants";
 import { getRateLimitLabel } from "@/lib/data/rate-limits";
 
@@ -139,7 +140,7 @@ export default function AboutPage() {
                 model than they'd like to admit. Stating it is checkable,
                 and being checkable is the whole position. */}
             <strong className="text-text-primary">Transcription</strong> runs on
-            Whisper large-v3, the largest model in that family, on a GPU worker.
+            {TRANSCRIPTION_MODEL}, the largest model in that family, on a GPU worker.
             Three routes into it:{" "}
             <Link href="/audio-to-text" className="text-amber-400 hover:underline">
               Audio to Text

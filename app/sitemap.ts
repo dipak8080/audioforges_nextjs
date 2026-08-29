@@ -36,6 +36,15 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 0.8,
       changeFrequency: "monthly" as const,
     },
+    // Added alongside removing its noindex. An indexed page that appears in
+    // no sitemap and is linked only from the footer is discoverable in
+    // principle and invisible in practice — and this is the one page on the
+    // site that sells anything.
+    //
+    // 0.7, not higher: it targets price intent, which is real but far
+    // narrower than the tool pages' head terms. Ranking it above them would
+    // be optimising for the wrong visitor.
+    { path: "/pricing", priority: 0.7, changeFrequency: "monthly" as const },
     { path: "/about", priority: 0.6, changeFrequency: "monthly" as const },
     { path: "/contact", priority: 0.4, changeFrequency: "yearly" as const },
     { path: "/privacy", priority: 0.3, changeFrequency: "yearly" as const },

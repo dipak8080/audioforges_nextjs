@@ -35,6 +35,7 @@ import {
   readMediaDuration,
   languageName,
   TRANSCRIPTION_LIMITS,
+  TRANSCRIPTION_MODEL,
   TRANSCRIPTION_AUDIO_EXTENSIONS,
   TRANSCRIPTION_VIDEO_EXTENSIONS,
   type Transcript,
@@ -731,9 +732,11 @@ export function TranscriptionForm({ mode, languages: initialLanguages }: Transcr
 
   // Assigned during render so onCredited always calls the CURRENT
   // handleSubmit rather than the one captured at first mount.
-  submitRef.current = () => {
-    void handleSubmit();
-  };
+  useEffect(() => {
+    submitRef.current = () => {
+      void handleSubmit();
+    };
+  });
 
   /* --- derived ----------------------------------------------------- */
 
@@ -868,7 +871,10 @@ export function TranscriptionForm({ mode, languages: initialLanguages }: Transcr
         <span className="font-mono text-[11px] uppercase tracking-[0.08em] text-text-subtle">
           {status === "complete" && transcript
             ? languageName(transcript.language)
-            : "Whisper large-v3"}
+            : /* From the languages payload this form already fetches, so it
+                 costs no extra request and follows the backend without a
+                 deploy. Falls back to the constant. */
+              (languages?.model_name ?? TRANSCRIPTION_MODEL)}
         </span>
       </div>
 

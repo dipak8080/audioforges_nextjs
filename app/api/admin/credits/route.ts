@@ -29,6 +29,15 @@ const READ_VIEWS = {
   jobs: "/admin/credits/jobs",
   lookup: "/admin/credits/users/lookup",
   webhooks: "/admin/credits/webhooks",
+  /**
+   * The valid values for the jobs filters, served by the backend.
+   *
+   * Populate the dropdowns from THIS, never a TS constant. This codebase has
+   * had four separate hand-maintained "which tools exist" lists drift out of
+   * sync in a single week; a fifth living in a React component is not worth
+   * adding.
+   */
+  filters: "/admin/credits/jobs/filters",
 } as const;
 
 /** Writes. `adjust` is the ONLY one that touches the ledger. */
@@ -87,7 +96,20 @@ export async function GET(request: NextRequest) {
   const url = new URL(`${BACKEND_BASE}${READ_VIEWS[view]}`);
   // Allow-listed passthrough only. Forwarding the whole query string would let
   // a caller reach parameters this proxy has never seen.
-  for (const key of ["days", "limit", "email", "unprocessed_only"]) {
+  for (const key of [
+    "days",
+    "limit",
+    "offset",
+    "email",
+    "unprocessed_only",
+    // Jobs filters. `email` is the one that matters for support: /users/lookup
+    // returns a customer's charges but not their GPU costs or failure reasons,
+    // so "they say it failed twice, what happened?" used to take two endpoints
+    // and a manual join.
+    "tool",
+    "status",
+    "charge_type",
+  ]) {
     const value = searchParams.get(key);
     if (value !== null) url.searchParams.set(key, value);
   }

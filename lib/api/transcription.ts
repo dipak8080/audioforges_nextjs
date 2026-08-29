@@ -48,6 +48,43 @@ export type TranscriptionEndpoint = "speech-to-text" | "youtube/transcribe" | "v
  */
 export const TRANSCRIPTION_MODEL = "Whisper large-v3";
 
+/**
+ * The model name, read from the backend instead of typed here.
+ *
+ * NOT self-correcting, and it's worth being precise about why. The language
+ * list genuinely is read from the installed faster_whisper package, so it
+ * cannot drift. The model name can't work the same way: with
+ * TRANSCRIPTION_BACKEND=gpu the model actually running is whatever
+ * WHISPER_MODEL_SIZE is set to on the RunPod endpoint, an environment the VPS
+ * never reads — and the VPS's own copy is deliberately unset so nothing
+ * multi-GB gets baked into an image for a fallback that never runs.
+ *
+ * So `model_name` is an OPERATOR-MAINTAINED LABEL (TRANSCRIPTION_MODEL_NAME in
+ * the VPS env). The win is one place instead of seven, and an operator can
+ * change it without a frontend deploy. Changing the model means editing the
+ * RunPod endpoint and that one line — two edits in the same mental step.
+ *
+ * Fails closed to the constant above, so a backend blip renders today's name
+ * rather than an empty span in the middle of a sentence.
+ *
+ * SERVER-SIDE ONLY. Never call this from a client component.
+ */
+export async function getTranscriptionModelName(): Promise<string> {
+  try {
+    const res = await fetch(`${RAILWAY_API_BASE}/speech-to-text/languages`, {
+      next: { revalidate: 3600 },
+      signal: AbortSignal.timeout(5_000),
+    });
+    if (!res.ok) return TRANSCRIPTION_MODEL;
+    const data = (await res.json()) as { model_name?: unknown };
+    return typeof data.model_name === "string" && data.model_name
+      ? data.model_name
+      : TRANSCRIPTION_MODEL;
+  } catch {
+    return TRANSCRIPTION_MODEL;
+  }
+}
+
 export const TRANSCRIPTION_ENDPOINTS = {
   audio: "speech-to-text",
   youtube: "youtube/transcribe",
@@ -76,8 +113,21 @@ export const TRANSCRIPTION_LIMITS = {
   audioBytes: 80 * 1024 * 1024,
   /** /video-to-text — deliberately different from audioBytes. */
   videoBytes: 100 * 1024 * 1024,
-  /** Applies to the audio track on all three endpoints. */
-  durationSeconds: 20 * 60,
+  /**
+   * Applies to the audio track on all three endpoints.
+   *
+   * CORRECTED 2026-08-29: was 20 minutes. The backend reports
+   * features.transcription_max_duration_seconds = 600, so the real cap is TEN.
+   * While this said 20, all three transcription pages advertised 20-minute
+   * uploads and validateTranscriptionDuration() below accepted a 15-minute file
+   * — which the server then refused after the entire transfer had completed.
+   * Exactly the failure that hit /youtube-vocal-remover with its 15-vs-10
+   * minute claim.
+   *
+   * Still a hand-mirrored number. lib/api/limits.ts now fetches the real one;
+   * this becomes its fallback once the call sites are converted.
+   */
+  durationSeconds: 10 * 60,
   /**
    * YouTube DOWNLOAD allows 40 minutes but transcription only allows 20,
    * so a 30-minute video downloads successfully and then fails. Warn on
@@ -646,6 +696,8 @@ export interface TranscriptionLanguages {
   tasks: TranscriptionTask[];
   modes: string[];
   default_mode: string;
+  /** Operator-maintained label — see getTranscriptionModelName(). */
+  model_name?: string;
 }
 
 /**

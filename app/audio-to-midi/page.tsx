@@ -158,8 +158,21 @@ export default async function AudioToMidiPage() {
    * Vercel Edge Request incident here. While this is false, the page is
    * byte-identical to before: no engine picker, no mention of credits.
    */
-  const { paywallTools } = await getFeatureFlags();
-  const midiHqAvailable = Boolean(paywallTools["audio-to-midi-hq"]);
+  const { midiHqEnabled } = await getFeatureFlags();
+  /**
+   * TWO SEPARATE QUESTIONS, and this used to conflate them.
+   *
+   * `midiHqEnabled` answers CAN this tool run — it's the kill switch, and false
+   * means a 503. `paywall_tools["audio-to-midi-hq"]` answers DOES IT COST a
+   * credit. Gating visibility on the paywall flag meant turning off charging
+   * hid the tool rather than making it free, so the free-flow test in the spec
+   * could not be run at all.
+   *
+   * Visibility comes from here. The "1 credit" badge and the 402 gate come from
+   * the paywall flag, resolved per visitor inside the form by FreeTierBadge and
+   * useCreditGate — neither of which this page needs to know about.
+   */
+  const midiHqAvailable = midiHqEnabled;
 
   const faqs: FAQItem[] = [
     {

@@ -7,7 +7,7 @@ import { FAQSection } from "@/components/faq/FAQSection";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
 import { getRateLimitLabel } from "@/lib/data/rate-limits";
-import { TRANSCRIPTION_LIMITS } from "@/lib/api/transcription";
+import { TRANSCRIPTION_LIMITS, TRANSCRIPTION_MODEL } from "@/lib/api/transcription";
 
 /* ------------------------------------------------------------------ */
 /* Limits — derived, never typed twice                                 */
@@ -188,7 +188,7 @@ const faqs = [
   {
     question: "What model does this use?",
     answer:
-      "Whisper large-v3, the largest model in that family, running on a GPU. Naming it means you can check it. Most free tools run a smaller variant and don't say which.",
+      `${TRANSCRIPTION_MODEL}, the largest model in that family, running on a GPU. Naming it means you can check it. Most free tools run a smaller variant and don't say which.`,
   },
   {
     question: "Do I have to pick the language?",
@@ -561,7 +561,7 @@ export default function AudioToTextPage() {
               year: "numeric",
             })}
           </time>
-          . Whisper large-v3 · {MAX_MINUTES} min per file · {RATE_LIMIT}.
+          . {TRANSCRIPTION_MODEL} · {MAX_MINUTES} min per file · {RATE_LIMIT}.
         </p>
       </main>
     </>
