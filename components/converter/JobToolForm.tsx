@@ -112,6 +112,24 @@ function humanizeError(raw: string): { title: string; hint: string } {
   if (text.includes("network") || text.includes("timeout") || text.includes("connection")) {
     return { title: "The connection dropped", hint: "Check your internet and run it again." };
   }
+  /**
+   * "Nothing was found" is not a failure to retry.
+   *
+   * The backend maps NO_NOTES_DETECTED to a clear sentence, and that sentence
+   * did reach the title — but the generic hint under it said "Run it again",
+   * which is the one piece of advice guaranteed not to help: the same audio
+   * produces the same empty result. On a metered tool that reads as an
+   * invitation to spend a second credit on the same outcome.
+   */
+  if (text.includes("no notes") || text.includes("no_notes") || text.includes("nothing")) {
+    return {
+      title: raw,
+      hint: "Re-running won't change this. Try a clearer recording, a single instrument, or widen the pitch range if you narrowed it.",
+    };
+  }
+
+  // Default: the server writes these for the end user, so the message is shown
+  // verbatim rather than replaced with something generic.
   return { title: raw, hint: "Run it again. If it keeps failing, try a different file." };
 }
 

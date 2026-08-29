@@ -93,6 +93,19 @@ type Settings = {
   onsetThreshold: number;
   frameThreshold: number;
   minimumNoteLength: number;
+  /**
+   * HQ ONLY, and OFF by default.
+   *
+   * 127.7ms is basic-pitch's default and it earns its place there: that model
+   * emits short spurious blips that need cleaning up. YourMT3 does not — it
+   * emits note events directly, with no threshold noise to filter. Carrying
+   * the free tool's default across meant every paid run silently discarded
+   * every note shorter than roughly an 8th at 120bpm, which on a busy piano
+   * part is a lot of real music, from a job someone paid for.
+   *
+   * So on HQ the filter is opt-in: send nothing unless the user asks for it.
+   */
+  limitNoteLength: boolean;
   limitPitch: boolean;
   lowNote: number;
   highNote: number;
@@ -102,6 +115,7 @@ const DEFAULTS: Settings = {
   onsetThreshold: 0.5,
   frameThreshold: 0.3,
   minimumNoteLength: 127.7,
+  limitNoteLength: false,
   limitPitch: false,
   lowNote: MIDI_LOW,
   highNote: MIDI_HIGH,
@@ -124,6 +138,7 @@ const PRESETS: Preset[] = [
       onsetThreshold: 0.45,
       frameThreshold: 0.3,
       minimumNoteLength: 60,
+      limitNoteLength: false,
       limitPitch: true,
       lowNote: 21,
       highNote: 108,
@@ -137,6 +152,7 @@ const PRESETS: Preset[] = [
       onsetThreshold: 0.4,
       frameThreshold: 0.25,
       minimumNoteLength: 140,
+      limitNoteLength: false,
       limitPitch: true,
       lowNote: 40,
       highNote: 84,
@@ -150,6 +166,7 @@ const PRESETS: Preset[] = [
       onsetThreshold: 0.55,
       frameThreshold: 0.3,
       minimumNoteLength: 110,
+      limitNoteLength: false,
       limitPitch: true,
       lowNote: 28,
       highNote: 60,
@@ -163,6 +180,7 @@ const PRESETS: Preset[] = [
       onsetThreshold: 0.45,
       frameThreshold: 0.3,
       minimumNoteLength: 80,
+      limitNoteLength: false,
       limitPitch: true,
       lowNote: 40,
       highNote: 88,
@@ -176,6 +194,7 @@ const PRESETS: Preset[] = [
       onsetThreshold: 0.3,
       frameThreshold: 0.2,
       minimumNoteLength: 40,
+      limitNoteLength: false,
       limitPitch: false,
       lowNote: 21,
       highNote: 108,
@@ -187,6 +206,7 @@ const sameSettings = (a: Settings, b: Settings) =>
   a.onsetThreshold === b.onsetThreshold &&
   a.frameThreshold === b.frameThreshold &&
   a.minimumNoteLength === b.minimumNoteLength &&
+  a.limitNoteLength === b.limitNoteLength &&
   a.limitPitch === b.limitPitch &&
   (!a.limitPitch || (a.lowNote === b.lowNote && a.highNote === b.highNote));
 
@@ -679,6 +699,7 @@ export function AudioToMidiForm({ hqAvailable = false }: { hqAvailable?: boolean
     if (settings.onsetThreshold !== DEFAULTS.onsetThreshold) n++;
     if (settings.frameThreshold !== DEFAULTS.frameThreshold) n++;
     if (settings.minimumNoteLength !== DEFAULTS.minimumNoteLength) n++;
+    if (settings.limitNoteLength !== DEFAULTS.limitNoteLength) n++;
     if (settings.limitPitch !== DEFAULTS.limitPitch) n++;
     return n;
   }, [settings]);
@@ -694,7 +715,15 @@ export function AudioToMidiForm({ hqAvailable = false }: { hqAvailable?: boolean
     <JobToolForm
       // Different ROUTE, not a quality flag — the two tiers are different
       // models with different parameter sets.
-      key={isHq ? "hq" : "free"}
+      //
+      // NO `key` here, deliberately. Keying on the tier remounted the whole
+      // form on every switch, which threw away the file the user had already
+      // chosen — pick a track, switch to multi-track, start again. Nothing
+      // needs the remount: `endpoint` and `metered` are props read fresh each
+      // render, handleSubmit is a plain function rather than a memoised
+      // callback, and the tier picker is unreachable once a result is on
+      // screen, so a finished job can never have its download URL rewritten
+      // to the other route.
       endpoint={isHq ? "audio-to-midi-hq" : "audio-to-midi"}
       // Sends af_sid so a balance can be seen and spent. False on the free
       // route, which returns no billing block at all.
@@ -723,9 +752,13 @@ export function AudioToMidiForm({ hqAvailable = false }: { hqAvailable?: boolean
           // `minimum_note_length`. Sending the free tool's field names would
           // be dropped silently by FastAPI and produce an unfiltered result
           // that looks like the setting did nothing.
-          const fields: Record<string, string> = {
-            min_note_ms: String(settings.minimumNoteLength),
-          };
+          // Omitted unless the user turned the filter on. Sending the free
+          // tool's 127.7 default here would throw away real notes on a run
+          // they paid for — see Settings.limitNoteLength.
+          const fields: Record<string, string> = {};
+          if (settings.limitNoteLength) {
+            fields.min_note_ms = String(settings.minimumNoteLength);
+          }
           if (bounded) {
             fields.min_pitch = String(settings.lowNote);
             fields.max_pitch = String(settings.highNote);
@@ -952,10 +985,36 @@ export function AudioToMidiForm({ hqAvailable = false }: { hqAvailable?: boolean
 
                 {/* Cleanup */}
                 <div className="space-y-4">
-                  <p className="text-[10px] font-medium uppercase tracking-widest text-text-subtle">
-                    Cleanup
-                  </p>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-[10px] font-medium uppercase tracking-widest text-text-subtle">
+                        Cleanup
+                      </p>
+                      {isHq && (
+                        <p className="mt-1 text-[11px] leading-snug text-text-subtle">
+                          Off by default. The multi-track model emits note events
+                          directly, so there is usually nothing to clean up — turn
+                          this on only if the result looks cluttered.
+                        </p>
+                      )}
+                    </div>
+                    {isHq && (
+                      <Toggle
+                        checked={settings.limitNoteLength}
+                        disabled={disabled}
+                        label="Drop very short notes"
+                        onChange={(next) => patch({ limitNoteLength: next })}
+                      />
+                    )}
+                  </div>
 
+                  <div
+                    className={cn(
+                      "transition-opacity",
+                      isHq && !settings.limitNoteLength && "pointer-events-none opacity-40"
+                    )}
+                    aria-hidden={isHq && !settings.limitNoteLength}
+                  >
                   <SliderRow
                     id="atm-minlen"
                     label="Shortest note"
@@ -972,8 +1031,10 @@ export function AudioToMidiForm({ hqAvailable = false }: { hqAvailable?: boolean
                     max={isHq ? 2000 : 1000}
                     step={0.1}
                     value={settings.minimumNoteLength}
+                    disabled={isHq && !settings.limitNoteLength}
                     onChange={(v) => patch({ minimumNoteLength: Math.round(v * 10) / 10 })}
                   />
+                  </div>
                 </div>
 
                 <div className="h-px bg-graphite-800" />
