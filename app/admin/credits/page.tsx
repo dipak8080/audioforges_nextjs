@@ -1,21 +1,23 @@
 "use client";
 
 /**
- * app/admin/credits/page.tsx
+ * app/admin/credits/page.tsx — final pass.
  *
- * Credits ops console — full rewrite.
+ * Two changes over the previous version:
  *
- * Structural fixes over the previous version:
- *  - The page no longer fights its parent for height. It scrolls with the
- *    document; only data tables own a scroll region, and those regions have a
- *    visible, styled scrollbar plus a sticky header row.
- *  - Every view has four real states: skeleton, error+retry, empty, data.
- *  - Tables collapse to cards below md instead of overflowing off-screen.
- *  - All fetches are abortable and every action reports through one toast stack.
- *  - Live KPI strip stays pinned so holds/unmatched webhooks are never buried.
+ *  1. FIXED SHELL. The page now fills the viewport exactly and never scrolls
+ *     itself. Header, KPI rail, tabs, filters, stat cards and the pager all
+ *     hold still; the only thing that moves is the data. The shell height is
+ *     measured from where the page actually starts, so it stays correct under
+ *     whatever chrome the admin layout puts above it.
+ *
+ *  2. NO RAW JSON. Every response is rendered as designed fields — labelled,
+ *     typed, formatted. A <pre> dump was fine as scaffolding while the shapes
+ *     were unknown; it is not an interface. Unknown keys still render, they
+ *     just render as fields like everything else.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   Check,
@@ -96,6 +98,8 @@ interface Filters {
   charge_types?: string[];
 }
 
+type Rec = Record<string, unknown>;
+
 const VIEWS: { id: View; label: string; hint: string; icon: typeof Coins }[] = [
   { id: "lookup", label: "Customer", hint: "Paid and got nothing", icon: Search },
   { id: "overview", label: "Overview", hint: "Liability and paywall state", icon: Wallet },
@@ -118,7 +122,7 @@ async function api<T = unknown>(path: string, init?: RequestInit): Promise<T> {
   try {
     body = JSON.parse(text);
   } catch {
-    /* non-JSON is surfaced raw */
+    /* non-JSON is surfaced as its own message */
   }
   if (!res.ok) {
     const message =
@@ -161,7 +165,18 @@ const relTime = (iso: string | null) => {
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 };
 
-function toCsv(rows: Record<string, unknown>[]): string {
+const ISO_LIKE = /^\d{4}-\d{2}-\d{2}([T ]\d{2}:\d{2}|$)/;
+// A value is a timestamp if it parses like one. The key name is a hint, not a
+// requirement — servers name these inconsistently.
+const looksLikeTime = (k: string, v: string) =>
+  ISO_LIKE.test(v) || /(_at|_on|timestamp)$/i.test(k);
+const isMoneyKey = (k: string) => /(usd|cost|amount|price|total_paid)/i.test(k);
+const isMonoKey = (k: string) => /(id|email|hash|key|token|tool|status|reason|tier|ip)$/i.test(k);
+
+const prettyLabel = (k: string) =>
+  k.replace(/[_.]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+
+function toCsv(rows: Rec[]): string {
   if (rows.length === 0) return "";
   const cols = Object.keys(rows[0]);
   const esc = (v: unknown) => {
@@ -171,7 +186,7 @@ function toCsv(rows: Record<string, unknown>[]): string {
   return [cols.join(","), ...rows.map((r) => cols.map((c) => esc(r[c])).join(","))].join("\n");
 }
 
-function downloadCsv(name: string, rows: Record<string, unknown>[]) {
+function downloadCsv(name: string, rows: Rec[]) {
   const blob = new Blob([toCsv(rows)], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -184,43 +199,68 @@ function downloadCsv(name: string, rows: Record<string, unknown>[]) {
 }
 
 /* ------------------------------------------------------------------ */
-/* one-off styles: scrollbars, entrances, shimmer                      */
+/* styles                                                              */
 /* ------------------------------------------------------------------ */
 
 const STYLES = `
-.af-scroll { scrollbar-width: thin; scrollbar-color: rgb(120 113 108 / 0.45) transparent; }
+.af-scroll { scrollbar-width: thin; scrollbar-color: rgb(120 113 108 / .45) transparent; }
 .af-scroll::-webkit-scrollbar { width: 11px; height: 11px; }
 .af-scroll::-webkit-scrollbar-track { background: transparent; }
 .af-scroll::-webkit-scrollbar-thumb {
-  background: rgb(120 113 108 / 0.38);
-  border-radius: 99px;
-  border: 3px solid transparent;
-  background-clip: content-box;
+  background: rgb(120 113 108 / .38); border-radius: 99px;
+  border: 3px solid transparent; background-clip: content-box;
 }
-.af-scroll::-webkit-scrollbar-thumb:hover { background: rgb(245 158 11 / 0.55); background-clip: content-box; }
+.af-scroll::-webkit-scrollbar-thumb:hover { background: rgb(245 158 11 / .55); background-clip: content-box; }
 .af-scroll::-webkit-scrollbar-corner { background: transparent; }
-
 .af-railless { scrollbar-width: none; -ms-overflow-style: none; }
 .af-railless::-webkit-scrollbar { display: none; }
-
 @keyframes af-rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-.af-rise { animation: af-rise .26s cubic-bezier(.22,.9,.32,1) both; }
-
+.af-rise { animation: af-rise .24s cubic-bezier(.22,.9,.32,1) both; }
 @keyframes af-toast { from { opacity: 0; transform: translateY(10px) scale(.98); } to { opacity: 1; transform: none; } }
 .af-toast { animation: af-toast .2s cubic-bezier(.22,.9,.32,1) both; }
-
 @keyframes af-shimmer { 100% { transform: translateX(100%); } }
 .af-skel { position: relative; overflow: hidden; }
 .af-skel::after {
   content: ""; position: absolute; inset: 0; transform: translateX(-100%);
-  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.05), transparent);
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / .05), transparent);
   animation: af-shimmer 1.4s infinite;
 }
-
-@media (prefers-reduced-motion: reduce) {
-  .af-rise, .af-toast, .af-skel::after { animation: none !important; }
-}
+@media (prefers-reduced-motion: reduce) { .af-rise, .af-toast, .af-skel::after { animation: none !important; } }
 `;
+
+/* ------------------------------------------------------------------ */
+/* shell height                                                        */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The page fills from wherever it starts to the bottom of the window. Measured
+ * rather than hardcoded (`h-screen minus 4rem`) because the admin chrome above
+ * this page can change height — and a wrong constant here is exactly what makes
+ * the last table row unreachable.
+ */
+function useShellHeight() {
+  const ref = useRef<HTMLDivElement>(null);
+  const [height, setHeight] = useState<number | null>(null);
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () => {
+      const top = el.getBoundingClientRect().top + window.scrollY - window.scrollY;
+      setHeight(Math.max(360, Math.round(window.innerHeight - top)));
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(measure) : null;
+    if (ro && el.parentElement) ro.observe(el.parentElement);
+    return () => {
+      window.removeEventListener("resize", measure);
+      ro?.disconnect();
+    };
+  }, []);
+
+  return [ref, height] as const;
+}
 
 /* ------------------------------------------------------------------ */
 /* toasts                                                              */
@@ -281,12 +321,7 @@ function ToastStack({ toasts, dismiss }: { toasts: Toast[]; dismiss: (id: number
 
 function Card({ className, children }: { className?: string; children: React.ReactNode }) {
   return (
-    <section
-      className={cn(
-        "rounded-2xl border border-graphite-800 bg-graphite-900/70 backdrop-blur-sm",
-        className
-      )}
-    >
+    <section className={cn("rounded-2xl border border-graphite-800 bg-graphite-900/70", className)}>
       {children}
     </section>
   );
@@ -314,7 +349,7 @@ function Stat({
   return (
     <div
       className={cn(
-        "af-rise rounded-2xl border px-4 py-3.5 transition-colors",
+        "rounded-2xl border px-3.5 py-3 transition-colors",
         tone === "alarm"
           ? "border-red-500/30 bg-red-500/[0.06]"
           : "border-graphite-800 bg-graphite-900/70 hover:border-graphite-700"
@@ -326,7 +361,7 @@ function Stat({
       </div>
       <p
         className={cn(
-          "mt-1.5 font-mono text-[1.375rem] font-semibold leading-none tabular-nums",
+          "mt-1.5 font-mono text-xl font-semibold leading-none tabular-nums",
           tone === "alarm"
             ? "text-red-400"
             : tone === "accent"
@@ -415,18 +450,14 @@ function Select({
       >
         {children}
       </select>
-      <ChevronDown
-        className="pointer-events-none absolute right-2.5 h-3.5 w-3.5 text-text-subtle"
-        aria-hidden
-      />
+      <ChevronDown className="pointer-events-none absolute right-2.5 h-3.5 w-3.5 text-text-subtle" aria-hidden />
     </label>
   );
 }
 
 const inputClass = cn(
   "w-full rounded-lg border border-graphite-700 bg-graphite-850/80 text-sm text-text-primary outline-none transition-colors",
-  "placeholder:text-text-subtle",
-  "hover:border-graphite-600",
+  "placeholder:text-text-subtle hover:border-graphite-600",
   "focus-visible:border-amber-500/50 focus-visible:ring-2 focus-visible:ring-amber-500/20"
 );
 
@@ -437,18 +468,15 @@ function CopyButton({ value, label = "Copy" }: { value: string; label?: string }
       type="button"
       title={label}
       aria-label={label}
-      onClick={() => {
+      onClick={(e) => {
+        e.stopPropagation();
         void navigator.clipboard?.writeText(value);
         setHit(true);
         window.setTimeout(() => setHit(false), 1200);
       }}
       className="rounded p-1 text-text-subtle opacity-0 outline-none transition-opacity hover:text-amber-400 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-amber-400/70 group-hover:opacity-100"
     >
-      {hit ? (
-        <Check className="h-3 w-3 text-teal-400" aria-hidden />
-      ) : (
-        <Copy className="h-3 w-3" aria-hidden />
-      )}
+      {hit ? <Check className="h-3 w-3 text-teal-400" aria-hidden /> : <Copy className="h-3 w-3" aria-hidden />}
     </button>
   );
 }
@@ -481,7 +509,7 @@ const statusTone = (s: string): "good" | "bad" | "accent" | "muted" =>
 
 function Empty({ title, body, icon: Icon = Inbox }: { title: string; body?: string; icon?: typeof Coins }) {
   return (
-    <div className="af-rise flex flex-col items-center rounded-2xl border border-dashed border-graphite-800 bg-graphite-900/40 px-6 py-14 text-center">
+    <div className="af-rise flex flex-col items-center justify-center rounded-2xl border border-dashed border-graphite-800 bg-graphite-900/40 px-6 py-12 text-center">
       <Icon className="h-6 w-6 text-text-subtle" aria-hidden />
       <p className="mt-3 text-sm font-medium text-text-muted">{title}</p>
       {body && <p className="mt-1 max-w-sm text-xs leading-relaxed text-text-subtle">{body}</p>}
@@ -513,35 +541,27 @@ function Skeleton({ className }: { className?: string }) {
 
 function SkeletonPanel() {
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {[0, 1, 2, 3].map((i) => (
-          <Skeleton key={i} className="h-[86px] rounded-2xl" />
+          <Skeleton key={i} className="h-[80px] rounded-2xl" />
         ))}
       </div>
-      <Skeleton className="h-72 rounded-2xl" />
+      <Skeleton className="h-64 rounded-2xl" />
     </div>
   );
 }
 
-/**
- * The table is NOT its own scroll box. A capped, inner-scrolling table means
- * the last rows sit below the fold with no page scrollbar to reach them — the
- * bug this replaced. Rows flow into the document instead, and the header row
- * sticks to the bottom of the page chrome via --af-head.
- *
- * `scrollX` is for tables with server-shaped columns (ledger, webhooks) whose
- * width can't be predicted; it trades the sticky header for horizontal scroll.
- */
-function TableShell({ scrollX, children }: { scrollX?: boolean; children: React.ReactNode }) {
+/** The one scroll region on the page. Everything else holds still. */
+function DataScroll({ className, children }: { className?: string; children: React.ReactNode }) {
   return (
     <div
       className={cn(
-        "af-rise af-scroll rounded-2xl border border-graphite-800 bg-graphite-900/50",
-        scrollX ? "overflow-x-auto" : "overflow-x-auto lg:overflow-visible"
+        "af-scroll min-h-0 flex-1 overflow-auto overscroll-contain rounded-2xl border border-graphite-800 bg-graphite-900/40",
+        className
       )}
     >
-      <table className="w-full border-collapse text-left text-sm">{children}</table>
+      {children}
     </div>
   );
 }
@@ -552,14 +572,12 @@ function Th({
   sortKey,
   sort,
   onSort,
-  className,
 }: {
-  children: React.ReactNode;
+  children?: React.ReactNode;
   right?: boolean;
   sortKey?: string;
   sort?: { key: string; dir: "asc" | "desc" };
   onSort?: (key: string) => void;
-  className?: string;
 }) {
   const active = sortKey && sort?.key === sortKey;
   const content = (
@@ -576,12 +594,12 @@ function Th({
   return (
     <th
       scope="col"
-      style={{ top: "var(--af-head, 0px)" }}
       className={cn(
-        "sticky z-10 whitespace-nowrap border-b border-graphite-800 bg-graphite-900 px-3 py-2.5 font-mono text-[10px] font-medium uppercase tracking-[0.14em]",
+        // Sticky against the DataScroll container — which now has a bounded
+        // height, so this actually holds while the rows move under it.
+        "sticky top-0 z-10 whitespace-nowrap border-b border-graphite-800 bg-graphite-900 px-3 py-2.5 font-mono text-[10px] font-medium uppercase tracking-[0.14em]",
         active ? "text-amber-400" : "text-text-subtle",
-        right && "text-right",
-        className
+        right && "text-right"
       )}
     >
       {sortKey && onSort ? (
@@ -599,35 +617,35 @@ function Th({
   );
 }
 
-function Td({
-  children,
-  right,
-  className,
-}: {
-  children: React.ReactNode;
-  right?: boolean;
-  className?: string;
-}) {
+function Td({ children, right, className }: { children: React.ReactNode; right?: boolean; className?: string }) {
   return (
-    <td className={cn("px-3 py-2.5 align-top", right && "text-right tabular-nums", className)}>
-      {children}
-    </td>
+    <td className={cn("px-3 py-2.5 align-top", right && "text-right tabular-nums", className)}>{children}</td>
   );
 }
 
-function Tr({ children }: { children: React.ReactNode }) {
+function Tr({ children, onClick }: { children: React.ReactNode; onClick?: () => void }) {
   return (
-    <tr className="group border-b border-graphite-800/60 transition-colors last:border-0 hover:bg-graphite-850/40">
+    <tr
+      onClick={onClick}
+      className={cn(
+        "group border-b border-graphite-800/60 transition-colors last:border-0 hover:bg-graphite-850/40",
+        onClick && "cursor-pointer"
+      )}
+    >
       {children}
     </tr>
   );
 }
 
+function Table({ children }: { children: React.ReactNode }) {
+  return <table className="w-full border-collapse text-left text-sm">{children}</table>;
+}
+
 /** Signature element: the spend trail. Ops reads shape before it reads numbers. */
-function Sparkline({ values, className }: { values: number[]; className?: string }) {
+function Sparkline({ values }: { values: number[] }) {
   if (values.length < 2) return null;
   const w = 260;
-  const h = 44;
+  const h = 40;
   const max = Math.max(...values);
   const min = Math.min(...values);
   const span = max - min || 1;
@@ -636,22 +654,16 @@ function Sparkline({ values, className }: { values: number[]; className?: string
     h - 4 - ((v - min) / span) * (h - 10),
   ]);
   const line = pts.map(([x, y], i) => `${i ? "L" : "M"}${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
-  const area = `${line} L${w},${h} L0,${h} Z`;
   const last = pts[pts.length - 1];
   return (
-    <svg
-      viewBox={`0 0 ${w} ${h}`}
-      preserveAspectRatio="none"
-      className={cn("h-11 w-full", className)}
-      aria-hidden
-    >
+    <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" className="h-10 w-full" aria-hidden>
       <defs>
         <linearGradient id="af-spend" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="rgb(245 158 11)" stopOpacity="0.28" />
           <stop offset="100%" stopColor="rgb(245 158 11)" stopOpacity="0" />
         </linearGradient>
       </defs>
-      <path d={area} fill="url(#af-spend)" />
+      <path d={`${line} L${w},${h} L0,${h} Z`} fill="url(#af-spend)" />
       <path
         d={line}
         fill="none"
@@ -666,17 +678,139 @@ function Sparkline({ values, className }: { values: number[]; className?: string
   );
 }
 
-/** Collapsed escape hatch for response shapes not yet pinned down. */
-function Raw({ label, data }: { label: string; data: unknown }) {
+/* ------------------------------------------------------------------ */
+/* field rendering — what replaced the JSON dumps                      */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Renders any response object as labelled fields. Types are inferred from the
+ * value and the key: booleans become badges, timestamps become relative times
+ * with the exact value on hover, money keys get currency, ids and emails get a
+ * copy button. Nested objects become their own sub-section; arrays of objects
+ * become a small table. Unknown keys still appear — they just appear as fields,
+ * which is the whole point.
+ */
+function FieldValue({ name, value }: { name: string; value: unknown }) {
+  if (value === null || value === undefined || value === "") {
+    return <span className="text-text-subtle">—</span>;
+  }
+  if (typeof value === "boolean") {
+    return <Badge tone={value ? "good" : "muted"}>{value ? "Yes" : "No"}</Badge>;
+  }
+  if (typeof value === "number") {
+    return (
+      <span className={cn("font-mono tabular-nums", isMoneyKey(name) ? "text-amber-400" : "text-text-primary")}>
+        {isMoneyKey(name) ? money(value) : num(value, 2)}
+      </span>
+    );
+  }
+  if (typeof value === "string") {
+    if (looksLikeTime(name, value)) {
+      return (
+        <span className="text-text-primary" title={fullTime(value)}>
+          {relTime(value)}
+        </span>
+      );
+    }
+    const mono = isMonoKey(name) || value.includes("@");
+    return (
+      <span className={cn("group inline-flex min-w-0 items-center gap-1", mono && "font-mono text-[12px]")}>
+        <span className="truncate text-text-primary" title={value}>
+          {value}
+        </span>
+        {(mono || value.length > 24) && <CopyButton value={value} />}
+      </span>
+    );
+  }
+  if (Array.isArray(value)) {
+    if (value.length === 0) return <span className="text-text-subtle">None</span>;
+    if (value.every((v) => typeof v !== "object" || v === null)) {
+      return (
+        <span className="flex flex-wrap gap-1">
+          {value.map((v, i) => (
+            <Badge key={i} tone="plain">
+              {String(v)}
+            </Badge>
+          ))}
+        </span>
+      );
+    }
+    return <MiniTable rows={value as Rec[]} />;
+  }
+  return <FieldGrid data={value as Rec} dense />;
+}
+
+function FieldGrid({
+  data,
+  omit = [],
+  dense,
+  columns = 2,
+}: {
+  data: Rec;
+  omit?: string[];
+  dense?: boolean;
+  columns?: 1 | 2 | 3;
+}) {
+  const entries = Object.entries(data).filter(([k]) => !omit.includes(k));
+  if (entries.length === 0) return null;
+
   return (
-    <details className="overflow-hidden rounded-2xl border border-graphite-800 bg-graphite-900/60">
-      <summary className="cursor-pointer select-none px-4 py-2.5 font-mono text-[10px] uppercase tracking-[0.16em] text-text-subtle outline-none transition-colors hover:text-text-muted focus-visible:ring-2 focus-visible:ring-amber-400/70">
-        {label}
-      </summary>
-      <pre className="af-scroll max-h-96 overflow-auto border-t border-graphite-800 p-4 text-xs leading-relaxed text-text-muted">
-        {JSON.stringify(data, null, 2)}
-      </pre>
-    </details>
+    <dl
+      className={cn(
+        "grid gap-x-6 gap-y-3",
+        columns === 3 ? "sm:grid-cols-3" : columns === 2 ? "sm:grid-cols-2" : "",
+        dense && "rounded-lg border border-graphite-800 bg-graphite-950/40 p-3"
+      )}
+    >
+      {entries.map(([k, v]) => {
+        const wide = typeof v === "object" && v !== null;
+        return (
+          <div key={k} className={cn("min-w-0", wide && "sm:col-span-full")}>
+            <dt className="font-mono text-[10px] uppercase tracking-[0.16em] text-text-subtle">
+              {prettyLabel(k)}
+            </dt>
+            <dd className="mt-1 min-w-0 text-sm">
+              <FieldValue name={k} value={v} />
+            </dd>
+          </div>
+        );
+      })}
+    </dl>
+  );
+}
+
+/** Arrays of objects inside a field. Column set is the union of the rows' keys,
+ *  so a record with an extra field doesn't silently lose it. */
+function MiniTable({ rows }: { rows: Rec[] }) {
+  const cols = useMemo(() => {
+    const seen = new Set<string>();
+    rows.forEach((r) => Object.keys(r).forEach((k) => seen.add(k)));
+    return [...seen].slice(0, 6);
+  }, [rows]);
+
+  return (
+    <div className="af-scroll overflow-x-auto rounded-lg border border-graphite-800">
+      <Table>
+        <thead>
+          <tr>
+            {cols.map((c) => (
+              <Th key={c}>{prettyLabel(c)}</Th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r, i) => (
+            <Tr key={i}>
+              {cols.map((c) => (
+                <Td key={c} className="max-w-[16rem] truncate">
+                  <FieldValue name={c} value={r[c]} />
+                </Td>
+              ))}
+            </Tr>
+          ))}
+        </tbody>
+      </Table>
+    </div>
   );
 }
 
@@ -691,8 +825,7 @@ function useJobFilters() {
     const c = new AbortController();
     void (async () => {
       try {
-        const d = await api<Filters>("/api/admin/credits?view=filters", { signal: c.signal });
-        setFilters(d);
+        setFilters(await api<Filters>("/api/admin/credits?view=filters", { signal: c.signal }));
       } catch {
         /* dropdowns fall back to "any" — views still work unfiltered */
       }
@@ -726,10 +859,9 @@ export default function AdminCreditsPage() {
   const [view, setView] = useState<View>("lookup");
   const [tick, setTick] = useState(0);
   const [auto, setAuto] = useState(false);
-  const [headH, setHeadH] = useState(0);
-  const headRef = useRef<HTMLElement>(null);
   const { toasts, push, dismiss } = useToasts();
   const overview = useOverview(tick);
+  const [shellRef, shellHeight] = useShellHeight();
 
   const refresh = useCallback(() => setTick((t) => t + 1), []);
 
@@ -738,18 +870,6 @@ export default function AdminCreditsPage() {
     const id = window.setInterval(refresh, 30_000);
     return () => window.clearInterval(id);
   }, [auto, refresh]);
-
-  // Table headers stick to the bottom edge of this bar, whatever height it
-  // wraps to. Hardcoding an offset breaks the moment the KPI rail wraps.
-  useEffect(() => {
-    const el = headRef.current;
-    if (!el) return;
-    const measure = () => setHeadH(el.getBoundingClientRect().height);
-    measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
 
   // Keyboard: 1–5 switch views, r refreshes. Ignored while typing.
   useEffect(() => {
@@ -769,16 +889,15 @@ export default function AdminCreditsPage() {
 
   return (
     <div
-      className="min-h-screen w-full overflow-x-hidden bg-graphite-950 text-text-primary"
-      style={{ "--af-head": `${headH}px` } as React.CSSProperties}
+      ref={shellRef}
+      style={shellHeight ? { height: shellHeight } : undefined}
+      className="flex w-full flex-col overflow-hidden bg-graphite-950 text-text-primary"
     >
       <style dangerouslySetInnerHTML={{ __html: STYLES }} />
 
-      <header
-        ref={headRef}
-        className="sticky top-0 z-30 border-b border-graphite-800 bg-graphite-950/85 backdrop-blur-xl"
-      >
-        <div className="mx-auto w-full max-w-7xl px-4 pt-4 sm:px-6">
+      {/* ===== fixed chrome ===== */}
+      <header className="shrink-0 border-b border-graphite-800 px-4 pt-3 sm:px-6">
+        <div className="mx-auto w-full max-w-7xl">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
             <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-amber-500/30 bg-amber-500/10">
               <Coins className="h-4 w-4 text-amber-400" aria-hidden />
@@ -801,12 +920,7 @@ export default function AdminCreditsPage() {
                     : "border-graphite-700 bg-graphite-850/80 text-text-muted hover:text-text-primary"
                 )}
               >
-                <span
-                  className={cn(
-                    "h-1.5 w-1.5 rounded-full",
-                    auto ? "bg-teal-400" : "bg-graphite-600"
-                  )}
-                />
+                <span className={cn("h-1.5 w-1.5 rounded-full", auto ? "bg-teal-400" : "bg-graphite-600")} />
                 Live
               </button>
               <Button size="sm" onClick={refresh} title="Refresh (r)">
@@ -816,16 +930,12 @@ export default function AdminCreditsPage() {
             </div>
           </div>
 
-          {/* KPI rail — pinned so open holds and unmatched payments are never
-              something you have to navigate to in order to see. */}
-          <div className="af-railless -mx-4 mt-3 flex gap-2 overflow-x-auto px-4 pb-0.5 sm:mx-0 sm:px-0">
+          {/* Pinned so open holds and unmatched payments are never something you
+              have to navigate to in order to see. */}
+          <div className="af-railless -mx-4 mt-3 flex gap-2 overflow-x-auto px-4 sm:mx-0 sm:px-0">
             <Pill label="Outstanding" value={num(overview?.credits_outstanding)} tone="accent" />
             <Pill label="Accounts" value={num(overview?.accounts)} />
-            <Pill
-              label="Holds open"
-              value={num(overview?.holds_open)}
-              tone={overview?.holds_open ? "alarm" : "plain"}
-            />
+            <Pill label="Holds open" value={num(overview?.holds_open)} tone={overview?.holds_open ? "alarm" : "plain"} />
             <Pill
               label="Unmatched"
               value={num(overview?.webhooks_unprocessed)}
@@ -865,11 +975,12 @@ export default function AdminCreditsPage() {
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-7xl px-4 pb-24 pt-5 sm:px-6 sm:pt-6">
+      {/* ===== the only region that scrolls lives inside here ===== */}
+      <main className="mx-auto flex min-h-0 w-full max-w-7xl flex-1 flex-col px-4 py-4 sm:px-6">
         {view === "lookup" ? (
           <LookupPanel onToast={push} onChanged={refresh} />
         ) : view === "overview" ? (
-          <OverviewPanel data={overview} tick={tick} onToast={push} onChanged={refresh} />
+          <OverviewPanel data={overview} onToast={push} onChanged={refresh} />
         ) : (
           <ReadPanel key={view} view={view} tick={tick} />
         )}
@@ -880,27 +991,15 @@ export default function AdminCreditsPage() {
   );
 }
 
-function Pill({
-  label,
-  value,
-  tone = "plain",
-}: {
-  label: string;
-  value: string;
-  tone?: "plain" | "accent" | "alarm";
-}) {
+function Pill({ label, value, tone = "plain" }: { label: string; value: string; tone?: "plain" | "accent" | "alarm" }) {
   return (
     <div
       className={cn(
         "flex shrink-0 items-baseline gap-2 rounded-lg border px-2.5 py-1.5",
-        tone === "alarm"
-          ? "border-red-500/30 bg-red-500/[0.07]"
-          : "border-graphite-800 bg-graphite-900/60"
+        tone === "alarm" ? "border-red-500/30 bg-red-500/[0.07]" : "border-graphite-800 bg-graphite-900/60"
       )}
     >
-      <span className="font-mono text-[9px] uppercase tracking-[0.16em] text-text-subtle">
-        {label}
-      </span>
+      <span className="font-mono text-[9px] uppercase tracking-[0.16em] text-text-subtle">{label}</span>
       <span
         className={cn(
           "font-mono text-[13px] font-semibold tabular-nums",
@@ -917,6 +1016,8 @@ function Pill({
 /* lookup                                                              */
 /* ------------------------------------------------------------------ */
 
+const KNOWN_ACCOUNT_KEYS = ["balance", "free_remaining", "held_credits", "ledger"];
+
 function LookupPanel({
   onToast,
   onChanged,
@@ -926,7 +1027,7 @@ function LookupPanel({
 }) {
   const [email, setEmail] = useState("");
   const [subject, setSubject] = useState("");
-  const [result, setResult] = useState<Record<string, unknown> | null>(null);
+  const [result, setResult] = useState<Rec | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [recent, setRecent] = useState<string[]>([]);
@@ -956,9 +1057,7 @@ function LookupPanel({
     setLoading(true);
     setError(null);
     try {
-      const data = await api<Record<string, unknown>>(
-        `/api/admin/credits?view=lookup&email=${encodeURIComponent(trimmed)}`
-      );
+      const data = await api<Rec>(`/api/admin/credits?view=lookup&email=${encodeURIComponent(trimmed)}`);
       setResult(data);
       setSubject(trimmed);
       setRecent((r) => [trimmed, ...r.filter((x) => x !== trimmed)].slice(0, 5));
@@ -974,244 +1073,214 @@ function LookupPanel({
   const target = (email.trim() || subject).toLowerCase();
   const stale = Boolean(subject) && Boolean(email.trim()) && email.trim().toLowerCase() !== subject;
 
-  return (
-    <div className="space-y-4">
-      <Card className="p-4">
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            void lookup(email);
-          }}
-          className="flex flex-wrap gap-2"
-        >
-          <div className="relative min-w-0 flex-1 basis-64">
-            <Search
-              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-subtle"
-              aria-hidden
-            />
-            <input
-              ref={inputRef}
-              type="email"
-              value={email}
-              onChange={(e) => onEmailChange(e.target.value)}
-              placeholder="Email they paid with"
-              autoComplete="off"
-              spellCheck={false}
-              aria-label="Customer email"
-              className={cn(inputClass, "h-11 pl-10 pr-9")}
-            />
-            {email && (
-              <button
-                type="button"
-                onClick={() => {
-                  setEmail("");
-                  reset();
-                  inputRef.current?.focus();
-                }}
-                aria-label="Clear email"
-                className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-text-subtle outline-none hover:text-text-primary focus-visible:ring-2 focus-visible:ring-amber-400/70"
-              >
-                <X className="h-3.5 w-3.5" aria-hidden />
-              </button>
-            )}
-          </div>
-          <Button type="submit" variant="primary" busy={loading} disabled={!email.trim()}>
-            Look up
-          </Button>
-        </form>
-
-        {recent.length > 0 && (
-          <div className="mt-3 flex flex-wrap items-center gap-1.5">
-            <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-text-subtle">
-              Recent
-            </span>
-            {recent.map((r) => (
-              <button
-                key={r}
-                type="button"
-                onClick={() => {
-                  setEmail(r);
-                  void lookup(r);
-                }}
-                className="max-w-[15rem] truncate rounded-md border border-graphite-800 bg-graphite-850/60 px-2 py-0.5 text-[11px] text-text-muted outline-none transition-colors hover:border-amber-500/40 hover:text-amber-300 focus-visible:ring-2 focus-visible:ring-amber-400/70"
-              >
-                {r}
-              </button>
-            ))}
-          </div>
-        )}
-      </Card>
-
-      {error && <ErrorNote message={error} onRetry={() => void lookup(email)} />}
-
-      {/* Account on the left, the grant panel on the right — and on mobile the
-          grant panel sits directly under the balances, above the ledger, so it
-          is never something you have to scroll a long table to find. */}
-      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_24rem]">
-        <div className="min-w-0 space-y-3">
-          {loading && !result ? (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-              {[0, 1, 2].map((i) => (
-                <Skeleton key={i} className="h-[86px] rounded-2xl" />
-              ))}
-            </div>
-          ) : result ? (
-            <AccountStats
-              data={result}
-              email={subject}
-              stale={stale}
-              onClear={() => {
-                setEmail("");
-                reset();
-              }}
-            />
-          ) : (
-            !error && (
-              <Empty
-                icon={Users}
-                title="Search an account to begin"
-                body="Enter the email from the Ko-fi order. You can grant credits on the right without searching first — an unknown email creates the account."
-              />
-            )
-          )}
-        </div>
-
-        <AdjustForm
-          email={target}
-          onToast={onToast}
-          onApplied={() => {
-            void lookup(target);
-            onChanged();
-          }}
-        />
-      </div>
-
-      {result && <LedgerSection data={result} />}
-    </div>
-  );
-}
-
-function AccountStats({
-  data,
-  email,
-  stale,
-  onClear,
-}: {
-  data: Record<string, unknown>;
-  email: string;
-  stale: boolean;
-  onClear: () => void;
-}) {
-  const pickNum = (k: string) => (typeof data[k] === "number" ? (data[k] as number) : undefined);
-  const known = [
+  const pickNum = (k: string) =>
+    result && typeof result[k] === "number" ? (result[k] as number) : undefined;
+  const stats = [
     { label: "Balance", value: pickNum("balance"), tone: "accent" as const, icon: Coins },
     { label: "Free left", value: pickNum("free_remaining"), tone: "plain" as const, icon: Zap },
     { label: "Held", value: pickNum("held_credits"), tone: "plain" as const, icon: Clock },
   ].filter((s) => s.value !== undefined);
 
+  const ledger = result && Array.isArray(result.ledger) ? (result.ledger as Rec[]) : null;
+
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <SectionLabel>Showing</SectionLabel>
-        <span className="group inline-flex min-w-0 items-center gap-1 font-mono text-xs text-text-muted">
-          <span className="truncate">{email}</span>
-          <CopyButton value={email} label="Copy email" />
-        </span>
-        {stale && (
-          <Badge tone="accent">Search box changed — press Look up to refresh</Badge>
+    <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_23rem]">
+      {/* left: search + balances fixed, ledger scrolls */}
+      <div className="flex min-h-0 flex-col gap-3">
+        <Card className="shrink-0 p-3">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              void lookup(email);
+            }}
+            className="flex flex-wrap gap-2"
+          >
+            <div className="relative min-w-0 flex-1 basis-56">
+              <Search
+                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-subtle"
+                aria-hidden
+              />
+              <input
+                ref={inputRef}
+                type="email"
+                value={email}
+                onChange={(e) => onEmailChange(e.target.value)}
+                placeholder="Email they paid with"
+                autoComplete="off"
+                spellCheck={false}
+                aria-label="Customer email"
+                className={cn(inputClass, "h-10 pl-10 pr-9")}
+              />
+              {email && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEmail("");
+                    reset();
+                    inputRef.current?.focus();
+                  }}
+                  aria-label="Clear email"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-text-subtle outline-none hover:text-text-primary focus-visible:ring-2 focus-visible:ring-amber-400/70"
+                >
+                  <X className="h-3.5 w-3.5" aria-hidden />
+                </button>
+              )}
+            </div>
+            <Button type="submit" variant="primary" busy={loading} disabled={!email.trim()}>
+              Look up
+            </Button>
+          </form>
+
+          {recent.length > 0 && (
+            <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+              <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-text-subtle">Recent</span>
+              {recent.map((r) => (
+                <button
+                  key={r}
+                  type="button"
+                  onClick={() => {
+                    setEmail(r);
+                    void lookup(r);
+                  }}
+                  className="max-w-[15rem] truncate rounded-md border border-graphite-800 bg-graphite-850/60 px-2 py-0.5 text-[11px] text-text-muted outline-none transition-colors hover:border-amber-500/40 hover:text-amber-300 focus-visible:ring-2 focus-visible:ring-amber-400/70"
+                >
+                  {r}
+                </button>
+              ))}
+            </div>
+          )}
+        </Card>
+
+        {error && <ErrorNote message={error} onRetry={() => void lookup(email)} />}
+
+        {result && (
+          <div className="shrink-0 space-y-2.5">
+            <div className="flex flex-wrap items-center gap-2">
+              <SectionLabel>Showing</SectionLabel>
+              <span className="group inline-flex min-w-0 items-center gap-1 font-mono text-xs text-text-muted">
+                <span className="truncate">{subject}</span>
+                <CopyButton value={subject} label="Copy email" />
+              </span>
+              {stale && <Badge tone="accent">Search box changed — press Look up</Badge>}
+              <button
+                type="button"
+                onClick={() => {
+                  setEmail("");
+                  reset();
+                }}
+                className="rounded text-[11px] text-text-subtle underline-offset-2 outline-none hover:text-text-primary hover:underline focus-visible:ring-2 focus-visible:ring-amber-400/70"
+              >
+                Clear
+              </button>
+            </div>
+            {stats.length > 0 && (
+              <div className="grid grid-cols-3 gap-3">
+                {stats.map((s) => (
+                  <Stat key={s.label} label={s.label} value={num(s.value)} tone={s.tone} icon={s.icon} />
+                ))}
+              </div>
+            )}
+          </div>
         )}
-        <button
-          type="button"
-          onClick={onClear}
-          className="rounded text-[11px] text-text-subtle underline-offset-2 outline-none hover:text-text-primary hover:underline focus-visible:ring-2 focus-visible:ring-amber-400/70"
-        >
-          Clear
-        </button>
+
+        {loading && !result ? (
+          <DataScroll className="p-3">
+            <div className="space-y-2">
+              {[0, 1, 2, 3, 4].map((i) => (
+                <Skeleton key={i} className="h-10" />
+              ))}
+            </div>
+          </DataScroll>
+        ) : !result ? (
+          <div className="flex min-h-0 flex-1 items-center justify-center">
+            {!error && (
+              <Empty
+                icon={Users}
+                title="Search an account to begin"
+                body="Enter the email from the Ko-fi order. You can grant credits on the right without searching first — an unknown email creates the account."
+              />
+            )}
+          </div>
+        ) : (
+          <DataScroll>
+            {ledger && ledger.length > 0 ? (
+              <LedgerTable rows={ledger} />
+            ) : (
+              <p className="px-4 py-8 text-center text-xs text-text-subtle">
+                No ledger entries on this account yet.
+              </p>
+            )}
+
+            <div className="border-t border-graphite-800 p-4">
+              <SectionLabel>Account record</SectionLabel>
+              <div className="mt-3">
+                <FieldGrid data={result} omit={KNOWN_ACCOUNT_KEYS} />
+              </div>
+            </div>
+          </DataScroll>
+        )}
       </div>
 
-      {known.length > 0 ? (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          {known.map((s) => (
-            <Stat key={s.label} label={s.label} value={num(s.value)} tone={s.tone} icon={s.icon} />
-          ))}
-        </div>
-      ) : (
-        <Empty
-          icon={Users}
-          title="No balance on this record"
-          body="The lookup returned no numeric balance for this email. Open the full record below to see what came back."
-        />
-      )}
+      {/* right: grant panel, always visible, never scrolled past */}
+      <AdjustForm
+        email={target}
+        onToast={onToast}
+        onApplied={() => {
+          void lookup(target);
+          onChanged();
+        }}
+      />
     </div>
   );
 }
 
-function LedgerSection({ data }: { data: Record<string, unknown> }) {
-  const ledger = Array.isArray(data.ledger) ? (data.ledger as Record<string, unknown>[]) : null;
-  return (
-    <div className="space-y-3">
-      {ledger && ledger.length > 0 && <LedgerTable rows={ledger} />}
-      <Raw label="Full record" data={data} />
-    </div>
-  );
-}
-
-function LedgerTable({ rows }: { rows: Record<string, unknown>[] }) {
+function LedgerTable({ rows }: { rows: Rec[] }) {
   const cols = useMemo(() => {
     const seen = new Set<string>();
     rows.forEach((r) => Object.keys(r).forEach((k) => seen.add(k)));
     const preferred = ["created_at", "delta", "balance_after", "reason", "note", "source"];
     const ordered = preferred.filter((p) => seen.has(p));
-    const rest = [...seen].filter((k) => !ordered.includes(k));
-    return [...ordered, ...rest].slice(0, 7);
+    return [...ordered, ...[...seen].filter((k) => !ordered.includes(k))].slice(0, 7);
   }, [rows]);
 
-  const render = (col: string, v: unknown) => {
-    if (v === null || v === undefined || v === "") return "—";
-    if (col === "created_at") return relTime(String(v));
-    if (col === "delta" && typeof v === "number")
-      return (
-        <span className={v > 0 ? "text-teal-400" : "text-red-400"}>
-          {v > 0 ? "+" : ""}
-          {v}
-        </span>
-      );
-    return typeof v === "object" ? JSON.stringify(v) : String(v);
-  };
-
   return (
-    <div className="space-y-2">
-      <SectionLabel>Ledger — {rows.length} entries</SectionLabel>
-      <TableShell scrollX>
-        <thead>
-          <tr>
-            {cols.map((c) => (
-              <Th key={c} right={c === "delta" || c === "balance_after"}>
-                {c.replace(/_/g, " ")}
-              </Th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r, i) => (
-            <Tr key={i}>
-              {cols.map((c) => (
+    <Table>
+      <thead>
+        <tr>
+          {cols.map((c) => (
+            <Th key={c} right={c === "delta" || c === "balance_after"}>
+              {prettyLabel(c)}
+            </Th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((r, i) => (
+          <Tr key={i}>
+            {cols.map((c) => {
+              const v = r[c];
+              if (c === "delta" && typeof v === "number") {
+                return (
+                  <Td key={c} right className={v > 0 ? "font-medium text-teal-400" : "font-medium text-red-400"}>
+                    {v > 0 ? "+" : ""}
+                    {v}
+                  </Td>
+                );
+              }
+              return (
                 <Td
                   key={c}
-                  right={c === "delta" || c === "balance_after"}
-                  className={cn(
-                    c === "created_at" && "whitespace-nowrap text-text-subtle",
-                    (c === "note" || c === "reason") && "max-w-xs truncate text-text-muted"
-                  )}
+                  right={c === "balance_after"}
+                  className={cn("max-w-[18rem] truncate", c === "created_at" && "whitespace-nowrap")}
                 >
-                  {render(c, r[c])}
+                  <FieldValue name={c} value={v} />
                 </Td>
-              ))}
-            </Tr>
-          ))}
-        </tbody>
-      </TableShell>
-    </div>
+              );
+            })}
+          </Tr>
+        ))}
+      </tbody>
+    </Table>
   );
 }
 
@@ -1248,28 +1317,19 @@ function AdjustForm({
     setBusy(true);
     setError(null);
     try {
-      const res = await api<{ applied?: boolean; balance?: number }>(
-        "/api/admin/credits?action=adjust",
-        {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ email: target, delta: parsed, note: note.trim() }),
-        }
-      );
+      const res = await api<{ applied?: boolean; balance?: number }>("/api/admin/credits?action=adjust", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email: target, delta: parsed, note: note.trim() }),
+      });
 
       // `applied: false` is a safe replay — the idempotency key already existed
       // and nothing was written twice. Reporting both as "done" would let
       // someone click three times and believe they granted 30.
       if (res.applied === false) {
-        onToast(
-          "warn",
-          `Already applied earlier. Nothing written twice. Balance is ${res.balance ?? "?"}.`
-        );
+        onToast("warn", `Already applied earlier. Nothing written twice. Balance is ${res.balance ?? "?"}.`);
       } else {
-        onToast(
-          "ok",
-          `Applied ${parsed > 0 ? "+" : ""}${parsed} to ${target}. Balance is now ${res.balance ?? "?"}.`
-        );
+        onToast("ok", `Applied ${parsed > 0 ? "+" : ""}${parsed} to ${target}. Balance is now ${res.balance ?? "?"}.`);
       }
       setDelta("");
       setNote("");
@@ -1285,35 +1345,27 @@ function AdjustForm({
   }
 
   return (
-    <Card className="border-amber-500/25 bg-amber-500/[0.05] p-4">
+    <Card className="af-scroll flex min-h-0 flex-col overflow-y-auto border-amber-500/25 bg-amber-500/[0.05] p-4">
       <div className="flex items-start gap-2.5">
         <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" aria-hidden />
         <div className="min-w-0">
           <h2 className="text-sm font-semibold">Grant or remove credits</h2>
           <p className="mt-1 text-xs leading-relaxed text-text-muted">
-            Writes an append-only ledger row. A negative delta adds a −N entry rather than undoing
-            a grant. An unknown email creates the account — the normal case for a payment the
-            webhook never matched.
+            Writes an append-only ledger row. A negative delta adds a −N entry rather than undoing a
+            grant. An unknown email creates the account.
           </p>
         </div>
       </div>
 
       <div className="mt-3 rounded-lg border border-graphite-800 bg-graphite-950/50 px-3 py-2">
         <SectionLabel>Applying to</SectionLabel>
-        <p
-          className={cn(
-            "mt-0.5 truncate font-mono text-[12px]",
-            validEmail ? "text-amber-300" : "text-text-subtle"
-          )}
-        >
-          {target || "Type an email in the search box above"}
+        <p className={cn("mt-0.5 truncate font-mono text-[12px]", validEmail ? "text-amber-300" : "text-text-subtle")}>
+          {target || "Type an email in the search box"}
         </p>
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-1.5">
-        <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-text-subtle">
-          Ko-fi packs
-        </span>
+        <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-text-subtle">Ko-fi packs</span>
         {KOFI_PACKS.map((p) => (
           <button
             key={p}
@@ -1338,16 +1390,16 @@ function AdjustForm({
           onChange={(e) => setDelta(e.target.value)}
           placeholder="Delta — e.g. 30"
           aria-label="Credit delta"
-          className={cn(inputClass, "h-11 px-3 tabular-nums")}
+          className={cn(inputClass, "h-10 px-3 tabular-nums")}
         />
         <input
           type="text"
           value={note}
           onChange={(e) => setNote(e.target.value)}
           maxLength={200}
-          placeholder="Note — e.g. Ko-fi order #1234, webhook never fired"
+          placeholder="Note — e.g. Ko-fi order #1234"
           aria-label="Adjustment note"
-          className={cn(inputClass, "h-11 px-3")}
+          className={cn(inputClass, "h-10 px-3")}
         />
         {confirming ? (
           <div className="flex gap-2">
@@ -1376,13 +1428,9 @@ function AdjustForm({
           now an unexplained +30 is indistinguishable from a bug, and the only
           person who can tell is whoever made it today. */}
       <div className="mt-2 space-y-1 text-[11px] leading-relaxed text-text-subtle">
-        {!validEmail && <p>Enter the customer email above to enable this.</p>}
-        <p className={cn(delta && !validDelta && "text-red-400")}>
-          Non-zero integer, −1000 to 1000.
-        </p>
-        <p className={cn(note && !validNote && "text-red-400")}>
-          Note 3–200 characters ({note.trim().length}).
-        </p>
+        {!validEmail && <p>Enter the customer email to enable this.</p>}
+        <p className={cn(delta && !validDelta && "text-red-400")}>Non-zero integer, −1000 to 1000.</p>
+        <p className={cn(note && !validNote && "text-red-400")}>Note 3–200 characters ({note.trim().length}).</p>
         {confirming && <p className="text-red-400">Negative adjustment — confirm to write it.</p>}
       </div>
 
@@ -1401,12 +1449,10 @@ function AdjustForm({
 
 function OverviewPanel({
   data,
-  tick,
   onToast,
   onChanged,
 }: {
   data: Overview | null;
-  tick: number;
   onToast: (tone: Toast["tone"], text: string) => void;
   onChanged: () => void;
 }) {
@@ -1426,24 +1472,24 @@ function OverviewPanel({
     }
   }
 
-  if (!data) return <SkeletonPanel key={tick} />;
+  if (!data) return <SkeletonPanel />;
 
   return (
-    <div className="space-y-4">
+    <div className="af-scroll min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {/* Outstanding credits are money already taken for work not yet done —
             the closest thing this business has to a balance-sheet liability. */}
         <Stat
           label="Outstanding"
           value={num(data.credits_outstanding)}
-          sub="Credits sold, work not yet delivered"
+          sub="Sold, not yet delivered"
           tone="accent"
           icon={Coins}
         />
         <Stat label="Accounts" value={num(data.accounts)} sub="Emails with a ledger" icon={Users} />
         {/* A hold is a credit taken for a job with no terminal state yet. The
-            sweeper releases orphans on a 90-minute cycle; a non-zero count
-            that does not clear is the signal to force it. */}
+            sweeper releases orphans on a 90-minute cycle; a non-zero count that
+            does not clear is the signal to force it. */}
         <Stat
           label="Holds open"
           value={num(data.holds_open)}
@@ -1458,9 +1504,6 @@ function OverviewPanel({
           tone={data.webhooks_unprocessed ? "alarm" : "plain"}
           icon={Inbox}
         />
-      </div>
-
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label="Jobs (all time)" value={num(data.usage?.jobs)} icon={Zap} />
         <Stat label="GPU seconds" value={num(data.usage?.gpu_seconds, 1)} />
         <Stat label="Est. GPU spend" value={money(data.usage?.est_cost_usd, 2)} tone="accent" />
@@ -1474,8 +1517,7 @@ function OverviewPanel({
             <Badge tone={pw.enabled ? "good" : "muted"}>{pw.enabled ? "Enabled" : "Disabled"}</Badge>
             {pw.provider && <Badge tone="plain">{pw.provider}</Badge>}
             <span className="text-text-muted">
-              {num(pw.free_monthly_ops)} free/month per account · {num(pw.free_monthly_ops_per_ip)}{" "}
-              per IP
+              {num(pw.free_monthly_ops)} free/month per account · {num(pw.free_monthly_ops_per_ip)} per IP
             </span>
           </p>
           {pw.metered_routes && pw.metered_routes.length > 0 && (
@@ -1567,10 +1609,10 @@ function ReadPanel({ view, tick }: { view: View; tick: number }) {
     return () => controller.abort();
   }, [load, tick]);
 
-  // Narrowing a filter must reset the page. Dropping 90 days to 1 while on
-  // page 3 would request offset=100 against maybe five rows: an empty table
-  // under a pager reading "Showing 101–101 of 5", which reads as a broken
-  // endpoint rather than a filter that moved.
+  // Narrowing a filter must reset the page. Dropping 90 days to 1 while on page
+  // 3 would request offset=100 against maybe five rows: an empty table under a
+  // pager reading "Showing 101–101 of 5", which reads as a broken endpoint
+  // rather than a filter that moved.
   const setFilter = (fn: (v: string) => void) => (v: string) => {
     fn(v);
     setOffset(0);
@@ -1592,10 +1634,11 @@ function ReadPanel({ view, tick }: { view: View; tick: number }) {
 
   const jobRows = ((data as { jobs?: JobRow[] } | null)?.jobs ?? []) as JobRow[];
   const costRows = ((data as { daily?: CostRow[] } | null)?.daily ?? []) as CostRow[];
+  const hookRows = ((data as { webhooks?: unknown[] } | null)?.webhooks ?? []) as unknown[];
 
   return (
-    <div className="space-y-4">
-      <Card className="p-3">
+    <div className="flex min-h-0 flex-1 flex-col gap-3">
+      <Card className="shrink-0 p-2.5">
         <div className="flex flex-wrap items-center gap-2">
           <Select label="Window" value={days} onChange={setFilter(setDays)}>
             {["1", "7", "30", "90", "365"].map((d) => (
@@ -1642,7 +1685,7 @@ function ReadPanel({ view, tick }: { view: View; tick: number }) {
                   setOffset(0);
                   setEmailApplied(email.trim().toLowerCase());
                 }}
-                className="flex min-w-0 flex-1 gap-2"
+                className="flex min-w-0 flex-1"
               >
                 <div className="relative min-w-0 flex-1 sm:max-w-xs">
                   <Search
@@ -1664,23 +1707,13 @@ function ReadPanel({ view, tick }: { view: View; tick: number }) {
 
           <div className="ml-auto flex items-center gap-2">
             {view === "costs" && costRows.length > 0 && (
-              <Button
-                size="sm"
-                onClick={() =>
-                  downloadCsv(`credits-spend-${days}d.csv`, costRows as unknown as Record<string, unknown>[])
-                }
-              >
+              <Button size="sm" onClick={() => downloadCsv(`credits-spend-${days}d.csv`, costRows as unknown as Rec[])}>
                 <Download className="h-3.5 w-3.5" aria-hidden />
                 CSV
               </Button>
             )}
             {view === "jobs" && jobRows.length > 0 && (
-              <Button
-                size="sm"
-                onClick={() =>
-                  downloadCsv(`credits-jobs-${days}d.csv`, jobRows as unknown as Record<string, unknown>[])
-                }
-              >
+              <Button size="sm" onClick={() => downloadCsv(`credits-jobs-${days}d.csv`, jobRows as unknown as Rec[])}>
                 <Download className="h-3.5 w-3.5" aria-hidden />
                 CSV
               </Button>
@@ -1713,7 +1746,6 @@ function ReadPanel({ view, tick }: { view: View; tick: number }) {
       {loading && !data && <SkeletonPanel />}
 
       {data !== null && view === "costs" && <CostsPanel rows={costRows} />}
-
       {data !== null && view === "jobs" && (
         <>
           <JobsPanel rows={jobRows} />
@@ -1725,10 +1757,7 @@ function ReadPanel({ view, tick }: { view: View; tick: number }) {
           />
         </>
       )}
-
-      {data !== null && view === "webhooks" && (
-        <WebhooksPanel rows={((data as { webhooks?: unknown[] }).webhooks ?? []) as unknown[]} />
-      )}
+      {data !== null && view === "webhooks" && <WebhooksPanel rows={hookRows} />}
     </div>
   );
 }
@@ -1736,10 +1765,7 @@ function ReadPanel({ view, tick }: { view: View; tick: number }) {
 type CostSortKey = "day" | "tool" | "jobs" | "failed" | "paid_jobs" | "gpu_seconds" | "est_cost_usd";
 
 function CostsPanel({ rows }: { rows: CostRow[] }) {
-  const [sort, setSort] = useState<{ key: CostSortKey; dir: "asc" | "desc" }>({
-    key: "day",
-    dir: "desc",
-  });
+  const [sort, setSort] = useState<{ key: CostSortKey; dir: "asc" | "desc" }>({ key: "day", dir: "desc" });
 
   const totals = useMemo(
     () =>
@@ -1773,25 +1799,22 @@ function CostsPanel({ rows }: { rows: CostRow[] }) {
 
   const onSort = (key: string) =>
     setSort((s) =>
-      s.key === key
-        ? { key: s.key, dir: s.dir === "asc" ? "desc" : "asc" }
-        : { key: key as CostSortKey, dir: "desc" }
+      s.key === key ? { key: s.key, dir: s.dir === "asc" ? "desc" : "asc" } : { key: key as CostSortKey, dir: "desc" }
     );
 
-  if (rows.length === 0)
+  if (rows.length === 0) {
     return (
-      <Empty
-        icon={Zap}
-        title="No jobs in this window"
-        body="Widen the window or clear the tool filter."
-      />
+      <div className="flex min-h-0 flex-1 items-center justify-center">
+        <Empty icon={Zap} title="No jobs in this window" body="Widen the window or clear the tool filter." />
+      </div>
     );
+  }
 
   const failRate = totals.jobs > 0 ? totals.failed / totals.jobs : 0;
 
   return (
-    <div className="space-y-3">
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+    <>
+      <div className="grid shrink-0 grid-cols-2 gap-3 lg:grid-cols-5">
         <Stat label="Jobs" value={num(totals.jobs)} />
         <Stat
           label="Failed"
@@ -1800,105 +1823,90 @@ function CostsPanel({ rows }: { rows: CostRow[] }) {
         />
         <Stat label="Paid jobs" value={num(totals.paid)} sub="Charged a credit" />
         <Stat label="Est. spend" value={money(totals.cost, 2)} tone="accent" />
-      </div>
-
-      {trail.length > 1 && (
-        <Card className="px-4 pb-2 pt-3">
+        <Card className="hidden px-3 pb-1 pt-2.5 lg:block">
           <div className="flex items-baseline justify-between">
-            <SectionLabel>Daily spend</SectionLabel>
-            <span className="font-mono text-[11px] text-text-subtle">
-              peak {money(Math.max(...trail), 2)}
-            </span>
+            <SectionLabel>Daily</SectionLabel>
+            <span className="font-mono text-[10px] text-text-subtle">peak {money(Math.max(...trail), 2)}</span>
           </div>
           <Sparkline values={trail} />
         </Card>
-      )}
-
-      {/* mobile */}
-      <div className="space-y-2 md:hidden">
-        {sorted.map((r, i) => {
-          const bad = r.jobs > 0 && r.failed / r.jobs >= 0.25;
-          return (
-            <Card key={`${r.day}-${r.tool}-${i}`} className="af-rise p-3">
-              <div className="flex items-baseline justify-between gap-2">
-                <span className="font-mono text-[11px] text-text-primary">{r.tool}</span>
-                <span className="font-mono text-[11px] text-text-subtle">{r.day}</span>
-              </div>
-              <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
-                <Cell label="Jobs" value={num(r.jobs)} />
-                <Cell
-                  label="Failed"
-                  value={`${num(r.failed)}${bad ? ` (${Math.round((r.failed / r.jobs) * 100)}%)` : ""}`}
-                  tone={bad ? "bad" : undefined}
-                />
-                <Cell label="Cost" value={money(r.est_cost_usd)} tone="accent" />
-                <Cell label="Paid" value={num(r.paid_jobs)} />
-                <Cell label="Free" value={num(r.free_jobs)} />
-                <Cell label="GPU s" value={num(r.gpu_seconds, 1)} />
-              </div>
-            </Card>
-          );
-        })}
       </div>
 
-      {/* desktop */}
-      <div className="hidden md:block">
-        <TableShell>
-          <thead>
-            <tr>
-              <Th sortKey="day" sort={sort} onSort={onSort}>Day</Th>
-              <Th sortKey="tool" sort={sort} onSort={onSort}>Tool</Th>
-              <Th right sortKey="jobs" sort={sort} onSort={onSort}>Jobs</Th>
-              <Th right sortKey="failed" sort={sort} onSort={onSort}>Failed</Th>
-              <Th right sortKey="paid_jobs" sort={sort} onSort={onSort}>Paid</Th>
-              <Th right>Free</Th>
-              <Th right>Min</Th>
-              <Th right sortKey="gpu_seconds" sort={sort} onSort={onSort}>GPU s</Th>
-              <Th right sortKey="est_cost_usd" sort={sort} onSort={onSort}>Cost</Th>
-            </tr>
-          </thead>
-          <tbody>
-            {sorted.map((r, i) => {
-              // A failure rate this page must not let you scroll past.
-              const rate = r.jobs > 0 ? r.failed / r.jobs : 0;
-              const bad = rate >= 0.25;
-              return (
-                <Tr key={`${r.day}-${r.tool}-${i}`}>
-                  <Td className="whitespace-nowrap text-text-muted">{r.day}</Td>
-                  <Td className="font-mono text-[11px]">{r.tool}</Td>
-                  <Td right>{num(r.jobs)}</Td>
-                  <Td right className={bad ? "font-semibold text-red-400" : "text-text-muted"}>
-                    {num(r.failed)}
-                    {bad && (
-                      <span className="ml-1 text-[11px] font-normal">
-                        {Math.round(rate * 100)}%
-                      </span>
-                    )}
-                  </Td>
-                  <Td right>{num(r.paid_jobs)}</Td>
-                  <Td right className="text-text-subtle">{num(r.free_jobs)}</Td>
-                  <Td right className="text-text-subtle">{num(r.input_minutes, 1)}</Td>
-                  <Td right className="text-text-subtle">{num(r.gpu_seconds, 1)}</Td>
-                  <Td right className="text-amber-400">{money(r.est_cost_usd)}</Td>
-                </Tr>
-              );
-            })}
-          </tbody>
-        </TableShell>
-      </div>
-    </div>
+      <DataScroll>
+        {/* mobile */}
+        <div className="space-y-2 p-2 md:hidden">
+          {sorted.map((r, i) => {
+            const bad = r.jobs > 0 && r.failed / r.jobs >= 0.25;
+            return (
+              <Card key={`${r.day}-${r.tool}-${i}`} className="p-3">
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="font-mono text-[11px] text-text-primary">{r.tool}</span>
+                  <span className="font-mono text-[11px] text-text-subtle">{r.day}</span>
+                </div>
+                <div className="mt-2 grid grid-cols-3 gap-2">
+                  <Cell label="Jobs" value={num(r.jobs)} />
+                  <Cell
+                    label="Failed"
+                    value={`${num(r.failed)}${bad ? ` (${Math.round((r.failed / r.jobs) * 100)}%)` : ""}`}
+                    tone={bad ? "bad" : undefined}
+                  />
+                  <Cell label="Cost" value={money(r.est_cost_usd)} tone="accent" />
+                  <Cell label="Paid" value={num(r.paid_jobs)} />
+                  <Cell label="Free" value={num(r.free_jobs)} />
+                  <Cell label="GPU s" value={num(r.gpu_seconds, 1)} />
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+
+        {/* desktop */}
+        <div className="hidden md:block">
+          <Table>
+            <thead>
+              <tr>
+                <Th sortKey="day" sort={sort} onSort={onSort}>Day</Th>
+                <Th sortKey="tool" sort={sort} onSort={onSort}>Tool</Th>
+                <Th right sortKey="jobs" sort={sort} onSort={onSort}>Jobs</Th>
+                <Th right sortKey="failed" sort={sort} onSort={onSort}>Failed</Th>
+                <Th right sortKey="paid_jobs" sort={sort} onSort={onSort}>Paid</Th>
+                <Th right>Free</Th>
+                <Th right>Min</Th>
+                <Th right sortKey="gpu_seconds" sort={sort} onSort={onSort}>GPU s</Th>
+                <Th right sortKey="est_cost_usd" sort={sort} onSort={onSort}>Cost</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {sorted.map((r, i) => {
+                // A failure rate this page must not let you scroll past.
+                const rate = r.jobs > 0 ? r.failed / r.jobs : 0;
+                const bad = rate >= 0.25;
+                return (
+                  <Tr key={`${r.day}-${r.tool}-${i}`}>
+                    <Td className="whitespace-nowrap text-text-muted">{r.day}</Td>
+                    <Td className="font-mono text-[11px]">{r.tool}</Td>
+                    <Td right>{num(r.jobs)}</Td>
+                    <Td right className={bad ? "font-semibold text-red-400" : "text-text-muted"}>
+                      {num(r.failed)}
+                      {bad && <span className="ml-1 text-[11px] font-normal">{Math.round(rate * 100)}%</span>}
+                    </Td>
+                    <Td right>{num(r.paid_jobs)}</Td>
+                    <Td right className="text-text-subtle">{num(r.free_jobs)}</Td>
+                    <Td right className="text-text-subtle">{num(r.input_minutes, 1)}</Td>
+                    <Td right className="text-text-subtle">{num(r.gpu_seconds, 1)}</Td>
+                    <Td right className="text-amber-400">{money(r.est_cost_usd)}</Td>
+                  </Tr>
+                );
+              })}
+            </tbody>
+          </Table>
+        </div>
+      </DataScroll>
+    </>
   );
 }
 
-function Cell({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: string;
-  tone?: "bad" | "accent";
-}) {
+function Cell({ label, value, tone }: { label: string; value: string; tone?: "bad" | "accent" }) {
   return (
     <div>
       <p className="font-mono text-[9px] uppercase tracking-[0.14em] text-text-subtle">{label}</p>
@@ -1915,21 +1923,20 @@ function Cell({
 }
 
 function JobsPanel({ rows }: { rows: JobRow[] }) {
-  if (rows.length === 0)
+  if (rows.length === 0) {
     return (
-      <Empty
-        icon={Clock}
-        title="No jobs match these filters"
-        body="Clear a filter chip above, or widen the window."
-      />
+      <div className="flex min-h-0 flex-1 items-center justify-center">
+        <Empty icon={Clock} title="No jobs match these filters" body="Clear a filter chip above, or widen the window." />
+      </div>
     );
+  }
 
   return (
-    <>
+    <DataScroll>
       {/* mobile */}
-      <div className="space-y-2 md:hidden">
+      <div className="space-y-2 p-2 md:hidden">
         {rows.map((r) => (
-          <Card key={r.job_id} className="af-rise p-3">
+          <Card key={r.job_id} className="p-3">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <p className="truncate font-mono text-[12px] text-text-primary">{r.tool}</p>
@@ -1955,7 +1962,7 @@ function JobsPanel({ rows }: { rows: JobRow[] }) {
 
       {/* desktop */}
       <div className="hidden md:block">
-        <TableShell>
+        <Table>
           <thead>
             <tr>
               <Th>When</Th>
@@ -1974,7 +1981,7 @@ function JobsPanel({ rows }: { rows: JobRow[] }) {
                   <span title={fullTime(r.created_at)}>{relTime(r.created_at)}</span>
                 </Td>
                 <Td className="font-mono text-[11px]">
-                  <span className="inline-flex items-center gap-1">
+                  <span className="group inline-flex items-center gap-1">
                     {r.tool}
                     <CopyButton value={r.job_id} label="Copy job id" />
                   </span>
@@ -1984,10 +1991,7 @@ function JobsPanel({ rows }: { rows: JobRow[] }) {
                   {/* The server writes these for a human. Truncated on the row,
                       full text on hover — why a job failed is the whole point. */}
                   {r.error && (
-                    <span
-                      title={r.error}
-                      className="mt-1 block max-w-md truncate text-[11px] text-text-subtle"
-                    >
+                    <span title={r.error} className="mt-1 block max-w-md truncate text-[11px] text-text-subtle">
                       {r.error}
                     </span>
                   )}
@@ -2002,15 +2006,10 @@ function JobsPanel({ rows }: { rows: JobRow[] }) {
                     {r.charge_type ?? "—"}
                   </span>
                   {r.charge_status && r.charge_status !== "settled" && (
-                    <span className="ml-1.5 font-mono text-[10px] text-text-subtle">
-                      {r.charge_status}
-                    </span>
+                    <span className="ml-1.5 font-mono text-[10px] text-text-subtle">{r.charge_status}</span>
                   )}
                   {r.refund_reason && (
-                    <span
-                      title={r.refund_reason}
-                      className="mt-0.5 block max-w-[14rem] truncate text-[10px] text-text-subtle"
-                    >
+                    <span title={r.refund_reason} className="mt-0.5 block max-w-[14rem] truncate text-[10px] text-text-subtle">
                       refund: {r.refund_reason}
                     </span>
                   )}
@@ -2021,79 +2020,91 @@ function JobsPanel({ rows }: { rows: JobRow[] }) {
               </Tr>
             ))}
           </tbody>
-        </TableShell>
+        </Table>
       </div>
-    </>
+    </DataScroll>
   );
 }
 
+/**
+ * Unmatched payments, as fields rather than a payload dump. Columns are the
+ * union of whatever the server sent; clicking a row expands the full record
+ * underneath it, so nothing is hidden and nothing needs a JSON viewer.
+ */
 function WebhooksPanel({ rows }: { rows: unknown[] }) {
-  if (rows.length === 0) {
-    return (
-      <Empty
-        icon={ShieldCheck}
-        title="Every payment reached an account"
-        body="Nothing to chase. Unmatched Ko-fi payments show here with the email they were paid with."
-      />
-    );
-  }
+  const [open, setOpen] = useState<number | null>(null);
 
-  const objs = rows.filter((r): r is Record<string, unknown> => typeof r === "object" && r !== null);
-  if (objs.length !== rows.length) return <Raw label="Unmatched webhooks" data={rows} />;
+  const objs = useMemo(
+    () => rows.filter((r): r is Rec => typeof r === "object" && r !== null),
+    [rows]
+  );
 
-  const cols = (() => {
+  const cols = useMemo(() => {
     const seen = new Set<string>();
     objs.forEach((r) => Object.keys(r).forEach((k) => seen.add(k)));
     const preferred = ["created_at", "email", "amount", "tier_name", "message_id", "processed"];
     const ordered = preferred.filter((p) => seen.has(p));
-    return [...ordered, ...[...seen].filter((k) => !ordered.includes(k))].slice(0, 7);
-  })();
+    return [...ordered, ...[...seen].filter((k) => !ordered.includes(k))].slice(0, 6);
+  }, [objs]);
+
+  if (objs.length === 0) {
+    return (
+      <div className="flex min-h-0 flex-1 items-center justify-center">
+        <Empty
+          icon={ShieldCheck}
+          title="Every payment reached an account"
+          body="Nothing to chase. Unmatched Ko-fi payments show here with the email they were paid with."
+        />
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-3">
-      <ErrorNote
-        message={`${objs.length} payment${objs.length === 1 ? "" : "s"} never matched an account. Copy the email, then grant the credits by hand from the Customer tab.`}
-      />
-      <TableShell scrollX>
-        <thead>
-          <tr>
-            {cols.map((c) => (
-              <Th key={c}>{c.replace(/_/g, " ")}</Th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {objs.map((r, i) => (
-            <Tr key={i}>
-              {cols.map((c) => {
-                const v = r[c];
-                const text =
-                  v === null || v === undefined || v === ""
-                    ? "—"
-                    : typeof v === "object"
-                      ? JSON.stringify(v)
-                      : String(v);
-                return (
-                  <Td
-                    key={c}
-                    className={cn(
-                      "max-w-xs truncate",
-                      c === "email" ? "font-mono text-[11px] text-amber-300" : "text-text-muted"
-                    )}
-                  >
-                    <span className="inline-flex items-center gap-1" title={text}>
-                      {c === "created_at" ? relTime(String(v)) : text}
-                      {c === "email" && text !== "—" && <CopyButton value={text} label="Copy email" />}
-                    </span>
+    <>
+      <div className="shrink-0">
+        <ErrorNote
+          message={`${objs.length} payment${objs.length === 1 ? "" : "s"} never matched an account. Copy the email, then grant the credits by hand from the Customer tab.`}
+        />
+      </div>
+      <DataScroll>
+        <Table>
+          <thead>
+            <tr>
+              {cols.map((c) => (
+                <Th key={c}>{prettyLabel(c)}</Th>
+              ))}
+              <Th />
+            </tr>
+          </thead>
+          <tbody>
+            {objs.map((r, i) => (
+              <Fragment key={i}>
+                <Tr onClick={() => setOpen(open === i ? null : i)}>
+                  {cols.map((c) => (
+                    <Td key={c} className={cn("max-w-[16rem] truncate", c === "email" && "text-amber-300")}>
+                      <FieldValue name={c} value={r[c]} />
+                    </Td>
+                  ))}
+                  <Td className="text-right">
+                    <ChevronDown
+                      className={cn("inline h-3.5 w-3.5 text-text-subtle transition-transform", open === i && "rotate-180")}
+                      aria-hidden
+                    />
                   </Td>
-                );
-              })}
-            </Tr>
-          ))}
-        </tbody>
-      </TableShell>
-      <Raw label="Raw payloads" data={rows} />
-    </div>
+                </Tr>
+                {open === i && (
+                  <tr className="border-b border-graphite-800/60">
+                    <td colSpan={cols.length + 1} className="bg-graphite-950/40 px-4 py-4">
+                      <FieldGrid data={r} columns={3} />
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
+            ))}
+          </tbody>
+        </Table>
+      </DataScroll>
+    </>
   );
 }
 
@@ -2118,31 +2129,17 @@ function Pager({
   if (offset === 0 && !hasMore) return null;
 
   return (
-    <div className="flex items-center justify-between gap-3 text-[13px]">
+    <div className="flex shrink-0 items-center justify-between gap-3 text-[13px]">
       <span className="tabular-nums text-text-subtle">
         {offset + 1}–{offset + count}
         {knownTotal !== undefined ? ` of ${knownTotal.toLocaleString()}` : ""}
       </span>
       <span className="flex gap-2">
-        <Button
-          size="sm"
-          disabled={offset === 0}
-          onClick={() => {
-            onOffset(Math.max(0, offset - PAGE_SIZE));
-            window.scrollTo({ top: 0, behavior: "smooth" });
-          }}
-        >
+        <Button size="sm" disabled={offset === 0} onClick={() => onOffset(Math.max(0, offset - PAGE_SIZE))}>
           <ChevronLeft className="h-3.5 w-3.5" aria-hidden />
           Previous
         </Button>
-        <Button
-          size="sm"
-          disabled={!hasMore}
-          onClick={() => {
-            onOffset(offset + PAGE_SIZE);
-            window.scrollTo({ top: 0, behavior: "smooth" });
-          }}
-        >
+        <Button size="sm" disabled={!hasMore} onClick={() => onOffset(offset + PAGE_SIZE)}>
           Next
           <ChevronRight className="h-3.5 w-3.5" aria-hidden />
         </Button>
