@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireAdmin } from "@/lib/auth/requireAdmin";
 
 // NOTE: reconstructed from the version you pasted. Diff before deploying -
 // the ONLY new addition is the beforeId passthrough block, plus (as of
@@ -13,6 +14,11 @@ const BACKEND_BASE = process.env.NEXT_PUBLIC_RAILWAY_API_BASE;
 const ADMIN_KEY = process.env.BACKEND_ADMIN_KEY;
 
 export async function GET(request: NextRequest) {
+  // Endpoint-level auth. The admin PAGES checked the session client-side;
+  // these handlers did not, so they were reachable with a bare curl.
+  const denied = await requireAdmin();
+  if (denied) return denied;
+
   const { searchParams } = new URL(request.url);
   const type = searchParams.get("type"); // "http" | "system"
   const limit = searchParams.get("limit") ?? "200";
@@ -110,6 +116,11 @@ export async function GET(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  // Endpoint-level auth. The admin PAGES checked the session client-side;
+  // these handlers did not, so they were reachable with a bare curl.
+  const denied = await requireAdmin();
+  if (denied) return denied;
+
   const { searchParams } = new URL(request.url);
   const olderThanDays = searchParams.get("olderThanDays");
 

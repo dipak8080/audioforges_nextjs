@@ -9,6 +9,7 @@ import {
   ScrollText,
   Database,
   Cookie,
+  Coins,
   LogOut,
   Menu,
   X,
@@ -20,6 +21,7 @@ const NAV_ITEMS = [
   { href: "/admin/logs", label: "Logs", icon: ScrollText },
   { href: "/admin/cache", label: "Cache", icon: Database },
   { href: "/admin/cookies", label: "Cookies", icon: Cookie },
+  { href: "/admin/credits", label: "Credits", icon: Coins },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {

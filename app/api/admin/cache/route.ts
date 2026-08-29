@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireAdmin } from "@/lib/auth/requireAdmin";
 
 const BACKEND_BASE = process.env.NEXT_PUBLIC_RAILWAY_API_BASE;
 const ADMIN_KEY = process.env.BACKEND_ADMIN_KEY;
 
 export async function GET() {
+  // Endpoint-level auth. The admin PAGES checked the session client-side;
+  // these handlers did not, so they were reachable with a bare curl.
+  const denied = await requireAdmin();
+  if (denied) return denied;
+
   const url = new URL(`${BACKEND_BASE}/admin/status`);
   url.searchParams.set("key", ADMIN_KEY || "");
 
@@ -32,6 +38,11 @@ export async function GET() {
 }
 
 export async function POST() {
+  // Endpoint-level auth. The admin PAGES checked the session client-side;
+  // these handlers did not, so they were reachable with a bare curl.
+  const denied = await requireAdmin();
+  if (denied) return denied;
+
   const url = new URL(`${BACKEND_BASE}/admin/clear-cache`);
   url.searchParams.set("key", ADMIN_KEY || "");
 
@@ -57,6 +68,11 @@ export async function POST() {
 }
 
 export async function PATCH(request: NextRequest) {
+  // Endpoint-level auth. The admin PAGES checked the session client-side;
+  // these handlers did not, so they were reachable with a bare curl.
+  const denied = await requireAdmin();
+  if (denied) return denied;
+
   const body = await request.json().catch(() => null);
   const gb = body?.gb;
 
