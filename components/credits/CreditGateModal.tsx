@@ -10,6 +10,8 @@ import { requestMagicLink } from "@/lib/api/credits";
 import { trackCredits } from "@/lib/analytics";
 import { ApiError } from "@/lib/api/railway";
 import type { CreditPack, InsufficientCreditsPayload } from "@/lib/types/credits";
+import { TRANSCRIPTION_LIMITS } from "@/lib/api/transcription";
+import { TOOL_LIMITS } from "@/lib/data/tool-limits";
 
 /**
  * THE GATE.
@@ -84,7 +86,15 @@ const TOOL_COPY: Record<string, ToolCopy> = {
   transcribe: {
     title: "Transcription",
     spec: [
-      ["1 credit", "One transcript, up to 20 minutes of audio"],
+      [
+        "1 credit",
+        // Derived, not typed. This read "up to 20 minutes" while the backend
+        // cap is 600 seconds — on the one screen where somebody decides to
+        // pay, promising twice the length they can actually upload. Exactly
+        // the literal-in-JSX class of bug that has already shipped four wrong
+        // numbers on this site.
+        `One transcript, up to ${TRANSCRIPTION_LIMITS.durationSeconds / 60} minutes of audio`,
+      ],
       ["You get", "Full text with timestamps, language detected automatically"],
       // Stated HERE because this is where someone decides. All three
       // transcription tools draw on one "transcribe" allowance, and finding
@@ -99,7 +109,13 @@ const TOOL_COPY: Record<string, ToolCopy> = {
 TOOL_COPY["audio-to-midi-hq"] = {
   title: "Multi-track MIDI",
   spec: [
-    ["1 credit", "One transcription of this file, up to 10 minutes"],
+    [
+      "1 credit",
+      // MIDI HQ, not transcription — different cap, same rule: derive it.
+      `One transcription of this file, up to ${
+        (TOOL_LIMITS["audio-to-midi-hq"]?.maxTotalDurationSeconds ?? 600) / 60
+      } minutes`,
+    ],
     ["You get", "One MIDI track per instrument, each with a General MIDI program"],
     // Named because it is the honest limit and it prevents the refund
     // request: on a solo instrument or a short clip the model frequently
