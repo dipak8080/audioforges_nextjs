@@ -908,7 +908,17 @@ export function MultiOutputToolForm({
                 )}
               </div>
             </div>
-            <SupportBlock />
+            {/*
+              NO TIP JAR ON A BROKEN RUN.
+              These forms carry two failure states and they are not the same
+              thing. `error` means the SUBMIT was rejected — a file too large,
+              an unsupported format, a rate limit — which is the form doing its
+              job, and asking for support after one is fine. `failed` means the
+              job ran and broke, or polling gave up on it. Following "This is
+              taking unusually long" with "Enjoying AudioForges? Buy us a
+              coffee" is the worst timing on the site.
+            */}
+            {status === "error" && <SupportBlock />}
           </section>
         )}
 

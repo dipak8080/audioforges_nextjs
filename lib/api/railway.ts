@@ -624,14 +624,30 @@ export async function submitJob(
   return readJson<JobSubmitResponse>(res);
 }
 
+/**
+ * `withCredentials` matters on a METERED route and only there.
+ *
+ * Separation polls /separate/status and /stems/status — the FREE namespaces,
+ * shared by both tiers — so those never needed the cookie and worked fine.
+ * /audio-to-midi-hq/status is the metered route's own namespace. If the server
+ * scopes a job's status to the subject that created it, a poll without af_sid
+ * is rejected, JobToolForm's catch treats a non-404 as transient, and it keeps
+ * retrying until the 10-minute ceiling — reporting "taking unusually long" on a
+ * job the server finished, or failed, in about a minute.
+ */
 export async function getJobStatus(
   endpoint: string,
   jobId: string,
-  opts: RequestOptions = {}
+  opts: RequestOptions = {},
+  withCredentials = false
 ): Promise<JobStatusResult> {
   const res = await fetchWithTimeout(
     `${RAILWAY_API_BASE}/${endpoint}/status/${jobId}`,
-    { method: "GET", signal: opts.signal },
+    {
+      method: "GET",
+      signal: opts.signal,
+      ...(withCredentials ? { credentials: "include" as RequestCredentials } : {}),
+    },
     15_000
   );
   if (!res.ok) throw await toApiError(res, "job");

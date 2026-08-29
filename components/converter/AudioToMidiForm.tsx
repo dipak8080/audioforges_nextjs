@@ -587,16 +587,39 @@ function MidiHqResultSummary({ jobId }: { jobId: string }) {
 
 type Tier = "free" | "hq";
 
-const TIERS: { id: Tier; label: string; blurb: string }[] = [
+/**
+ * `cost` sits in the same slot on BOTH cards, deliberately.
+ *
+ * Only the paid one carried a price before, so the free option read as the
+ * incomplete card rather than the free one — the absence of a label looks like
+ * a missing feature, not an absent charge.
+ *
+ * The blurbs describe the WORK SAVED, not the file format. "One MIDI track
+ * with every detected note" is accurate and tells a producer nothing about why
+ * they would want the other one; the difference they actually feel is
+ * twenty minutes of splitting a pile of notes by hand.
+ *
+ * Neither says "more accurate". That is the one claim a disappointed user
+ * argues with — and they will, because a solo guitar legitimately comes back
+ * as a single track. Capability is checkable in a DAW in ten seconds.
+ */
+const TIERS: { id: Tier; label: string; cost: string; blurb: string }[] = [
   {
     id: "free",
     label: "Single track",
-    blurb: "One MIDI track with every detected note. Free, unlimited.",
+    cost: "free",
+    blurb:
+      "Every note in one track. Fine for a melody, a bassline, or anything you'll reassign yourself.",
   },
   {
     id: "hq",
     label: "Multi-track",
-    blurb: "One track per instrument, each with a General MIDI program set.",
+    // The badge renders the live price here instead, so this stays empty —
+    // FreeTierBadge knows whether the visitor has free runs left and this
+    // module does not.
+    cost: "",
+    blurb:
+      "Bass, drums and keys land on separate tracks with the right instrument already assigned — ready to edit, not untangle.",
   },
 ];
 
@@ -780,6 +803,11 @@ export function AudioToMidiForm({ hqAvailable = false }: { hqAvailable?: boolean
                         {option.label}
                         {/* Renders nothing while this rule is off. */}
                         {option.id === "hq" && <FreeTierBadge tool="audio-to-midi-hq" />}
+                        {option.cost && (
+                          <span className="font-mono text-[9px] font-semibold uppercase tracking-[0.14em] text-text-subtle">
+                            {option.cost}
+                          </span>
+                        )}
                       </span>
                       <span className="mt-1 block text-[11px] leading-snug text-text-muted">
                         {option.blurb}

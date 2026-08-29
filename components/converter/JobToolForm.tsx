@@ -338,7 +338,7 @@ export function JobToolForm({
       }
 
       try {
-        const result = await getJobStatus(endpoint, id);
+        const result = await getJobStatus(endpoint, id, {}, metered);
         if (cancelledRef.current) return;
 
         if (result.status === "complete") {
@@ -355,6 +355,25 @@ export function JobToolForm({
         }
       } catch (err) {
         if (cancelledRef.current) return;
+        /*
+          A REJECTED poll is not a slow job.
+
+          Anything that isn't a 404 used to fall through to "retry next tick",
+          which is right for a dropped connection and wrong for a response that
+          will never change — an auth failure repeats identically until the
+          10-minute ceiling, and then reports "taking unusually long" on a job
+          the server settled in about a minute. 401 and 403 mean this browser
+          cannot read this job, and no amount of waiting fixes that.
+        */
+        if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+          stopPolling();
+          setError({
+            title: "We lost track of this job",
+            hint: "It may still be running on our servers. Reload the page — if a credit was taken and the run failed, it comes back automatically.",
+          });
+          setStatus("failed");
+          return;
+        }
         if (err instanceof ApiError && err.status === 404) {
           stopPolling();
           setError(humanizeError("This job expired."));
@@ -690,7 +709,17 @@ export function JobToolForm({
                 <p className="mt-0.5 text-xs text-text-muted">{error.hint}</p>
               </div>
             </div>
-            <SupportBlock />
+            {/*
+              NO TIP JAR ON A BROKEN RUN.
+              These forms carry two failure states and they are not the same
+              thing. `error` means the SUBMIT was rejected — a file too large,
+              an unsupported format, a rate limit — which is the form doing its
+              job, and asking for support after one is fine. `failed` means the
+              job ran and broke, or polling gave up on it. Following "This is
+              taking unusually long" with "Enjoying AudioForges? Buy us a
+              coffee" is the worst timing on the site.
+            */}
+            {status === "error" && <SupportBlock />}
           </div>
         )}
 
