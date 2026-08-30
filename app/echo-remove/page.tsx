@@ -4,32 +4,53 @@ import { EchoRemoveForm } from "@/components/converter/EchoRemoveForm";
 import { FAQSection } from "@/components/faq/FAQSection";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
+import {
+  getLimits,
+  durationCapFor,
+  durationLabel,
+  retentionSentences,
+} from "@/lib/api/limits";
+
+/**
+ * ── THIS PASS ──────────────────────────────────────────────────────────
+ *
+ * THE LENGTH LIMIT WAS UNDERSTATED BY FORTY MINUTES — one of six pages
+ * carrying this sentence character for character:
+ *
+ *   "MP3, WAV, FLAC, M4A, AAC, OGG, and AIFF, up to 80MB and 20 minutes long."
+ *
+ * /echo-remove isn't in exempt_tools and has no per-tool override, so it takes
+ * audio_tools_default_seconds: one hour. 80MB was right.
+ *
+ * All six traced back to /guides/transcribing-audio-accurately, where 20
+ * minutes IS correct (transcription_max_duration_seconds = 1200). One true
+ * sentence copied into six places where it wasn't. Both figures now come from
+ * /limits, so this one can't be copied wrong again.
+ *
+ * Also: HowTo schema and `keywords` removed, retention answer added, formats
+ * read from allowed_audio_formats, prefetch disabled on the tool grid.
+ */
+
+const PAGE_TITLE = "Free Echo Remover";
+const PAGE_DESCRIPTION =
+  "Reduce or remove echo from audio recordings online free. Improve voice recordings, podcasts, and interviews by cutting room echo and slap-back. No sign-up.";
 
 export const metadata: Metadata = {
-  title: "Free Echo Remover",
-  description:
-    "Reduce or remove echo from audio recordings online free. Improve voice recordings, podcasts, and interviews by cutting room echo and slap-back. No sign-up.",
-  keywords: [
-    "remove echo from audio",
-    "echo remover",
-    "echo remover online",
-    "remove echo from recording",
-    "remove echo from voice recording",
-    "reduce echo audio",
-    "remove room echo",
-    "fix echo in audio free",
-    "slap echo remover",
-    "audio echo remover",
-    "remove echo from microphone",
-    "remove echo from voice",
-    "remove echo from podcast",
-    "clean echo from recording",
-  ],
+  title: PAGE_TITLE,
+  description: PAGE_DESCRIPTION,
+  /*
+    `keywords` removed — ignored by Google since 2009. Target terms kept for
+    reference:
+      remove echo from audio / echo remover / echo remover online
+      remove echo from recording / remove echo from voice recording
+      reduce echo audio / remove room echo / fix echo in audio free
+      slap echo remover / audio echo remover / remove echo from microphone
+      remove echo from voice / remove echo from podcast / clean echo from recording
+  */
   alternates: { canonical: `${SITE_URL}/echo-remove` },
   openGraph: {
     title: "Free Echo Remover — Reduce Echo & Slap-Back in Recordings",
-    description:
-      "Reduce or remove echo from audio recordings online free. Improve voice recordings, podcasts, and interviews by cutting room echo and slap-back. No sign-up.",
+    description: PAGE_DESCRIPTION,
     url: `${SITE_URL}/echo-remove`,
     siteName: SITE_NAME,
     type: "website",
@@ -45,8 +66,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "Free Echo Remover — Reduce Echo & Slap-Back in Recordings",
-    description:
-      "Reduce or remove echo from audio recordings online free. Improve voice recordings, podcasts, and interviews by cutting room echo and slap-back. No sign-up.",
+    description: PAGE_DESCRIPTION,
     images: ["/images/og-default.png"],
   },
 };
@@ -75,58 +95,67 @@ const breadcrumbJsonLd = {
     { "@type": "ListItem", position: 2, name: "Echo Remover", item: `${SITE_URL}/echo-remove` },
   ],
 };
+// NOTE: No HowTo schema — deprecated by Google (desktop since Sept 2023), no
+// ranking or rich-result benefit remains. Visible how-to steps stay.
+// FAQPage schema is emitted by <FAQSection /> — do not duplicate it here.
 
-const howToJsonLd = {
-  "@context": "https://schema.org",
-  "@type": "HowTo",
-  name: "How to Reduce Echo in a Recording",
-  step: [
-    { "@type": "HowToStep", name: "Upload", text: "Upload an MP3, WAV, FLAC, M4A, AAC, OGG, or AIFF file." },
-    { "@type": "HowToStep", name: "Process", text: "The tool gates out the quiet trailing reflections that create the echo." },
-    { "@type": "HowToStep", name: "Download", text: "Download the cleaned-up file." },
-  ],
-};
-
-// Same 6 questions and answers as before, word-for-word.
-const faqs = [
-  {
-    question: "Does this fully remove echo?",
-    answer:
-      "It reduces mild room echo and repeated slap-back echo well, but it doesn't perform full acoustic dereverberation — heavy reverb from a large or empty room won't be fully eliminated.",
-  },
-  {
-    question: "What's the difference between echo, reverb, and slap-back?",
-    answer:
-      "Slap-back is a single, distinct repeat off a hard surface — common in small tiled or hard-walled rooms. Reverb is the accumulated wash of countless overlapping reflections in a larger space, without a single clear repeat. This tool handles slap-back and mild room echo well; it isn't designed for heavy reverb.",
-  },
-  {
-    question: "Can I remove echo from Zoom or phone recordings?",
-    answer:
-      "Yes — phone recordings, Zoom calls, and voice memos with mild room echo are exactly the kind of source material this tool handles well.",
-  },
-  {
-    question: "What kind of echo does this work best on?",
-    answer:
-      "Mild room echo on speech recordings and repeated/slap echo. It's not designed for cleaning heavy reverb from concert halls or large empty spaces.",
-  },
-  {
-    question: "Is this really free?",
-    answer: "Yes — completely free, no sign-up, no watermark on the output.",
-  },
-  {
-    question: "What formats are supported?",
-    answer: "MP3, WAV, FLAC, M4A, AAC, OGG, and AIFF, up to 80MB and 20 minutes long.",
-  },
-];
-
-export default function EchoRemovePage() {
+export default async function EchoRemovePage() {
   const relatedTools = getRelatedTools("echo-remove", 5);
+
+  const limits = await getLimits();
+  const durationCap = durationCapFor(limits, "echo-remove");
+  const retention = retentionSentences(limits.retention.audio_tools);
+
+  const formats = limits.allowedAudioFormats.map((f) => f.toUpperCase());
+  const formatList = formats.join(", ").replace(/, ([^,]*)$/, ", or $1");
+
+  const faqs = [
+    {
+      question: "Does this fully remove echo?",
+      answer:
+        "It reduces mild room echo and repeated slap-back echo well, but it doesn't perform full acoustic dereverberation — heavy reverb from a large or empty room won't be fully eliminated.",
+    },
+    {
+      question: "What's the difference between echo, reverb, and slap-back?",
+      answer:
+        "Slap-back is a single, distinct repeat off a hard surface — common in small tiled or hard-walled rooms. Reverb is the accumulated wash of countless overlapping reflections in a larger space, without a single clear repeat. This tool handles slap-back and mild room echo well; it isn't designed for heavy reverb.",
+    },
+    {
+      question: "Can I remove echo from Zoom or phone recordings?",
+      answer:
+        "Yes — phone recordings, Zoom calls, and voice memos with mild room echo are exactly the kind of source material this tool handles well.",
+    },
+    {
+      question: "What kind of echo does this work best on?",
+      answer:
+        "Mild room echo on speech recordings and repeated/slap echo. It's not designed for cleaning heavy reverb from concert halls or large empty spaces.",
+    },
+    {
+      question: "Is this really free?",
+      answer: "Yes — completely free, no sign-up, no watermark on the output.",
+    },
+    {
+      /*
+        CORRECTED. Said "up to 80MB and 20 minutes long" — the size was right,
+        the length wrong by forty minutes. Both from /limits now.
+      */
+      question: "What formats are supported, and is there a size limit?",
+      answer:
+        durationCap === null
+          ? `${formatList}, up to ${limits.maxUploadMb}MB per upload.`
+          : `${formatList}, up to ${limits.maxUploadMb}MB and ${durationLabel(durationCap)} long.`,
+    },
+    {
+      // ADDED: no retention answer existed.
+      question: "Are my uploaded files kept?",
+      answer: `${retention.input} ${retention.output} There are no accounts, so nothing is linked to you.`,
+    },
+  ];
 
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(webAppJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(howToJsonLd) }} />
 
       <main className="mx-auto max-w-3xl px-4 py-12 sm:py-16 space-y-12">
         <header className="text-center space-y-4">
@@ -151,15 +180,26 @@ export default function EchoRemovePage() {
           </p>
         </section>
 
-        <section className="grid gap-4 sm:grid-cols-3">
+        {/* One bordered strip with hairline dividers, matching the other tool
+            pages. The limits are in the third cell — this page stated them
+            only in the FAQ, and stated one of them wrongly. */}
+        <section className="grid divide-y divide-graphite-800 overflow-hidden rounded-xl border border-graphite-800 bg-graphite-900 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
           {[
             { title: "One click", desc: "No settings to tune — just upload." },
             { title: "Fast", desc: "Most files process in a few seconds." },
-            { title: "No sign-up", desc: "No account, no email, no watermark." },
+            {
+              title: "No sign-up",
+              desc:
+                durationCap === null
+                  ? `No account, no email, no watermark. Up to ${limits.maxUploadMb}MB per file.`
+                  : `No account, no email, no watermark. Up to ${limits.maxUploadMb}MB and ${durationLabel(durationCap)}.`,
+            },
           ].map((f) => (
-            <div key={f.title} className="rounded-xl border border-graphite-800 bg-graphite-900 p-5 space-y-2">
-              <p className="font-semibold text-text-primary">{f.title}</p>
-              <p className="text-sm text-text-muted">{f.desc}</p>
+            <div key={f.title} className="space-y-1.5 p-5">
+              <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-amber-400">
+                {f.title}
+              </p>
+              <p className="text-sm leading-relaxed text-text-muted">{f.desc}</p>
             </div>
           ))}
         </section>
@@ -167,7 +207,7 @@ export default function EchoRemovePage() {
         <section className="space-y-4">
           <h2 className="text-2xl font-bold text-text-primary">How to reduce echo in a recording</h2>
           <ol className="list-decimal list-inside space-y-2 text-text-muted leading-relaxed">
-            <li>Upload an MP3, WAV, FLAC, M4A, AAC, OGG, or AIFF file.</li>
+            <li>Upload an {formatList} file.</li>
             <li>The tool gates out the quiet trailing reflections that create the echo.</li>
             <li>Download the cleaned-up result.</li>
           </ol>
@@ -252,6 +292,7 @@ export default function EchoRemovePage() {
                 <Link
                   key={tool.slug}
                   href={`/${tool.slug}`}
+                  prefetch={false}
                   className="rounded-xl border border-graphite-800 bg-graphite-900 p-4 hover:border-amber-500/40 transition-colors"
                 >
                   <h3 className="font-semibold text-text-primary">{tool.name}</h3>

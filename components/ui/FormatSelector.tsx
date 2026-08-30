@@ -1,8 +1,37 @@
 "use client";
 
+import { OptionCards, type CardOption } from "@/components/converter/ToolControls";
 import type { FormatOption, OutputFormat } from "@/lib/types/converter";
-import { cn } from "@/lib/utils/cn";
 
+/**
+ * The format picker on /youtube-to-wav and /youtube-to-mp3.
+ *
+ * ── THIS PASS ──────────────────────────────────────────────────────────
+ *
+ * IT DECLARED A radiogroup AND BEHAVED LIKE A TOOLBAR. `role="radiogroup"`
+ * tells assistive tech: one tab stop, arrows to move between options. This
+ * rendered two plain buttons with no tabIndex management and no key handler,
+ * so a screen reader announced a control and then found something that behaves
+ * nothing like it, and a keyboard user tabbed through every format on the way
+ * to Convert. That is worse than declaring no role at all — a wrong promise is
+ * harder to work around than a missing one.
+ *
+ * Fourth file with this exact bug (ConvertForm, ChannelsForm, ResampleForm and
+ * this one), which is why the behaviour now lives in OptionCards rather than
+ * being written a fifth time. This component is a thin adapter: it maps
+ * FormatOption to CardOption and nothing else.
+ *
+ * IT STAYS A COMPONENT rather than the form calling OptionCards directly. The
+ * FormatOption → CardOption mapping is a real decision — which field becomes
+ * the card's meta, which becomes its footnote — and it belongs in one place,
+ * not repeated at whatever call sites this picks up later.
+ *
+ * The rendering is now identical to every other picker on the site. It was
+ * close before, but not the same: text-base rather than text-sm on the label,
+ * `transition-all` rather than `transition-colors`, and a hover border that
+ * went to graphite-700/60 — a lighter shade of the border it already had, so
+ * hovering an unselected card did almost nothing visible.
+ */
 interface FormatSelectorProps {
   options: FormatOption[];
   value: OutputFormat;
@@ -11,56 +40,25 @@ interface FormatSelectorProps {
 }
 
 export function FormatSelector({ options, value, onChange, disabled }: FormatSelectorProps) {
+  const cards: CardOption<OutputFormat>[] = options.map((option) => ({
+    value: option.value,
+    title: option.label,
+    // "Lossless" / "Compressed" — the thing you compare the two by, so it
+    // takes the top-right slot.
+    meta: option.quality,
+    detail: option.description,
+    // "44.1 kHz · 16-bit · ~10 MB/min" — mono, quietest line, because it's
+    // the detail you check once you've already chosen.
+    footnote: option.spec,
+  }));
+
   return (
-    <div role="radiogroup" aria-label="Output format" className="grid gap-2 sm:grid-cols-2">
-      {options.map((option) => {
-        const isSelected = option.value === value;
-        return (
-          <button
-            key={option.value}
-            type="button"
-            role="radio"
-            aria-checked={isSelected}
-            disabled={disabled}
-            onClick={() => onChange(option.value)}
-            className={cn(
-              "rounded-lg border p-3.5 text-left transition-all",
-              "focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40",
-              "disabled:cursor-not-allowed disabled:opacity-40",
-              isSelected
-                ? "border-amber-500/60 bg-amber-500/[0.07]"
-                : "border-graphite-700 bg-graphite-850 hover:border-graphite-700/60 hover:bg-graphite-800/60"
-            )}
-          >
-            <div className="flex items-baseline justify-between gap-2">
-              <span
-                className={cn(
-                  "text-base font-semibold tracking-tight",
-                  isSelected ? "text-amber-400" : "text-text-primary"
-                )}
-              >
-                {option.label}
-              </span>
-              {option.quality && (
-                <span
-                  className={cn(
-                    "text-[10px] font-medium uppercase tracking-wider",
-                    isSelected ? "text-amber-500/80" : "text-text-subtle"
-                  )}
-                >
-                  {option.quality}
-                </span>
-              )}
-            </div>
-
-            <p className="mt-1.5 text-xs leading-snug text-text-muted">{option.description}</p>
-
-            {option.spec && (
-              <p className="mt-1 font-mono text-[11px] text-text-subtle">{option.spec}</p>
-            )}
-          </button>
-        );
-      })}
-    </div>
+    <OptionCards
+      label="Output format"
+      options={cards}
+      value={value}
+      onChange={onChange}
+      disabled={disabled}
+    />
   );
 }

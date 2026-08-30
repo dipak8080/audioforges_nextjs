@@ -4,40 +4,77 @@ import { SilenceSplitForm } from "@/components/converter/SilenceSplitForm";
 import { FAQSection } from "@/components/faq/FAQSection";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
-import { getToolLimits, getFileBytesLabel } from "@/lib/data/tool-limits";
-import { getRateLimitLabel } from "@/lib/data/rate-limits";
+import { getToolLimits } from "@/lib/data/tool-limits";
+import {
+  getLimits,
+  windowFor,
+  rateLimitLabel,
+  durationCapFor,
+  durationLabel,
+  retentionSentences,
+} from "@/lib/api/limits";
 
-// Single reads at module load — same pattern as every other data-driven
-// value on this page (relatedTools, faqs). No hardcoded "80MB" or
-// "3 per 5 minutes" anywhere below; both come from these two lines.
-const limits = getToolLimits("silence-split");
-const fileSizeLabel = getFileBytesLabel("silence-split") ?? "80MB";
-const rateLimitLabel = getRateLimitLabel("silence-split");
-const maxSegments = limits?.maxOutputSegments ?? 50;
+/**
+ * ── THIS PASS ──────────────────────────────────────────────────────────
+ *
+ * 1. THE RATE LIMIT WAS FETCHED AND NEVER RENDERED. `getRateLimitLabel(
+ *    "silence-split")` was assigned at module scope, the comment above it
+ *    claimed both values were used below, and only one of them was. So the
+ *    page stated no rate limit at all — on the tightest limit on the site (3
+ *    per 5 minutes) and the only one not shared with another tool.
+ *
+ *    Worth noting it's the exact failure that constant exists to prevent:
+ *    reading from the table doesn't help if nothing reads the variable.
+ *
+ * 2. "UP TO 50 SEGMENTS" READS AS TRUNCATION. IT ISN'T. The backend raises
+ *    before cutting anything, so a file that would produce 63 segments returns
+ *    NOTHING — not the first 50. That's a materially different outcome and
+ *    this page's own examples are exactly the files that hit it: a two-hour DJ
+ *    set, a full vinyl side. Stated plainly now, with the fix, because the
+ *    server's own error message names the count and the remedy and the page
+ *    should agree with it.
+ *
+ * 3. THE DURATION CAP WAS UNSTATED, on the page where it bites hardest.
+ *    silence-split isn't exempt and has no per-tool override, so it takes the
+ *    audio_tools default of one hour. A page whose worked examples are DJ sets
+ *    and vinyl rips owes the reader that number before they upload.
+ *
+ * 4. Retention answer added; formats, size and limits now read from /limits;
+ *    prefetch disabled on the tool grid.
+ */
 
 // 46 chars, so ~60 with the " | AudioForges" suffix — right at the SERP
 // budget. If it truncates, it drops "by Silence" and still reads as
 // "Free Silence Splitter — Split Audio", which is intact enough. The
 // previous title lost its differentiator entirely when cut.
 const PAGE_TITLE = "Free Silence Splitter — Split Audio by Silence";
-const PAGE_DESCRIPTION =
-  "Split one long recording into separate tracks at silent gaps. Adjustable threshold and gap length, up to 50 tracks. Free, no sign-up, no watermark.";
+
+/**
+ * `metadata` is evaluated at module scope where getLimits() can't be awaited,
+ * so the segment cap here comes from the hand table — the same value the
+ * /limits fallback carries. This was the ONE place a number was still typed
+ * despite the file's own comment claiming otherwise.
+ */
+const DESCRIPTION_SEGMENTS = getToolLimits("silence-split")?.maxOutputSegments ?? 50;
+const PAGE_DESCRIPTION = `Split one long recording into separate tracks at silent gaps. Adjustable threshold and gap length, up to ${DESCRIPTION_SEGMENTS} tracks. Free, no sign-up, no watermark.`;
 
 export const metadata: Metadata = {
   title: PAGE_TITLE,
   description: PAGE_DESCRIPTION,
-  keywords: [
-    "silence splitter online",
-    "split audio by silence",
-    "split audio into multiple files",
-    "split dj mix into tracks",
-    "split vinyl rip into songs",
-    "audacity split by silence alternative",
-    "auto split audio",
-    "cue sheet alternative",
-    "split mp3 by silence",
-    "separate tracks from one recording",
-  ],
+  // `keywords` removed — ignored by Google since 2009, treated as a spam
+  // signal by Bing. Target terms kept below for reference.
+  /*
+    silence splitter online
+    split audio by silence
+    split audio into multiple files
+    split dj mix into tracks
+    split vinyl rip into songs
+    audacity split by silence alternative
+    auto split audio
+    cue sheet alternative
+    split mp3 by silence
+    separate tracks from one recording
+  */
   alternates: { canonical: `${SITE_URL}/silence-split` },
   openGraph: {
     title: PAGE_TITLE,
@@ -62,28 +99,6 @@ export const metadata: Metadata = {
   },
 };
 
-// WebApplication schema — every claim below is checked against the actual
-// product. No accuracy/performance/privacy claims are asserted since none
-// have been verified against the backend implementation.
-const webAppJsonLd = {
-  "@context": "https://schema.org",
-  "@type": "WebApplication",
-  name: "Silence Splitter",
-  url: `${SITE_URL}/silence-split`,
-  applicationCategory: "MultimediaApplication",
-  operatingSystem: "Any",
-  offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
-  featureList: [
-    "Automatic silence detection",
-    "Adjustable silence threshold",
-    "Adjustable minimum gap length",
-    `Splits one file into up to ${maxSegments} separate tracks`,
-    "Choice of output format",
-    "No sign-up required",
-    "No watermark",
-  ],
-};
-
 const breadcrumbJsonLd = {
   "@context": "https://schema.org",
   "@type": "BreadcrumbList",
@@ -99,75 +114,118 @@ const breadcrumbJsonLd = {
 // for a site like this one — Google restricted them to government and
 // health domains in 2023. The FAQ below earns its place by answering
 // things the body doesn't, not by chasing a snippet, which is why it's
-// eight questions rather than fifteen.
+// nine questions rather than fifteen.
 
-const SUPPORTED_FORMATS = ["MP3", "WAV", "FLAC", "M4A", "AAC", "OGG", "AIFF"];
-
-/** Same style as the convert/stems/fade/mono-stereo pages — clean mono
- *  badges, no check icons. Check icons are reserved for comparison tables. */
-function FormatBadges() {
-  return (
-    <div className="flex flex-wrap gap-2">
-      {SUPPORTED_FORMATS.map((format) => (
-        <span
-          key={format}
-          className="rounded-lg border border-graphite-700 bg-graphite-850 px-3 py-1.5 font-mono text-sm font-semibold text-amber-400"
-        >
-          {format}
-        </span>
-      ))}
-    </div>
-  );
-}
-
-// Cut from fifteen. Three of the originals ("too many splits", "missing
-// gaps", "no silence detected") were the Troubleshooting section rewritten
-// as questions, and four more restated the threshold/gap explanation
-// already given twice in the body. What's left answers things the page
-// doesn't cover elsewhere.
-const faqs = [
-  {
-    question: "Can I split a DJ mix into individual tracks?",
-    answer:
-      "If the mix has genuine quiet gaps between songs, yes. Mixes that crossfade continuously from one track into the next often have no real silence to detect, so some manual adjustment — or a different tool entirely — may be needed for those.",
-  },
-  {
-    question: "Can I split a vinyl rip into separate songs?",
-    answer:
-      "Yes, when there are quiet gaps between tracks on the recording — common on vinyl rips digitized with the natural pauses between songs intact. Surface noise can keep a gap from registering as silent; lowering the threshold usually fixes it.",
-  },
-  {
-    question: "Can I split a podcast or interview by silence?",
-    answer:
-      "Yes, if the boundaries you want have longer pauses than ordinary conversational speech. Normal sentence-to-sentence gaps are usually well under half a second, so a longer minimum gap length keeps normal speech from being split up unintentionally.",
-  },
-  {
-    question: "How many tracks can one upload produce?",
-    answer: `Up to ${maxSegments} segments per upload. Any segment shorter than ${limits?.minOutputSegmentSeconds ?? 1} second is dropped automatically rather than kept as a near-empty fragment.`,
-  },
-  {
-    question: "Does splitting reduce audio quality?",
-    answer:
-      "The cut itself doesn't alter the audio — it only divides it at the points detected. The resulting files are then encoded into whichever output format you choose, the same as any format conversion.",
-  },
-  {
-    question: "Can I choose the output format?",
-    answer: `Yes — pick one output format and every resulting segment is saved in that format, regardless of what you uploaded. MP3, WAV, FLAC, M4A, AAC, OGG and AIFF are supported, up to ${fileSizeLabel} per upload.`,
-  },
-  {
-    question: "Does it name the tracks or read chapter markers?",
-    answer:
-      "No. Detection works purely on loudness, so it has no way to know song titles, artists, or chapter positions. Segments come out numbered in order and you rename them yourself.",
-  },
-  {
-    question: "Is this free, and do I need to sign up?",
-    answer:
-      "Yes, completely free — no sign-up, no email, no account, and no watermark on any resulting file.",
-  },
-];
-
-export default function SilenceSplitPage() {
+export default async function SilenceSplitPage() {
   const relatedTools = getRelatedTools("silence-split", 5);
+
+  const limits = await getLimits();
+  const toolLimits = getToolLimits("silence-split");
+
+  const maxSegments = toolLimits?.maxOutputSegments ?? 50;
+  const minSegmentSeconds = toolLimits?.minOutputSegmentSeconds ?? 1;
+  const fileSizeLabel = `${limits.maxUploadMb}MB`;
+
+  // Rendered, this time. 3 per 5 minutes — the tightest window on the site.
+  const rateLimit = rateLimitLabel(
+    limits.rateLimits["silence-split"] ?? 3,
+    windowFor(limits, "silence-split")
+  );
+
+  /*
+    Not exempt, no per-tool override, so this is the audio_tools default: one
+    hour. It matters more here than almost anywhere — the worked examples on
+    this page are DJ sets and full vinyl sides, and plenty of those run longer.
+  */
+  const durationCap = durationCapFor(limits, "silence-split");
+  const retention = retentionSentences(limits.retention.audio_tools);
+
+  const formats = limits.allowedAudioFormats.map((f) => f.toUpperCase());
+  const formatList = formats.join(", ").replace(/, ([^,]*)$/, " and $1");
+
+  // WebApplication schema — every claim below is checked against the actual
+  // product. No accuracy/performance/privacy claims are asserted since none
+  // have been verified against the backend implementation.
+  const webAppJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    name: "Silence Splitter",
+    url: `${SITE_URL}/silence-split`,
+    applicationCategory: "MultimediaApplication",
+    operatingSystem: "Any",
+    offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+    featureList: [
+      "Automatic silence detection",
+      "Adjustable silence threshold",
+      "Adjustable minimum gap length",
+      `Splits one file into up to ${maxSegments} separate tracks`,
+      "Choice of output format",
+      "No sign-up required",
+      "No watermark",
+    ],
+  };
+
+  const faqs = [
+    {
+      question: "Can I split a DJ mix into individual tracks?",
+      answer:
+        "If the mix has genuine quiet gaps between songs, yes. Mixes that crossfade continuously from one track into the next often have no real silence to detect, so some manual adjustment — or a different tool entirely — may be needed for those.",
+    },
+    {
+      question: "Can I split a vinyl rip into separate songs?",
+      answer:
+        "Yes, when there are quiet gaps between tracks on the recording — common on vinyl rips digitized with the natural pauses between songs intact. Surface noise can keep a gap from registering as silent; lowering the threshold usually fixes it.",
+    },
+    {
+      question: "Can I split a podcast or interview by silence?",
+      answer:
+        "Yes, if the boundaries you want have longer pauses than ordinary conversational speech. Normal sentence-to-sentence gaps are usually well under half a second, so a longer minimum gap length keeps normal speech from being split up unintentionally.",
+    },
+    {
+      /*
+        REWRITTEN. Said "Up to N segments per upload", which reads as a
+        ceiling that truncates. It doesn't: the backend raises before cutting
+        anything, so an over-cap file produces NOTHING rather than the first N.
+        Someone splitting a long vinyl rip needs to know that before they wait
+        for it.
+      */
+      question: "How many tracks can one upload produce?",
+      answer: `Up to ${maxSegments}. Past that the split is refused rather than trimmed to ${maxSegments} — nothing is written, and the error tells you the real count so you can raise the silence threshold or the minimum gap to merge nearby segments and run it again. Any segment shorter than ${minSegmentSeconds} second is dropped automatically rather than kept as a near-empty fragment.`,
+    },
+    {
+      /*
+        ADDED. The rate limit was read from the table at module scope and then
+        never rendered anywhere on the page — so the tightest limit on the site
+        was also the least visible one.
+      */
+      question: "How often can I run a split?",
+      answer: `${rateLimit}. That's the tightest limit here, because a split can produce dozens of files from one upload and each of them is encoded separately. If you hit it, the button shows a countdown rather than failing.`,
+    },
+    {
+      question: "Does splitting reduce audio quality?",
+      answer:
+        "The cut itself doesn't alter the audio — it only divides it at the points detected. The resulting files are then encoded into whichever output format you choose, the same as any format conversion.",
+    },
+    {
+      question: "Can I choose the output format?",
+      answer: `Yes — pick one output format and every resulting segment is saved in that format, regardless of what you uploaded. ${formatList} are supported, up to ${fileSizeLabel} per upload.`,
+    },
+    {
+      question: "Does it name the tracks or read chapter markers?",
+      answer:
+        "No. Detection works purely on loudness, so it has no way to know song titles, artists, or chapter positions. Segments come out numbered in order and you rename them yourself.",
+    },
+    {
+      // ADDED: no retention answer existed.
+      question: "Are my uploaded files kept?",
+      answer: `${retention.input} ${retention.output} There are no accounts, so nothing is linked to you.`,
+    },
+    {
+      question: "Is this free, and do I need to sign up?",
+      answer:
+        "Yes, completely free — no sign-up, no email, no account, and no watermark on any resulting file.",
+    },
+  ];
 
   return (
     <>
@@ -189,15 +247,19 @@ export default function SilenceSplitPage() {
         {/* Tool stays first — SEO content supports it, doesn't bury it */}
         <SilenceSplitForm />
 
-        <section className="grid gap-4 sm:grid-cols-3">
+        {/* One bordered strip with hairline dividers, matching the other tool
+            pages. */}
+        <section className="grid divide-y divide-graphite-800 overflow-hidden rounded-xl border border-graphite-800 bg-graphite-900 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
           {[
-            { title: "Automatic silence detection", desc: "Finds quiet gaps across the whole file instead of you scrubbing through it by hand." },
-            { title: "Adjustable detection", desc: "Control the silence threshold and minimum gap length to decide what counts as a split point." },
+            { title: "Automatic detection", desc: "Finds quiet gaps across the whole file instead of you scrubbing through it by hand." },
+            { title: "Adjustable", desc: "Control the silence threshold and minimum gap length to decide what counts as a split point." },
             { title: `Up to ${maxSegments} tracks`, desc: "One long recording becomes as many separate, individually downloadable files as it has real gaps." },
           ].map((f) => (
-            <div key={f.title} className="rounded-xl border border-graphite-800 bg-graphite-900 p-5 space-y-2">
-              <p className="font-semibold text-text-primary">{f.title}</p>
-              <p className="text-sm text-text-muted">{f.desc}</p>
+            <div key={f.title} className="space-y-1.5 p-5">
+              <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-amber-400">
+                {f.title}
+              </p>
+              <p className="text-sm leading-relaxed text-text-muted">{f.desc}</p>
             </div>
           ))}
         </section>
@@ -223,13 +285,55 @@ export default function SilenceSplitPage() {
         <section className="space-y-4">
           <h2 className="text-2xl font-bold text-text-primary">How to split audio by silence</h2>
           <ol className="list-decimal list-inside space-y-2 text-text-muted leading-relaxed">
-            <li>Upload an MP3, WAV, FLAC, M4A, AAC, OGG, or AIFF file.</li>
+            <li>Upload an {formatList} file.</li>
             <li>Choose the output format for the resulting tracks.</li>
             <li>Set the silence threshold, or leave it at the -30dB default.</li>
             <li>Set the minimum gap length, or leave it at the 0.5 second default.</li>
             <li>Run the split.</li>
             <li>Preview and download each resulting track individually.</li>
           </ol>
+        </section>
+
+        {/* ADDED. Three numbers that decide whether an upload works at all,
+            none of which the page previously stated — and this page's own
+            worked examples (DJ sets, full vinyl sides) are the files most
+            likely to exceed the first two. */}
+        <section className="space-y-4">
+          <h2 className="text-2xl font-bold text-text-primary">Before you upload a long recording</h2>
+          <div className="overflow-x-auto rounded-xl border border-graphite-800">
+            <table className="w-full text-sm text-left text-text-muted">
+              <tbody className="divide-y divide-graphite-800">
+                {durationCap !== null && (
+                  <tr>
+                    <td className="w-2/5 px-4 py-3 font-medium text-text-primary">Longest recording</td>
+                    <td className="px-4 py-3">{durationLabel(durationCap)}</td>
+                  </tr>
+                )}
+                <tr>
+                  <td className="px-4 py-3 font-medium text-text-primary">Largest file</td>
+                  <td className="px-4 py-3">{fileSizeLabel}</td>
+                </tr>
+                <tr>
+                  <td className="px-4 py-3 font-medium text-text-primary">Most tracks out</td>
+                  <td className="px-4 py-3">{maxSegments}</td>
+                </tr>
+                <tr>
+                  <td className="px-4 py-3 font-medium text-text-primary">How often</td>
+                  <td className="px-4 py-3">{rateLimit}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p className="text-text-muted leading-relaxed">
+            The track count is the one worth understanding, because it
+            doesn&apos;t behave like the others. Going over it doesn&apos;t
+            give you the first {maxSegments} tracks — the split is refused
+            outright and nothing is written, so a two-hour set with{" "}
+            {maxSegments + 13} gaps comes back empty rather than partly done.
+            The error names the real count, and raising the silence threshold
+            or the minimum gap length merges nearby segments until it fits.
+            Nothing is lost in the meantime; the run simply didn&apos;t happen.
+          </p>
         </section>
 
         {/* The threshold explanation, the troubleshooting steps and four of
@@ -292,6 +396,15 @@ export default function SilenceSplitPage() {
                   <td className="px-4 py-3">
                     Background noise is likely sitting above the threshold —
                     raise it toward -20dB and try again
+                  </td>
+                </tr>
+                {/* Added alongside the rejection copy above: this is now a
+                    symptom people will actually see, and it has a fix. */}
+                <tr>
+                  <td className="px-4 py-3">Refused for producing too many tracks</td>
+                  <td className="px-4 py-3">
+                    Raise the threshold or lengthen the minimum gap — both merge
+                    nearby segments
                   </td>
                 </tr>
                 <tr>
@@ -394,6 +507,12 @@ export default function SilenceSplitPage() {
             alone is often worth the setup.
           </p>
           <p className="text-text-muted leading-relaxed">
+            It also has no length limit and no track-count ceiling, which
+            makes it the right answer for a recording longer than{" "}
+            {durationCap !== null ? durationLabel(durationCap) : "the cap here"}{" "}
+            or one that genuinely needs more than {maxSegments} pieces.
+          </p>
+          <p className="text-text-muted leading-relaxed">
             The trade is time. Installing Audacity, finding Label Sounds under
             the Analyze menu, understanding its threshold settings, then
             configuring Export Multiple is a genuine afternoon the first time.
@@ -409,7 +528,9 @@ export default function SilenceSplitPage() {
             <table className="w-full text-sm text-left text-text-muted">
               <thead className="bg-graphite-900 text-text-primary">
                 <tr>
-                  <th className="px-4 py-3 font-semibold">&nbsp;</th>
+                  <th className="px-4 py-3 font-semibold">
+                    <span className="sr-only">Comparison</span>
+                  </th>
                   <th className="px-4 py-3 font-semibold">Silence Splitter</th>
                   <th className="px-4 py-3 font-semibold">Silence Remover</th>
                 </tr>
@@ -487,7 +608,18 @@ export default function SilenceSplitPage() {
 
         <section className="space-y-4">
           <h2 className="text-2xl font-bold text-text-primary">Supported formats</h2>
-          <FormatBadges />
+          {/* Rendered from the backend's allowed_audio_formats rather than a
+              hand-written array — the mechanism that left AIFF off /stems. */}
+          <div className="flex flex-wrap gap-2">
+            {formats.map((format) => (
+              <span
+                key={format}
+                className="rounded-lg border border-graphite-700 bg-graphite-850 px-3 py-1.5 font-mono text-sm font-semibold text-amber-400"
+              >
+                {format}
+              </span>
+            ))}
+          </div>
           <p className="text-text-muted leading-relaxed">
             Upload any of the formats above, up to {fileSizeLabel} per file.
             Choose one output format and every resulting track is saved in
@@ -503,6 +635,7 @@ export default function SilenceSplitPage() {
                 <Link
                   key={tool.slug}
                   href={`/${tool.slug}`}
+                  prefetch={false}
                   className="rounded-xl border border-graphite-800 bg-graphite-900 p-4 hover:border-amber-500/40 transition-colors"
                 >
                   <h3 className="font-semibold text-text-primary">{tool.name}</h3>

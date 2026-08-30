@@ -4,6 +4,32 @@ import { SilenceRemoveForm } from "@/components/converter/SilenceRemoveForm";
 import { FAQSection } from "@/components/faq/FAQSection";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
+import {
+  getLimits,
+  durationCapFor,
+  durationLabel,
+  retentionSentences,
+} from "@/lib/api/limits";
+
+/**
+ * ── THIS PASS ──────────────────────────────────────────────────────────
+ *
+ * 1. THE PAGE STATED NO LIMIT, AND HEDGED ABOUT IT. "Fair-use limits apply on
+ *    file size so one person can't tie up the servers" names no figure at all.
+ *    On a page whose readers upload hour-long podcast recordings, that's the
+ *    sentence that makes someone close the tab rather than test it — and the
+ *    real numbers are perfectly reasonable, so the vagueness bought nothing.
+ *
+ *    80MB and one hour, both from /limits.
+ *
+ * 2. NO RETENTION ANSWER. Added from the backend's own retention block.
+ *
+ * 3. Formats read from allowed_audio_formats rather than a hand-written array
+ *    — the mechanism that left AIFF off /stems while the tool accepted it.
+ *
+ * 4. `keywords` removed (ignored by Google since 2009), prefetch disabled on
+ *    the tool grid, feature strip matched to the other pages.
+ */
 
 // Title kept to 35 chars so it survives the " | AudioForges" suffix
 // inside the ~60-char SERP budget. The previous one ran to 53 and got
@@ -15,19 +41,22 @@ const PAGE_DESCRIPTION =
 export const metadata: Metadata = {
   title: PAGE_TITLE,
   description: PAGE_DESCRIPTION,
-  keywords: [
-    "silence remover online",
-    "remove silence from audio",
-    "remove dead air podcast",
-    "cut silence from audio free",
-    "strip silence mp3",
-    "podcast silence cutter",
-    "audio silence detector",
-    "remove pauses from recording",
-    "silence remover vs splitter",
-    "remove silence audacity alternative",
-    "automatically cut silence",
-  ],
+  /*
+    `keywords` removed — ignored by Google since 2009, treated as a spam signal
+    by Bing. Target terms kept for reference:
+
+      silence remover online
+      remove silence from audio
+      remove dead air podcast
+      cut silence from audio free
+      strip silence mp3
+      podcast silence cutter
+      audio silence detector
+      remove pauses from recording
+      silence remover vs splitter
+      remove silence audacity alternative
+      automatically cut silence
+  */
   alternates: { canonical: `${SITE_URL}/silence-remove` },
   openGraph: {
     title: PAGE_TITLE,
@@ -81,46 +110,70 @@ const breadcrumbJsonLd = {
 // search, so it earned nothing while adding a second copy of the steps
 // that could drift out of sync with the visible ones below.
 
-const faqs = [
-  {
-    question: "Does this only trim silence from the start and end?",
-    answer:
-      "No — it strips silent gaps throughout the entire recording, not just the leading and trailing edges. That's the difference between this and a trimmer: you don't have to find the gaps yourself.",
-  },
-  {
-    question: "What do threshold and minimum gap length control?",
-    answer:
-      "Threshold sets how quiet something has to be to count as silence, in decibels. Minimum gap length sets how long that quiet stretch has to last before it gets cut. A stretch has to satisfy both at once, which is why a brief pause between words survives while a two-second gap doesn't.",
-  },
-  {
-    question: "What threshold should I use?",
-    answer:
-      "Start with the -30dB default. If gaps are being left behind, your room tone is louder than the threshold — try -20dB. If natural pauses are being cut, go the other way toward -40dB. Room tone varies enough between recordings that there's no single correct value.",
-  },
-  {
-    question: "Will the output be shorter than the original?",
-    answer:
-      "Yes — gaps are cut out entirely rather than muted, so the result is shorter than the input. How much shorter depends on how much dead air was in the recording.",
-  },
-  {
-    question: "Does removing silence affect audio quality?",
-    answer:
-      "The audio that remains is untouched — only the silent sections are removed, and the format and quality of everything else is preserved.",
-  },
-  {
-    question: "How is this different from the Silence Splitter?",
-    answer:
-      "Both find the same silent gaps. The Silence Remover deletes them and gives you one shorter file. The Silence Splitter uses them as cut points and gives you separate files — one per section. Use the remover to tighten a recording, the splitter to break one long recording into tracks.",
-  },
-  {
-    question: "Is this really free?",
-    answer:
-      "Yes — no sign-up, no email, no account, and no watermark on the output. Fair-use limits apply on file size so one person can't tie up the servers, but there's no paid tier that removes them.",
-  },
-];
-
-export default function SilenceRemovePage() {
+export default async function SilenceRemovePage() {
   const relatedTools = getRelatedTools("silence-remove", 5);
+
+  const limits = await getLimits();
+  const durationCap = durationCapFor(limits, "silence-remove");
+  const retention = retentionSentences(limits.retention.audio_tools);
+
+  const formats = limits.allowedAudioFormats.map((f) => f.toUpperCase());
+  const formatList = formats.join(", ").replace(/, ([^,]*)$/, ", or $1");
+
+  const faqs = [
+    {
+      question: "Does this only trim silence from the start and end?",
+      answer:
+        "No — it strips silent gaps throughout the entire recording, not just the leading and trailing edges. That's the difference between this and a trimmer: you don't have to find the gaps yourself.",
+    },
+    {
+      question: "What do threshold and minimum gap length control?",
+      answer:
+        "Threshold sets how quiet something has to be to count as silence, in decibels. Minimum gap length sets how long that quiet stretch has to last before it gets cut. A stretch has to satisfy both at once, which is why a brief pause between words survives while a two-second gap doesn't.",
+    },
+    {
+      question: "What threshold should I use?",
+      answer:
+        "Start with the -30dB default. If gaps are being left behind, your room tone is louder than the threshold — try -20dB. If natural pauses are being cut, go the other way toward -40dB. Room tone varies enough between recordings that there's no single correct value.",
+    },
+    {
+      /*
+        ADDED. The page named no limit anywhere and hedged with "fair-use
+        limits apply on file size" — no figure, on a tool whose readers are
+        uploading hour-long podcast recordings. Both numbers come from /limits.
+      */
+      question: "Is there a size or length limit?",
+      answer:
+        durationCap === null
+          ? `Up to ${limits.maxUploadMb}MB per file, with no length limit.`
+          : `Up to ${limits.maxUploadMb}MB per file, and up to ${durationLabel(durationCap)} of audio — enough for a full podcast episode or lecture recording. There's no paid tier that raises either one.`,
+    },
+    {
+      question: "Will the output be shorter than the original?",
+      answer:
+        "Yes — gaps are cut out entirely rather than muted, so the result is shorter than the input. How much shorter depends on how much dead air was in the recording.",
+    },
+    {
+      question: "Does removing silence affect audio quality?",
+      answer:
+        "The audio that remains is untouched — only the silent sections are removed, and the format and quality of everything else is preserved.",
+    },
+    {
+      question: "How is this different from the Silence Splitter?",
+      answer:
+        "Both find the same silent gaps. The Silence Remover deletes them and gives you one shorter file. The Silence Splitter uses them as cut points and gives you separate files — one per section. Use the remover to tighten a recording, the splitter to break one long recording into tracks.",
+    },
+    {
+      // ADDED: no retention answer existed.
+      question: "Are my uploaded files kept?",
+      answer: `${retention.input} ${retention.output} There are no accounts, so nothing is linked to you.`,
+    },
+    {
+      question: "Is this really free?",
+      answer:
+        "Yes — no sign-up, no email, no account, and no watermark on the output. The size and length limits above exist so one person can't tie up the servers, and there's no paid tier that removes them.",
+    },
+  ];
 
   return (
     <>
@@ -140,15 +193,26 @@ export default function SilenceRemovePage() {
 
         <SilenceRemoveForm />
 
-        <section className="grid gap-4 sm:grid-cols-3">
+        {/* One bordered strip with hairline dividers, matching the other tool
+            pages. The third cell now carries the limits, which the page
+            previously never stated anywhere. */}
+        <section className="grid divide-y divide-graphite-800 overflow-hidden rounded-xl border border-graphite-800 bg-graphite-900 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
           {[
             { title: "Whole-file cleanup", desc: "Cuts gaps everywhere, not just the ends." },
             { title: "One-click ready", desc: "Sensible defaults, no tuning required." },
-            { title: "No sign-up", desc: "No account, no email, no watermark." },
+            {
+              title: "No sign-up",
+              desc:
+                durationCap === null
+                  ? `No account, no email, no watermark. Up to ${limits.maxUploadMb}MB per file.`
+                  : `No account, no email, no watermark. Up to ${limits.maxUploadMb}MB and ${durationLabel(durationCap)}.`,
+            },
           ].map((f) => (
-            <div key={f.title} className="rounded-xl border border-graphite-800 bg-graphite-900 p-5 space-y-2">
-              <p className="font-semibold text-text-primary">{f.title}</p>
-              <p className="text-sm text-text-muted">{f.desc}</p>
+            <div key={f.title} className="space-y-1.5 p-5">
+              <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-amber-400">
+                {f.title}
+              </p>
+              <p className="text-sm leading-relaxed text-text-muted">{f.desc}</p>
             </div>
           ))}
         </section>
@@ -156,17 +220,19 @@ export default function SilenceRemovePage() {
         <section className="space-y-4">
           <h2 className="text-2xl font-bold text-text-primary">How to remove silence from audio</h2>
           <ol className="list-decimal list-inside space-y-2 text-text-muted leading-relaxed">
-            <li>Upload an MP3, WAV, FLAC, M4A, AAC, OGG, or AIFF file.</li>
+            <li>Upload an {formatList} file.</li>
             <li>Leave threshold and minimum gap length at their defaults, or adjust them.</li>
             <li>Download the result — shorter than the original, with dead air cut throughout.</li>
           </ol>
+          {/* Rendered from allowed_audio_formats rather than a hand-written
+              array. */}
           <div className="flex flex-wrap gap-2 pt-1">
-            {["MP3", "WAV", "FLAC", "AAC", "M4A", "OGG", "AIFF"].map((fmt) => (
+            {formats.map((fmt) => (
               <span
                 key={fmt}
                 className="inline-flex items-center gap-1 rounded-full border border-graphite-800 bg-graphite-900 px-3 py-1 text-xs text-text-muted"
               >
-                <span className="text-teal-400">✓</span>
+                <span className="text-teal-400" aria-hidden>✓</span>
                 {fmt}
               </span>
             ))}
@@ -194,9 +260,7 @@ export default function SilenceRemovePage() {
 
         {/* Three-way, not two-way. The tool people actually confuse this
             with is the Splitter, not the Trimmer — they detect identical
-            gaps and differ only in what they do with them. Adding the
-            third column also picks up "silence remover vs splitter",
-            which the old two-column table couldn't answer at all. */}
+            gaps and differ only in what they do with them. */}
         <section className="space-y-4">
           <h2 className="text-2xl font-bold text-text-primary">
             Silence Remover vs. Splitter vs. Trimmer
@@ -211,7 +275,9 @@ export default function SilenceRemovePage() {
             <table className="w-full text-sm text-left text-text-muted">
               <thead className="bg-graphite-900 text-text-primary">
                 <tr>
-                  <th className="px-4 py-3 font-semibold">&nbsp;</th>
+                  <th className="px-4 py-3 font-semibold">
+                    <span className="sr-only">Comparison</span>
+                  </th>
                   <th className="px-4 py-3 font-semibold">Silence Remover</th>
                   <th className="px-4 py-3 font-semibold">Silence Splitter</th>
                   <th className="px-4 py-3 font-semibold">Audio Trimmer</th>
@@ -323,6 +389,12 @@ export default function SilenceRemovePage() {
             editing in Audacity, or you need gaps shortened rather than
             deleted, that&apos;s the better tool.
           </p>
+          {durationCap !== null && (
+            <p className="text-text-muted leading-relaxed">
+              It also has no length limit, which makes it the right answer for a
+              recording longer than {durationLabel(durationCap)}.
+            </p>
+          )}
           <p className="text-text-muted leading-relaxed">
             This page exists for the other case: you have one file, you want the
             dead air gone, and installing a desktop editor to do it once
@@ -388,6 +460,7 @@ export default function SilenceRemovePage() {
                 <Link
                   key={tool.slug}
                   href={`/${tool.slug}`}
+                  prefetch={false}
                   className="rounded-xl border border-graphite-800 bg-graphite-900 p-4 hover:border-amber-500/40 transition-colors"
                 >
                   <h3 className="font-semibold text-text-primary">{tool.name}</h3>

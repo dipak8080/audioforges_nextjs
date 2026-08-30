@@ -31,6 +31,22 @@ interface ThresholdMeterProps {
    * third of the range). Defaults suit a dB threshold; pass your own
    * for a differently-shaped scale. */
   zoneLabels?: [string, string, string];
+  /**
+   * Which end of the scale is the "hot" one.
+   *
+   * "hot-to-cool" (the default) is the dB-threshold reading this was built
+   * for: the low end is aggressive, the high end conservative. Reverse it for
+   * a scale where MORE is more — a noise-reduction strength, where 0 is barely
+   * touching the file and the top is warbling artifacts.
+   */
+  gradient?: "hot-to-cool" | "cool-to-hot";
+  /**
+   * Absolute value boundaries between the three zones. Defaults to thirds of
+   * the range, which is right when the scale has no meaningful landmarks —
+   * and wrong when it does: a 0.01–97 strength scale has its "getting
+   * aggressive" point around 45, not at 32.34.
+   */
+  zoneAt?: [number, number];
 }
 
 /** Zoned, draggable, keyboard-operable meter — a generic "aggressive ↔
@@ -45,6 +61,8 @@ export function ThresholdMeter({
   onChange,
   unit = "dB",
   zoneLabels = ["Aggressive", "Balanced", "Conservative"],
+  gradient = "hot-to-cool",
+  zoneAt,
 }: ThresholdMeterProps) {
   const trackRef = useRef<HTMLDivElement>(null);
   const [dragging, setDragging] = useState(false);
@@ -61,9 +79,9 @@ export function ThresholdMeter({
   }, [min, max]);
 
   const zoneFor = (v: number): string => {
-    const fraction = (v - min) / (max - min);
-    if (fraction <= 1 / 3) return zoneLabels[0];
-    if (fraction <= 2 / 3) return zoneLabels[1];
+    const [first, second] = zoneAt ?? [min + (max - min) / 3, min + ((max - min) * 2) / 3];
+    if (v <= first) return zoneLabels[0];
+    if (v <= second) return zoneLabels[1];
     return zoneLabels[2];
   };
 
@@ -72,7 +90,8 @@ export function ThresholdMeter({
       if (!trackRef.current) return;
       const rect = trackRef.current.getBoundingClientRect();
       const fraction = clamp((clientX - rect.left) / rect.width, 0, 1);
-      onChange(Math.round(clamp(min + fraction * (max - min), min, max)));
+      const next = Math.round(clamp(min + fraction * (max - min), min, max));
+      if (Number.isFinite(next)) onChange(next);
     },
     [min, max, onChange]
   );
@@ -83,9 +102,13 @@ export function ThresholdMeter({
     const onUp = () => setDragging(false);
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
+    // pointercancel too: an interrupted drag otherwise leaves `dragging` true
+    // and these listeners attached until the next pointerup anywhere.
+    window.addEventListener("pointercancel", onUp);
     return () => {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
     };
   }, [dragging, setFromClientX]);
 
@@ -117,7 +140,9 @@ export function ThresholdMeter({
         className="relative h-3 rounded-full shadow-[inset_0_1px_2px_rgba(0,0,0,0.35)]"
         style={{
           background:
-            "linear-gradient(to right, rgb(248 113 113 / 0.5), rgb(245 158 11 / 0.45) 50%, rgb(45 212 191 / 0.4))",
+            gradient === "cool-to-hot"
+              ? "linear-gradient(to right, rgb(45 212 191 / 0.4), rgb(245 158 11 / 0.45) 50%, rgb(248 113 113 / 0.5))"
+              : "linear-gradient(to right, rgb(248 113 113 / 0.5), rgb(245 158 11 / 0.45) 50%, rgb(45 212 191 / 0.4))",
         }}
         onPointerDown={(e) => {
           if (disabled) return;

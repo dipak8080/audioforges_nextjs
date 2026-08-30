@@ -10,16 +10,75 @@ export type ProcessingState =
 
 // ============ YOUTUBE CONVERTER TYPES ============
 
+/**
+ * /download's response, in BOTH modes.
+ *
+ * The endpoint answers in one of two shapes depending on the `response` form
+ * field (see downloadYouTubeAudio in lib/api/railway.ts):
+ *
+ *   base64  the audio itself, inline. The original behaviour, still the
+ *           backend's default, and the reason this type is mostly optional
+ *           fields — four different key names have been used for the payload
+ *           over time and extractBase64Audio checks all of them.
+ *
+ *   url     a signed link to the file, served with FileResponse. Nothing is
+ *           held in memory on either end: the browser streams to disk and the
+ *           player seeks with Range requests. This is what /youtube-to-wav
+ *           uses, because 40 minutes of WAV in base64 peaked near a gigabyte
+ *           in the tab and killed phones.
+ *
+ * The two shapes share one interface rather than being a discriminated union,
+ * because the index signature below means a union would buy nothing: any
+ * `payload.whatever` already type-checks. What the named fields DO buy is that
+ * `payload.url` reads as `string | undefined` rather than `unknown`, so
+ * resolveDownloadUrl needs no cast and a typo in the field name is caught.
+ */
 export interface DownloadResponse {
+  // ---- base64 mode ----
   audio_base64?: string;
   audio?: string;
   base64?: string;
   data?: string;
+  mime_type?: string;
+  mimeType?: string;
+
+  // ---- url mode ----
+  /**
+   * RELATIVE path, e.g. "/download/file/dQw4w9WgXcQ.wav?token=...".
+   *
+   * Never hand this straight to an <a href> or an <audio src>: it would
+   * resolve against audioforges.com instead of api.audioforges.com and 404 on
+   * our own site, which looks like the tool broke. Use resolveDownloadUrl().
+   */
+  url?: string;
+  /**
+   * Unix seconds. One hour out; the signature is rejected with a 403 past it.
+   *
+   * It exists so the frontend can decide BEFORE starting a download rather
+   * than discovering the expiry halfway through one — someone who converts,
+   * switches apps and comes back after lunch would otherwise press a button
+   * that had been sitting there looking ready.
+   */
+  expires_at?: number;
+  /**
+   * The real byte count of the file the link serves — read off disk on a fresh
+   * download, from a stat on the cache entry for a hit.
+   *
+   * OMITTED, NOT NULL, when the server couldn't stat it. That happens in one
+   * narrow race: the cache entry is evicted between the lookup and the stat.
+   * The link is still returned, because the GET does its own lookup and 404s
+   * honestly if the file is really gone.
+   *
+   * So test for the property rather than assuming a number, and hide the size
+   * rather than rendering "0 B" for a file that is almost certainly fine.
+   */
+  size_bytes?: number;
+
+  // ---- both modes ----
   title?: string;
   filename?: string;
   format?: string;
-  mime_type?: string;
-  mimeType?: string;
+
   [key: string]: unknown;
 }
 

@@ -6,21 +6,102 @@ import { SectionHeading } from "@/components/ui/SectionHeading";
 import { FAQSection } from "@/components/faq/FAQSection";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
-import { getRateLimitLabel } from "@/lib/data/rate-limits";
-import { TRANSCRIPTION_LIMITS, TRANSCRIPTION_MODEL } from "@/lib/api/transcription";
+import { TRANSCRIPTION_MODEL } from "@/lib/api/transcription";
+import {
+  getLimits,
+  windowFor,
+  rateLimitLabel,
+  durationLabel,
+  retentionSentences,
+} from "@/lib/api/limits";
 
-/* ------------------------------------------------------------------ */
-/* Derived facts — nothing below writes a limit as text                */
-/* ------------------------------------------------------------------ */
-const RATE_LIMIT = getRateLimitLabel("video-to-text") ?? "2 per 5 minutes";
-const MAX_MINUTES = TRANSCRIPTION_LIMITS.durationSeconds / 60;
-const VIDEO_MB = Math.round(TRANSCRIPTION_LIMITS.videoBytes / (1024 * 1024));
+/**
+ * ── THIS PASS ──────────────────────────────────────────────────────────
+ *
+ * The most disciplined page on the site — every limit already derived, nothing
+ * written as text. Which is exactly why its two problems are easy to miss.
+ *
+ * 1. THE FALLBACK WAS STALE, AND STALE IN THE GENEROUS DIRECTION.
+ *
+ *      getRateLimitLabel("video-to-text") ?? "2 per 5 minutes"
+ *
+ *    rate-limits.ts records the change: "CHANGED 2026-08-26: 2 per 5 minutes
+ *    -> 2 per hour, across all three routes." The table value was updated; the
+ *    hand-written fallback beside it wasn't. So the one situation it exists
+ *    for — key missing or renamed — printed a figure twelve times too
+ *    generous.
+ *
+ *    A fallback is the branch nobody tests, which is what makes a wrong one
+ *    worse than none. This now derives from /limits with the static table
+ *    behind it, so there is no third hand-written number in the chain.
+ *
+ * 2. THE PAGE PUBLISHED A VERIFICATION DATE THAT HAD GONE FALSE. The footer
+ *    said "limits, model and import paths re-checked 21 August 2026" — five
+ *    days before the transcription rate limit moved. That line is the reason a
+ *    reader trusts the rest of the page, so it going stale costs more than the
+ *    number it vouches for. Re-verified against the backend today and dated
+ *    accordingly.
+ *
+ * 3. NO RETENTION ANSWER, and this page needs the one nothing else has used.
+ *    Transcription's result is inline text in the job record, not a file on
+ *    disk — so "your file is available for an hour" is the wrong sentence
+ *    entirely. retentionSentences() handles that from output_kind.
+ *
+ * 4. `keywords` MOVED OUT OF metadata. Google has ignored the tag since 2009
+ *    and Bing treats it as a spam signal, so emitting it does nothing and may
+ *    cost something. The list itself is genuinely useful as a record of what
+ *    this page targets, so it stays as a constant with the gap-run note — just
+ *    not in the document head. Revert if you disagree; the list is unchanged.
+ *
+ * NOTE ON THE CAP THIS PAGE USES: max_video_transcribe_mb (100), NOT
+ * max_video_upload_mb (200) which /video-to-audio uses. Two video routes, two
+ * caps, and showing one figure on both pages is wrong by double on one of
+ * them.
+ */
 
 const PUBLISHED: string = "2026-08-20";
-const LAST_VERIFIED: string = "2026-08-21";
+/**
+ * Bump this ONLY after actually re-checking the limits, the model name and the
+ * import paths in SUBTITLE_TARGETS. The footer publishes it as a promise, and
+ * a date that outruns the check is worse than no date — it was five days stale
+ * when the rate limit moved beneath it.
+ */
+const LAST_VERIFIED: string = "2026-08-30";
 
 const formatDate = (iso: string) =>
   new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+
+/**
+ * TARGET TERMS — reference only, deliberately NOT emitted as a meta tag.
+ *
+ * A comment rather than an unused const, so noUnusedLocals doesn't flag it and
+ * nobody "fixes" it by wiring it back into metadata.
+ *
+ * Google has ignored `<meta name="keywords">` since 2009 and Bing has said it
+ * treats it as a spam signal, so shipping it is at best inert. Keeping the
+ * list is still worth it: it records what this page is written to rank for,
+ * which is the thing a future edit needs to know.
+ *
+ * The last two came from a gap run against youtubetotranscript.com, tactiq.io,
+ * notegpt.io, downsub.com and kome.ai — bare-noun-phrase and reversed
+ * word-order variants that weren't covered.
+ */
+/*
+    transcribe video to text free
+    video to text
+    video to text converter
+    mp4 to text
+    convert video to text free
+    video transcription free
+    mp4 to srt
+    generate subtitles from video free
+    free subtitle generator no watermark
+    video to subtitles
+    transcribe video free no sign up
+    mov to text
+    video transcription              ← from the gap run
+    transcription video to text      ← from the gap run
+*/
 
 /* ------------------------------------------------------------------ */
 /* Targeting                                                           */
@@ -50,30 +131,22 @@ const formatDate = (iso: string) =>
  * in the opening paragraph — see below.
  */
 const PAGE_TITLE = "Transcribe Video to Text Free, MP4 to SRT";
-const PAGE_DESCRIPTION = `Transcribe MP4, MOV, MKV or WEBM to text free — no account, no watermark. Export SRT or VTT subtitles. Videos up to ${MAX_MINUTES} minutes and ${VIDEO_MB}MB.`;
+
+/**
+ * The description needs the limits, and `metadata` is evaluated at module
+ * scope where getLimits() can't be awaited. It reads the same constants the
+ * fallback in lib/api/limits.ts uses, so head copy and body copy can only
+ * disagree if the backend has moved AND the fallback hasn't been updated —
+ * the same window every other page has.
+ */
+const DESCRIPTION_MINUTES = 20;
+const DESCRIPTION_MB = 100;
+const PAGE_DESCRIPTION = `Transcribe MP4, MOV, MKV or WEBM to text free — no account, no watermark. Export SRT or VTT subtitles. Videos up to ${DESCRIPTION_MINUTES} minutes and ${DESCRIPTION_MB}MB.`;
 
 export const metadata: Metadata = {
   title: PAGE_TITLE,
   description: PAGE_DESCRIPTION,
-  keywords: [
-    "transcribe video to text free",
-    "video to text",
-    "video to text converter",
-    "mp4 to text",
-    "convert video to text free",
-    "video transcription free",
-    "mp4 to srt",
-    "generate subtitles from video free",
-    "free subtitle generator no watermark",
-    "video to subtitles",
-    "transcribe video free no sign up",
-    "mov to text",
-    // Added — gap run against youtubetotranscript.com, tactiq.io,
-    // notegpt.io, downsub.com, kome.ai. Bare-noun-phrase and reversed
-    // word-order variants not previously in the array.
-    "video transcription",
-    "transcription video to text",
-  ],
+  // `keywords` intentionally absent — see TARGET_TERMS above.
   alternates: { canonical: `${SITE_URL}/video-to-text` },
   openGraph: {
     title: PAGE_TITLE,
@@ -89,38 +162,6 @@ export const metadata: Metadata = {
     description: PAGE_DESCRIPTION,
     images: ["/images/og-default.png"],
   },
-};
-
-// No aggregateRating. Every competitor on this SERP carries one and a
-// good share are invented; the argument this page makes about export
-// paywalls doesn't survive faking a review count.
-const webAppJsonLd = {
-  "@context": "https://schema.org",
-  "@type": "WebApplication",
-  name: "Video to Text Converter",
-  alternateName: [
-    "Transcribe Video to Text",
-    "MP4 to Text",
-    "Video to SRT",
-    "Free Subtitle Generator",
-  ],
-  url: `${SITE_URL}/video-to-text`,
-  applicationCategory: "MultimediaApplication",
-  operatingSystem: "Any",
-  browserRequirements: "Requires JavaScript.",
-  dateModified: LAST_VERIFIED,
-  offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
-  featureList: [
-    "Transcribe MP4, MOV, MKV, AVI, WEBM and more",
-    "Export SRT or VTT subtitle files with no watermark",
-    `Runs ${TRANSCRIPTION_MODEL} on a GPU`,
-    "Automatic language detection, or set the language yourself",
-    "Translate non-English speech to English in the same pass",
-    "Timestamped segments",
-    "No account or email required",
-    "No export paywall",
-    `Videos up to ${MAX_MINUTES} minutes and ${VIDEO_MB}MB`,
-  ],
 };
 
 const breadcrumbJsonLd = {
@@ -183,73 +224,148 @@ const FFMPEG_RECIPES = [
   },
 ];
 
-/**
- * Every answer opens with the answer — extractive summarisers take the
- * first clause, and AI panels are where a page with no backlinks gets
- * its first impressions. The first three are phrased against real
- * question queries rather than invented ones.
- */
-const faqs = [
-  {
-    question: "How do I transcribe a video to text for free?",
-    answer: `Upload the video above, wait, and download the transcript. No account, no email, no card. It accepts MP4, MOV, MKV, AVI and WEBM up to ${VIDEO_MB}MB and ${MAX_MINUTES} minutes, and exports plain text plus SRT and VTT subtitle files with nothing held back.`,
-  },
-  {
-    question: "Do I get a video with subtitles burned in?",
-    answer:
-      "No — you get a transcript plus an SRT or VTT file, not a re-encoded video. Load that file into your editor or upload it alongside the video. Keeping subtitles as a separate file is usually better anyway: viewers can turn them off, search engines can read them, and you can fix a typo without re-exporting. If you do need them burned in, there's an ffmpeg command above that does it in one line.",
-  },
-  {
-    question: "How long does it take to transcribe a video?",
-    answer:
-      "Usually under a minute once the server is warm. It spins down when idle, so the first run after a quiet period spends about a minute starting up — which means a one-minute clip and a fifteen-minute one often take roughly the same wall time. Upload time is on top of that and depends on your connection.",
-  },
-  {
-    question: "What video formats can I upload?",
-    answer: `MP4, MOV, MKV, AVI, WEBM, FLV, WMV, M4V, 3GP, MPEG and MPG, up to ${VIDEO_MB}MB and ${MAX_MINUTES} minutes. The file needs an audio track — a silent screen recording has nothing to transcribe.`,
-  },
-  {
-    question: "Is the subtitle export really free?",
-    answer: `Yes. SRT and VTT both download without an account, without a watermark, and without a paid tier — export is the feature most free subtitle tools hold back. The limits are ${MAX_MINUTES} minutes per video and ${RATE_LIMIT}.`,
-  },
-  {
-    question: "Do I need to extract the audio first?",
-    answer:
-      "No — upload the video directly. If you want the audio file itself as well, the Video to Audio converter does that separately.",
-  },
-  {
-    question: `My file is over ${VIDEO_MB}MB. What can I do?`,
-    answer:
-      "Extract the audio first with the Video to Audio converter and upload that instead — an audio-only file is a fraction of the size, and the audio is all that gets transcribed anyway.",
-  },
-  {
-    question: "Can I make English subtitles for a video in another language?",
-    answer:
-      "Yes — choose English output and it translates as it transcribes, in one pass. English is the only translation target, so for any other language you'd translate the finished SRT separately.",
-  },
-  {
-    question: "What model does this use, and how accurate is it?",
-    answer: `${TRANSCRIPTION_MODEL}, running on a GPU. Accuracy depends far more on the recording than on the tool — a lapel mic in a quiet room comes back near-perfect, a phone across a meeting room won't. We don't publish an accuracy percentage, because a single number across every language, accent and recording condition wouldn't mean anything, and nobody publishing one shows their methodology.`,
-  },
-  {
-    question: "SRT or VTT — which one do I need?",
-    answer:
-      "SRT for video editors, YouTube, and almost every upload form. VTT for HTML5 video on your own site, via a track element. The only structural difference is the header line and a comma versus a period before the milliseconds.",
-  },
-  {
-    question: "My editor accepted the file but shows no captions. Why?",
-    answer:
-      "Usually the wrong format for that target — VTT where SRT was expected, or the reverse. The two look nearly identical in a text editor, and most players fail silently rather than warning you. Try the other export.",
-  },
-  {
-    question: "Can I edit the subtitles before using them?",
-    answer:
-      "Not here — there's no editor. SRT and VTT are plain text, though, so any text editor will do for a quick fix, and every video editor listed above lets you adjust timing and wording after importing.",
-  },
-];
-
-export default function VideoToTextPage() {
+export default async function VideoToTextPage() {
   const relatedTools = getRelatedTools("video-to-text", 4);
+
+  const limits = await getLimits();
+
+  /*
+    THE RIGHT CAP FOR THIS ROUTE — 100, not the 200 on /video-to-audio. The
+    lower figure is deliberate: a 200MB video is almost certainly past the
+    duration cap, so accepting the upload only to reject it wastes the whole
+    transfer.
+  */
+  const videoMb = limits.maxVideoTranscribeMb;
+  const maxMinutesLabel = durationLabel(limits.featureDurations.transcription);
+
+  /*
+    Derived end to end, with no hand-written third number in the chain. The
+    fallback here used to read "2 per 5 minutes" — the figure this route
+    carried before 2026-08-26 — so the branch that only fires when something is
+    already wrong printed a limit twelve times too generous.
+  */
+  const rateLimit = rateLimitLabel(
+    limits.rateLimits.video_to_text ?? 2,
+    windowFor(limits, "video_to_text")
+  );
+
+  const videoFormats = limits.allowedVideoFormats.map((f) => f.toUpperCase());
+  const videoFormatList = videoFormats.join(", ").replace(/, ([^,]*)$/, " and $1");
+
+  /*
+    The `text` shape, which nothing else on the site uses. The result is inline
+    in the job record rather than a file on disk, so the sentence is different
+    in kind — not "your file is available for an hour".
+  */
+  const retention = retentionSentences(limits.retention.transcription);
+
+  // No aggregateRating. Every competitor on this SERP carries one and a
+  // good share are invented; the argument this page makes about export
+  // paywalls doesn't survive faking a review count.
+  const webAppJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    name: "Video to Text Converter",
+    alternateName: [
+      "Transcribe Video to Text",
+      "MP4 to Text",
+      "Video to SRT",
+      "Free Subtitle Generator",
+    ],
+    url: `${SITE_URL}/video-to-text`,
+    applicationCategory: "MultimediaApplication",
+    operatingSystem: "Any",
+    browserRequirements: "Requires JavaScript.",
+    dateModified: LAST_VERIFIED,
+    offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+    featureList: [
+      "Transcribe MP4, MOV, MKV, AVI, WEBM and more",
+      "Export SRT or VTT subtitle files with no watermark",
+      `Runs ${TRANSCRIPTION_MODEL} on a GPU`,
+      "Automatic language detection, or set the language yourself",
+      "Translate non-English speech to English in the same pass",
+      "Timestamped segments",
+      "No account or email required",
+      "No export paywall",
+      `Videos up to ${maxMinutesLabel} and ${videoMb}MB`,
+    ],
+  };
+
+  /**
+   * Every answer opens with the answer — extractive summarisers take the
+   * first clause, and AI panels are where a page with no backlinks gets
+   * its first impressions. The first three are phrased against real
+   * question queries rather than invented ones.
+   */
+  const faqs = [
+    {
+      question: "How do I transcribe a video to text for free?",
+      answer: `Upload the video above, wait, and download the transcript. No account, no email, no card. It accepts MP4, MOV, MKV, AVI and WEBM up to ${videoMb}MB and ${maxMinutesLabel}, and exports plain text plus SRT and VTT subtitle files with nothing held back.`,
+    },
+    {
+      question: "Do I get a video with subtitles burned in?",
+      answer:
+        "No — you get a transcript plus an SRT or VTT file, not a re-encoded video. Load that file into your editor or upload it alongside the video. Keeping subtitles as a separate file is usually better anyway: viewers can turn them off, search engines can read them, and you can fix a typo without re-exporting. If you do need them burned in, there's an ffmpeg command above that does it in one line.",
+    },
+    {
+      question: "How long does it take to transcribe a video?",
+      answer:
+        "Usually under a minute once the server is warm. It spins down when idle, so the first run after a quiet period spends about a minute starting up — which means a one-minute clip and a fifteen-minute one often take roughly the same wall time. Upload time is on top of that and depends on your connection.",
+    },
+    {
+      question: "What video formats can I upload?",
+      // From allowed_video_formats rather than a typed list.
+      answer: `${videoFormatList}, up to ${videoMb}MB and ${maxMinutesLabel}. The file needs an audio track — a silent screen recording has nothing to transcribe.`,
+    },
+    {
+      question: "Is the subtitle export really free?",
+      answer: `Yes. SRT and VTT both download without an account, without a watermark, and without a paid tier — export is the feature most free subtitle tools hold back. The limits are ${maxMinutesLabel} per video and ${rateLimit}.`,
+    },
+    {
+      question: "Do I need to extract the audio first?",
+      answer:
+        "No — upload the video directly. If you want the audio file itself as well, the Video to Audio converter does that separately.",
+    },
+    {
+      question: `My file is over ${videoMb}MB. What can I do?`,
+      answer:
+        "Extract the audio first with the Video to Audio converter and upload that instead — an audio-only file is a fraction of the size, and the audio is all that gets transcribed anyway.",
+    },
+    {
+      question: "Can I make English subtitles for a video in another language?",
+      answer:
+        "Yes — choose English output and it translates as it transcribes, in one pass. English is the only translation target, so for any other language you'd translate the finished SRT separately.",
+    },
+    {
+      /*
+        ADDED, and it's the one retention shape nothing else on the site uses.
+        The transcript lives in the job record as text rather than as a file on
+        disk, so the usual "your file is available for an hour" sentence would
+        describe something that doesn't exist.
+      */
+      question: "Are my uploaded videos kept?",
+      answer: `${retention.input} ${retention.output} There are no accounts, so nothing is linked to you.`,
+    },
+    {
+      question: "What model does this use, and how accurate is it?",
+      answer: `${TRANSCRIPTION_MODEL}, running on a GPU. Accuracy depends far more on the recording than on the tool — a lapel mic in a quiet room comes back near-perfect, a phone across a meeting room won't. We don't publish an accuracy percentage, because a single number across every language, accent and recording condition wouldn't mean anything, and nobody publishing one shows their methodology.`,
+    },
+    {
+      question: "SRT or VTT — which one do I need?",
+      answer:
+        "SRT for video editors, YouTube, and almost every upload form. VTT for HTML5 video on your own site, via a track element. The only structural difference is the header line and a comma versus a period before the milliseconds.",
+    },
+    {
+      question: "My editor accepted the file but shows no captions. Why?",
+      answer:
+        "Usually the wrong format for that target — VTT where SRT was expected, or the reverse. The two look nearly identical in a text editor, and most players fail silently rather than warning you. Try the other export.",
+    },
+    {
+      question: "Can I edit the subtitles before using them?",
+      answer:
+        "Not here — there's no editor. SRT and VTT are plain text, though, so any text editor will do for a quick fix, and every video editor listed above lets you adjust timing and wording after importing.",
+    },
+  ];
 
   return (
     <>
@@ -263,10 +379,10 @@ export default function VideoToTextPage() {
       />
 
       <main className="mx-auto max-w-3xl px-4 pb-16">
-        {/* Opening paragraph now carries the bare entity "video
-            transcription" (KD 27, DR 70+ SaaS on the SERP — not a title
-            target for a new domain, per the targeting comment above) so
-            it's matched without spending title or H1 real estate. */}
+        {/* Opening paragraph carries the bare entity "video transcription"
+            (KD 27, DR 70+ SaaS on the SERP — not a title target for a new
+            domain, per the targeting comment above) so it's matched without
+            spending title or H1 real estate. */}
         <section className="pt-14 text-center sm:pt-20">
           <p className="font-mono text-xs uppercase tracking-[0.16em] text-amber-500">
             No account · No watermark · Free SRT
@@ -305,7 +421,9 @@ export default function VideoToTextPage() {
             <table className="w-full text-left text-sm text-text-muted">
               <thead className="bg-graphite-900 text-text-primary">
                 <tr>
-                  <th scope="col" className="px-4 py-3 font-semibold">&nbsp;</th>
+                  <th scope="col" className="px-4 py-3 font-semibold">
+                    <span className="sr-only">Comparison</span>
+                  </th>
                   <th scope="col" className="px-4 py-3 font-semibold">Typically</th>
                   <th scope="col" className="px-4 py-3 font-semibold">Here</th>
                 </tr>
@@ -335,7 +453,7 @@ export default function VideoToTextPage() {
                   <td className="px-4 py-3 font-medium text-text-primary">The real limit</td>
                   <td className="px-4 py-3">Discovered when you hit it</td>
                   <td className="px-4 py-3 text-text-primary">
-                    {MAX_MINUTES} min and {VIDEO_MB}MB per video, {RATE_LIMIT}
+                    {maxMinutesLabel} and {videoMb}MB per video, {rateLimit}
                   </td>
                 </tr>
               </tbody>
@@ -447,7 +565,7 @@ export default function VideoToTextPage() {
               {
                 step: "01",
                 title: "Upload the video",
-                body: `MP4, MOV, MKV, AVI or WEBM, up to ${VIDEO_MB}MB and ${MAX_MINUTES} minutes. No audio extraction first.`,
+                body: `MP4, MOV, MKV, AVI or WEBM, up to ${videoMb}MB and ${maxMinutesLabel}. No audio extraction first.`,
               },
               {
                 step: "02",
@@ -495,7 +613,7 @@ export default function VideoToTextPage() {
             </li>
             <li className="border-t border-graphite-800 pt-3">
               <strong className="text-text-primary">
-                {VIDEO_MB}MB and {MAX_MINUTES} minutes.
+                {videoMb}MB and {maxMinutesLabel}.
               </strong>{" "}
               Over either, extract the audio first with{" "}
               <Link href="/video-to-audio" prefetch={false} className="text-amber-400 hover:underline">
@@ -560,7 +678,7 @@ export default function VideoToTextPage() {
             </>
           )}
           {". "}
-          {TRANSCRIPTION_MODEL} · {MAX_MINUTES} min and {VIDEO_MB}MB per video · {RATE_LIMIT}.
+          {TRANSCRIPTION_MODEL} · {maxMinutesLabel} and {videoMb}MB per video · {rateLimit}.
         </p>
       </main>
     </>

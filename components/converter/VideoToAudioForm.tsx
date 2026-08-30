@@ -3,8 +3,47 @@
 import { useEffect, useState } from "react";
 import { Film } from "lucide-react";
 import { JobToolForm } from "@/components/converter/JobToolForm";
-import { cn } from "@/lib/utils/cn";
+import { ControlField, Hint, OptionCards, type CardOption } from "@/components/converter/ToolControls";
+import { getRateLimitLabel } from "@/lib/data/rate-limits";
+import { formatBytes, formatDuration, getToolLimits } from "@/lib/data/tool-limits";
 import type { FileValidationResult } from "@/lib/types/converter";
+
+/**
+ * ── THIS PASS ──────────────────────────────────────────────────────────
+ *
+ * 1. THE ONE-HOUR DURATION CAP WASN'T CHECKED, AND THE PREVIEW ALREADY KNEW.
+ *    VIDEO_EXTRACT_MAX_DURATION_SECONDS is 3600, and a 200MB file can easily
+ *    be longer than that — phone video at a low bitrate, a screen recording, a
+ *    lecture capture. Those upload in full, over a connection that makes 200MB
+ *    slow, and are refused at the end. VideoPreview was already decoding the
+ *    duration to display it; it's reported up now and gates the submit before
+ *    a byte leaves.
+ *
+ * 2. 200MB WAS WRITTEN IN THREE PLACES — the constant, the drop-zone hint and
+ *    the validator's error message. TOOL_LIMITS carries it once.
+ *
+ * 3. THE PREVIEW COULD HANG ON "Reading video…" FOREVER. It waits for
+ *    `onseeked`, and some containers fire neither that nor `onerror` — the
+ *    card then sits on its placeholder for the life of the page. A ceiling
+ *    resolves it to whatever's known, the same guard readMediaDuration
+ *    already has.
+ *
+ * 4. THE FORMAT PICKER WAS ANOTHER FAKE radiogroup. It also carried the one
+ *    piece of information that changes what this tool DOES — Fast copy versus
+ *    Re-encode — so the teal it used for "instant" is preserved through
+ *    OptionCards' new `metaTone`, rather than flattened into the standard
+ *    amber.
+ *
+ * 5. A 429 NAMES THE LIMIT.
+ */
+
+const VIDEO_LIMITS = getToolLimits("video-to-audio");
+const MAX_VIDEO_BYTES = VIDEO_LIMITS?.maxFileBytes ?? 200 * 1024 * 1024;
+const MAX_VIDEO_DURATION_SECONDS = VIDEO_LIMITS?.maxTotalDurationSeconds ?? 3600;
+const MAX_BYTES_LABEL = formatBytes(MAX_VIDEO_BYTES);
+const MAX_DURATION_LABEL = formatDuration(MAX_VIDEO_DURATION_SECONDS);
+
+const RATE_LIMIT_LABEL = getRateLimitLabel("video-to-audio");
 
 interface FormatSpec {
   value: string;
@@ -23,9 +62,22 @@ const OUTPUT_FORMATS: FormatSpec[] = [
   { value: "aiff", label: "AIFF", tag: "Re-encode", note: "Uncompressed" },
 ];
 
+/* Fast copy stays teal through the shared card: it's not a spec, it's the
+   difference between "instant" and "wait for a full re-encode". */
+const FORMAT_OPTIONS: CardOption<string>[] = OUTPUT_FORMATS.map((fmt) => ({
+  value: fmt.value,
+  title: fmt.label,
+  meta: fmt.tag,
+  metaTone: fmt.tag === "Fast copy" ? "good" : "default",
+  detail: fmt.note,
+}));
+
 const VIDEO_EXTENSIONS = ["mp4", "mov", "mkv", "avi", "webm", "flv", "wmv", "m4v", "3gp", "mpeg", "mpg"];
 const VIDEO_ACCEPT = `video/*,${VIDEO_EXTENSIONS.map((e) => `.${e}`).join(",")}`;
-const MAX_VIDEO_BYTES = 200 * 1024 * 1024; // 200MB - matches the backend's MAX_VIDEO_UPLOAD_BYTES
+
+/** Past this, the probe is treated as having failed. Some containers fire
+ *  neither `seeked` nor `error`, and the card would wait forever. */
+const PROBE_TIMEOUT_MS = 8_000;
 
 // video-to-audio is the one tool built on JobToolForm whose UPLOAD isn't
 // audio - it needed its own validator rather than the default
@@ -45,9 +97,11 @@ function validateVideoFile(file: File): FileValidationResult {
 
   if (file.size > MAX_VIDEO_BYTES) {
     const sizeMb = (file.size / (1024 * 1024)).toFixed(1);
+    // The cap comes from TOOL_LIMITS rather than being typed a second time
+    // here and a third time in the drop-zone hint.
     return {
       isValid: false,
-      error: `File too large (${sizeMb}MB). Maximum allowed size is 200MB.`,
+      error: `File too large (${sizeMb}MB). Maximum allowed size is ${MAX_BYTES_LABEL}.`,
     };
   }
 
@@ -60,9 +114,8 @@ function validateVideoFile(file: File): FileValidationResult {
 
 function formatTime(seconds: number): string {
   if (!Number.isFinite(seconds)) return "0:00";
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
-  return `${m}:${s.toString().padStart(2, "0")}`;
+  const total = Math.max(0, Math.floor(seconds));
+  return `${Math.floor(total / 60)}:${(total % 60).toString().padStart(2, "0")}`;
 }
 
 /* ------------------------------------------------------------------ */
@@ -76,22 +129,62 @@ interface VideoInfo {
   thumbnailUrl: string | null;
 }
 
-function VideoPreview({ file }: { file: File }) {
+function VideoPreview({
+  file,
+  onDuration,
+}: {
+  file: File;
+  /** Reported up so the form can gate on the duration cap. The decode is
+   *  happening either way; the number was just being thrown away. */
+  onDuration: (seconds: number | null) => void;
+}) {
   const [info, setInfo] = useState<VideoInfo | null>(null);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
+    let settled = false;
     setInfo(null);
     setFailed(false);
+    onDuration(null);
 
     const objectUrl = URL.createObjectURL(file);
     const video = document.createElement("video");
     video.preload = "metadata";
     video.muted = true;
-    video.src = objectUrl;
 
     const cleanup = () => URL.revokeObjectURL(objectUrl);
+
+    const finish = (next: VideoInfo | null) => {
+      if (settled || cancelled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (next) {
+        setInfo(next);
+        onDuration(Number.isFinite(next.duration) ? next.duration : null);
+      } else {
+        setFailed(true);
+        onDuration(null);
+      }
+      cleanup();
+    };
+
+    // Neither `seeked` nor `error` is guaranteed to fire — on those
+    // containers the card used to sit on "Reading video…" for the life of
+    // the page. Resolve to whatever metadata arrived, or to failed.
+    const timer = setTimeout(() => {
+      const duration = video.duration;
+      if (Number.isFinite(duration) && duration > 0) {
+        finish({
+          duration,
+          width: video.videoWidth,
+          height: video.videoHeight,
+          thumbnailUrl: null,
+        });
+      } else {
+        finish(null);
+      }
+    }, PROBE_TIMEOUT_MS);
 
     video.onloadedmetadata = () => {
       if (cancelled) return;
@@ -103,40 +196,47 @@ function VideoPreview({ file }: { file: File }) {
 
     video.onseeked = () => {
       if (cancelled) return;
+      const base = {
+        duration: video.duration,
+        width: video.videoWidth,
+        height: video.videoHeight,
+      };
       try {
         const canvas = document.createElement("canvas");
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
         const ctx = canvas.getContext("2d");
         ctx?.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const thumbnailUrl = canvas.toDataURL("image/jpeg", 0.7);
-        setInfo({ duration: video.duration, width: video.videoWidth, height: video.videoHeight, thumbnailUrl });
+        finish({ ...base, thumbnailUrl: canvas.toDataURL("image/jpeg", 0.7) });
       } catch {
         // Some codecs decode metadata fine but refuse canvas capture
         // (rare, but happens with certain hardware-decoded formats) —
         // fall back to numbers only, no thumbnail.
-        setInfo({ duration: video.duration, width: video.videoWidth, height: video.videoHeight, thumbnailUrl: null });
-      } finally {
-        cleanup();
+        finish({ ...base, thumbnailUrl: null });
       }
     };
 
-    video.onerror = () => {
-      if (!cancelled) setFailed(true);
-      cleanup();
-    };
+    video.onerror = () => finish(null);
+    video.src = objectUrl;
 
     return () => {
       cancelled = true;
+      clearTimeout(timer);
+      video.onloadedmetadata = null;
+      video.onseeked = null;
+      video.onerror = null;
       cleanup();
     };
+    // onDuration is a stable setState from the parent; including it would
+    // re-probe the file on every unrelated render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [file]);
 
   if (failed) return null; // Extraction still works — this is cosmetic only.
 
   return (
-    <div className="flex items-center gap-3.5 rounded-lg border border-graphite-800 bg-graphite-850/60 p-3">
-      <div className="flex h-14 w-24 shrink-0 items-center justify-center overflow-hidden rounded-md bg-graphite-800">
+    <div className="flex items-center gap-3.5 rounded-xl border border-graphite-800 bg-graphite-850/60 p-3">
+      <div className="flex h-14 w-24 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-graphite-800">
         {info?.thumbnailUrl ? (
           /* eslint-disable-next-line @next/next/no-img-element */
           <img src={info.thumbnailUrl} alt="" className="h-full w-full object-cover" />
@@ -160,13 +260,18 @@ function VideoPreview({ file }: { file: File }) {
 
 export function VideoToAudioForm() {
   const [format, setFormat] = useState("m4a");
+  const [duration, setDuration] = useState<number | null>(null);
   const activeSpec = OUTPUT_FORMATS.find((f) => f.value === format) ?? OUTPUT_FORMATS[0];
+
+  // null means the browser couldn't read it — let the server decide rather
+  // than blocking a file that may be perfectly valid.
+  const tooLong = duration !== null && duration > MAX_VIDEO_DURATION_SECONDS;
 
   return (
     <JobToolForm
       endpoint="video-to-audio"
       fileAccept={VIDEO_ACCEPT}
-      fileHint={`${VIDEO_EXTENSIONS.slice(0, 5).join(", ").toUpperCase()}, and more — up to 200MB`}
+      fileHint={`${VIDEO_EXTENSIONS.slice(0, 5).join(", ").toUpperCase()}, and more — up to ${MAX_BYTES_LABEL}, ${MAX_DURATION_LABEL}`}
       validateFile={validateVideoFile}
       pollIntervalMs={3000}
       submitTimeoutMs={120_000}
@@ -177,72 +282,53 @@ export function VideoToAudioForm() {
       expectedRange="under a minute, faster for M4A/AAC"
       resultVerb="Extracted"
       downloadFilename={format}
+      rateLimitMessage={
+        RATE_LIMIT_LABEL
+          ? `Video extraction is limited to ${RATE_LIMIT_LABEL}. Wait for the timer, then run it again.`
+          : undefined
+      }
       stages={[
         { at: 0, label: "Reading the video container" },
         { at: 3, label: activeSpec.tag === "Fast copy" ? "Copying the audio track" : "Re-encoding the audio" },
         { at: 8, label: "Writing the output file" },
       ]}
-      buildExtraFields={() => ({ target_format: format })}
+      /*
+        200MB over a slow connection is a long upload to spend on a file the
+        server will refuse on length. The preview has already decoded the
+        duration by the time anyone reaches the button.
+      */
+      buildExtraFields={() => (tooLong ? null : { target_format: format })}
+      missingFieldsMessage={
+        tooLong && duration !== null
+          ? `This video is ${formatTime(duration)}. Extraction is limited to ${MAX_DURATION_LABEL} — trim it first, or extract a shorter clip.`
+          : undefined
+      }
       renderControls={(file, disabled) => (
         <div className="space-y-4">
-          {file && <VideoPreview file={file} />}
+          {file && <VideoPreview file={file} onDuration={setDuration} />}
 
-          <fieldset className="space-y-2" disabled={disabled}>
-            <legend className="mb-2 text-sm font-medium text-text-primary">Output format</legend>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" role="radiogroup" aria-label="Output format">
-              {OUTPUT_FORMATS.map((fmt) => {
-                const selected = format === fmt.value;
-                return (
-                  <button
-                    key={fmt.value}
-                    type="button"
-                    role="radio"
-                    aria-checked={selected}
-                    onClick={() => setFormat(fmt.value)}
-                    disabled={disabled}
-                    className={cn(
-                      "rounded-lg border p-3 text-left transition-all",
-                      "focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40",
-                      "disabled:cursor-not-allowed disabled:opacity-40",
-                      selected
-                        ? "border-amber-500/60 bg-amber-500/[0.07]"
-                        : "border-graphite-700 bg-graphite-850 hover:border-graphite-700/60 hover:bg-graphite-800/60"
-                    )}
-                  >
-                    <div className="flex items-baseline justify-between gap-1">
-                      <span
-                        className={cn(
-                          "font-mono text-sm font-semibold uppercase",
-                          selected ? "text-amber-400" : "text-text-primary"
-                        )}
-                      >
-                        {fmt.label}
-                      </span>
-                      <span
-                        className={cn(
-                          "text-[9px] font-medium uppercase tracking-wide",
-                          fmt.tag === "Fast copy"
-                            ? selected
-                              ? "text-teal-400"
-                              : "text-teal-500/70"
-                            : selected
-                              ? "text-amber-500/80"
-                              : "text-text-subtle"
-                        )}
-                      >
-                        {fmt.tag}
-                      </span>
-                    </div>
-                    <p className="mt-1 text-[11px] leading-snug text-text-muted">{fmt.note}</p>
-                  </button>
-                );
-              })}
-            </div>
-            <p className="text-[11px] leading-snug text-text-subtle">
-              Most videos carry AAC audio — choosing M4A or AAC copies it out losslessly and finishes almost
-              instantly. Every other format requires a full re-encode, which takes longer.
-            </p>
-          </fieldset>
+          {tooLong && duration !== null && (
+            <Hint tone="bad" title={`Too long to extract (${formatTime(duration)})`}>
+              The limit is {MAX_DURATION_LABEL}. Nothing has been uploaded — trim the video first, or
+              use a shorter clip.
+            </Hint>
+          )}
+
+          <ControlField
+            as="fieldset"
+            label="Output format"
+            hint="Most videos carry AAC audio — choosing M4A or AAC copies it out losslessly and finishes almost instantly. Every other format requires a full re-encode, which takes longer."
+          >
+            <OptionCards
+              label="Output format"
+              options={FORMAT_OPTIONS}
+              value={format}
+              onChange={setFormat}
+              columns={4}
+              disabled={disabled}
+              mono
+            />
+          </ControlField>
         </div>
       )}
     />

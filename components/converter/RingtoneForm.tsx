@@ -1,24 +1,79 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Play, Square, Loader2, ChevronUp, ChevronDown } from "lucide-react";
+import { Play, Square, Loader2 } from "lucide-react";
 import { JobToolForm } from "@/components/converter/JobToolForm";
+import { ControlField, Stepper } from "@/components/converter/ToolControls";
 import { WaveformCanvas, WAVEFORM_RULER_HEIGHT } from "@/components/ui/WaveformCanvas";
+import { Button } from "@/components/ui/Button";
+import { getRateLimitLabel } from "@/lib/data/rate-limits";
+import { getToolLimits } from "@/lib/data/tool-limits";
 import { cn } from "@/lib/utils/cn";
 import { computeWaveformEnvelopeAsync, type WaveformEnvelope } from "@/lib/utils/waveform";
 
-const RINGTONE_MAX_SECONDS = 40;
+/**
+ * ── THIS PASS ──────────────────────────────────────────────────────────
+ *
+ * The drag handling, the move-anchor offset, the rAF playhead and the
+ * one-update-per-gesture contract are untouched.
+ *
+ * 1. `interface Window` SHADOWED THE DOM'S Window TYPE for this entire module.
+ *    It happens to compile — `window.AudioContext` is a value lookup, not a
+ *    type one — but any future `let w: Window` in this file silently means
+ *    "{ start, duration }", and that is the kind of thing you debug for an
+ *    hour. Renamed to RingtoneWindow.
+ *
+ * 2. FOUR BUTTONS ALL ANNOUNCED "Increase". The local Stepper took no label,
+ *    so both instances rendered aria-label="Increase" / "Decrease" — four
+ *    identical controls on one screen with nothing distinguishing start from
+ *    length. The kit's version derives them from the field label.
+ *
+ * 3. THE 40-SECOND CAP WAS TYPED IN. It mirrors RINGTONE_MAX_DURATION_SECONDS,
+ *    and TOOL_LIMITS already carries it. Same rule as every other number here:
+ *    read it, don't restate it.
+ *
+ * 4. THE HANDLES ANNOUNCED THE WRONG RANGE. Both used the whole file length as
+ *    aria-valuemax, but the start edge can only reach (length − window) and the
+ *    end edge is capped by the 40s ceiling. Announced maxima are the effective
+ *    ones now.
+ *
+ * 5. AN AudioContext PER FILE, and `await audio.play().catch(…)` followed by an
+ *    unconditional setIsPreviewing(true) — so a rejected play left the button
+ *    reading "Stop" over silence.
+ *
+ * 6. A 429 NAMES THE LIMIT. Key is `ringtone-maker` (the public slug), while
+ *    the endpoint is `ringtone`.
+ */
+
+const RINGTONE_MAX_SECONDS = getToolLimits("ringtone-maker")?.maxTotalDurationSeconds ?? 40;
+const RATE_LIMIT_LABEL = getRateLimitLabel("ringtone-maker");
+
 const KEY_STEP = 1;
 const KEY_STEP_LARGE = 5;
 /** Shortest ringtone worth producing, and the gap the two handles keep
  *  between each other so they can never cross. */
 const MIN_WINDOW = 1;
 
+/**
+ * One AudioContext for the page, created on first use, never closed. Chrome
+ * throws past six per document and construction opens an audio device.
+ */
+let sharedCtx: AudioContext | null = null;
+
+function getAudioContext(): AudioContext {
+  if (!sharedCtx) {
+    const Ctx =
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    sharedCtx = new Ctx();
+  }
+  return sharedCtx;
+}
+
 function formatTime(seconds: number): string {
   if (!Number.isFinite(seconds)) return "0:00";
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
-  return `${m}:${s.toString().padStart(2, "0")}`;
+  const total = Math.max(0, Math.floor(seconds));
+  return `${Math.floor(total / 60)}:${(total % 60).toString().padStart(2, "0")}`;
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -27,7 +82,9 @@ function clamp(value: number, min: number, max: number): number {
 
 type DragTarget = "start" | "end" | "move" | null;
 
-interface Window {
+/** NOT `Window`. That name is the DOM's, and shadowing it module-wide is a
+ *  trap for anything later in this file that wants the real one. */
+interface RingtoneWindow {
   start: number;
   duration: number;
 }
@@ -60,11 +117,13 @@ function SelectionWindow({
      null means "untouched": the window shown is derived from the props
      clamped to the real track length, so nothing has to write state in
      an effect on mount. */
-  const [local, setLocal] = useState<Window | null>(null);
+  const [local, setLocal] = useState<RingtoneWindow | null>(null);
 
-  const maxWindow = fileDuration ? Math.min(RINGTONE_MAX_SECONDS, fileDuration) : RINGTONE_MAX_SECONDS;
+  const maxWindow = fileDuration
+    ? Math.min(RINGTONE_MAX_SECONDS, fileDuration)
+    : RINGTONE_MAX_SECONDS;
   const fallbackDuration = clamp(committedDuration, MIN_WINDOW, maxWindow);
-  const fallback: Window = {
+  const fallback: RingtoneWindow = {
     start: clamp(committedStart, 0, Math.max(0, (fileDuration ?? 0) - fallbackDuration)),
     duration: fallbackDuration,
   };
@@ -80,7 +139,7 @@ function SelectionWindow({
   /** Where the pointer grabbed the window, so a move drag keeps its
    *  offset instead of snapping the window's start to the cursor. */
   const moveAnchorRef = useRef<{ pointerTime: number; start: number } | null>(null);
-  const windowRef = useRef<Window>({ start, duration });
+  const windowRef = useRef<RingtoneWindow>({ start, duration });
   const fileDurationRef = useRef<number | null>(null);
   const onChangeRef = useRef(onChange);
   const defaultSentRef = useRef(false);
@@ -109,18 +168,13 @@ function SelectionWindow({
     (async () => {
       try {
         const arrayBuffer = await file.arrayBuffer();
-        const Ctx =
-          window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-        const ctx = new Ctx();
-        try {
-          const buffer = await ctx.decodeAudioData(arrayBuffer);
-          // Scanned in slices so a long file can't block the main
-          // thread in one go — see computeWaveformEnvelopeAsync.
-          const next = await computeWaveformEnvelopeAsync(buffer, undefined, abort.signal);
-          if (!cancelled) setEnvelope(next);
-        } finally {
-          ctx.close();
-        }
+        // The shared context, not one built and closed per file.
+        const buffer = await getAudioContext().decodeAudioData(arrayBuffer);
+        if (cancelled) return;
+        // Scanned in slices so a long file can't block the main
+        // thread in one go — see computeWaveformEnvelopeAsync.
+        const next = await computeWaveformEnvelopeAsync(buffer, undefined, abort.signal);
+        if (!cancelled) setEnvelope(next);
       } catch {
         // decodeAudioData supports fewer formats than <audio> does, so a
         // failure here costs the drawing only — duration, handles and
@@ -174,14 +228,18 @@ function SelectionWindow({
   useEffect(() => {
     if (fileDuration === null || defaultSentRef.current) return;
     defaultSentRef.current = true;
-    const cappedDuration = clamp(committedDuration, MIN_WINDOW, Math.min(RINGTONE_MAX_SECONDS, fileDuration));
+    const cappedDuration = clamp(
+      committedDuration,
+      MIN_WINDOW,
+      Math.min(RINGTONE_MAX_SECONDS, fileDuration)
+    );
     const cappedStart = clamp(committedStart, 0, Math.max(0, fileDuration - cappedDuration));
     onChangeRef.current(cappedStart, cappedDuration);
   }, [fileDuration, committedStart, committedDuration]);
 
   /** Update the visible window and tell the parent — used for discrete
    *  edits (steppers, keyboard) that end immediately. */
-  const commit = useCallback((next: Window) => {
+  const commit = useCallback((next: RingtoneWindow) => {
     setLocal(next);
     onChangeRef.current(next.start, next.duration);
   }, []);
@@ -199,7 +257,17 @@ function SelectionWindow({
     const audio = audioElRef.current;
     if (!audio || fileDuration === null) return;
     audio.currentTime = start;
-    await audio.play().catch(() => {});
+
+    // Only claim to be playing if play() actually resolved. The old code
+    // swallowed the rejection and set the flag anyway, so a blocked play left
+    // the button reading "Stop" over silence.
+    try {
+      await audio.play();
+    } catch {
+      setIsPreviewing(false);
+      return;
+    }
+
     setIsPreviewing(true);
     if (previewStopRef.current) clearTimeout(previewStopRef.current);
     previewStopRef.current = setTimeout(() => stopPreview(), duration * 1000);
@@ -282,12 +350,20 @@ function SelectionWindow({
         const nextStart = clamp(time, Math.max(0, currentEnd - cap), currentEnd - MIN_WINDOW);
         setLocal({ start: nextStart, duration: currentEnd - nextStart });
       } else if (target === "end") {
-        const nextEnd = clamp(time, current.start + MIN_WINDOW, Math.min(total, current.start + cap));
+        const nextEnd = clamp(
+          time,
+          current.start + MIN_WINDOW,
+          Math.min(total, current.start + cap)
+        );
         setLocal({ start: current.start, duration: nextEnd - current.start });
       } else {
         const anchor = moveAnchorRef.current;
         if (!anchor) return;
-        const nextStart = clamp(anchor.start + (time - anchor.pointerTime), 0, total - current.duration);
+        const nextStart = clamp(
+          anchor.start + (time - anchor.pointerTime),
+          0,
+          total - current.duration
+        );
         setLocal({ start: nextStart, duration: current.duration });
       }
     };
@@ -359,17 +435,27 @@ function SelectionWindow({
   const handleKeyDown = (target: "start" | "end") => (e: React.KeyboardEvent) => {
     if (disabled || fileDuration === null) return;
     const step = e.shiftKey ? KEY_STEP_LARGE : KEY_STEP;
-    if (e.key === "ArrowLeft") {
+    const which = target === "start" ? "start" : "duration";
+    if (e.key === "ArrowLeft" || e.key === "ArrowDown") {
       e.preventDefault();
-      nudge(target === "start" ? "start" : "duration", -step);
-    } else if (e.key === "ArrowRight") {
+      nudge(which, -step);
+    } else if (e.key === "ArrowRight" || e.key === "ArrowUp") {
       e.preventDefault();
-      nudge(target === "start" ? "start" : "duration", step);
+      nudge(which, step);
     }
   };
 
   const startPercent = fileDuration ? (start / fileDuration) * 100 : 0;
   const endPercent = fileDuration ? (end / fileDuration) * 100 : 0;
+
+  /* What each edge can ACTUALLY reach. Both used to announce the whole file
+     length, so on a 3-minute track a screen reader was told the start handle
+     could go to 3:00 when the window's own length caps it well short. */
+  const maxStart = fileDuration === null ? 0 : Math.max(0, fileDuration - duration);
+  const maxEnd =
+    fileDuration === null
+      ? 0
+      : Math.min(fileDuration, start + Math.min(RINGTONE_MAX_SECONDS, fileDuration));
 
   // The <audio> element is mounted unconditionally, before the branch
   // below: it's what reports the duration, so returning early on
@@ -380,24 +466,29 @@ function SelectionWindow({
     <div className="space-y-3">
       <audio ref={audioElRef} preload="metadata" />
 
-      <div className="flex items-center justify-between">
-        <label className="text-sm font-medium text-text-primary">Ringtone window</label>
-        <span className="font-mono text-sm text-amber-400">
-          {formatTime(start)} – {formatTime(end)}
-        </span>
-      </div>
-
       {fileDuration === null ? (
-        <div className="flex h-28 items-center justify-center gap-2 rounded-lg border border-graphite-700 bg-graphite-850 text-xs text-text-subtle">
-          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          Reading track…
-        </div>
-      ) : (
         <>
+          <span className="text-sm font-medium text-text-primary">Ringtone window</span>
+          <div className="flex h-28 items-center justify-center gap-2 rounded-xl border border-graphite-700 bg-graphite-850 text-xs text-text-subtle">
+            <Loader2 className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
+            Reading track…
+          </div>
+        </>
+      ) : (
+        <ControlField
+          as="fieldset"
+          label="Ringtone window"
+          meta={
+            <span className="text-[13px] text-amber-400">
+              {formatTime(start)} – {formatTime(end)}
+            </span>
+          }
+          hint={`Drag the window or its edges — iPhone ringtones max out at ${RINGTONE_MAX_SECONDS}s, capped automatically to your track's length.`}
+        >
           <div
             ref={containerRef}
             onPointerDown={handleTrackPointerDown}
-            className="relative h-28 touch-none select-none overflow-hidden rounded-lg border border-graphite-700 bg-graphite-850"
+            className="relative h-28 touch-none select-none overflow-hidden rounded-xl border border-graphite-700 bg-graphite-850"
           >
             <WaveformCanvas
               envelope={envelope}
@@ -442,7 +533,7 @@ function SelectionWindow({
               role="slider"
               aria-label="Start time"
               aria-valuemin={0}
-              aria-valuemax={fileDuration}
+              aria-valuemax={maxStart}
               aria-valuenow={start}
               aria-valuetext={formatTime(start)}
               tabIndex={disabled ? -1 : 0}
@@ -464,7 +555,7 @@ function SelectionWindow({
               role="slider"
               aria-label="End time"
               aria-valuemin={0}
-              aria-valuemax={fileDuration}
+              aria-valuemax={maxEnd}
               aria-valuenow={end}
               aria-valuetext={formatTime(end)}
               tabIndex={disabled ? -1 : 0}
@@ -482,110 +573,57 @@ function SelectionWindow({
             </div>
           </div>
 
-          {/* Numeric entry + preview */}
-          <div className="flex items-center justify-between gap-3">
-            <label className="flex items-center gap-1.5 text-xs text-text-muted">
-              Start
-              <Stepper
-                value={start}
-                disabled={disabled}
-                onIncrement={() => nudge("start", KEY_STEP)}
-                onDecrement={() => nudge("start", -KEY_STEP)}
-                onChange={(v) => commit({ start: clamp(v, 0, fileDuration - duration), duration })}
-                max={fileDuration}
-              />
-              s
-            </label>
-
-            <button
-              type="button"
-              onClick={isPreviewing ? stopPreview : startPreview}
+          {/* Numeric entry + preview. The kit's Stepper names its own arrows
+              from the label — the local one took no label, so all four of
+              these buttons announced "Increase" or "Decrease" and nothing
+              said which field they belonged to. */}
+          <div className="flex items-center justify-between gap-3 pt-1">
+            <Stepper
+              label="Start"
+              value={start}
+              step={KEY_STEP}
+              bigStep={KEY_STEP}
+              precision={0}
+              unit="s"
               disabled={disabled}
-              className="flex items-center gap-1.5 rounded-full border border-graphite-700 bg-graphite-850 px-3.5 py-1.5 text-text-muted transition-colors hover:border-amber-500/40 hover:text-amber-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40 disabled:opacity-40"
+              onChange={(v) => commit({ start: clamp(v, 0, fileDuration - duration), duration })}
+            />
+
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={disabled}
+              aria-pressed={isPreviewing}
+              onClick={isPreviewing ? stopPreview : () => void startPreview()}
+              className="rounded-full hover:border-amber-500/40 hover:text-amber-400"
             >
-              {isPreviewing ? <Square className="h-3 w-3" fill="currentColor" /> : <Play className="h-3 w-3" fill="currentColor" />}
+              {isPreviewing ? (
+                <Square className="h-3 w-3" fill="currentColor" />
+              ) : (
+                <Play className="h-3 w-3" fill="currentColor" />
+              )}
               {isPreviewing ? "Stop" : "Preview"}
-            </button>
+            </Button>
 
-            <label className="flex items-center gap-1.5 text-xs text-text-muted">
-              Length
-              <Stepper
-                value={duration}
-                disabled={disabled}
-                onIncrement={() => nudge("duration", KEY_STEP)}
-                onDecrement={() => nudge("duration", -KEY_STEP)}
-                onChange={(v) =>
-                  commit({
-                    start,
-                    duration: clamp(v, MIN_WINDOW, Math.min(maxWindow, fileDuration - start)),
-                  })
-                }
-                max={maxWindow}
-              />
-              s
-            </label>
+            <Stepper
+              label="Length"
+              value={duration}
+              step={KEY_STEP}
+              bigStep={KEY_STEP}
+              precision={0}
+              unit="s"
+              disabled={disabled}
+              onChange={(v) =>
+                commit({
+                  start,
+                  duration: clamp(v, MIN_WINDOW, Math.min(maxWindow, fileDuration - start)),
+                })
+              }
+            />
           </div>
-
-          <p className="text-center text-xs text-text-subtle">
-            Drag the window or its edges — iPhone ringtones max out at {RINGTONE_MAX_SECONDS}s, capped
-            automatically to your track&apos;s length.
-          </p>
-        </>
+        </ControlField>
       )}
     </div>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-
-function Stepper({
-  value,
-  disabled,
-  max,
-  onIncrement,
-  onDecrement,
-  onChange,
-}: {
-  value: number;
-  disabled: boolean;
-  max: number;
-  onIncrement: () => void;
-  onDecrement: () => void;
-  onChange: (v: number) => void;
-}) {
-  return (
-    <span className="flex items-center overflow-hidden rounded-md border border-graphite-700 bg-graphite-850">
-      <input
-        type="number"
-        min={0}
-        max={max}
-        step={1}
-        value={Math.round(value)}
-        disabled={disabled}
-        onChange={(e) => onChange(Number(e.target.value))}
-        className="w-14 bg-transparent px-2 py-1 text-right font-mono text-text-primary [appearance:textfield] focus:outline-none disabled:opacity-40 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-      />
-      <span className="flex flex-col border-l border-graphite-700">
-        <button
-          type="button"
-          aria-label="Increase"
-          disabled={disabled}
-          onClick={onIncrement}
-          className="flex h-3.5 w-5 items-center justify-center text-text-subtle transition-colors hover:bg-graphite-800 hover:text-amber-400 disabled:opacity-40"
-        >
-          <ChevronUp className="h-2.5 w-2.5" />
-        </button>
-        <button
-          type="button"
-          aria-label="Decrease"
-          disabled={disabled}
-          onClick={onDecrement}
-          className="flex h-3.5 w-5 items-center justify-center border-t border-graphite-700 text-text-subtle transition-colors hover:bg-graphite-800 hover:text-amber-400 disabled:opacity-40"
-        >
-          <ChevronDown className="h-2.5 w-2.5" />
-        </button>
-      </span>
-    </span>
   );
 }
 
@@ -606,6 +644,11 @@ export function RingtoneForm() {
       expectedRange="a few seconds"
       resultVerb="Ready"
       downloadFilename="ringtone.m4r"
+      rateLimitMessage={
+        RATE_LIMIT_LABEL
+          ? `Ringtone making is limited to ${RATE_LIMIT_LABEL}. Wait for the timer, then run it again.`
+          : undefined
+      }
       stages={[
         { at: 0, label: "Trimming the selection" },
         { at: 3, label: "Encoding for iPhone" },

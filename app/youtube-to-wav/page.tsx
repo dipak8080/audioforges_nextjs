@@ -112,7 +112,7 @@ const faqs = [
   {
     question: "Is this really free?",
     answer:
-      "Yes — every conversion is free, with no sign-up, no watermark, and no daily limit on how many links you can convert.",
+      "Yes — every conversion is free, with no sign-up, no watermark, and nothing to install. Fair-use limit is 18 conversions an hour, which is well past what a normal session needs.",
   },
   {
     question: "What's the difference between WAV and MP3 here?",
@@ -127,7 +127,7 @@ const faqs = [
   {
     question: "How long does conversion take?",
     answer:
-      "Most videos convert to WAV or MP3 in 8–20 seconds, with no queue or wait time.",
+      "Most videos convert to WAV or MP3 in 8–20 seconds. Longer videos take proportionally longer, and the limit is 40 minutes.",
   },
   {
     question: "Does it work on mobile?",
@@ -142,7 +142,7 @@ const faqs = [
   {
     question: "Can I convert very long YouTube videos?",
     answer:
-      "Very long videos may be rejected past a certain length to keep conversions fast and reliable for everyone. Most typical music videos, podcast clips, and Shorts convert without any issue.",
+      "Up to 40 minutes. Past that the video is rejected before conversion starts, so you find out immediately rather than after a long wait. Music videos, podcast clips and Shorts are all comfortably inside it.",
   },
   {
     question: "Does it support YouTube playlists?",
@@ -201,7 +201,7 @@ export default function YouTubeToWavPage() {
           </h1>
           <p className="text-lg text-text-muted max-w-xl mx-auto">
             Convert YouTube to WAV or MP3, free. No sign-up, no watermark,
-            no limits. Paste a link and download high-quality audio in
+            no app to install. Paste a link and download high-quality audio in
             seconds.
           </p>
         </header>
@@ -212,7 +212,7 @@ export default function YouTubeToWavPage() {
           {[
             {
               title: "Fast",
-              desc: "Most conversions finish in 8–20 seconds, no queue.",
+              desc: "Most conversions finish in 8–20 seconds.",
             },
             {
               title: "High quality",
@@ -241,8 +241,10 @@ export default function YouTubeToWavPage() {
             Converting a YouTube video to WAV or MP3 with AudioForges takes
             four steps and no software install. The converter extracts the
             audio track directly from the video URL you provide — you never
-            need to download the video itself first, and nothing is saved on
-            our servers longer than it takes to process your request.
+            need to download the video itself first. Converted audio is cached
+            for a short period so a repeat request for the same video is
+            served instantly, and nothing about it is linked to you: no
+            account, no email, no record of who converted what.
           </p>
           <ol className="list-decimal list-inside space-y-2 text-text-muted leading-relaxed">
             <li>Copy a YouTube video, Shorts, or youtu.be URL.</li>
@@ -348,7 +350,7 @@ export default function YouTubeToWavPage() {
                 <tr>
                   <td className="px-4 py-3">File size</td>
                   <td className="px-4 py-3">Large (~10MB/min)</td>
-                  <td className="px-4 py-3">Small (~1MB/min at 320kbps)</td>
+                  <td className="px-4 py-3">Small (~2.4MB/min at 320kbps)</td>
                 </tr>
                 <tr>
                   <td className="px-4 py-3">Quality</td>

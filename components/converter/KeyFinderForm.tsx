@@ -1,37 +1,77 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { Music, AlertTriangle, RotateCcw } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Music, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import {
+  CooldownBar,
+  ErrorPanel,
+  FormShell,
+  Section,
+  ValidationNote,
+  WorkingPanel,
+  easedProgress,
+  formatCooldown,
+  stageIndexFor,
+  useCooldownSeconds,
+  useElapsedSeconds,
+  type FormError,
+  type ProcessingStage,
+} from "@/components/tools/JobFormKit";
 import { FileDropZone } from "@/components/ui/FileDropZone";
 import { Waveform } from "@/components/ui/Waveform";
 import { SupportBlock } from "@/components/ui/SupportBlock";
-import { AnalysisResultCard } from "@/components/converter/AnalysisResultCard";
-import { cn } from "@/lib/utils/cn";
-import { validateAudioFile, checkRateLimit } from "@/lib/utils/validation";
-import { analyzeAudioFile, ApiError } from "@/lib/api/railway";
+import { AnalysisResultCard, toAnalysisResult } from "@/components/converter/AnalysisResultCard";
+import { validateAudioFile } from "@/lib/utils/validation";
+import { getRetryAfterFallback } from "@/lib/data/rate-limits";
+import { analyzeAudioFile, isAbortError, ApiError } from "@/lib/api/railway";
 import type { AnalysisResult, ProcessingState } from "@/lib/types/converter";
 
-const STAGES = [
+/**
+ * ── THIS PASS ──────────────────────────────────────────────────────────
+ *
+ * 1. A CLIENT-SIDE RATE LIMIT THAT ISN'T THE REAL ONE. `checkRateLimit(
+ *    "keyfinder", 10, 60000)` refused an eleventh analysis in a minute — a
+ *    rule that exists nowhere on the backend. /analyze has no entry in
+ *    RATE_LIMITS at all, so this number was invented here and enforced only
+ *    here.
+ *
+ *    It also protects nothing: it lives in the tab and a reload clears it. What
+ *    it does reliably is block the one session that matters — a DJ checking a
+ *    folder of tracks, which is the entire use case for this tool. Removed;
+ *    see the note in handleAnalyze for the one-line revert.
+ *
+ * 2. THERE WAS NO WAY TO CANCEL, AND NO ABORT ON UNMOUNT. /analyze runs up to
+ *    90 seconds synchronously with no cancel affordance anywhere on the card,
+ *    and navigating away mid-analysis left the request in flight to resolve
+ *    into setState on an unmounted component. It takes an AbortSignal — it
+ *    just was never given one.
+ *
+ * 3. THE COOLDOWN GUESSED 60 SECONDS. /analyze isn't in RATE_LIMITS, so
+ *    getRetryAfterFallback returns its own 300s default — which is the honest
+ *    answer when we don't know the window, rather than a number picked to look
+ *    reasonable. The server's Retry-After overrides it whenever present.
+ *
+ * 4. THE RESPONSE MAPPING IS SHARED. This file and YouTubeAnalyzeForm carried
+ *    identical copies of the AnalyzeResponse → AnalysisResult conversion. It
+ *    lives beside AnalysisResultCard now, so the same track can't report
+ *    different confidence depending on whether it was uploaded or pasted.
+ *
+ * 5. IT USES THE SHELL. Step rail (File → Analyze → Result), the working panel
+ *    with its stage checklist, the shared error panel, and the action pinned to
+ *    the footer instead of moving with the content.
+ */
+
+const STEPS = ["File", "Analyze", "Result"] as const;
+
+const STAGES: ProcessingStage[] = [
   { at: 0, label: "Reading the audio" },
   { at: 6, label: "Reading the tempo grid" },
   { at: 16, label: "Estimating the key" },
   { at: 28, label: "Cross-checking both detectors" },
 ];
 
-function formatElapsed(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${m}:${s.toString().padStart(2, "0")}`;
-}
-
-function stageLabelFor(elapsed: number): string {
-  let label = STAGES[0].label;
-  for (const stage of STAGES) if (elapsed >= stage.at) label = stage.label;
-  return label;
-}
-
-function humanizeError(raw: string): { title: string; hint: string } {
+function humanizeError(raw: string): FormError {
   const text = raw.toLowerCase();
   if (text.includes("too large") || text.includes("size")) {
     return { title: "This file is too large", hint: "Trim it down or export at a smaller size." };
@@ -50,26 +90,25 @@ export function KeyFinderForm() {
   const [status, setStatus] = useState<ProcessingState>("idle");
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
-  const [error, setError] = useState<{ title: string; hint: string } | null>(null);
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  const [cooldownSeconds, setCooldownSeconds] = useState(0);
+  const [error, setError] = useState<FormError | null>(null);
 
   const isProcessing = status === "processing";
   const isComplete = status === "complete";
+  const isFailed = status === "error";
+
+  const [elapsedSeconds, setElapsedSeconds] = useElapsedSeconds(isProcessing);
+  const [cooldownSeconds, setCooldownSeconds] = useCooldownSeconds();
+  const cooldownCeilingRef = useRef(getRetryAfterFallback("analyze"));
+
+  /** /analyze can run for ninety seconds. Without this there is no way to stop
+   *  waiting, and no way to stop the response arriving after unmount. */
+  const abortRef = useRef<AbortController | null>(null);
+  const cancelledRef = useRef(false);
+
+  useEffect(() => () => abortRef.current?.abort(), []);
+
   const canAnalyze = Boolean(file) && !isProcessing && !isComplete && cooldownSeconds === 0;
-
-  useEffect(() => {
-    if (!isProcessing) return;
-    setElapsedSeconds(0);
-    const id = setInterval(() => setElapsedSeconds((s) => s + 1), 1000);
-    return () => clearInterval(id);
-  }, [isProcessing]);
-
-  useEffect(() => {
-    if (cooldownSeconds <= 0) return;
-    const id = setTimeout(() => setCooldownSeconds((s) => Math.max(0, s - 1)), 1000);
-    return () => clearTimeout(id);
-  }, [cooldownSeconds]);
+  const step: 1 | 2 | 3 = isComplete ? 3 : isProcessing ? 2 : 1;
 
   const handleFileSelect = (selectedFile: File) => {
     setValidationError(null);
@@ -87,48 +126,72 @@ export function KeyFinderForm() {
   const handleAnalyze = useCallback(async () => {
     if (!file) return;
 
-    const rateLimit = checkRateLimit("keyfinder", 10, 60000);
-    if (!rateLimit.allowed) {
-      setError({
-        title: "You've hit this tool's limit",
-        hint: rateLimit.message || "Wait a moment before trying again.",
-      });
-      setStatus("error");
-      return;
-    }
+    /*
+      NO CLIENT-SIDE RATE LIMIT HERE ANY MORE.
+
+      There used to be `checkRateLimit("keyfinder", 10, 60000)` — ten per
+      minute, a number that exists nowhere on the backend; /analyze has no
+      RATE_LIMITS entry at all. Checking a folder of tracks is the entire point
+      of this tool, and that rule refused the eleventh while protecting
+      nothing: it lives in the tab and a reload clears it. To restore it, put
+      the call back at the top of this function.
+    */
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+    cancelledRef.current = false;
 
     setStatus("processing");
+    setElapsedSeconds(0);
     setResult(null);
     setError(null);
 
     try {
-      const data = await analyzeAudioFile(file);
-
-      const toPct = (n: number) => Math.round(n > 1 ? n : n * 100);
-
-      setResult({
-        key: (data.key as string) || "Unknown",
-        camelot: (data.camelot as string) || "N/A",
-        bpm: Math.round(Number(data.bpm) || 0),
-        confidence: toPct(Number(data.confidence) || 0),
-        bpmConfidence: toPct(Number(data.bpm_confidence) || 0),
-        keyAgrees: typeof data.cross_check?.key_agrees === "boolean" ? data.cross_check.key_agrees : null,
-        bpmAgrees: typeof data.cross_check?.bpm_agrees === "boolean" ? data.cross_check.bpm_agrees : null,
-      });
+      const data = await analyzeAudioFile(file, { signal: controller.signal });
+      if (cancelledRef.current) return;
+      // Shared with YouTubeAnalyzeForm — see AnalysisResultCard.
+      setResult(toAnalysisResult(data));
       setStatus("complete");
     } catch (err) {
+      // A cancelled request rejects with a raw AbortError rather than an
+      // ApiError, so this guard comes first — otherwise pressing Cancel
+      // renders "Something went wrong".
+      if (cancelledRef.current || isAbortError(err) || controller.signal.aborted) return;
+
       console.error("Analysis error:", err);
       if (err instanceof ApiError && err.isRateLimit) {
-        setError({ title: "You're going a little fast", hint: "Wait for the timer, then try again." });
-        setCooldownSeconds(err.retryAfterSeconds ?? 60);
+        setError({
+          title: "You're going a little fast",
+          hint: "Wait for the timer, then try again.",
+        });
+        // /analyze isn't in RATE_LIMITS, so this is the helper's own default
+        // rather than a number invented to look plausible. Retry-After wins
+        // whenever the server sends one.
+        const wait = err.retryAfterSeconds ?? getRetryAfterFallback("analyze");
+        cooldownCeilingRef.current = Math.max(1, wait);
+        setCooldownSeconds(wait);
       } else {
         setError(humanizeError(err instanceof ApiError ? err.message : "Something went wrong."));
       }
       setStatus("error");
+    } finally {
+      abortRef.current = null;
     }
-  }, [file]);
+  }, [file, setElapsedSeconds, setCooldownSeconds]);
+
+  const handleCancel = () => {
+    cancelledRef.current = true;
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setStatus("idle");
+    setError(null);
+    setElapsedSeconds(0);
+  };
 
   const handleReset = () => {
+    cancelledRef.current = true;
+    abortRef.current?.abort();
+    abortRef.current = null;
     setFile(null);
     setResult(null);
     setStatus("idle");
@@ -137,30 +200,54 @@ export function KeyFinderForm() {
     setElapsedSeconds(0);
   };
 
-  const progress = Math.min(92, Math.round((1 - Math.exp(-elapsedSeconds / 18)) * 100));
+  const stageIndex = stageIndexFor(STAGES, elapsedSeconds);
 
-  const formatCooldown = (seconds: number) => {
-    if (seconds >= 60) return `${Math.ceil(seconds / 60)}m`;
-    return `${seconds}s`;
-  };
+  /* One button, two jobs — so the styling switches with the job. As a reset
+     it's `outline`, matching "Process another file" in every other form; as the
+     primary action it's amber. It used to stay amber in both states, which made
+     "Analyze another" compete with the results it sat under.
+
+     Hidden entirely while idle with no file: a dimmed amber fill at 40% opacity
+     renders as a muddy brown bar, and there's nothing to analyse yet anyway. */
+  const footer =
+    file || isComplete || isFailed ? (
+      <div className="space-y-2">
+        <Button
+          variant={isComplete ? "outline" : "primary"}
+          size="lg"
+          className="w-full"
+          onClick={isComplete ? handleReset : handleAnalyze}
+          disabled={isComplete ? false : !canAnalyze && !isProcessing}
+          loading={isProcessing}
+          loadingLabel="Analyzing"
+        >
+          {!isProcessing && (isComplete ? <RotateCcw /> : <Music />)}
+          {isProcessing
+            ? "Analyzing"
+            : isComplete
+              ? "Analyze another"
+              : cooldownSeconds > 0
+                ? `Try again in ${formatCooldown(cooldownSeconds)}`
+                : "Analyze audio"}
+        </Button>
+        <CooldownBar seconds={cooldownSeconds} ceiling={cooldownCeilingRef.current} />
+      </div>
+    ) : undefined;
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-graphite-800 bg-graphite-900">
-      <div className="flex items-center justify-between border-b border-graphite-800 px-6 py-3.5 sm:px-8">
-        <div className="flex items-center gap-2.5">
-          <span
-            className={cn("h-1.5 w-1.5 rounded-full bg-amber-500", isProcessing && "animate-pulse motion-reduce:animate-none")}
-            aria-hidden
-          />
-          <span className="text-[11px] font-medium uppercase tracking-[0.18em] text-text-muted">
-            Key & BPM finder
-          </span>
-        </div>
-        <span className="font-mono text-[11px] text-text-subtle">Camelot · cross-checked</span>
-      </div>
-
-      <div className="space-y-6 p-6 sm:p-8">
-        {!isComplete && (
+    <FormShell
+      toolLabel="Key & BPM finder"
+      toolMeta="Camelot · cross-checked"
+      steps={STEPS}
+      step={step}
+      busy={isProcessing}
+      failed={isFailed}
+      complete={isComplete}
+      footer={footer}
+    >
+      {/* SOURCE */}
+      {!isComplete && (
+        <Section className="space-y-4">
           <FileDropZone
             onFileSelect={handleFileSelect}
             currentFile={file}
@@ -168,90 +255,48 @@ export function KeyFinderForm() {
             disabled={isProcessing}
             accept="audio/*,.mp3,.wav,.m4a,.aac,.ogg,.flac"
           />
-        )}
+          {/* An error about the file belongs beside the file. */}
+          {validationError && <ValidationNote message={validationError} />}
+        </Section>
+      )}
 
-        {validationError && (
-          <div className="flex items-start gap-3 rounded-lg border border-red-500/25 bg-red-500/[0.07] p-4" role="alert">
-            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-400" aria-hidden />
-            <span className="text-sm text-text-primary">{validationError}</span>
-          </div>
-        )}
+      {/* WORKING */}
+      {isProcessing && (
+        <Section>
+          <WorkingPanel
+            stageLabel={STAGES[stageIndex]?.label ?? "Analyzing"}
+            stages={STAGES}
+            stageIndex={stageIndex}
+            showStageList
+            elapsedSeconds={elapsedSeconds}
+            progress={easedProgress(elapsedSeconds, 18)}
+            expectedRange="30–60 seconds"
+            chargedRun={false}
+            onCancel={handleCancel}
+            waveform={<Waveform />}
+          />
+        </Section>
+      )}
 
-        {isProcessing && (
-          <div
-            className="space-y-3 rounded-lg border border-graphite-800 bg-graphite-850/60 p-4"
-            role="status"
-            aria-live="polite"
-            aria-busy="true"
-          >
-            <div className="flex items-center justify-between gap-3">
-              <span className="min-w-0 truncate text-sm text-text-primary">{stageLabelFor(elapsedSeconds)}</span>
-              <span className="shrink-0 font-mono text-xs tabular-nums text-text-subtle">
-                {formatElapsed(elapsedSeconds)}
-              </span>
-            </div>
-            <div className="h-1 w-full overflow-hidden rounded-full bg-graphite-800">
-              <div
-                className="h-full rounded-full bg-amber-500 transition-[width] duration-1000 ease-out"
-                style={{ width: `${progress}%` }}
-              />
-            </div>
-            <div className="opacity-60 motion-reduce:hidden">
-              <Waveform />
-            </div>
-            <p className="text-xs text-text-subtle">Typically 30–60 seconds. Keep this tab open.</p>
-          </div>
-        )}
-
-        {isComplete && result && (
+      {/* RESULT */}
+      {isComplete && result && (
+        <Section>
           <div className="space-y-4" role="status" aria-live="polite">
             <AnalysisResultCard result={result} />
             <SupportBlock />
           </div>
-        )}
+        </Section>
+      )}
 
-        {status === "error" && error && (
+      {/* FAILED */}
+      {isFailed && error && (
+        <Section>
           <div className="space-y-4">
-            <div className="flex items-start gap-3 rounded-lg border border-red-500/25 bg-red-500/[0.07] p-4" role="alert">
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-400" aria-hidden />
-              <div>
-                <p className="text-sm font-medium text-text-primary">{error.title}</p>
-                <p className="mt-0.5 text-xs text-text-muted">{error.hint}</p>
-              </div>
-            </div>
+            <ErrorPanel error={error} />
             <SupportBlock />
           </div>
-        )}
-
-        {/* One button, two jobs - so the styling has to switch with the
-            job. As a reset it's `outline`, matching "Process another
-            file" in every other form; as the primary action it's amber.
-            It used to stay amber in both states, which made "Analyze
-            another" compete with the results it sat under.
-
-            Hidden entirely while idle with no file: a dimmed amber fill
-            at 40% opacity renders as a muddy brown bar, and there's
-            nothing to analyse yet anyway. */}
-        {(file || isComplete || status === "error") && (
-          <Button
-            variant={isComplete ? "outline" : "primary"}
-            size="lg"
-            className="w-full"
-            onClick={isComplete ? handleReset : handleAnalyze}
-            disabled={isComplete ? false : !canAnalyze && !isProcessing}
-            loading={isProcessing}
-          >
-            {!isProcessing && (isComplete ? <RotateCcw /> : <Music />)}
-            {isProcessing
-              ? "Analyzing"
-              : isComplete
-                ? "Analyze another"
-                : cooldownSeconds > 0
-                  ? `Try again in ${formatCooldown(cooldownSeconds)}`
-                  : "Analyze audio"}
-          </Button>
-        )}
-      </div>
-    </div>
+        </Section>
+      )}
+    </FormShell>
   );
 }

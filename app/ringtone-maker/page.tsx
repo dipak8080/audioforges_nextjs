@@ -4,6 +4,41 @@ import { RingtoneForm } from "@/components/converter/RingtoneForm";
 import { FAQSection } from "@/components/faq/FAQSection";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
+import { getToolLimits } from "@/lib/data/tool-limits";
+import { getLimits, retentionSentences } from "@/lib/api/limits";
+
+/**
+ * ⚠️ THE PAGE AND THE TOOL DISAGREED ABOUT THE RINGTONE LENGTH.
+ *
+ * This page said 30 seconds — in the H1 area, three FAQ answers, the how-to
+ * steps and the JSON-LD featureList. RingtoneForm reads:
+ *
+ *     getToolLimits("ringtone-maker")?.maxTotalDurationSeconds ?? 40
+ *
+ * So the control lets you drag out to FORTY. Someone sets 38 seconds, the tool
+ * accepts it happily, and the page told them the cap was 30 — which also means
+ * the page's stated reason ("Apple's workflow supports up to 30 seconds") is
+ * either wrong or the tool is over-permissive.
+ *
+ * I HAVE NOT PICKED A SIDE. Which is right depends on Apple's documented
+ * limit, and the page cites support.apple.com/en-us/120692 for it — a source
+ * I can't read. Both numbers are now derived from the ONE constant, so
+ * whichever you set is what the page says and the two can't drift apart
+ * again. What needs deciding:
+ *
+ *   · If Apple's cap is 30 → change maxTotalDurationSeconds to 30. The form
+ *     stops offering a length that won't work, which is the real bug.
+ *   · If Apple's cap is 40 → the constant is right and this page was
+ *     understating the tool by ten seconds, which is now fixed automatically.
+ *
+ * The copy below is written to be true either way: it states the cap without
+ * asserting a specific Apple figure, and points at Apple's own instructions
+ * for the workflow rather than paraphrasing a number that may have moved.
+ *
+ * ── ALSO THIS PASS ────────────────────────────────────────────────────
+ * Retention answer added, `keywords` removed, formats and upload size read
+ * from /limits, prefetch disabled on the tool grid.
+ */
 
 /**
  * KEYWORD TARGETS (18 Aug 2026, Ahrefs phrase-match, 1,140 total):
@@ -26,27 +61,28 @@ import { getRelatedTools } from "@/lib/data/tools";
  * that wins the other four.
  */
 
+/**
+ * The single source for the ringtone length, used by the copy, the schema and
+ * the meta description. RingtoneForm reads the same constant, so the control
+ * and the page cannot disagree.
+ */
+const MAX_RINGTONE_SECONDS = getToolLimits("ringtone-maker")?.maxTotalDurationSeconds ?? 40;
+
 const PAGE_TITLE = "Free Ringtone Maker for iPhone – MP3 to M4R";
-const PAGE_DESCRIPTION =
-  "Free ringtone maker for iPhone. Turn any MP3 into a 30-second M4R ringtone online — pick your start point, no iTunes, no sign-up, no watermark.";
+const PAGE_DESCRIPTION = `Free ringtone maker for iPhone. Turn any MP3 into an M4R ringtone online — pick your start point, up to ${MAX_RINGTONE_SECONDS} seconds, no iTunes, no sign-up, no watermark.`;
 
 export const metadata: Metadata = {
   title: PAGE_TITLE,
   description: PAGE_DESCRIPTION,
-  keywords: [
-    "ringtone maker",
-    "free ringtone maker",
-    "iphone ringtone maker",
-    "ringtone maker for iphone",
-    "mp3 ringtone maker",
-    "online ringtone maker",
-    "make a ringtone from a song",
-    "m4r converter",
-    "mp3 to m4r",
-    "custom ringtone iphone",
-    "ringtone cutter",
-    "song to ringtone",
-  ],
+  /*
+    `keywords` removed — ignored by Google since 2009. Target terms kept for
+    reference:
+
+      ringtone maker / free ringtone maker / iphone ringtone maker
+      ringtone maker for iphone / mp3 ringtone maker / online ringtone maker
+      make a ringtone from a song / m4r converter / mp3 to m4r
+      custom ringtone iphone / ringtone cutter / song to ringtone
+  */
   alternates: { canonical: `${SITE_URL}/ringtone-maker` },
   openGraph: {
     title: PAGE_TITLE,
@@ -64,26 +100,6 @@ export const metadata: Metadata = {
   },
 };
 
-// WebApplication schema — every claim below is checked against the actual
-// RingtoneForm/backend behavior and against Apple's current documented
-// 30-second ringtone limit (support.apple.com/en-us/120692).
-const webAppJsonLd = {
-  "@context": "https://schema.org",
-  "@type": "WebApplication",
-  name: "Ringtone Maker",
-  url: `${SITE_URL}/ringtone-maker`,
-  applicationCategory: "MultimediaApplication",
-  operatingSystem: "Any",
-  offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
-  featureList: [
-    "Trims to an iPhone-compatible length (up to 30 seconds)",
-    "Outputs M4R, recognized directly by iOS",
-    "Accepts MP3, WAV, FLAC, M4A, AAC, OGG and AIFF sources",
-    "No sign-up required",
-    "No watermark",
-  ],
-};
-
 const breadcrumbJsonLd = {
   "@context": "https://schema.org",
   "@type": "BreadcrumbList",
@@ -94,95 +110,130 @@ const breadcrumbJsonLd = {
 };
 // NOTE: No HowTo schema — deprecated by Google (desktop since Sept 2023),
 // no ranking or rich-result benefit remains. Visible how-to steps stay.
+// FAQPage schema is emitted by <FAQSection /> — do not duplicate it here.
 
-const faqs = [
-  {
-    question: "What is an M4R file?",
-    answer:
-      "An M4R file uses the .m4r extension associated with iPhone ringtones. It commonly contains AAC audio, similar to what's in an M4A file. The important part is that the file is prepared in a format and length the iPhone ringtone workflow can use.",
-  },
-  {
-    question: "How do I actually get it onto my iPhone?",
-    answer:
-      "You can use the .m4r file with an iPhone ringtone workflow such as GarageBand — Apple's current instructions cover importing an audio file into GarageBand, trimming it to a ringtone, and exporting it as one. Steps can vary by iOS version, so it's worth checking Apple's current instructions for your device.",
-  },
-  {
-    question: "Why is there a 30-second limit?",
-    answer:
-      "Apple's current iPhone ringtone workflow supports ringtones up to 30 seconds. Keeping the clip within that limit helps ensure it can actually be used as an iPhone ringtone.",
-  },
-  {
-    question: "Can I make a ringtone from an MP3?",
-    answer:
-      "Yes — MP3 is the most common source here. Upload the MP3, choose the section you want, and the tool hands back an M4R. WAV, FLAC, M4A, AAC, OGG and AIFF work the same way, so you don't need to convert to MP3 first.",
-  },
-  {
-    question: "Can I make a ringtone from a TikTok or YouTube sound?",
-    answer:
-      "Yes, in two steps: pull the audio out first with the TikTok to MP3 converter or the YouTube to WAV converter, then upload that file here and pick your 30 seconds.",
-    answerNode: (
-      <>
-        Yes, in two steps: pull the audio out first with the{" "}
-        <Link href="/tiktok-to-mp3" className="text-amber-400 hover:underline">
-          TikTok to MP3 converter
-        </Link>{" "}
-        or the{" "}
-        <Link href="/youtube-to-wav" className="text-amber-400 hover:underline">
-          YouTube to WAV converter
-        </Link>
-        , then upload that file here and pick your 30 seconds.{" "}
-        <Link
-          href="/guides/tiktok-sound-to-ringtone"
-          className="text-amber-400 hover:underline"
-        >
-          Read How to Make a Ringtone from a TikTok Sound
-        </Link>{" "}
-        for the full walkthrough.
-      </>
-    ),
-  },
-  {
-    question: "Can I use this for Android instead?",
-    answer:
-      "Android doesn't require the .m4r extension or a length cap the way iOS does — for Android, use the Audio Converter to export an MP3 of the clip you want instead.",
-    answerNode: (
-      <>
-        Android doesn&apos;t require the .m4r extension or a length cap the way
-        iOS does — for Android, use the{" "}
-        <Link href="/convert" className="text-amber-400 hover:underline">
-          Audio Converter
-        </Link>{" "}
-        to export an MP3 of the clip you want instead.
-      </>
-    ),
-  },
-  {
-    question: "Can I add a fade in or out to my ringtone?",
-    answer:
-      "Yes — make the ringtone here first, then run the downloaded file through the Fade In/Out tool if you want a softer start or end.",
-    answerNode: (
-      <>
-        Yes — make the ringtone here first, then run the downloaded file
-        through the{" "}
-        <Link href="/fade" className="text-amber-400 hover:underline">
-          Fade In/Out
-        </Link>{" "}
-        tool if you want a softer start or end.
-      </>
-    ),
-  },
-  {
-    question: "Is there a file size limit for the source file?",
-    answer: "Yes, 80MB for the file you upload — the output ringtone itself will be much smaller.",
-  },
-  {
-    question: "Is this really free?",
-    answer: "Yes — completely free, no sign-up, no watermark.",
-  },
-];
-
-export default function RingtoneMakerPage() {
+export default async function RingtoneMakerPage() {
   const relatedTools = getRelatedTools("ringtone-maker", 5);
+
+  const limits = await getLimits();
+  const retention = retentionSentences(limits.retention.audio_tools);
+
+  const formats = limits.allowedAudioFormats.map((f) => f.toUpperCase());
+  const formatList = formats.join(", ").replace(/, ([^,]*)$/, ", or $1");
+
+  // WebApplication schema — every claim below is checked against the actual
+  // RingtoneForm/backend behavior. The length comes from the same constant the
+  // form enforces rather than being typed, which is what let the two disagree.
+  const webAppJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    name: "Ringtone Maker",
+    url: `${SITE_URL}/ringtone-maker`,
+    applicationCategory: "MultimediaApplication",
+    operatingSystem: "Any",
+    offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+    featureList: [
+      `Trims to a ringtone-length clip (up to ${MAX_RINGTONE_SECONDS} seconds)`,
+      "Outputs M4R, the extension iOS associates with ringtones",
+      `Accepts ${formatList} sources`,
+      "No sign-up required",
+      "No watermark",
+    ],
+  };
+
+  const faqs = [
+    {
+      question: "What is an M4R file?",
+      answer:
+        "An M4R file uses the .m4r extension associated with iPhone ringtones. It commonly contains AAC audio, similar to what's in an M4A file. The important part is that the file is prepared in a format and length the iPhone ringtone workflow can use.",
+    },
+    {
+      question: "How do I actually get it onto my iPhone?",
+      answer:
+        "You can use the .m4r file with an iPhone ringtone workflow such as GarageBand — Apple's current instructions cover importing an audio file into GarageBand, trimming it to a ringtone, and exporting it as one. Steps can vary by iOS version, so it's worth checking Apple's current instructions for your device.",
+    },
+    {
+      /*
+        The reason is now stated without asserting a specific Apple figure.
+        The page previously said "Apple's current iPhone ringtone workflow
+        supports ringtones up to 30 seconds" while the tool allowed 40 — one of
+        those was wrong and the page couldn't tell you which.
+      */
+      question: `Why is there a ${MAX_RINGTONE_SECONDS}-second limit?`,
+      answer: `iPhone ringtones are short by design, and the ringtone workflow on iOS won't accept an arbitrarily long clip. This tool caps the selection at ${MAX_RINGTONE_SECONDS} seconds so what you download is a length that workflow can use. Apple's own instructions are the authority on the exact ceiling for your iOS version.`,
+    },
+    {
+      question: "Can I make a ringtone from an MP3?",
+      answer: `Yes — MP3 is the most common source here. Upload the MP3, choose the section you want, and the tool hands back an M4R. ${formats.filter((f) => f !== "MP3").join(", ")} work the same way, so you don't need to convert to MP3 first.`,
+    },
+    {
+      question: "Can I make a ringtone from a TikTok or YouTube sound?",
+      answer: `Yes, in two steps: pull the audio out first with the TikTok to MP3 converter or the YouTube to WAV converter, then upload that file here and pick your ${MAX_RINGTONE_SECONDS} seconds.`,
+      answerNode: (
+        <>
+          Yes, in two steps: pull the audio out first with the{" "}
+          <Link href="/tiktok-to-mp3" className="text-amber-400 hover:underline">
+            TikTok to MP3 converter
+          </Link>{" "}
+          or the{" "}
+          <Link href="/youtube-to-wav" className="text-amber-400 hover:underline">
+            YouTube to WAV converter
+          </Link>
+          , then upload that file here and pick your section.{" "}
+          <Link
+            href="/guides/tiktok-sound-to-ringtone"
+            className="text-amber-400 hover:underline"
+          >
+            Read How to Make a Ringtone from a TikTok Sound
+          </Link>{" "}
+          for the full walkthrough.
+        </>
+      ),
+    },
+    {
+      question: "Can I use this for Android instead?",
+      answer:
+        "Android doesn't require the .m4r extension or a length cap the way iOS does — for Android, use the Audio Converter to export an MP3 of the clip you want instead.",
+      answerNode: (
+        <>
+          Android doesn&apos;t require the .m4r extension or a length cap the way
+          iOS does — for Android, use the{" "}
+          <Link href="/convert" className="text-amber-400 hover:underline">
+            Audio Converter
+          </Link>{" "}
+          to export an MP3 of the clip you want instead.
+        </>
+      ),
+    },
+    {
+      question: "Can I add a fade in or out to my ringtone?",
+      answer:
+        "Yes — make the ringtone here first, then run the downloaded file through the Fade In/Out tool if you want a softer start or end.",
+      answerNode: (
+        <>
+          Yes — make the ringtone here first, then run the downloaded file
+          through the{" "}
+          <Link href="/fade" className="text-amber-400 hover:underline">
+            Fade In/Out
+          </Link>{" "}
+          tool if you want a softer start or end.
+        </>
+      ),
+    },
+    {
+      question: "Is there a file size limit for the source file?",
+      answer: `Yes, ${limits.maxUploadMb}MB for the file you upload — the output ringtone itself will be much smaller.`,
+    },
+    {
+      // ADDED: no retention answer existed.
+      question: "Are my uploaded files kept?",
+      answer: `${retention.input} ${retention.output} There are no accounts, so nothing is linked to you.`,
+    },
+    {
+      question: "Is this really free?",
+      answer: "Yes — completely free, no sign-up, no watermark.",
+    },
+  ];
 
   return (
     <>
@@ -206,15 +257,19 @@ export default function RingtoneMakerPage() {
         {/* Tool stays first — SEO content supports it, doesn't bury it */}
         <RingtoneForm />
 
-        <section className="grid gap-4 sm:grid-cols-3">
+        {/* One bordered strip with hairline dividers, matching the other tool
+            pages. The length now comes from the same constant the form reads. */}
+        <section className="grid divide-y divide-graphite-800 overflow-hidden rounded-xl border border-graphite-800 bg-graphite-900 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
           {[
-            { title: "iPhone-ready", desc: "Outputs .m4r, recognized directly by iOS." },
-            { title: "Pick your section", desc: "Choose exactly where the ringtone starts." },
-            { title: "No iTunes", desc: "Create your ringtone online without iTunes." },
+            { title: "iPhone-ready", desc: "Outputs .m4r, the extension iOS associates with ringtones." },
+            { title: `Up to ${MAX_RINGTONE_SECONDS}s`, desc: "Choose exactly where the ringtone starts and how long it runs." },
+            { title: "No iTunes", desc: `Create your ringtone online. Up to ${limits.maxUploadMb}MB per upload.` },
           ].map((f) => (
-            <div key={f.title} className="rounded-xl border border-graphite-800 bg-graphite-900 p-5 space-y-2">
-              <p className="font-semibold text-text-primary">{f.title}</p>
-              <p className="text-sm text-text-muted">{f.desc}</p>
+            <div key={f.title} className="space-y-1.5 p-5">
+              <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-amber-400">
+                {f.title}
+              </p>
+              <p className="text-sm leading-relaxed text-text-muted">{f.desc}</p>
             </div>
           ))}
         </section>
@@ -222,21 +277,24 @@ export default function RingtoneMakerPage() {
         <section className="space-y-4">
           <h2 className="text-2xl font-bold text-text-primary">How to make an iPhone ringtone</h2>
           <ol className="list-decimal list-inside space-y-2 text-text-muted leading-relaxed">
-            <li>Upload an MP3, WAV, FLAC, M4A, AAC, OGG, or AIFF file.</li>
-            <li>Set the start point and length (up to 30 seconds) of the clip you want.</li>
+            <li>Upload an {formatList} file.</li>
+            <li>
+              Set the start point and length (up to {MAX_RINGTONE_SECONDS} seconds) of
+              the clip you want.
+            </li>
             <li>Download the .m4r file and add it to your iPhone.</li>
           </ol>
         </section>
 
-        {/* New section: covers the "mp3 ringtone maker" phrase in body
-            copy where it's honest, and gives the two downloader tools an
-            inbound link from a page that already ranks. */}
+        {/* Covers the "mp3 ringtone maker" phrase in body copy where it's
+            honest, and gives the two downloader tools an inbound link from a
+            page that already ranks. */}
         <section className="space-y-4">
           <h2 className="text-2xl font-bold text-text-primary">Where to get the audio</h2>
           <p className="text-text-muted leading-relaxed">
             MP3 is the most common starting point, and it works here directly —
-            there&apos;s no need to convert it first. WAV, FLAC, M4A, AAC, OGG
-            and AIFF are accepted the same way, so whatever the file already is,
+            there&apos;s no need to convert it first. The other supported
+            formats are accepted the same way, so whatever the file already is,
             upload it as-is.
           </p>
           <p className="text-text-muted leading-relaxed">
@@ -268,8 +326,9 @@ export default function RingtoneMakerPage() {
             ringtone workflow such as GarageBand. Apple&apos;s current
             instructions cover importing an audio file into GarageBand,
             trimming it to a ringtone, and exporting it as one. The exact
-            steps can vary by iOS version, so it&apos;s worth checking
-            Apple&apos;s current instructions for your specific device.
+            steps — and the exact length iOS will accept — can vary by
+            version, so it&apos;s worth checking Apple&apos;s current
+            instructions for your specific device.
           </p>
         </section>
 
@@ -309,6 +368,7 @@ export default function RingtoneMakerPage() {
                 <Link
                   key={tool.slug}
                   href={`/${tool.slug}`}
+                  prefetch={false}
                   className="rounded-xl border border-graphite-800 bg-graphite-900 p-4 hover:border-amber-500/40 transition-colors"
                 >
                   <h3 className="font-semibold text-text-primary">{tool.name}</h3>

@@ -1,15 +1,53 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Play, Square, Loader2, ChevronUp, ChevronDown } from "lucide-react";
+import { Play, Square, Loader2 } from "lucide-react";
 import { JobToolForm } from "@/components/converter/JobToolForm";
+import { ControlField, Stepper } from "@/components/converter/ToolControls";
 import { WaveformCanvas, WAVEFORM_RULER_HEIGHT } from "@/components/ui/WaveformCanvas";
-import { cn } from "@/lib/utils/cn";
+import { Button } from "@/components/ui/Button";
+import { getRateLimitLabel } from "@/lib/data/rate-limits";
 import { computeWaveformEnvelopeAsync, type WaveformEnvelope } from "@/lib/utils/waveform";
+
+/**
+ * ── THIS PASS ──────────────────────────────────────────────────────────
+ *
+ * The drag handling, the rAF playhead, the ref mirrors and the
+ * one-update-per-gesture contract are the load-bearing parts of this file and
+ * none of them are touched.
+ *
+ * 1. TWO AudioContexts PER FILE. The decode built one and closed it; the
+ *    preview built a second and kept it. Chrome throws past six per document,
+ *    and each one opens an audio device — so five files in a session was the
+ *    ceiling, and the sixth preview would have thrown where nothing catches.
+ *    One context now, module-scoped, used for both. NOT closed on unmount
+ *    (the nodes are disconnected instead): closing a context another mount is
+ *    about to use is how you get a dead preview button on the next file.
+ *
+ * 2. `await audio.play()` HAD NO CATCH. A blocked or interrupted play rejects,
+ *    and this one is inside an async callback with no handler — an unhandled
+ *    rejection, and `setIsPreviewing(true)` never runs, so the button sits on
+ *    "Preview fade" having done nothing visible. TrimForm's equivalent already
+ *    catches.
+ *
+ * 3. THE HANDLES ANNOUNCED THE WRONG RANGE. `aria-valuemax` was the constant
+ *    30 on both, but the real ceiling is the shorter of 30 and what the other
+ *    fade leaves — on a 4-second upload a screen reader was told the maximum
+ *    was 30 while the control refused anything past ~4. Announced max is now
+ *    the effective one.
+ *
+ * 4. THE STEPPER WAS A THIRD LOCAL COPY, and it was wrapped in a <label> that
+ *    now contains another <label> — nested labels, which browsers resolve by
+ *    guessing. The kit's version carries its own label and unit.
+ *
+ * 5. A 429 NAMES THE LIMIT, from RATE_LIMITS rather than typed here.
+ */
 
 const FADE_MAX_SECONDS = 30;
 const KEY_STEP = 0.1;
 const KEY_STEP_LARGE = 1;
+
+const RATE_LIMIT_LABEL = getRateLimitLabel("fade");
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
@@ -17,6 +55,27 @@ function clamp(value: number, min: number, max: number): number {
 
 function roundTenth(value: number): number {
   return Math.round(value * 10) / 10;
+}
+
+/**
+ * ONE AudioContext for the page, lazily created, never closed.
+ *
+ * Used for BOTH the envelope decode and the preview graph. Chrome caps a
+ * document at six and construction opens an audio device; this file used to
+ * build two per file. Never closed because the preview graph outlives any
+ * single decode, and because a context closed by one unmount would break the
+ * next mount's preview.
+ */
+let sharedCtx: AudioContext | null = null;
+
+function getAudioContext(): AudioContext {
+  if (!sharedCtx) {
+    const Ctx =
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    sharedCtx = new Ctx();
+  }
+  return sharedCtx;
 }
 
 type DragTarget = "in" | "out" | null;
@@ -62,13 +121,16 @@ function FadeControls({
     const inValue = clamp(committedIn, 0, maxEach);
     return {
       fadeIn: inValue,
-      fadeOut: clamp(committedOut, 0, duration === null ? maxEach : Math.max(0, Math.min(maxEach, duration - inValue))),
+      fadeOut: clamp(
+        committedOut,
+        0,
+        duration === null ? maxEach : Math.max(0, Math.min(maxEach, duration - inValue))
+      ),
     };
   }, [committedIn, committedOut, maxEach, duration]);
   const { fadeIn, fadeOut } = local ?? fallback;
 
   const audioElRef = useRef<HTMLAudioElement | null>(null);
-  const audioCtxRef = useRef<AudioContext | null>(null);
   const sourceNodeRef = useRef<MediaElementAudioSourceNode | null>(null);
   const gainNodeRef = useRef<GainNode | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -104,21 +166,13 @@ function FadeControls({
     (async () => {
       try {
         const arrayBuffer = await file.arrayBuffer();
-        const Ctx =
-          window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-        const decodeCtx = new Ctx();
-        try {
-          const buffer = await decodeCtx.decodeAudioData(arrayBuffer);
-          // Scanned in slices so a long file can't block the main
-          // thread in one go — see computeWaveformEnvelopeAsync.
-          const next = await computeWaveformEnvelopeAsync(buffer, undefined, abort.signal);
-          if (!cancelled) setEnvelope(next);
-        } finally {
-          // Closed in a finally: the previous version only closed on the
-          // success path, leaking an AudioContext for every file the
-          // browser couldn't decode.
-          decodeCtx.close();
-        }
+        // The shared context, not a second one built and closed per file.
+        const buffer = await getAudioContext().decodeAudioData(arrayBuffer);
+        if (cancelled) return;
+        // Scanned in slices so a long file can't block the main
+        // thread in one go — see computeWaveformEnvelopeAsync.
+        const next = await computeWaveformEnvelopeAsync(buffer, undefined, abort.signal);
+        if (!cancelled) setEnvelope(next);
       } catch {
         // decodeAudioData supports fewer formats than <audio> does, so a
         // failure here costs the drawing only — duration, handles and
@@ -161,9 +215,16 @@ function FadeControls({
     };
   }, [file]);
 
+  /* Disconnect the graph, don't close the context. The nodes belong to this
+     mount and leak if left attached; the context is shared with the next one.
+     Closing it here is what would leave the following file with a dead
+     preview button. */
   useEffect(() => {
     return () => {
-      audioCtxRef.current?.close();
+      sourceNodeRef.current?.disconnect();
+      gainNodeRef.current?.disconnect();
+      sourceNodeRef.current = null;
+      gainNodeRef.current = null;
     };
   }, []);
 
@@ -203,16 +264,11 @@ function FadeControls({
 
   const ensureAudioGraph = useCallback(() => {
     if (!audioElRef.current) return;
-    if (!audioCtxRef.current) {
-      const Ctx =
-        window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      audioCtxRef.current = new Ctx();
-    }
+    const ctx = getAudioContext();
     // createMediaElementSource may only be called ONCE per <audio>
     // element for its entire lifetime — guarded so re-renders never
     // call it twice, which would throw.
     if (!sourceNodeRef.current) {
-      const ctx = audioCtxRef.current;
       const source = ctx.createMediaElementSource(audioElRef.current);
       const gain = ctx.createGain();
       source.connect(gain).connect(ctx.destination);
@@ -229,9 +285,9 @@ function FadeControls({
   const startPreview = useCallback(async () => {
     if (!audioElRef.current || duration === null) return;
     ensureAudioGraph();
-    const ctx = audioCtxRef.current;
+    const ctx = getAudioContext();
     const gain = gainNodeRef.current;
-    if (!ctx || !gain) return;
+    if (!gain) return;
 
     await ctx.resume();
 
@@ -253,8 +309,16 @@ function FadeControls({
       gain.gain.linearRampToValueAtTime(0, now + duration);
     }
 
-    await audio.play();
-    setIsPreviewing(true);
+    // Rejections are normal here — autoplay policy, a pause landing between
+    // the call and the promise. Unhandled, this became a console rejection
+    // AND left the button reading "Preview fade" after appearing to do
+    // nothing, because setIsPreviewing never ran.
+    try {
+      await audio.play();
+      setIsPreviewing(true);
+    } catch {
+      setIsPreviewing(false);
+    }
   }, [duration, fadeIn, fadeOut, ensureAudioGraph]);
 
   useEffect(() => {
@@ -329,7 +393,10 @@ function FadeControls({
       if (target === "in") {
         setLocal({ fadeIn: clampFadeIn(time, current.fadeOut, total), fadeOut: current.fadeOut });
       } else {
-        setLocal({ fadeIn: current.fadeIn, fadeOut: clampFadeOut(total - time, current.fadeIn, total) });
+        setLocal({
+          fadeIn: current.fadeIn,
+          fadeOut: clampFadeOut(total - time, current.fadeIn, total),
+        });
       }
     };
 
@@ -423,6 +490,12 @@ function FadeControls({
   const fadeInPercent = duration ? (fadeIn / duration) * 100 : 0;
   const fadeOutPercent = duration ? (fadeOut / duration) * 100 : 0;
 
+  /* What the handle can ACTUALLY reach: 30s, or whatever the other fade
+     leaves of the track — whichever is smaller. Announcing the constant 30
+     told a screen reader the max was 30 on a 4-second upload. */
+  const maxFadeIn = duration === null ? FADE_MAX_SECONDS : roundTenth(Math.max(0, Math.min(FADE_MAX_SECONDS, duration - fadeOut)));
+  const maxFadeOut = duration === null ? FADE_MAX_SECONDS : roundTenth(Math.max(0, Math.min(FADE_MAX_SECONDS, duration - fadeIn)));
+
   // The <audio> element is mounted unconditionally, before the branch
   // below: it's what reports the duration, so returning early on
   // `duration === null` would mean the element never exists, the
@@ -432,23 +505,30 @@ function FadeControls({
     <div className="space-y-3">
       <audio ref={audioElRef} preload="metadata" />
 
-      <div className="flex items-center justify-between">
-        <label className="text-sm font-medium text-text-primary">Fade in / out</label>
-        <span className="font-mono text-sm text-amber-400">
-          {fadeIn.toFixed(1)}s / {fadeOut.toFixed(1)}s
-        </span>
-      </div>
-
       {duration === null ? (
-        <div className="flex h-28 items-center justify-center gap-2 rounded-lg border border-graphite-700 bg-graphite-850 text-xs text-text-subtle">
-          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          Reading track…
-        </div>
-      ) : (
         <>
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-text-primary">Fade in / out</span>
+          </div>
+          <div className="flex h-28 items-center justify-center gap-2 rounded-xl border border-graphite-700 bg-graphite-850 text-xs text-text-subtle">
+            <Loader2 className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
+            Reading track…
+          </div>
+        </>
+      ) : (
+        <ControlField
+          as="fieldset"
+          label="Fade in / out"
+          meta={
+            <span className="text-[13px] text-amber-400">
+              {fadeIn.toFixed(1)}s / {fadeOut.toFixed(1)}s
+            </span>
+          }
+          hint={`Drag or arrow-key either handle — capped to your track's length and ${FADE_MAX_SECONDS}s max per fade.`}
+        >
           <div
             ref={containerRef}
-            className="relative h-28 touch-none select-none overflow-hidden rounded-lg border border-graphite-700 bg-graphite-850"
+            className="relative h-28 touch-none select-none overflow-hidden rounded-xl border border-graphite-700 bg-graphite-850"
           >
             <WaveformCanvas
               envelope={envelope}
@@ -529,7 +609,7 @@ function FadeControls({
               aria-label="Fade in length"
               aria-orientation="horizontal"
               aria-valuemin={0}
-              aria-valuemax={FADE_MAX_SECONDS}
+              aria-valuemax={maxFadeIn}
               aria-valuenow={fadeIn}
               aria-valuetext={`${fadeIn.toFixed(1)} seconds`}
               tabIndex={disabled ? -1 : 0}
@@ -541,12 +621,7 @@ function FadeControls({
               className="group absolute bottom-0 -ml-2.5 flex w-5 cursor-ew-resize touch-none justify-center focus:outline-none"
               style={{ top: WAVEFORM_RULER_HEIGHT, left: `${fadeInPercent}%` }}
             >
-              <div
-                className={cn(
-                  "h-full w-0.5 bg-amber-500 transition-colors",
-                  "group-focus-visible:bg-amber-400"
-                )}
-              />
+              <div className="h-full w-0.5 bg-amber-500 transition-colors group-focus-visible:bg-amber-400" />
               <div className="absolute top-0 h-2.5 w-2.5 rounded-b-sm bg-amber-500 transition-transform group-hover:scale-125 group-focus-visible:scale-125" />
             </div>
 
@@ -556,7 +631,7 @@ function FadeControls({
               aria-label="Fade out length"
               aria-orientation="horizontal"
               aria-valuemin={0}
-              aria-valuemax={FADE_MAX_SECONDS}
+              aria-valuemax={maxFadeOut}
               aria-valuenow={fadeOut}
               aria-valuetext={`${fadeOut.toFixed(1)} seconds`}
               tabIndex={disabled ? -1 : 0}
@@ -568,37 +643,35 @@ function FadeControls({
               className="group absolute bottom-0 -mr-2.5 flex w-5 cursor-ew-resize touch-none justify-center focus:outline-none"
               style={{ top: WAVEFORM_RULER_HEIGHT, right: `${fadeOutPercent}%` }}
             >
-              <div
-                className={cn(
-                  "h-full w-0.5 bg-amber-500 transition-colors",
-                  "group-focus-visible:bg-amber-400"
-                )}
-              />
+              <div className="h-full w-0.5 bg-amber-500 transition-colors group-focus-visible:bg-amber-400" />
               <div className="absolute top-0 h-2.5 w-2.5 rounded-b-sm bg-amber-500 transition-transform group-hover:scale-125 group-focus-visible:scale-125" />
             </div>
           </div>
 
           {/* Numeric entry — precise values for anyone who doesn't want
-              to drag a handle to hit "2.3s" exactly. */}
-          <div className="flex items-center justify-between gap-3">
-            <label className="flex items-center gap-1.5 text-xs text-text-muted">
-              Fade in
-              <Stepper
-                label="fade in"
-                value={fadeIn}
-                disabled={disabled}
-                onIncrement={() => setFadeIn(fadeIn + KEY_STEP)}
-                onDecrement={() => setFadeIn(fadeIn - KEY_STEP)}
-                onChange={setFadeIn}
-              />
-              s
-            </label>
+              to drag a handle to hit "2.3s" exactly. The kit's Stepper is a
+              <label> in its own right; the old one was wrapped in another
+              one, which nests labels and leaves the association to the
+              browser's judgement. */}
+          <div className="flex items-center justify-between gap-3 pt-1">
+            <Stepper
+              label="Fade in"
+              value={fadeIn}
+              step={KEY_STEP}
+              bigStep={KEY_STEP}
+              precision={1}
+              unit="s"
+              disabled={disabled}
+              onChange={setFadeIn}
+            />
 
-            <button
-              type="button"
-              onClick={isPreviewing ? stopPreview : startPreview}
+            <Button
+              variant="outline"
+              size="sm"
               disabled={disabled || isDecoding}
-              className="flex items-center gap-1.5 rounded-full border border-graphite-700 bg-graphite-850 px-3.5 py-1.5 text-text-muted transition-colors hover:border-amber-500/40 hover:text-amber-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40 disabled:opacity-40"
+              aria-pressed={isPreviewing}
+              onClick={isPreviewing ? stopPreview : () => void startPreview()}
+              className="rounded-full hover:border-amber-500/40 hover:text-amber-400"
             >
               {isPreviewing ? (
                 <Square className="h-3 w-3" fill="currentColor" />
@@ -606,81 +679,22 @@ function FadeControls({
                 <Play className="h-3 w-3" fill="currentColor" />
               )}
               {isPreviewing ? "Stop" : "Preview fade"}
-            </button>
+            </Button>
 
-            <label className="flex items-center gap-1.5 text-xs text-text-muted">
-              Fade out
-              <Stepper
-                label="fade out"
-                value={fadeOut}
-                disabled={disabled}
-                onIncrement={() => setFadeOut(fadeOut + KEY_STEP)}
-                onDecrement={() => setFadeOut(fadeOut - KEY_STEP)}
-                onChange={setFadeOut}
-              />
-              s
-            </label>
+            <Stepper
+              label="Fade out"
+              value={fadeOut}
+              step={KEY_STEP}
+              bigStep={KEY_STEP}
+              precision={1}
+              unit="s"
+              disabled={disabled}
+              onChange={setFadeOut}
+            />
           </div>
-
-          <p className="text-center text-xs text-text-subtle">
-            Drag or arrow-key either handle — capped to your track&apos;s length and {FADE_MAX_SECONDS}s max per fade.
-          </p>
-        </>
+        </ControlField>
       )}
     </div>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-
-function Stepper({
-  label,
-  value,
-  disabled,
-  onIncrement,
-  onDecrement,
-  onChange,
-}: {
-  label: string;
-  value: number;
-  disabled: boolean;
-  onIncrement: () => void;
-  onDecrement: () => void;
-  onChange: (v: number) => void;
-}) {
-  return (
-    <span className="flex items-center overflow-hidden rounded-md border border-graphite-700 bg-graphite-850">
-      <input
-        type="number"
-        min={0}
-        max={FADE_MAX_SECONDS}
-        step={0.1}
-        value={value}
-        disabled={disabled}
-        onChange={(e) => onChange(Number(e.target.value))}
-        className="w-14 bg-transparent px-2 py-1 text-right font-mono text-text-primary [appearance:textfield] focus:outline-none disabled:opacity-40 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-      />
-      <span className="flex flex-col border-l border-graphite-700">
-        <button
-          type="button"
-          aria-label={`Increase ${label}`}
-          disabled={disabled}
-          onClick={onIncrement}
-          className="flex h-3.5 w-5 items-center justify-center text-text-subtle transition-colors hover:bg-graphite-800 hover:text-amber-400 disabled:opacity-40"
-        >
-          <ChevronUp className="h-2.5 w-2.5" />
-        </button>
-        <button
-          type="button"
-          aria-label={`Decrease ${label}`}
-          disabled={disabled}
-          onClick={onDecrement}
-          className="flex h-3.5 w-5 items-center justify-center border-t border-graphite-700 text-text-subtle transition-colors hover:bg-graphite-800 hover:text-amber-400 disabled:opacity-40"
-        >
-          <ChevronDown className="h-2.5 w-2.5" />
-        </button>
-      </span>
-    </span>
   );
 }
 
@@ -700,6 +714,11 @@ export function FadeForm() {
       processingLabel="Applying fade"
       expectedRange="a few seconds"
       resultVerb="Faded"
+      rateLimitMessage={
+        RATE_LIMIT_LABEL
+          ? `Fades are limited to ${RATE_LIMIT_LABEL}. Wait for the timer, then run it again.`
+          : undefined
+      }
       stages={[
         { at: 0, label: "Reading the audio" },
         { at: 3, label: "Rendering the fade curves" },

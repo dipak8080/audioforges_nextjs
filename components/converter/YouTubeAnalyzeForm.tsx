@@ -2,9 +2,49 @@
 
 import { useEffect, useState } from "react";
 import { YouTubeUrlForm } from "@/components/converter/YouTubeUrlForm";
-import { AnalysisResultCard } from "@/components/converter/AnalysisResultCard";
+import { AnalysisResultCard, toAnalysisResult } from "@/components/converter/AnalysisResultCard";
+import { Hint } from "@/components/converter/ToolControls";
 import { submitYoutubeAnalyze, getYoutubeAnalyzeResult, ApiError } from "@/lib/api/railway";
+import { getRateLimitLabel } from "@/lib/data/rate-limits";
 import type { AnalysisResult } from "@/lib/types/converter";
+
+/**
+ * FROM THE PREVIOUS PASS, all still true:
+ *
+ * The cleanest of the four /youtube/* forms — no quality tier, no credits, no
+ * notify toggle, and it never drew the duplicate result header the other two
+ * did.
+ *
+ * 1. THE RATE-LIMIT COPY DIDN'T SAY WHAT THE LIMIT WAS. "You've reached the
+ *    limit for this tool. Try again in a few minutes" is a guess wearing a
+ *    fact's clothes — the number is in RATE_LIMITS, and "a few minutes" is
+ *    wrong if the window is an hour.
+ *
+ * 2. THE ERROR WAS A HAND-ROLLED RED BOX, missing the icon and the role="alert"
+ *    every other failure on the site has. Hint carries both.
+ *
+ * 3. progressTau IS EXPLICIT. The default of 20 happens to suit a 20–60s job,
+ *    but it was the default rather than a decision — and now that its siblings
+ *    set 45 and 110, leaving this one implicit reads as an oversight rather
+ *    than a fit.
+ *
+ * ── THIS PASS ──────────────────────────────────────────────────────────
+ *
+ * THE RESPONSE MAPPING WAS THE SECOND COPY. KeyFinderForm carried the same
+ * conversion character for character — the same `toPct`, the same fallbacks,
+ * the same `typeof … === "boolean"` guards on cross_check. Both tools hit the
+ * same analysis backend, so two copies means two places to fix when the
+ * response gains a field, and the first symptom of drift would be the same
+ * track reporting different confidence depending on whether it was uploaded or
+ * pasted.
+ *
+ * It lives beside AnalysisResultCard now — the component that consumes it — so
+ * a change to the shape and a change to the rendering land in the same file.
+ * The percentage rule is documented there too, including why a clean 1.0 has
+ * to read as 100% rather than 1%.
+ */
+
+const RATE_LIMIT_LABEL = getRateLimitLabel("youtube/analyze");
 
 /* ------------------------------------------------------------------ */
 /* Result fetch                                                        */
@@ -24,20 +64,9 @@ function AnalyzeResult({ jobId }: { jobId: string }) {
       try {
         const data = await getYoutubeAnalyzeResult(jobId);
         if (cancelled) return;
-
-        const toPct = (n: number) => Math.round(n > 1 ? n : n * 100);
-
-        setResult({
-          key: (data.key as string) || "Unknown",
-          camelot: (data.camelot as string) || "N/A",
-          bpm: Math.round(Number(data.bpm) || 0),
-          confidence: toPct(Number(data.confidence) || 0),
-          bpmConfidence: toPct(Number(data.bpm_confidence) || 0),
-          keyAgrees:
-            typeof data.cross_check?.key_agrees === "boolean" ? data.cross_check.key_agrees : null,
-          bpmAgrees:
-            typeof data.cross_check?.bpm_agrees === "boolean" ? data.cross_check.bpm_agrees : null,
-        });
+        // Shared with KeyFinderForm — see AnalysisResultCard. Both tools hit
+        // the same backend and must not read it differently.
+        setResult(toAnalysisResult(data));
       } catch (err) {
         if (cancelled) return;
         setError(err instanceof ApiError ? err.message : "Could not load the result.");
@@ -48,13 +77,9 @@ function AnalyzeResult({ jobId }: { jobId: string }) {
     };
   }, [jobId]);
 
-  if (error) {
-    return (
-      <p className="rounded-lg border border-red-500/25 bg-red-500/[0.07] px-4 py-3 text-sm text-text-primary">
-        {error}
-      </p>
-    );
-  }
+  // Was a bare red <p> — no icon, no role="alert", nothing the rest of the site
+  // uses to say "this went wrong".
+  if (error) return <Hint tone="bad">{error}</Hint>;
 
   if (!result) {
     return (
@@ -76,6 +101,9 @@ export function YouTubeAnalyzeForm() {
       endpoint="youtube/analyze"
       onSubmit={submitYoutubeAnalyze}
       pollIntervalMs={3000}
+      // Explicit rather than inherited: its siblings run 45 and 110, so an
+      // unstated default here would read as something nobody looked at.
+      progressTau={25}
       toolLabel="Key & BPM finder"
       toolMeta="Camelot · cross-checked"
       submitLabel="Find key & BPM"
@@ -87,7 +115,11 @@ export function YouTubeAnalyzeForm() {
         { at: 20, label: "Estimating the key" },
         { at: 34, label: "Cross-checking both detectors" },
       ]}
-      rateLimitMessage="You've reached the limit for this tool. Try again in a few minutes."
+      rateLimitMessage={
+        RATE_LIMIT_LABEL
+          ? `This tool is limited to ${RATE_LIMIT_LABEL}. Wait for the timer, then run it again.`
+          : "You've reached the limit for this tool. Wait for the timer, then run it again."
+      }
       renderComplete={(jobId) => <AnalyzeResult jobId={jobId} />}
     />
   );

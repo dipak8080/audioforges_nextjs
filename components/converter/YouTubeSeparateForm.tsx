@@ -1,10 +1,18 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Download, Mic2, Music4, Sparkles, Bell, BellOff, Info } from "lucide-react";
+import { Download, Mic2, Music4, Sparkles, Bell, BellOff } from "lucide-react";
 import { YouTubeUrlForm } from "@/components/converter/YouTubeUrlForm";
 import { AudioPlayer } from "@/components/ui/AudioPlayer";
 import { buttonStyles } from "@/components/ui/Button";
+import {
+  ControlField,
+  Hint,
+  OptionCards,
+  Segmented,
+  ToggleRow,
+  type CardOption,
+} from "@/components/converter/ToolControls";
 import {
   submitYoutubeSeparate,
   getYoutubeSeparatePreviewUrl,
@@ -13,7 +21,6 @@ import {
 } from "@/lib/api/railway";
 import { getRateLimitLabel } from "@/lib/data/rate-limits";
 import type { StemType } from "@/lib/types/converter";
-import { cn } from "@/lib/utils/cn";
 import { useCredits } from "@/components/credits/CreditProvider";
 import { FreeTierBadge } from "@/components/credits/FreeTierBadge";
 import type { MeteredToolKey } from "@/lib/types/credits";
@@ -21,23 +28,31 @@ import type { MeteredToolKey } from "@/lib/types/credits";
 /**
  * ── THIS PASS ──────────────────────────────────────────────────────────
  *
- * 1. THE UPGRADE'S POLL CEILING IS NOW PASSED EXPLICITLY. An upgrade always
- *    produces an HQ job, but YouTubeUrlForm previously polled it against
- *    whatever `maxPollMs` the quality toggle was on — Standard, in practice,
- *    since nobody upgrades a job they already ran at HQ. That is a 12-minute
- *    frontend cap on a run the backend allows 30 minutes for, so a slow
- *    upgrade was declared stuck while it was still working.
+ * 1. THE RESULT RENDERED ITS HEADER TWICE. YouTubeUrlForm draws a ResultHeader
+ *    — "DONE", the track title, the thumbnail, the elapsed time — and THEN
+ *    calls renderComplete. This component's renderComplete opened with its own
+ *    "Done" eyebrow and title, so a finished job showed the same two lines
+ *    stacked, once in the kit's teal card and once in a bordered block
+ *    underneath. It's the seam from when YouTubeUrlForm moved onto the kit and
+ *    its consumers didn't. Local header deleted; the kit's is the one with the
+ *    thumbnail and the Studio Quality tag on it.
  *
- * 2. BOTH RADIOGROUPS ARE KEYBOARD-OPERABLE. `role="radiogroup"` with plain
- *    focusable buttons is a broken promise: a radiogroup is one tab stop with
- *    arrow keys between options, and assistive tech tells the user to expect
- *    exactly that.
+ * 2. THE PROGRESS BAR FROZE ON STUDIO QUALITY RUNS. YouTubeUrlForm's curve was
+ *    fixed at a 20-second time constant, so it reached ~92% about a minute in
+ *    and then stopped — for the remaining minute of a typical HQ job, and for
+ *    however long a slow one takes. A bar that stops moving reads as a hung
+ *    job. `progressTau` now matches the tier.
  *
- * 3. THE NOTIFY FLAGS ARE READ THROUGH REFS. They happened to work here
- *    because the toggle is disabled while busy, so `notifyOnDone` could never
- *    be captured in its off state — but that is an accident of one disabled
- *    attribute, and the same code in VocalRemoverForm silently never fired.
- *    Refs make it correct by construction rather than by coincidence.
+ * 3. useRovingRadio IS GONE. It was correct, and it was the third hand-rolled
+ *    copy of the same keyboard behaviour; OptionCards and Segmented carry it
+ *    now. Both pickers here were declaring `role="radiogroup"` — one tab stop,
+ *    arrows between options — over plain buttons that delivered neither.
+ *
+ * KEPT: the notify flags through refs (correct by construction rather than by
+ * the accident of one disabled attribute); the explicit upgrade poll ceilings,
+ * without which an upgrade inherits the Standard tier's 12-minute cap on a run
+ * the backend allows thirty for; rate-limit labels read from RATE_LIMITS and
+ * overridden by the live per-visitor limit.
  */
 
 interface YouTubeSeparateFormProps {
@@ -91,6 +106,14 @@ const POLL_INTERVAL_MS_STANDARD = 8_000;
 const POLL_INTERVAL_MS_HQ = 20_000;
 
 /**
+ * Time constants for the progress curve, in seconds — near each tier's TYPICAL
+ * duration, not its ceiling. The old fixed 20 put the bar at ~92% one minute
+ * in and left it there for the rest of an HQ run.
+ */
+const PROGRESS_TAU_STANDARD = 40;
+const PROGRESS_TAU_HQ = 90;
+
+/**
  * The static table in lib/data/rate-limits.ts cannot be right for a tiered
  * limit — metered routes are 2/hour free and 30/hour credited, so whichever
  * number sits in the table lies to one of those groups. /credits/me returns the
@@ -111,49 +134,6 @@ function formatRateLimit(max: number, windowSeconds: number): string {
   return `${max} per ${unit}`;
 }
 
-/**
- * A radiogroup is ONE tab stop with arrows between the options — that is what
- * the role promises and what assistive tech tells the user to expect. Plain
- * buttons inside `role="radiogroup"` give a tab stop per option and no arrows,
- * which is worse than having used no role at all.
- */
-function useRovingRadio<T extends string>(
-  values: readonly T[],
-  current: T,
-  onChange: (next: T) => void
-) {
-  const refs = useRef<Array<HTMLButtonElement | null>>([]);
-
-  function onKeyDown(e: React.KeyboardEvent) {
-    const i = values.indexOf(current);
-    if (i < 0) return;
-    let next: number;
-    switch (e.key) {
-      case "ArrowRight":
-      case "ArrowDown":
-        next = (i + 1) % values.length;
-        break;
-      case "ArrowLeft":
-      case "ArrowUp":
-        next = (i - 1 + values.length) % values.length;
-        break;
-      case "Home":
-        next = 0;
-        break;
-      case "End":
-        next = values.length - 1;
-        break;
-      default:
-        return;
-    }
-    e.preventDefault();
-    onChange(values[next]);
-    refs.current[next]?.focus();
-  }
-
-  return { refs, onKeyDown };
-}
-
 // Stage timestamps (seconds elapsed) are proportional progress cues, rescaled
 // to match current GPU-era processing times — NOT the backend timeout ceiling.
 const STANDARD_STAGES = [
@@ -170,61 +150,35 @@ const HQ_STAGES = [
   { at: 90, label: "Rendering vocals and instrumental" },
 ];
 
-function SeparateResult({ jobId, title }: { jobId: string; title: string | null }) {
+const STEM_OPTIONS = [
+  { value: "vocals" as const, label: "Vocals", icon: <Mic2 className="h-4 w-4" aria-hidden /> },
+  {
+    value: "instrumental" as const,
+    label: "Instrumental",
+    icon: <Music4 className="h-4 w-4" aria-hidden />,
+  },
+];
+
+/**
+ * Only what sits BELOW the kit's result header: the stem switch, the player and
+ * the download. The header itself — verb, title, thumbnail, elapsed time,
+ * Studio Quality tag — is YouTubeUrlForm's, and this used to draw a second one.
+ */
+function SeparateResult({ jobId }: { jobId: string }) {
   const [activeStem, setActiveStem] = useState<StemType>("vocals");
-  const stemRadio = useRovingRadio(
-    ["vocals", "instrumental"] as const,
-    activeStem,
-    (v) => setActiveStem(v)
-  );
 
   return (
     <div className="space-y-4">
-      <div className="border-b border-graphite-800 pb-4">
-        <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-teal-400">Done</p>
-        <p className="mt-1.5 truncate text-sm font-medium text-text-primary">
-          {title || "Separation complete"}
-        </p>
-      </div>
+      <Segmented
+        label="Stem"
+        value={activeStem}
+        onChange={setActiveStem}
+        options={STEM_OPTIONS}
+      />
 
-      <div
-        className="grid grid-cols-2 gap-2"
-        role="radiogroup"
-        aria-label="Stem"
-        onKeyDown={stemRadio.onKeyDown}
-      >
-        {(["vocals", "instrumental"] as StemType[]).map((stem, i) => {
-          const selected = activeStem === stem;
-          return (
-            <button
-              key={stem}
-              ref={(el) => {
-                stemRadio.refs.current[i] = el;
-              }}
-              type="button"
-              role="radio"
-              aria-checked={selected}
-              tabIndex={selected ? 0 : -1}
-              onClick={() => setActiveStem(stem)}
-              className={cn(
-                "flex items-center justify-center gap-2 rounded-lg border px-3 py-2.5 text-sm font-medium capitalize transition-colors",
-                "outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70",
-                selected
-                  ? "border-amber-500/60 bg-amber-500/10 text-amber-400"
-                  : "border-graphite-700 bg-graphite-850 text-text-muted hover:text-text-primary"
-              )}
-            >
-              {stem === "vocals" ? (
-                <Mic2 className="h-4 w-4" aria-hidden />
-              ) : (
-                <Music4 className="h-4 w-4" aria-hidden />
-              )}
-              {stem}
-            </button>
-          );
-        })}
-      </div>
-
+      {/* Keyed per stem so the player remounts on a new source. The envelope
+          cache in waveform.ts means switching back and forth no longer
+          re-decodes the file each time. */}
       <AudioPlayer key={activeStem} src={getYoutubeSeparatePreviewUrl(jobId, activeStem)} />
 
       {/* Stays an <a> — a real download URL, so middle-click and open-in-new-tab
@@ -261,12 +215,6 @@ export function YouTubeSeparateForm({ hqAvailable = false }: YouTubeSeparateForm
     getRateLimitLabel(STANDARD_SPEC.rateLimitKey) ?? FALLBACK_RATE_LIMIT_LABEL;
   const hqLimitLabel = getRateLimitLabel(HQ_SPEC.rateLimitKey) ?? FALLBACK_RATE_LIMIT_LABEL;
 
-  const qualityRadio = useRovingRadio(
-    ["standard", "hq"] as const,
-    quality,
-    (v) => setQuality(v)
-  );
-
   /**
    * Read by notifyOnDone, which is handed to YouTubeUrlForm and called from
    * inside its polling loop. Reading the state values directly is only safe
@@ -278,9 +226,7 @@ export function YouTubeSeparateForm({ hqAvailable = false }: YouTubeSeparateForm
     Synced in an EFFECT, not assigned during render. Writing to a ref while
     rendering is what react-hooks/refs rejects, and it stops being merely
     untidy the moment the React Compiler is enabled: a memoised render can be
-    skipped, and the assignment with it. An effect with no dependency array
-    runs after every render, so the value a callback reads is always the
-    latest one.
+    skipped, and the assignment with it.
   */
   useEffect(() => {
     notifyEnabledRef.current = notifyEnabled;
@@ -317,6 +263,27 @@ export function YouTubeSeparateForm({ hqAvailable = false }: YouTubeSeparateForm
     }
   };
 
+  const notifyOn = notifyEnabled && notifyPermission === "granted";
+
+  const qualityOptions: CardOption<SeparationQuality>[] = [STANDARD_SPEC, HQ_SPEC].map(
+    (option) => {
+      const liveLimit = option.toolKey ? rateLimitFor(option.toolKey) : null;
+      return {
+        value: option.value,
+        title: option.label,
+        titleBefore:
+          option.value === "hq" ? <Sparkles className="h-3.5 w-3.5" aria-hidden /> : undefined,
+        // Renders nothing unless this tool is metered right now.
+        titleAfter: option.toolKey ? <FreeTierBadge tool={option.toolKey} /> : undefined,
+        meta: option.time,
+        detail: option.detail,
+        footnote: liveLimit
+          ? formatRateLimit(liveLimit.max_requests, liveLimit.window_seconds)
+          : (getRateLimitLabel(option.rateLimitKey) ?? FALLBACK_RATE_LIMIT_LABEL),
+      };
+    }
+  );
+
   return (
     <YouTubeUrlForm
       endpoint="youtube/separate"
@@ -328,6 +295,9 @@ export function YouTubeSeparateForm({ hqAvailable = false }: YouTubeSeparateForm
       upgradeFamily="separate"
       pollIntervalMs={isHq ? POLL_INTERVAL_MS_HQ : POLL_INTERVAL_MS_STANDARD}
       maxPollMs={isHq ? MAX_POLL_MS_HQ : MAX_POLL_MS_STANDARD}
+      // Sized to the tier, so the bar keeps moving for the whole run instead of
+      // parking at 92% a minute in.
+      progressTau={isHq ? PROGRESS_TAU_HQ : PROGRESS_TAU_STANDARD}
       // An upgrade is ALWAYS to HQ, and it starts from a result the user got on
       // the Standard tier — so without these it would inherit the standard
       // 12-minute cap and be declared stuck at minute twelve of a run the
@@ -356,83 +326,26 @@ export function YouTubeSeparateForm({ hqAvailable = false }: YouTubeSeparateForm
       renderControls={(disabled, hasUrl) => (
         <div className="space-y-5">
           {hqAvailable && (
-            <fieldset className="space-y-2" disabled={disabled}>
-              <legend className="mb-2 text-sm font-medium text-text-primary">Quality</legend>
-              <div
-                className="grid gap-2 sm:grid-cols-2"
-                role="radiogroup"
-                aria-label="Separation quality"
-                onKeyDown={qualityRadio.onKeyDown}
-              >
-                {[STANDARD_SPEC, HQ_SPEC].map((option, i) => {
-                  const selected = quality === option.value;
-                  const liveLimit = option.toolKey ? rateLimitFor(option.toolKey) : null;
-                  const rateLimitLabel = liveLimit
-                    ? formatRateLimit(liveLimit.max_requests, liveLimit.window_seconds)
-                    : (getRateLimitLabel(option.rateLimitKey) ?? FALLBACK_RATE_LIMIT_LABEL);
-                  return (
-                    <button
-                      key={option.value}
-                      ref={(el) => {
-                        qualityRadio.refs.current[i] = el;
-                      }}
-                      type="button"
-                      role="radio"
-                      aria-checked={selected}
-                      tabIndex={selected ? 0 : -1}
-                      onClick={() => setQuality(option.value)}
-                      disabled={disabled}
-                      className={cn(
-                        "rounded-lg border p-3.5 text-left transition-all",
-                        "outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70",
-                        "disabled:cursor-not-allowed disabled:opacity-40",
-                        selected
-                          ? "border-amber-500/60 bg-amber-500/[0.07]"
-                          : "border-graphite-700 bg-graphite-850 hover:border-graphite-700/60 hover:bg-graphite-800/60"
-                      )}
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span
-                          className={cn(
-                            "flex items-center gap-1.5 text-sm font-semibold",
-                            selected ? "text-amber-400" : "text-text-primary"
-                          )}
-                        >
-                          {option.value === "hq" && (
-                            <Sparkles className="h-3.5 w-3.5" aria-hidden />
-                          )}
-                          {option.label}
-                          {/* Renders nothing unless this tool is metered right now. */}
-                          {option.toolKey && <FreeTierBadge tool={option.toolKey} />}
-                        </span>
-                        <span
-                          className={cn(
-                            "font-mono text-[10px]",
-                            selected ? "text-amber-500/80" : "text-text-subtle"
-                          )}
-                        >
-                          {option.time}
-                        </span>
-                      </div>
-                      <p className="mt-1 text-[11px] leading-snug text-text-muted">
-                        {option.detail}
-                      </p>
-                      <p className="mt-1 font-mono text-[10px] text-text-subtle">
-                        {rateLimitLabel}
-                      </p>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {isHq && (
-                <p className="flex items-start gap-1.5 text-[11px] leading-relaxed text-text-subtle">
-                  <Info className="mt-0.5 h-3 w-3 shrink-0" aria-hidden />
-                  Studio Quality can take a minute or two, plus the download. Keep
-                  this tab open.
-                </p>
-              )}
-            </fieldset>
+            <ControlField
+              as="fieldset"
+              label="Quality"
+              hint={
+                isHq ? (
+                  <Hint>
+                    Studio Quality can take a minute or two, plus the download. The notification
+                    below saves you from babysitting this tab.
+                  </Hint>
+                ) : undefined
+              }
+            >
+              <OptionCards
+                label="Separation quality"
+                options={qualityOptions}
+                value={quality}
+                onChange={setQuality}
+                disabled={disabled}
+              />
+            </ControlField>
           )}
 
           {/*
@@ -440,42 +353,25 @@ export function YouTubeSeparateForm({ hqAvailable = false }: YouTubeSeparateForm
             field this was a full-width greyed-out row that does nothing, and a
             disabled control is still a control the eye has to process and
             dismiss. Nothing to notify you about until there's a job.
-
-            aria-pressed: it's a toggle, and without it a screen reader
-            announces the same thing whether notifications are on or off.
           */}
           {notifyPermission !== "unsupported" && hasUrl && (
-            <button
-              type="button"
-              onClick={handleNotifyToggle}
+            <ToggleRow
+              pressed={notifyOn}
+              onToggle={handleNotifyToggle}
               disabled={disabled}
-              aria-pressed={notifyEnabled && notifyPermission === "granted"}
-              className={cn(
-                "flex w-full items-center gap-2.5 rounded-lg border px-3.5 py-2.5 text-left text-sm transition-colors",
-                "outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70",
-                "disabled:pointer-events-none disabled:opacity-40",
-                notifyEnabled && notifyPermission === "granted"
-                  ? "border-amber-500/60 bg-amber-500/[0.07] text-amber-400"
-                  : "border-graphite-700 bg-graphite-850 text-text-muted hover:border-graphite-700/60 hover:text-text-primary"
-              )}
+              iconOn={<Bell className="h-4 w-4" />}
+              iconOff={<BellOff className="h-4 w-4" />}
             >
-              {notifyEnabled && notifyPermission === "granted" ? (
-                <Bell className="h-4 w-4 shrink-0" aria-hidden />
-              ) : (
-                <BellOff className="h-4 w-4 shrink-0" aria-hidden />
-              )}
-              <span className="flex-1">
-                {notifyPermission === "denied"
-                  ? "Notifications blocked — enable them in your browser settings to use this"
-                  : notifyEnabled && notifyPermission === "granted"
-                    ? "We'll notify you when it's done"
-                    : "Notify me when it's done"}
-              </span>
-            </button>
+              {notifyPermission === "denied"
+                ? "Notifications blocked — enable them in your browser settings to use this"
+                : notifyOn
+                  ? "We'll notify you when it's done"
+                  : "Notify me when it's done"}
+            </ToggleRow>
           )}
         </div>
       )}
-      renderComplete={(jobId, title) => <SeparateResult jobId={jobId} title={title} />}
+      renderComplete={(jobId) => <SeparateResult jobId={jobId} />}
     />
   );
 }

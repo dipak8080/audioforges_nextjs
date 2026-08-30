@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { AudioWaveform, Coffee, Menu, X, ChevronDown, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
+import { buttonStyles } from "@/components/ui/Button";
 import { TOOLS, CATEGORY_ORDER, CATEGORY_LABELS, getToolsByCategory } from "@/lib/data/tools";
 import { CreditMenu, CreditChipMobile } from "@/components/credits/CreditMenu";
 import { CreditAccountPanel } from "@/components/credits/CreditAccountPanel";
@@ -29,29 +30,60 @@ import { useCredits } from "@/components/credits/CreditProvider";
  * HOVER SCOPE (2026-08-17): open-on-hover handlers sit on a wrapper around
  * the trigger ALONE. Wrapping the whole link group made Guides open Tools.
  *
+ * INERT WHEN CLOSED (2026-08-21). Both the mega panel and the mobile sheet
+ * stay mounted (that's what the prefetch note above is about), and `opacity-0`
+ * / `pointer-events-none` / `max-h-0` hide them from the mouse but NOT from
+ * the keyboard. `inert` removes them from the tab order and the accessibility
+ * tree without unmounting them, so the prefetch behaviour is unchanged.
+ *
  * ── THIS PASS ──────────────────────────────────────────────────────────
  *
- * INERT WHEN CLOSED. Both the mega panel and the mobile sheet stay mounted
- * (that's what the prefetch note above is about), and `opacity-0` /
- * `pointer-events-none` / `max-h-0` hide them from the mouse but NOT from
- * the keyboard. Tab from the Tools button walked into ~40 invisible tool
- * links, and on mobile every closed sheet link was still focusable. `inert`
- * removes them from the tab order and the accessibility tree without
- * unmounting them, so the prefetch behaviour is unchanged.
+ * 1. HOVER-TO-OPEN FIRED ON TOUCH. Mobile browsers synthesise mouseenter on
+ *    tap, so on a tablet in landscape — wide enough for the desktop nav — a
+ *    tap on Tools opened the panel via hover and then the click handler
+ *    immediately toggled it shut. The panel was unopenable by tapping. The
+ *    handlers now check pointerType and ignore anything that isn't a mouse.
  *
- * COLUMN COUNT IS RESPONSIVE. `columns-4` at a 640px breakpoint gave each
- * column ~100px, so most tool names truncated. Now 2 → 3 → 4.
+ * 2. GUIDE DETAIL PAGES SHOWED NOTHING ACTIVE. The check was
+ *    `pathname === "/guides"`, so every /guides/<slug> page — which is most of
+ *    the guide traffic — had no active nav item at all. Same for /tools, which
+ *    is the page the panel's own footer link points at.
  *
- * THE DESKTOP SPLIT MOVED FROM 640px TO 768px. Tools + Guides + credits +
- * Donate does not fit a 640px header; it fits at 768. CreditMenu and
- * CreditChipMobile use the same breakpoint.
+ * 3. THE PANEL FOOTER CLAIMED EVERY TOOL IS FREE. It has said "N free tools"
+ *    since before the paywall existed; HQ separation, multi-track MIDI and
+ *    transcription now cost a credit. Saying it in the same header row as a
+ *    credit balance is the worst place to be wrong about it.
  *
- * SCROLL IS rAF-THROTTLED and compares against a ref, so a scroll gesture
- * no longer calls setState on every frame it fires.
+ * 4. OPENING THE MOBILE SHEET LEFT FOCUS ON THE TOGGLE. A keyboard or screen
+ *    reader user had to tab back through the header to reach the menu they
+ *    just opened. Focus moves into the sheet, and returns to the toggle when
+ *    it closes.
  *
- * NO SEARCH FIELD (2026-08-17): every tool is on screen here, unscrolled.
- * Filtering a list you can see is work without a payoff. Search lives on
- * /tools, which has descriptions and real scroll.
+ * 5. THE TRIGGER IGNORED ArrowDown. Every disclosure menu on the web opens on
+ *    it; this one only responded to Enter, Space and the mouse.
+ *
+ * 6. DONATE AND THE MENU TOGGLE ARE `buttonStyles` NOW. They were the last two
+ *    hand-rolled button surfaces in the header — the Donate link had already
+ *    drifted to its own radius, padding and focus ring.
+ *
+ * ── THIS PASS ──────────────────────────────────────────────────────────
+ *
+ * 7. DONATE FLASHED IN AND OUT FOR EVERY PAYING USER. `hideDonate` read
+ *    `balance > 0`, and CreditProvider starts at `balance: 0` with
+ *    `loading: true` until /credits/me answers. So a cold load went: render
+ *    Donate → balance arrives → remove Donate. The header shifted, and the
+ *    thing it flashed was a tip request aimed at someone who had already paid.
+ *
+ *    Waiting for `loading` to settle fixes it in the direction that matters.
+ *    Repeat visitors are unaffected either way — CreditProvider seeds from its
+ *    module cache, so `loading` starts false and the first paint is already
+ *    correct.
+ *
+ * 8. THE MEGA PANEL'S aria-label WAS ON A PLAIN <div>. An aria-label only
+ *    applies to an element with a role, so "All tools" was announced to
+ *    nobody. It's a navigation landmark — forty links to other pages — so it
+ *    says so now, which also gives screen-reader users a way to jump straight
+ *    to it.
  */
 export function Navbar() {
   const pathname = usePathname();
@@ -63,8 +95,19 @@ export function Navbar() {
    * compete. It stays in the mobile sheet and the footer for everyone, so
    * the Ko-fi link is never unreachable.
    */
-  const { balance } = useCredits();
-  const hideDonate = balance > 0;
+  const { balance, loading: creditsLoading } = useCredits();
+  /*
+    `loading` matters here, not just the balance.
+
+    CreditProvider starts at balance 0 while /credits/me is in flight, so
+    reading the balance alone rendered Donate on first paint and removed it a
+    moment later for anyone who actually had credits — a header shift, and the
+    thing that flashed was a tip request aimed at someone who had already paid.
+
+    Held back until the balance is known. Repeat visitors see no delay at all:
+    the provider seeds from its module cache and `loading` starts false.
+  */
+  const hideDonate = creditsLoading || balance > 0;
 
   const [isToolsOpen, setIsToolsOpen] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
@@ -72,6 +115,8 @@ export function Navbar() {
 
   const panelRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const sheetRef = useRef<HTMLDivElement>(null);
+  const mobileToggleRef = useRef<HTMLButtonElement>(null);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const toolsOpenRef = useRef(false);
 
@@ -96,6 +141,11 @@ export function Navbar() {
     cancelClose();
     closeTimer.current = setTimeout(() => setIsToolsOpen(false), 140);
   }
+
+  /* Touch and pen are ignored. A tablet wide enough for this nav synthesises
+     mouseenter on tap, which opened the panel and let the click handler close
+     it again in the same gesture — the trigger simply didn't work by touch. */
+  const isMouse = (e: React.PointerEvent) => e.pointerType === "mouse";
 
   // --- outside click + escape --------------------------------------------
   useEffect(() => {
@@ -126,13 +176,27 @@ export function Navbar() {
     setIsMobileOpen(false);
   }, [pathname]);
 
-  // Lock the page behind the mobile sheet so the body doesn't scroll under it.
+  // Lock the page behind the mobile sheet so the body doesn't scroll under it,
+  // and put focus where the user just asked to be. Without the focus move,
+  // opening the menu by keyboard left you outside it, tabbing through the
+  // header again to get in.
   useEffect(() => {
     if (!isMobileOpen) return;
     const previous = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+
+    const firstLink = sheetRef.current?.querySelector<HTMLElement>(
+      'a[href], button:not([disabled])'
+    );
+    firstLink?.focus();
+
     return () => {
       document.body.style.overflow = previous;
+      // Only reclaim focus if it's still inside the sheet — a link click that
+      // navigates should not yank focus back to the toggle.
+      if (sheetRef.current?.contains(document.activeElement)) {
+        mobileToggleRef.current?.focus();
+      }
     };
   }, [isMobileOpen]);
 
@@ -161,8 +225,21 @@ export function Navbar() {
     };
   }, []);
 
-  const isToolPageActive = TOOLS.some((t) => pathname === `/${t.slug}`);
-  const liveToolCount = TOOLS.filter((t) => t.status === "live").length;
+  /* /tools belongs here too: it's where the panel's own footer link goes, and
+     landing there used to leave the whole nav looking unvisited. */
+  const isToolPageActive =
+    pathname === "/tools" || TOOLS.some((t) => pathname === `/${t.slug}`);
+  /* startsWith, not equality: /guides/<slug> is most of the guide traffic and
+     none of it lit this up. */
+  const isGuidesActive = pathname.startsWith("/guides");
+  const toolCount = TOOLS.filter((t) => t.status === "live").length;
+
+  const navLinkStyles = (active: boolean) =>
+    cn(
+      "relative rounded-md px-4 py-2 text-sm font-medium outline-none transition-colors duration-200",
+      "focus-visible:ring-2 focus-visible:ring-amber-400/70",
+      active ? "text-amber-400" : "text-text-muted hover:bg-graphite-900 hover:text-text-primary"
+    );
 
   return (
     <header
@@ -195,10 +272,11 @@ export function Navbar() {
         <nav className="mx-auto flex max-w-6xl items-center justify-between gap-2 px-4 py-3.5">
           <Link
             href="/"
-            className="flex shrink-0 items-center gap-2 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70"
+            aria-label="AudioForges home"
+            className="group flex shrink-0 items-center gap-2 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70"
             onClick={() => setIsMobileOpen(false)}
           >
-            <AudioWaveform className="h-5 w-5 text-amber-500" />
+            <AudioWaveform className="h-5 w-5 text-amber-500 transition-transform duration-200 group-hover:scale-105 motion-reduce:transition-none" />
             <span className="font-mono font-semibold tracking-tight text-text-primary">
               AudioForges
             </span>
@@ -206,20 +284,27 @@ export function Navbar() {
 
           <div className="hidden items-center gap-1 md:flex">
             {/* Hover scope is this wrapper only — see the note up top. */}
-            <div className="flex" onMouseEnter={openTools} onMouseLeave={scheduleClose}>
+            <div
+              className="flex"
+              onPointerEnter={(e) => isMouse(e) && openTools()}
+              onPointerLeave={(e) => isMouse(e) && scheduleClose()}
+            >
               <button
                 ref={triggerRef}
                 type="button"
                 onClick={() => (isToolsOpen ? setIsToolsOpen(false) : openTools())}
+                onKeyDown={(e) => {
+                  // The convention every disclosure menu on the web uses, and
+                  // the only one this trigger didn't answer.
+                  if (e.key === "ArrowDown") {
+                    e.preventDefault();
+                    openTools();
+                    panelRef.current?.querySelector<HTMLElement>("a[href]")?.focus();
+                  }
+                }}
                 aria-expanded={isToolsOpen}
                 aria-controls="nav-tools-panel"
-                className={cn(
-                  "relative flex items-center gap-1 rounded-md px-4 py-2 text-sm font-medium outline-none transition-colors duration-200",
-                  "focus-visible:ring-2 focus-visible:ring-amber-400/70",
-                  isToolPageActive || isToolsOpen
-                    ? "text-amber-400"
-                    : "text-text-muted hover:bg-graphite-900 hover:text-text-primary"
-                )}
+                className={cn(navLinkStyles(isToolPageActive || isToolsOpen), "flex items-center gap-1")}
               >
                 Tools
                 <ChevronDown
@@ -240,21 +325,15 @@ export function Navbar() {
 
             <Link
               href="/guides"
-              aria-current={pathname === "/guides" ? "page" : undefined}
-              className={cn(
-                "relative rounded-md px-4 py-2 text-sm font-medium outline-none transition-colors duration-200",
-                "focus-visible:ring-2 focus-visible:ring-amber-400/70",
-                pathname === "/guides"
-                  ? "text-amber-400"
-                  : "text-text-muted hover:bg-graphite-900 hover:text-text-primary"
-              )}
+              aria-current={isGuidesActive ? "page" : undefined}
+              className={navLinkStyles(isGuidesActive)}
             >
               Guides
               <span
                 aria-hidden
                 className={cn(
                   "absolute bottom-1.5 left-1/2 h-[2px] w-0 -translate-x-1/2 rounded-full bg-amber-500 transition-all duration-300",
-                  pathname === "/guides" && "w-4/5"
+                  isGuidesActive && "w-4/5"
                 )}
               />
             </Link>
@@ -263,20 +342,25 @@ export function Navbar() {
           <div className="flex items-center gap-2">
             <CreditMenu />
 
+            {/* Was hand-rolled, with its own radius, padding, press state and
+                focus ring. Same component as every other button now; the amber
+                treatment is the only thing that stays local to it. */}
             <a
               href="https://ko-fi.com/audioforges"
               target="_blank"
               rel="noopener noreferrer"
-              className={cn(
-                "items-center gap-1.5 rounded-md border px-4 py-2 text-sm font-medium",
-                hideDonate ? "hidden" : "hidden md:flex",
-                "border-amber-500/25 bg-amber-500/5 text-amber-400/90",
-                "transition-colors duration-200 hover:border-amber-500/60 hover:bg-amber-500/10 hover:text-amber-300",
-                "outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70"
-              )}
+              className={buttonStyles({
+                variant: "outline",
+                size: "md",
+                className: cn(
+                  hideDonate ? "hidden" : "hidden md:inline-flex",
+                  "border-amber-500/25 bg-amber-500/5 text-amber-400/90",
+                  "hover:border-amber-500/60 hover:bg-amber-500/10 hover:text-amber-300"
+                ),
+              })}
             >
-              <Coffee className="h-4 w-4" />
-              <span>Donate</span>
+              <Coffee />
+              Donate
             </a>
 
             {/* Mobile: icon + number only. "48 credits" is what makes the
@@ -287,14 +371,15 @@ export function Navbar() {
             <CreditChipMobile onOpenSheet={() => setIsMobileOpen(true)} />
 
             <button
+              ref={mobileToggleRef}
               type="button"
               onClick={() => setIsMobileOpen((open) => !open)}
               aria-label={isMobileOpen ? "Close menu" : "Open menu"}
               aria-expanded={isMobileOpen}
               aria-controls="nav-mobile-sheet"
-              className="inline-flex items-center justify-center rounded-md p-2 text-text-muted outline-none transition-colors duration-200 hover:bg-graphite-900 hover:text-text-primary focus-visible:ring-2 focus-visible:ring-amber-400/70 md:hidden"
+              className={buttonStyles({ variant: "ghost", size: "icon", className: "md:hidden" })}
             >
-              {isMobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+              {isMobileOpen ? <X /> : <Menu />}
             </button>
           </div>
         </nav>
@@ -311,14 +396,20 @@ export function Navbar() {
             "transition-all duration-200 ease-out motion-reduce:transition-none",
             isToolsOpen ? "translate-y-0 opacity-100" : "-translate-y-1 opacity-0"
           )}
-          onMouseEnter={cancelClose}
-          onMouseLeave={scheduleClose}
+          onPointerEnter={(e) => isMouse(e) && cancelClose()}
+          onPointerLeave={(e) => isMouse(e) && scheduleClose()}
         >
           <div className="mx-auto max-w-6xl px-4">
             <div
               ref={panelRef}
+              /* A bare aria-label on a <div> applies to nothing — the name was
+                 announced to no one. This is forty links to other pages, so
+                 it's a navigation landmark, which also lets a screen reader
+                 jump straight to it. */
+              role="navigation"
+              aria-label="All tools"
               className={cn(
-                "overflow-hidden rounded-b-xl border border-t-0 border-graphite-800 bg-graphite-900 shadow-2xl",
+                "overflow-hidden rounded-b-xl border border-t-0 border-graphite-800 bg-graphite-900 shadow-2xl shadow-graphite-950/60",
                 isToolsOpen ? "pointer-events-auto" : "pointer-events-none"
               )}
             >
@@ -349,8 +440,12 @@ export function Navbar() {
               </div>
 
               <div className="flex items-center justify-between gap-4 border-t border-graphite-800 bg-graphite-950/40 px-6 py-3">
+                {/* Was "N free tools". Most still are, but HQ separation,
+                    multi-track MIDI and transcription cost a credit — and
+                    claiming otherwise directly beside a credit balance is the
+                    worst possible place to be wrong about it. */}
                 <p className="text-xs text-text-subtle">
-                  {liveToolCount} free tools — no sign-up, no watermark
+                  {toolCount} tools — no sign-up, no watermark
                 </p>
                 <Link
                   href="/tools"
@@ -370,6 +465,7 @@ export function Navbar() {
           every one of them focusable, so Tab used to walk the whole tool
           list behind a closed menu. */}
       <div
+        ref={sheetRef}
         id="nav-mobile-sheet"
         inert={!isMobileOpen}
         className={cn(
@@ -383,7 +479,7 @@ export function Navbar() {
           "[&::-webkit-scrollbar-thumb]:bg-graphite-700",
           "hover:[&::-webkit-scrollbar-thumb]:bg-graphite-600"
         )}
-        style={{ scrollbarWidth: "thin", scrollbarColor: "#374151 transparent" }}
+        style={{ scrollbarWidth: "thin", scrollbarColor: "#34343a transparent" }}
       >
         <div className="space-y-5 px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
           {/* Top of the sheet, above the tool list. Someone who opened this
@@ -414,6 +510,7 @@ export function Navbar() {
                         // open they are all on screen at once, which is
                         // exactly the case worth not prefetching.
                         prefetch={false}
+                        aria-current={isActive ? "page" : undefined}
                         onClick={() => setIsMobileOpen(false)}
                         className={cn(
                           "flex items-center justify-between rounded-xl px-4 py-3 text-sm font-medium outline-none transition-colors duration-200",
@@ -458,10 +555,11 @@ export function Navbar() {
             <Link
               href="/guides"
               onClick={() => setIsMobileOpen(false)}
+              aria-current={isGuidesActive ? "page" : undefined}
               className={cn(
                 "flex items-center justify-between rounded-xl px-4 py-3 text-sm font-medium outline-none transition-colors duration-200",
                 "focus-visible:ring-2 focus-visible:ring-amber-400/70",
-                pathname === "/guides"
+                isGuidesActive
                   ? "bg-amber-500/10 text-amber-400"
                   : "text-text-muted hover:bg-graphite-900 hover:text-text-primary"
               )}
@@ -474,9 +572,17 @@ export function Navbar() {
               target="_blank"
               rel="noopener noreferrer"
               onClick={() => setIsMobileOpen(false)}
-              className="flex items-center gap-2 rounded-xl border border-amber-500/25 bg-amber-500/5 px-4 py-3 text-sm font-medium text-amber-400/90 outline-none transition-colors duration-200 hover:bg-amber-500/10 hover:text-amber-300 focus-visible:ring-2 focus-visible:ring-amber-400/70"
+              className={buttonStyles({
+                variant: "outline",
+                size: "lg",
+                className: cn(
+                  "w-full justify-start gap-2 rounded-xl text-sm",
+                  "border-amber-500/25 bg-amber-500/5 text-amber-400/90",
+                  "hover:border-amber-500/60 hover:bg-amber-500/10 hover:text-amber-300"
+                ),
+              })}
             >
-              <Coffee className="h-4 w-4" />
+              <Coffee />
               Donate
             </a>
           </div>

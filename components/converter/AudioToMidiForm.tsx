@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, Music4, RotateCcw, Sparkles, Layers } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { ChevronDown, Music4, RotateCcw, Layers } from "lucide-react";
 import { JobToolForm } from "@/components/converter/JobToolForm";
+import { OptionCards, type CardOption } from "@/components/converter/ToolControls";
 import { getRateLimitLabel } from "@/lib/data/rate-limits";
 import { cn } from "@/lib/utils/cn";
+import { useCredits } from "@/components/credits/CreditProvider";
 import { FreeTierBadge } from "@/components/credits/FreeTierBadge";
 import { getAudioToMidiHqResult, type MidiHqResult } from "@/lib/api/railway";
 
@@ -26,6 +28,27 @@ import { getAudioToMidiHqResult, type MidiHqResult } from "@/lib/api/railway";
  * The other trap: HQ pitch bounds are MIDI NOTE NUMBERS, not Hz. The free tool
  * converts note→Hz at submit because basic-pitch's API takes Hz; that
  * conversion must NOT happen here.
+ *
+ * ── THIS PASS ──────────────────────────────────────────────────────────
+ *
+ * 1. THE RATE-LIMIT COPY WAS WRONG FOR ANYONE HOLDING CREDITS. It read
+ *    getRateLimitLabel("audio-to-midi-hq") — the STATIC table, which carries
+ *    the free-tier figure. The metered rule is tiered: 2/hour free, 30/hour
+ *    credited (confirmed against the limiter, 2026-08-30). So a paying user
+ *    who hit a 429 was told the limit was 2 per hour when theirs was 30.
+ *    rateLimitFor() resolves through the same code path the limiter uses, so
+ *    it's preferred now and the table is the fallback — matching what the four
+ *    separation forms already do.
+ *
+ * 2. THE "CHANGED" BADGE COUNTED SETTINGS THE ACTIVE TIER DOESN'T SEND.
+ *    changedCount always compared all five fields against DEFAULTS, so a user
+ *    who nudged the sensitivity sliders on the free tier and then switched to
+ *    Multi-track saw "2" on a panel where those two controls aren't rendered
+ *    and those two values aren't submitted. It counts per tier now.
+ *
+ * 3. useRovingRadio IS GONE. Fourth hand-rolled copy of the same keyboard
+ *    behaviour; OptionCards carries it, and the tier picker gets the same
+ *    markup as every other picker on the site.
  */
 
 /**
@@ -232,6 +255,26 @@ function nearestDivision(ms: number) {
   return DIVISIONS.reduce((best, d) =>
     Math.abs(d.ms - ms) < Math.abs(best.ms - ms) ? d : best,
   ).label;
+}
+
+/**
+ * The static table carries the FREE-tier figure for every metered rule, and
+ * /audio-to-midi-hq is tiered: 2/hour free, 30/hour credited. So a visitor
+ * holding credits must be told 30, and only /credits/me knows which they are —
+ * it resolves through the limiter's own code path.
+ */
+function formatRateLimit(max: number, windowSeconds: number): string {
+  const unit =
+    windowSeconds >= 3600
+      ? windowSeconds === 3600
+        ? "hour"
+        : `${Math.round(windowSeconds / 3600)} hr`
+      : windowSeconds >= 60
+        ? windowSeconds === 60
+          ? "min"
+          : `${Math.round(windowSeconds / 60)} min`
+        : `${windowSeconds} sec`;
+  return `${max} per ${unit}`;
 }
 
 /* ------------------------------------------------------------------ *
@@ -485,6 +528,8 @@ type ToggleProps = {
   onChange: (next: boolean) => void;
 };
 
+/** A compact switch, not ToolControls' ToggleRow — that one is a full-width
+ *  row with its own label, and these sit inline beside a section heading. */
 function Toggle({ checked, disabled, label, onChange }: ToggleProps) {
   return (
     <button
@@ -552,7 +597,7 @@ function MidiHqResultSummary({ jobId }: { jobId: string }) {
   if (!result || result.tracks.length === 0) return null;
 
   return (
-    <div className="overflow-hidden rounded-lg border border-graphite-800 bg-graphite-950/40">
+    <div className="overflow-hidden rounded-xl border border-graphite-800 bg-graphite-950/40">
       <div className="flex items-baseline justify-between gap-3 border-b border-graphite-800 px-4 py-2.5">
         <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-text-subtle">
           Detected
@@ -643,73 +688,81 @@ const TIERS: { id: Tier; label: string; cost: string; blurb: string }[] = [
   },
 ];
 
-/** A radiogroup is ONE tab stop with arrows between the options — matching
- *  every other tier picker on the site. */
-function useRovingRadio<T extends string>(
-  values: readonly T[],
-  current: T,
-  onChange: (next: T) => void
-) {
-  const refs = useRef<Array<HTMLButtonElement | null>>([]);
-  function onKeyDown(e: React.KeyboardEvent) {
-    const i = values.indexOf(current);
-    if (i < 0) return;
-    let next: number;
-    switch (e.key) {
-      case "ArrowRight":
-      case "ArrowDown":
-        next = (i + 1) % values.length;
-        break;
-      case "ArrowLeft":
-      case "ArrowUp":
-        next = (i - 1 + values.length) % values.length;
-        break;
-      case "Home":
-        next = 0;
-        break;
-      case "End":
-        next = values.length - 1;
-        break;
-      default:
-        return;
-    }
-    e.preventDefault();
-    onChange(values[next]);
-    refs.current[next]?.focus();
-  }
-  return { refs, onKeyDown };
-}
-
 export function AudioToMidiForm({ hqAvailable = false }: { hqAvailable?: boolean }) {
   const [tier, setTier] = useState<Tier>("free");
   const isHq = hqAvailable && tier === "hq";
-  const tierRadio = useRovingRadio(["free", "hq"] as const, tier, (v) => setTier(v));
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [settings, setSettings] = useState<Settings>(DEFAULTS);
 
-  const rateLimitLabel = getRateLimitLabel(isHq ? "audio-to-midi-hq" : "audio-to-midi");
+  const { rateLimitFor } = useCredits();
+
+  /**
+   * Live limit first, static table second.
+   *
+   * This used to read the static table only, which carries the FREE-tier
+   * figure for a rule that's tiered — 2/hour free, 30/hour credited. So a
+   * paying user who hit a 429 was told their limit was 2 when it was 30.
+   * rateLimitFor() resolves through the limiter's own code path via
+   * /credits/me, which is the only thing that knows which tier this visitor is.
+   */
+  const liveLimit = isHq ? rateLimitFor("audio-to-midi-hq") : null;
+  const rateLimitLabel = liveLimit
+    ? formatRateLimit(liveLimit.max_requests, liveLimit.window_seconds)
+    : getRateLimitLabel(isHq ? "audio-to-midi-hq" : "audio-to-midi");
 
   const activePresetId = useMemo(
     () => PRESETS.find((p) => sameSettings(settings, p.values))?.id ?? null,
     [settings],
   );
 
+  /**
+   * Counts only what the ACTIVE tier actually sends.
+   *
+   * This used to compare all five fields against DEFAULTS regardless of tier,
+   * so someone who nudged the sensitivity sliders on the free tier and then
+   * switched to Multi-track saw a "2" badge on a panel where neither control
+   * is rendered and neither value is submitted — a count of changes that have
+   * no effect.
+   */
   const changedCount = useMemo(() => {
     let n = 0;
-    if (settings.onsetThreshold !== DEFAULTS.onsetThreshold) n++;
-    if (settings.frameThreshold !== DEFAULTS.frameThreshold) n++;
-    if (settings.minimumNoteLength !== DEFAULTS.minimumNoteLength) n++;
-    if (settings.limitNoteLength !== DEFAULTS.limitNoteLength) n++;
+    if (isHq) {
+      // Sensitivity doesn't exist on YourMT3, and minimumNoteLength is only
+      // sent when the opt-in filter is on.
+      if (settings.limitNoteLength !== DEFAULTS.limitNoteLength) n++;
+      if (settings.limitNoteLength && settings.minimumNoteLength !== DEFAULTS.minimumNoteLength) {
+        n++;
+      }
+    } else {
+      if (settings.onsetThreshold !== DEFAULTS.onsetThreshold) n++;
+      if (settings.frameThreshold !== DEFAULTS.frameThreshold) n++;
+      if (settings.minimumNoteLength !== DEFAULTS.minimumNoteLength) n++;
+    }
     if (settings.limitPitch !== DEFAULTS.limitPitch) n++;
     return n;
-  }, [settings]);
+  }, [settings, isHq]);
 
   const patch = (next: Partial<Settings>) =>
     setSettings((prev) => ({ ...prev, ...next }));
 
   const rateLimitHint = rateLimitLabel
-    ? "You have reached the limit (" + rateLimitLabel + "). Try again shortly."
+    ? `You have reached the limit (${rateLimitLabel}). Try again shortly.`
     : "You are going a little fast. Try again shortly.";
+
+  const tierOptions: CardOption<Tier>[] = TIERS.map((option) => ({
+    value: option.id,
+    title: option.label,
+    titleBefore:
+      option.id === "hq" ? (
+        <Layers className="h-3.5 w-3.5" aria-hidden />
+      ) : (
+        <Music4 className="h-3.5 w-3.5" aria-hidden />
+      ),
+    // Renders nothing while this rule is off.
+    titleAfter: option.id === "hq" ? <FreeTierBadge tool="audio-to-midi-hq" /> : undefined,
+    meta: option.cost || undefined,
+    detail: option.blurb,
+  }));
 
   return (
     <JobToolForm
@@ -777,7 +830,7 @@ export function AudioToMidiForm({ hqAvailable = false }: { hqAvailable?: boolean
         }
         return fields;
       }}
-      renderControls={(file, disabled) => (
+      renderControls={(_file, disabled) => (
         <div className="space-y-3">
           {/*
             ENGINE, not quality. Named for what the user gets — one track vs
@@ -793,114 +846,66 @@ export function AudioToMidiForm({ hqAvailable = false }: { hqAvailable?: boolean
           {hqAvailable && (
             <fieldset disabled={disabled} className="space-y-2">
               <legend className="mb-2 text-sm font-medium text-text-primary">Output</legend>
-              <div
-                className="grid gap-2 sm:grid-cols-2"
-                role="radiogroup"
-                aria-label="Transcription engine"
-                onKeyDown={tierRadio.onKeyDown}
-              >
-                {TIERS.map((option, i) => {
-                  const active = tier === option.id;
-                  return (
-                    <button
-                      key={option.id}
-                      ref={(el) => {
-                        tierRadio.refs.current[i] = el;
-                      }}
-                      type="button"
-                      role="radio"
-                      aria-checked={active}
-                      tabIndex={active ? 0 : -1}
-                      onClick={() => setTier(option.id)}
-                      disabled={disabled}
-                      className={cn(
-                        "rounded-lg border p-3.5 text-left transition-all",
-                        "outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70",
-                        "disabled:cursor-not-allowed disabled:opacity-40",
-                        active
-                          ? "border-amber-500/60 bg-amber-500/[0.07]"
-                          : "border-graphite-700 bg-graphite-850 hover:border-graphite-700/60"
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          "flex items-center gap-1.5 text-sm font-semibold",
-                          active ? "text-amber-400" : "text-text-primary"
-                        )}
-                      >
-                        {option.id === "hq" ? (
-                          <Layers className="h-3.5 w-3.5" aria-hidden />
-                        ) : (
-                          <Music4 className="h-3.5 w-3.5" aria-hidden />
-                        )}
-                        {option.label}
-                        {/* Renders nothing while this rule is off. */}
-                        {option.id === "hq" && <FreeTierBadge tool="audio-to-midi-hq" />}
-                        {option.cost && (
-                          <span className="font-mono text-[9px] font-semibold uppercase tracking-[0.14em] text-text-subtle">
-                            {option.cost}
-                          </span>
-                        )}
-                      </span>
-                      <span className="mt-1 block text-[11px] leading-snug text-text-muted">
-                        {option.blurb}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
+              <OptionCards
+                label="Transcription engine"
+                options={tierOptions}
+                value={tier}
+                onChange={setTier}
+                columns={2}
+                disabled={disabled}
+              />
             </fieldset>
           )}
 
           {/* ---- Presets: free tier only. On HQ four of the six would send
                  an identical request, so there is nothing to choose. ---- */}
           {!isHq && (
-          <fieldset disabled={disabled} className="space-y-2">
-            <legend className="mb-2 flex w-full items-baseline justify-between gap-3">
-              <span className="text-sm font-medium text-text-primary">
-                What are you transcribing?
-              </span>
-              {!activePresetId && (
-                <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] uppercase tracking-wide text-amber-400">
-                  Custom
+            <fieldset disabled={disabled} className="space-y-2">
+              <legend className="mb-2 flex w-full items-baseline justify-between gap-3">
+                <span className="text-sm font-medium text-text-primary">
+                  What are you transcribing?
                 </span>
-              )}
-            </legend>
+                {!activePresetId && (
+                  <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] uppercase tracking-wide text-amber-400">
+                    Custom
+                  </span>
+                )}
+              </legend>
 
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-              {PRESETS.map((preset) => {
-                const active = activePresetId === preset.id;
-                return (
-                  <button
-                    key={preset.id}
-                    type="button"
-                    onClick={() => setSettings(preset.values)}
-                    aria-pressed={active}
-                    className={cn(
-                      "rounded-lg border p-2.5 text-left transition-colors",
-                      "focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50",
-                      "disabled:cursor-not-allowed disabled:opacity-40",
-                      active
-                        ? "border-amber-500 bg-amber-500/10"
-                        : "border-graphite-800 bg-graphite-850 hover:border-graphite-700",
-                    )}
-                  >
-                    <span
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {PRESETS.map((preset) => {
+                  const active = activePresetId === preset.id;
+                  return (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      onClick={() => setSettings(preset.values)}
+                      aria-pressed={active}
                       className={cn(
-                        "block text-sm font-medium",
-                        active ? "text-amber-400" : "text-text-primary",
+                        "rounded-lg border p-2.5 text-left transition-colors",
+                        "focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50",
+                        "disabled:cursor-not-allowed disabled:opacity-40",
+                        active
+                          ? "border-amber-500 bg-amber-500/10"
+                          : "border-graphite-800 bg-graphite-850 hover:border-graphite-700",
                       )}
                     >
-                      {preset.label}
-                    </span>
-                    <span className="mt-0.5 block text-[11px] leading-snug text-text-subtle">
-                      {preset.blurb}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </fieldset>
+                      <span
+                        className={cn(
+                          "block text-sm font-medium",
+                          active ? "text-amber-400" : "text-text-primary",
+                        )}
+                      >
+                        {preset.label}
+                      </span>
+                      <span className="mt-0.5 block text-[11px] leading-snug text-text-subtle">
+                        {preset.blurb}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </fieldset>
           )}
 
           {/* ---- Fine tuning ---- */}
@@ -944,41 +949,41 @@ export function AudioToMidiForm({ hqAvailable = false }: { hqAvailable?: boolean
                     fields and ignores them, so showing the sliders on HQ would
                     be two controls that visibly do nothing. */}
                 {!isHq && (
-                <div className="space-y-4">
-                  <p className="text-[10px] font-medium uppercase tracking-widest text-text-subtle">
-                    Note detection
-                  </p>
+                  <div className="space-y-4">
+                    <p className="text-[10px] font-medium uppercase tracking-widest text-text-subtle">
+                      Note detection
+                    </p>
 
-                  <SliderRow
-                    id="atm-onset"
-                    label="Onset sensitivity"
-                    hint="How obvious a note attack has to be before it counts as a new note."
-                    readout={settings.onsetThreshold.toFixed(2)}
-                    descriptor={thresholdWord(settings.onsetThreshold)}
-                    leftEnd="More notes"
-                    rightEnd="Fewer notes"
-                    min={0.05}
-                    max={0.95}
-                    step={0.05}
-                    value={settings.onsetThreshold}
-                    onChange={(v) => patch({ onsetThreshold: Number(v.toFixed(2)) })}
-                  />
+                    <SliderRow
+                      id="atm-onset"
+                      label="Onset sensitivity"
+                      hint="How obvious a note attack has to be before it counts as a new note."
+                      readout={settings.onsetThreshold.toFixed(2)}
+                      descriptor={thresholdWord(settings.onsetThreshold)}
+                      leftEnd="More notes"
+                      rightEnd="Fewer notes"
+                      min={0.05}
+                      max={0.95}
+                      step={0.05}
+                      value={settings.onsetThreshold}
+                      onChange={(v) => patch({ onsetThreshold: Number(v.toFixed(2)) })}
+                    />
 
-                  <SliderRow
-                    id="atm-frame"
-                    label="Sustain sensitivity"
-                    hint="How quietly a note can ring on before it gets cut off."
-                    readout={settings.frameThreshold.toFixed(2)}
-                    descriptor={thresholdWord(settings.frameThreshold)}
-                    leftEnd="Longer notes"
-                    rightEnd="Shorter notes"
-                    min={0.05}
-                    max={0.95}
-                    step={0.05}
-                    value={settings.frameThreshold}
-                    onChange={(v) => patch({ frameThreshold: Number(v.toFixed(2)) })}
-                  />
-                </div>
+                    <SliderRow
+                      id="atm-frame"
+                      label="Sustain sensitivity"
+                      hint="How quietly a note can ring on before it gets cut off."
+                      readout={settings.frameThreshold.toFixed(2)}
+                      descriptor={thresholdWord(settings.frameThreshold)}
+                      leftEnd="Longer notes"
+                      rightEnd="Shorter notes"
+                      min={0.05}
+                      max={0.95}
+                      step={0.05}
+                      value={settings.frameThreshold}
+                      onChange={(v) => patch({ frameThreshold: Number(v.toFixed(2)) })}
+                    />
+                  </div>
                 )}
 
                 {!isHq && <div className="h-px bg-graphite-800" />}
@@ -1015,25 +1020,25 @@ export function AudioToMidiForm({ hqAvailable = false }: { hqAvailable?: boolean
                     )}
                     aria-hidden={isHq && !settings.limitNoteLength}
                   >
-                  <SliderRow
-                    id="atm-minlen"
-                    label="Shortest note"
-                    hint={`Anything briefer is dropped as noise. About a ${nearestDivision(
-                      settings.minimumNoteLength,
-                    )} note at 120 BPM.`}
-                    readout={`${Math.round(settings.minimumNoteLength)} ms`}
-                    leftEnd="Keep everything"
-                    rightEnd="Long notes only"
-                    min={10}
-                    // 2000 is the real backend ceiling on BOTH tools; the free
-                    // tool's 1000 was a UI choice. HQ gets the full range since
-                    // it has fewer controls to reach for.
-                    max={isHq ? 2000 : 1000}
-                    step={0.1}
-                    value={settings.minimumNoteLength}
-                    disabled={isHq && !settings.limitNoteLength}
-                    onChange={(v) => patch({ minimumNoteLength: Math.round(v * 10) / 10 })}
-                  />
+                    <SliderRow
+                      id="atm-minlen"
+                      label="Shortest note"
+                      hint={`Anything briefer is dropped as noise. About a ${nearestDivision(
+                        settings.minimumNoteLength,
+                      )} note at 120 BPM.`}
+                      readout={`${Math.round(settings.minimumNoteLength)} ms`}
+                      leftEnd="Keep everything"
+                      rightEnd="Long notes only"
+                      min={10}
+                      // 2000 is the real backend ceiling on BOTH tools; the free
+                      // tool's 1000 was a UI choice. HQ gets the full range since
+                      // it has fewer controls to reach for.
+                      max={isHq ? 2000 : 1000}
+                      step={0.1}
+                      value={settings.minimumNoteLength}
+                      disabled={isHq && !settings.limitNoteLength}
+                      onChange={(v) => patch({ minimumNoteLength: Math.round(v * 10) / 10 })}
+                    />
                   </div>
                 </div>
 

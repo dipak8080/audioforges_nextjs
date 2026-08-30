@@ -1,6 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   Copy,
   Check,
@@ -13,6 +21,7 @@ import {
   Download,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { Segmented } from "@/components/converter/ToolControls";
 import { AudioPlayer } from "@/components/ui/AudioPlayer";
 import { cn } from "@/lib/utils/cn";
 import { languageName, type Transcript } from "@/lib/api/transcription";
@@ -36,8 +45,7 @@ import {
  * This used to render, inside the form card that already has a border:
  * a bordered teal success panel, a bordered sample note, a bordered
  * toolbar group, a bordered scroll area, and a grid of bordered buttons.
- * Five outlines nested in a sixth. Nothing was wrong with any one of
- * them and the whole thing looked like a settings screen.
+ * Five outlines nested in a sixth.
  *
  * Now there is exactly one bordered surface — the transcript itself — and
  * everything else is a hairline rule or nothing at all:
@@ -49,9 +57,29 @@ import {
  *   └───────────────────────────────────────────────┘
  *   exports           Copy, then the three downloads
  *
- * The teal "complete" panel is gone because the panel header above it
- * already carries a teal dot and the word Done. Saying it twice made the
- * result feel like it needed announcing.
+ * ── THIS PASS ──────────────────────────────────────────────────────────
+ *
+ * 1. THE STICKY PLAYER DEPENDS ON ITS ANCESTOR NOT CLIPPING, and it briefly
+ *    stopped doing so. `position: sticky` resolves against the nearest
+ *    scrollable ancestor, and `overflow-hidden` creates one — so when
+ *    TranscriptionForm moved onto FormShell (which clips, correctly, for every
+ *    other tool) this player silently stopped moving. No error, nothing to
+ *    see, just a feature that quietly does nothing. FormShell now takes
+ *    `allowOverflow` and the form passes it. Worth knowing before mounting
+ *    this component anywhere new.
+ *
+ * 2. THE COPY TIMER LEAKED. `setTimeout(() => setCopied(false), 2000)` with no
+ *    cleanup — and this view unmounts the moment someone starts another
+ *    transcription, comfortably inside two seconds.
+ *
+ * 3. THE VIEW SWITCH WAS TWO TOGGLES, NOT ONE CHOICE. `role="group"` with
+ *    `aria-pressed` on both announces two independent on/off controls that
+ *    happen to have one pressed. Read and Timestamps are one choice from a set
+ *    — a radiogroup — which is what the shared Segmented carries, along with
+ *    the arrow-key movement that role promises.
+ *
+ * 4. THE SEARCH FIELD'S id WAS HARDCODED. Two transcripts on one page would
+ *    collide.
  */
 
 type ViewMode = "read" | "timestamps";
@@ -188,11 +216,14 @@ export function TranscriptView({
   const [copied, setCopied] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
 
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const seekRef = useRef<((seconds: number) => void) | null>(null);
   const activeMatchRef = useRef<HTMLElement | null>(null);
   const activeRowRef = useRef<HTMLElement | null>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  /* Two transcripts on one page would collide on a hardcoded id. */
+  const searchId = `${useId()}-transcript-search`;
 
   const paragraphs = useMemo(() => groupIntoParagraphs(transcript.segments), [transcript.segments]);
 
@@ -260,8 +291,7 @@ export function TranscriptView({
       const target = event.target as HTMLElement | null;
       if (
         target &&
-        (target.isContentEditable ||
-          ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))
+        (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))
       ) {
         return;
       }
@@ -272,11 +302,21 @@ export function TranscriptView({
     return () => document.removeEventListener("keydown", onKeyDown);
   }, []);
 
+  /* The flag reverts on a timer, and this view unmounts the moment someone
+     starts another transcription — comfortably inside two seconds. */
+  useEffect(
+    () => () => {
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+    },
+    []
+  );
+
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(toTxt(transcript));
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+      copyTimerRef.current = setTimeout(() => setCopied(false), 2000);
     } catch {
       // Clipboard blocked — the text is on screen to select by hand.
     }
@@ -313,9 +353,7 @@ export function TranscriptView({
           render. */}
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <div className="min-w-0">
-          <p className="truncate text-sm font-medium text-text-primary">
-            {title || "Transcript"}
-          </p>
+          <p className="truncate text-sm font-medium text-text-primary">{title || "Transcript"}</p>
           <p className="mt-1 font-mono text-[11px] text-text-subtle">{meta.join(" · ")}</p>
         </div>
         {transcript.task === "translate" && (
@@ -334,7 +372,11 @@ export function TranscriptView({
       {/* Player sticks to the top of the viewport while the transcript
           scrolls under it. On anything longer than a couple of minutes
           you're otherwise scrolled away from the transport with no way to
-          pause without scrolling back. */}
+          pause without scrolling back.
+
+          THIS ONLY WORKS IF NO ANCESTOR CLIPS. sticky resolves against the
+          nearest scrollable ancestor, and overflow-hidden makes one — see the
+          note at the top of this file and FormShell's `allowOverflow`. */}
       {previewSrc && (
         <div className="sticky top-2 z-20">
           <AudioPlayer
@@ -351,39 +393,29 @@ export function TranscriptView({
           Toolbar and transcript share a single border, so the controls
           read as belonging to the pane they control rather than floating
           above it. */}
-      <div className="overflow-hidden rounded-lg border border-graphite-700 bg-graphite-850">
+      <div className="overflow-hidden rounded-xl border border-graphite-700 bg-graphite-850">
         <div className="flex flex-col gap-2 border-b border-graphite-800 p-2 sm:flex-row sm:items-center">
-          <div
-            role="group"
-            aria-label="Transcript view"
-            className="flex shrink-0 rounded-md bg-graphite-900 p-0.5"
-          >
-            {(
-              [
-                { value: "read", label: "Read", icon: AlignLeft },
-                { value: "timestamps", label: "Timestamps", icon: Clock },
-              ] as const
-            ).map((option) => {
-              const Icon = option.icon;
-              return (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => setView(option.value)}
-                  aria-pressed={view === option.value}
-                  className={cn(
-                    "flex items-center gap-1.5 rounded px-2.5 py-1.5 text-[13px] font-medium transition-colors",
-                    "focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40",
-                    view === option.value
-                      ? "bg-amber-500/12 text-amber-400"
-                      : "text-text-muted hover:text-text-primary"
-                  )}
-                >
-                  <Icon className="h-3.5 w-3.5" aria-hidden />
-                  {option.label}
-                </button>
-              );
-            })}
+          {/* One choice from a set, so a radiogroup — not two aria-pressed
+              toggles that happen to have one on. The shared control brings the
+              arrow-key movement that role promises. */}
+          <div className="shrink-0 sm:w-56">
+            <Segmented
+              label="Transcript view"
+              value={view}
+              onChange={setView}
+              options={[
+                {
+                  value: "read",
+                  label: "Read",
+                  icon: <AlignLeft className="h-3.5 w-3.5" aria-hidden />,
+                },
+                {
+                  value: "timestamps",
+                  label: "Timestamps",
+                  icon: <Clock className="h-3.5 w-3.5" aria-hidden />,
+                },
+              ]}
+            />
           </div>
 
           <div className="relative flex-1">
@@ -393,6 +425,7 @@ export function TranscriptView({
             />
             <input
               ref={searchRef}
+              id={searchId}
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
@@ -446,7 +479,7 @@ export function TranscriptView({
                   onClick={() => stepMatch(-1)}
                   disabled={matchTotal === 0}
                   aria-label="Previous match"
-                  className="rounded p-1 text-text-subtle transition-colors hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40 disabled:opacity-30"
+                  className="rounded p-1 text-text-subtle outline-none transition-colors hover:text-text-primary focus-visible:ring-2 focus-visible:ring-amber-500/40 disabled:opacity-30"
                 >
                   <ChevronUp className="h-3.5 w-3.5" />
                 </button>
@@ -455,7 +488,7 @@ export function TranscriptView({
                   onClick={() => stepMatch(1)}
                   disabled={matchTotal === 0}
                   aria-label="Next match"
-                  className="rounded p-1 text-text-subtle transition-colors hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40 disabled:opacity-30"
+                  className="rounded p-1 text-text-subtle outline-none transition-colors hover:text-text-primary focus-visible:ring-2 focus-visible:ring-amber-500/40 disabled:opacity-30"
                 >
                   <ChevronDown className="h-3.5 w-3.5" />
                 </button>
@@ -463,7 +496,7 @@ export function TranscriptView({
                   type="button"
                   onClick={() => setQuery("")}
                   aria-label="Clear search"
-                  className="rounded p-1 text-text-subtle transition-colors hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40"
+                  className="rounded p-1 text-text-subtle outline-none transition-colors hover:text-text-primary focus-visible:ring-2 focus-visible:ring-amber-500/40"
                 >
                   <X className="h-3.5 w-3.5" />
                 </button>
@@ -527,8 +560,8 @@ export function TranscriptView({
                         aria-label={`Play from ${formatSegmentTime(paragraph.start)}`}
                         title="Play from here"
                         className={cn(
-                          "absolute -left-16 top-[0.35rem] hidden rounded px-1 font-mono text-[11px] tabular-nums transition-colors sm:block",
-                          "focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40",
+                          "absolute -left-16 top-[0.35rem] hidden rounded px-1 font-mono text-[11px] tabular-nums outline-none transition-colors sm:block",
+                          "focus-visible:ring-2 focus-visible:ring-amber-500/40",
                           isActive
                             ? "text-amber-400"
                             : "text-text-subtle group-hover:text-text-muted hover:!text-amber-400"
@@ -578,8 +611,8 @@ export function TranscriptView({
                     disabled={!canSeek}
                     onClick={() => seekRef.current?.(segment.start)}
                     className={cn(
-                      "flex w-full items-start gap-3 rounded-md px-2.5 py-2 text-left transition-colors",
-                      "focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40",
+                      "flex w-full items-start gap-3 rounded-md px-2.5 py-2 text-left outline-none transition-colors",
+                      "focus-visible:ring-2 focus-visible:ring-amber-500/40",
                       canSeek ? "cursor-pointer" : "cursor-default",
                       isActive ? "bg-amber-500/10" : canSeek && "hover:bg-graphite-800/60"
                     )}
@@ -643,9 +676,9 @@ export function TranscriptView({
                 title={format.hint}
                 onClick={() => downloadTranscript(transcript, format.value, title)}
                 className={cn(
-                  "flex-1 rounded-md px-3 py-1.5 font-mono text-[13px] font-medium text-text-muted transition-colors",
+                  "flex-1 rounded-md px-3 py-1.5 font-mono text-[13px] font-medium text-text-muted outline-none transition-colors",
                   "hover:bg-graphite-800 hover:text-text-primary",
-                  "focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40"
+                  "focus-visible:ring-2 focus-visible:ring-amber-500/40"
                 )}
               >
                 {format.label}

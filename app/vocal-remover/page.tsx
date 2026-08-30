@@ -5,6 +5,7 @@ import { FAQSection, type FAQItem } from "@/components/faq/FAQSection";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
 import { getRateLimitLabel } from "@/lib/data/rate-limits";
+import { FILE_SIZE_LIMITS } from "@/lib/utils/validation";
 import { getFeatureFlags } from "@/lib/api/railway";
 
 const PAGE_TITLE = "Free AI Vocal Remover – Remove Vocals Online";
@@ -104,6 +105,15 @@ const FALLBACK_RATE_LIMIT_LABEL = "rate limited";
 const standardLimitLabel = getRateLimitLabel("separate") ?? FALLBACK_RATE_LIMIT_LABEL;
 const hqLimitLabel = getRateLimitLabel("separate-hq") ?? FALLBACK_RATE_LIMIT_LABEL;
 
+/**
+ * The cap validateAudioFile actually enforces.
+ *
+ * The FAQ used to answer "Yes, 80MB per upload" as a typed number. Same rule as
+ * the rate limits above: read it, don't restate it — otherwise the day that
+ * constant moves, this answer is quietly wrong and nothing fails.
+ */
+const MAX_UPLOAD_LABEL = `${Math.round(FILE_SIZE_LIMITS.audio / (1024 * 1024))}MB`;
+
 export default async function VocalRemoverPage() {
   const relatedTools = getRelatedTools("vocal-remover", 5);
   const { separationHqEnabled } = await getFeatureFlags();
@@ -123,6 +133,10 @@ export default async function VocalRemoverPage() {
     Second, it front-loaded a paywall concept above a tool nobody had used
     yet. FreeTierBadge already states the real, per-visitor answer at the
     exact moment it matters — on the control being chosen.
+
+    That reasoning still holds, and it is NOT an argument for saying nothing
+    about cost anywhere — see the Cost row in the comparison table, which
+    states what is true for every visitor without promising a count.
   */
 
   const faqs: FAQItem[] = [
@@ -149,17 +163,35 @@ export default async function VocalRemoverPage() {
       answer: `Yes, completely free — no account, no email, no watermark. Because separation is processing-intensive, standard quality is limited to ${standardLimitLabel} per IP address to keep it available for everyone.`,
     },
     {
-      // FIX 7: this page had NO retention statement at all — on the one tool
-      // where people upload copyrighted music. /video-to-audio answers the
-      // equivalent question; this was a trust gap and a conversion gap.
-      // ⚠️ VERIFY AGAINST BACKEND BEFORE SHIPPING: stems must persist through
-      // the download step, so the timing may differ from /video-to-audio's
-      // "deleted as soon as conversion finishes". If the cleanup job runs on
-      // a delay, state that delay accurately — a wrong retention claim is
-      // worse than no claim.
+      /*
+        CORRECTED 2026-08-30. The previous answer said the upload was deleted
+        "once processing finishes", and carried a ⚠️ VERIFY note that never got
+        acted on. It shipped, and it was wrong.
+
+        UpgradeToHqCard's own docstring states the real behaviour: "the backend
+        keeps the source file for two hours and exposes an upgrade route".
+        That TTL is what `input_expires_at` counts down, and it is why the
+        one-click Studio Quality re-run needs no second upload.
+
+        So the page claimed files were deleted immediately while a feature on
+        the same page depended on them not being. On the one tool where people
+        upload copyrighted music, that is the answer that gets read closely.
+
+        FINALISED 2026-08-30 against /limits.retention.separation:
+          input_seconds  7200
+          output_seconds 7200   ← one TTL sweep deletes both together
+        So "two hours" covers everything, with no split between the upload and
+        the stems — which is simpler to say and simpler to keep true.
+
+        The framing matters as much as the number. Separation is the ONLY tool
+        family that holds an upload at all: every other route deletes its input
+        in _run_tool_job's finally block, win or lose. So this is a deliberate
+        exception with a reason, not a general policy — and saying so is more
+        reassuring than staying quiet about it.
+      */
       question: "Are my uploaded tracks kept?",
       answer:
-        "No — the uploaded file and the separated stems are deleted from the server once processing finishes and your download window closes. There are no accounts, so nothing is linked to you, published, or shared.",
+        "For two hours, then everything is deleted automatically — your upload and the separated stems together, by the same expiry. That window is what lets the one-click Studio Quality re-run work without a second upload, so it applies to standard runs too, since a standard run is the one you'd upgrade from. Separation is the only tool on the site that holds an upload at all; every other one deletes it the moment processing finishes. There are no accounts, so nothing is linked to you, published, or shared.",
     },
     {
       question: "What can I use the instrumental for?",
@@ -228,7 +260,9 @@ export default async function VocalRemoverPage() {
     },
     {
       question: "Is there a maximum file size?",
-      answer: "Yes, 80MB per upload.",
+      // Read from FILE_SIZE_LIMITS — the constant validateAudioFile enforces —
+      // so this can't drift from what the form actually rejects.
+      answer: `Yes, ${MAX_UPLOAD_LABEL} per upload.`,
     },
     {
       question: "Does AI separation improve the audio quality?",
@@ -308,35 +342,66 @@ export default async function VocalRemoverPage() {
           </div>
         </section>
 
-        {/* ─────────────────────────────────────────────────────────────
-            TODO — OUTPUT SPEC SECTION GOES HERE.
+        {/*
+          THE SPEC SECTION. This replaces a TODO that had sat here since the
+          page was written, blocked on the backend separation command.
 
-            This is the single highest-value addition available to this
-            page, and it can't be written without the backend separation
-            command. Every claim on this page is currently qualitative
-            ("noticeably cleaner", "20 seconds to 1 minute"), which is
-            exactly what vocalremover.org and LALAL.AI also say. Nothing
-            here is checkable.
-
-            /video-to-audio's strongest section is the one that states
-            16-bit PCM at source sample rate and does the file-size
-            arithmetic. No competitor in that SERP publishes it. The
-            equivalent here would state, for both stems:
-              - output format and container
-              - bitrate (or "lossless" if WAV)
-              - sample rate and channel count
-              - whether either is inherited from the source
-
-            Also worth stating: the model name. AudioForges runs Demucs;
-            competitors deliberately hide what's under the hood. Naming
-            htdemucs (and the ensembled variant behind Studio Quality) is
-            verifiable and separates this page from the "our proprietary
-            AI" crowd — producers who know the space will trust it more.
-
-            NOT worth doing: published SDR benchmark comparisons against
-            named competitors. That needs a controlled test set to claim
-            honestly, and a sloppy version is worse than none.
-            ───────────────────────────────────────────────────────────── */}
+          It is the only section on this page a competitor cannot copy without
+          publishing their own numbers, and the "fixed regardless of your
+          source" row is the one that changes a producer's decision: everyone
+          else's copy implies the output follows the input, and with Demucs it
+          cannot.
+        */}
+        <section className="space-y-4">
+          <h2 className="text-2xl font-bold text-text-primary">What the output actually is</h2>
+          <div className="overflow-x-auto rounded-xl border border-graphite-800">
+            <table className="w-full text-left text-sm text-text-muted">
+              <tbody className="divide-y divide-graphite-800">
+                <tr>
+                  <td className="w-2/5 px-4 py-3 font-medium text-text-subtle">Format</td>
+                  <td className="px-4 py-3 text-text-primary">WAV (RIFF), 16-bit signed PCM</td>
+                </tr>
+                <tr>
+                  <td className="px-4 py-3 font-medium text-text-subtle">Bitrate</td>
+                  <td className="px-4 py-3">Lossless — about 1,411 kbps at 44.1 kHz stereo</td>
+                </tr>
+                <tr>
+                  <td className="px-4 py-3 font-medium text-text-subtle">Sample rate</td>
+                  <td className="px-4 py-3 font-mono tabular-nums">44,100 Hz — fixed</td>
+                </tr>
+                <tr>
+                  <td className="px-4 py-3 font-medium text-text-subtle">Channels</td>
+                  <td className="px-4 py-3">2 (stereo) — fixed</td>
+                </tr>
+                <tr>
+                  <td className="px-4 py-3 font-medium text-text-subtle">Inherited from your file</td>
+                  <td className="px-4 py-3 text-text-primary">None of it</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p className="leading-relaxed text-text-muted">
+            That last row is worth reading twice if you work at 48 kHz. Demucs
+            operates at 44.1 kHz in stereo internally, so the output rate and
+            channel count are fixed no matter what you upload — a 48 kHz file
+            comes back at 44.1 kHz, a mono file comes back as two channels, and
+            a 24-bit file comes back at 16-bit. That is how the model pipeline
+            works rather than a choice we made, and it is true of every tool
+            built on Demucs, including the ones that don&apos;t mention it. Drop
+            a stem into any editor and check.
+          </p>
+          <p className="leading-relaxed text-text-muted">
+            You can also verify the models: standard runs{" "}
+            <strong className="text-text-primary">htdemucs</strong> at 0.25
+            overlap, Studio Quality runs{" "}
+            <strong className="text-text-primary">htdemucs_ft</strong> — four
+            fine-tuned instances, ensembled — at 0.5. Higher overlap means more
+            redundant computation across chunk boundaries, which is where the
+            artifacts on longer tracks tend to show up. Between the ensemble and
+            the overlap, Studio Quality is roughly five times the compute of
+            standard, which is where the extra minute goes.
+          </p>
+        </section>
 
         <section className="space-y-4">
           <h2 className="text-2xl font-bold text-text-primary">Who is this for?</h2>
@@ -417,6 +482,24 @@ export default async function VocalRemoverPage() {
               you upload through the browser and the separation runs on the server.
             </p>
             <p>
+              The model is{" "}
+              <strong className="text-text-primary">htdemucs</strong> — the published
+              Hybrid Transformer Demucs, not something wrapped and renamed. Studio
+              Quality runs{" "}
+              <strong className="text-text-primary">htdemucs_ft</strong>, a
+              &quot;bag of four&quot;: four instances of the same architecture, each
+              fine-tuned toward one stem, then ensembled. That is where the extra
+              minute goes and why the stems come out cleaner.
+            </p>
+            <p>
+              Both stems come back as <strong className="text-text-primary">WAV</strong>.
+              One thing worth saying because it&apos;s counter-intuitive: asking for
+              two stems instead of four doesn&apos;t make this cheaper to run. The
+              model separates all four sources internally either way and sums three
+              of them into the instrumental — vocal removal is the same amount of
+              work as a full stem split, just with different files kept.
+            </p>
+            <p>
               Want the fuller breakdown of how this compares to older methods and
               where separation still struggles?{" "}
               <Link href="/guides/ai-vocal-removal-explained" className="text-amber-400 hover:underline">
@@ -462,11 +545,41 @@ export default async function VocalRemoverPage() {
                   </tr>
                   <tr>
                     {/* Pulled from lib/data/rate-limits.ts (getRateLimitLabel) —
-                        do not hardcode these two cells again. */}
+                        do not hardcode these two cells again.
+
+                        The Studio Quality figure is the FREE-TIER one, and it is
+                        labelled as such: that rule is tiered, credits raise it
+                        substantially, and a Server Component cannot know which
+                        tier this visitor is. Unqualified, this cell was simply
+                        wrong for anyone who had paid. */}
                     <td className="px-4 py-3 font-medium text-text-subtle">Usage limit</td>
                     <td className="px-4 py-3 font-mono tabular-nums">{standardLimitLabel}</td>
                     <td className="px-4 py-3 font-mono tabular-nums text-text-primary">
                       {hqLimitLabel}
+                      <span className="ml-1.5 font-sans text-[11px] normal-case text-text-subtle">
+                        on the free tier
+                      </span>
+                    </td>
+                  </tr>
+                  <tr>
+                    {/*
+                      A comparison table that lists time, quality, limit and
+                      best-for, and NOT price, sends someone to a toggle that
+                      then says "1 CREDIT".
+
+                      No per-visitor number here — this is a Server Component,
+                      and the header line that tried to give one was removed for
+                      exactly that reason. But "can't state a count" is not
+                      "can't mention cost". The allowance being SHARED across
+                      the Studio Quality tools is the part people otherwise find
+                      out by surprise, which is the same trap the transcription
+                      form documents.
+                    */}
+                    <td className="px-4 py-3 font-medium text-text-subtle">Cost</td>
+                    <td className="px-4 py-3">Free, always</td>
+                    <td className="px-4 py-3 text-text-primary">
+                      A free allowance each month, shared with the other Studio
+                      Quality tools, then 1 credit per run
                     </td>
                   </tr>
                   <tr>

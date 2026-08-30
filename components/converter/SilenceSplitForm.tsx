@@ -1,10 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, ChevronUp, ChevronDown, Loader2, ListMusic } from "lucide-react";
+import { ListMusic, Loader2 } from "lucide-react";
 import { MultiOutputToolForm } from "@/components/converter/MultiOutputToolForm";
 import { ThresholdMeter } from "@/components/converter/ThresholdMeter";
+import { ControlField, Hint, OptionCards, Stepper, type CardOption } from "@/components/converter/ToolControls";
 import { WaveformCanvas } from "@/components/ui/WaveformCanvas";
+import { getRateLimitLabel } from "@/lib/data/rate-limits";
+import { getToolLimits } from "@/lib/data/tool-limits";
 import { computeWaveformEnvelopeAsync, type WaveformEnvelope } from "@/lib/utils/waveform";
 import {
   computeDbTimelineAsync,
@@ -14,6 +17,40 @@ import {
 } from "@/lib/utils/silenceDetection";
 import { submitJob } from "@/lib/api/railway";
 import { cn } from "@/lib/utils/cn";
+
+/**
+ * ── THIS PASS ──────────────────────────────────────────────────────────
+ *
+ * 1. THE PREVIEW PROMISED TRACKS THE BACKEND WILL NEVER RETURN. It counted
+ *    every audible stretch between gaps, while the backend drops any segment
+ *    under SILENCE_SPLIT_MIN_SEGMENT_SECONDS (1.0s) and caps the whole run at
+ *    SILENCE_SPLIT_MAX_SEGMENTS (50). Both numbers are already in TOOL_LIMITS.
+ *    So on a track with lots of short bursts — applause, drum hits, a noisy
+ *    room — the preview happily said "would produce 68 tracks" and the run
+ *    came back with something else entirely. The preview is the whole reason
+ *    this tool has settings, and it was answering a different question from
+ *    the one the server answers.
+ *
+ *    Segments under the floor are now excluded from the count and the list,
+ *    and going over the ceiling says so before you spend a run on it.
+ *
+ * 2. "No qualifying gaps found — this would produce a single track" WAS ALSO
+ *    THE ZERO CASE. Push the threshold to -10 dB on a quiet recording and
+ *    every segment falls below the floor, so the real answer is "nothing would
+ *    come back", which is the opposite of one track. Separate branch.
+ *
+ * 3. THE RATE LIMIT WAS TYPED INTO THE COPY. "3 splits per 5 minutes" happens
+ *    to match config.py today, which is luck rather than design — the same
+ *    sentence in PitchForm was two attempts short for months. Read from
+ *    RATE_LIMITS.
+ *
+ * 4. FLOATING-POINT DRIFT IN THE SUBMITTED VALUE. The range steps by 0.1 from
+ *    0.1, so `min_duration_seconds` could be posted as 0.30000000000000004.
+ *    The header hid it behind toFixed(1); the request body did not.
+ *
+ * 5. AN AudioContext PER FILE, a fake radiogroup on the format picker, and two
+ *    more arrow buttons announcing "Increase" with no context.
+ */
 
 interface FormatSpec {
   quality: "Lossless" | "Compressed";
@@ -31,7 +68,12 @@ const FORMAT_SPECS: Record<string, FormatSpec> = {
   aac: { quality: "Compressed", detail: "Smaller than MP3" },
   ogg: { quality: "Compressed", detail: "Open format" },
 };
-const OUTPUT_FORMATS = Object.keys(FORMAT_SPECS);
+
+const FORMAT_OPTIONS: CardOption<string>[] = Object.entries(FORMAT_SPECS).map(([fmt, spec]) => ({
+  value: fmt,
+  title: fmt,
+  detail: spec.detail,
+}));
 
 // Mirrors the backend's SILENCE_THRESHOLD_MIN_DB/MAX_DB and
 // SILENCE_MIN_DURATION_SECONDS/MAX_SECONDS bounds — kept as plain
@@ -43,23 +85,62 @@ const THRESHOLD_DEFAULT = -30;
 const MIN_DURATION_MIN = 0.1;
 const MIN_DURATION_MAX = 10;
 const MIN_DURATION_DEFAULT = 0.5;
+const GAP_STEP = 0.1;
+
+/** The two rules the SERVER applies to the segment list, which the preview
+ *  used to ignore. Read from TOOL_LIMITS rather than restated. */
+const SPLIT_LIMITS = getToolLimits("silence-split");
+const MAX_SEGMENTS = SPLIT_LIMITS?.maxOutputSegments ?? 50;
+const MIN_SEGMENT_SECONDS = SPLIT_LIMITS?.minOutputSegmentSeconds ?? 1;
+
+const RATE_LIMIT_LABEL = getRateLimitLabel("silence-split");
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
 
+/** Snaps to a tenth and refuses NaN. The range input's own output needs this:
+ *  stepping by 0.1 from 0.1 produces 0.30000000000000004. */
+function normalizeGap(value: number, fallback = MIN_DURATION_DEFAULT): number {
+  if (!Number.isFinite(value)) return fallback;
+  return Math.round(clamp(value, MIN_DURATION_MIN, MIN_DURATION_MAX) * 10) / 10;
+}
+
 function formatTime(seconds: number): string {
   if (!Number.isFinite(seconds)) return "0:00";
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
-  return `${m}:${s.toString().padStart(2, "0")}`;
+  const total = Math.max(0, Math.floor(seconds));
+  return `${Math.floor(total / 60)}:${(total % 60).toString().padStart(2, "0")}`;
+}
+
+/**
+ * One AudioContext for the page, created on first use, never closed. Chrome
+ * throws past six per document and construction opens an audio device.
+ */
+let sharedCtx: AudioContext | null = null;
+
+function getAudioContext(): AudioContext {
+  if (!sharedCtx) {
+    const Ctx =
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    sharedCtx = new Ctx();
+  }
+  return sharedCtx;
 }
 
 /* ------------------------------------------------------------------ */
 /* Live split preview — decodes once, re-derives boundaries on the fly  */
 /* ------------------------------------------------------------------ */
 
-function SplitPreview({ file, thresholdDb, minDuration }: { file: File; thresholdDb: number; minDuration: number }) {
+function SplitPreview({
+  file,
+  thresholdDb,
+  minDuration,
+}: {
+  file: File;
+  thresholdDb: number;
+  minDuration: number;
+}) {
   const [duration, setDuration] = useState<number | null>(null);
   const [envelope, setEnvelope] = useState<WaveformEnvelope | null>(null);
   const [timeline, setTimeline] = useState<DbTimeline | null>(null);
@@ -72,23 +153,17 @@ function SplitPreview({ file, thresholdDb, minDuration }: { file: File; threshol
     (async () => {
       try {
         const arrayBuffer = await file.arrayBuffer();
-        const Ctx =
-          window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-        const ctx = new Ctx();
-        try {
-          const buffer = await ctx.decodeAudioData(arrayBuffer);
-          if (cancelled) return;
-          setDuration(buffer.duration);
-          // Both passes are sliced so a long file can't block the page
-          // — see lib/utils/scheduling. The waveform lands first so
-          // there's something to look at while the dB scan finishes.
-          const nextEnvelope = await computeWaveformEnvelopeAsync(buffer, undefined, abort.signal);
-          if (!cancelled) setEnvelope(nextEnvelope);
-          const nextTimeline = await computeDbTimelineAsync(buffer, abort.signal);
-          if (!cancelled) setTimeline(nextTimeline);
-        } finally {
-          ctx.close();
-        }
+        // The shared context, not one built and closed per file.
+        const buffer = await getAudioContext().decodeAudioData(arrayBuffer);
+        if (cancelled) return;
+        setDuration(buffer.duration);
+        // Both passes are sliced so a long file can't block the page
+        // — see lib/utils/scheduling. The waveform lands first so
+        // there's something to look at while the dB scan finishes.
+        const nextEnvelope = await computeWaveformEnvelopeAsync(buffer, undefined, abort.signal);
+        if (!cancelled) setEnvelope(nextEnvelope);
+        const nextTimeline = await computeDbTimelineAsync(buffer, abort.signal);
+        if (!cancelled) setTimeline(nextTimeline);
       } catch {
         // An abort lands here too, and is silent: cancelled is already
         // true, so nothing is written.
@@ -109,17 +184,27 @@ function SplitPreview({ file, thresholdDb, minDuration }: { file: File; threshol
     () => (timeline ? findQuietRanges(timeline, thresholdDb, minDuration) : []),
     [timeline, thresholdDb, minDuration]
   );
-  const segments = useMemo(
-    () => (duration !== null ? findAudibleSegments(duration, quietRanges) : []),
-    [duration, quietRanges]
-  );
+
+  /* The segments the SERVER would actually return. findAudibleSegments gives
+     every audible stretch; the backend then drops anything shorter than
+     SILENCE_SPLIT_MIN_SEGMENT_SECONDS. Counting the unfiltered list is what
+     made this preview promise tracks that never arrived. */
+  const segments = useMemo(() => {
+    if (duration === null) return [];
+    return findAudibleSegments(duration, quietRanges).filter(
+      (seg) => seg.endSeconds - seg.startSeconds >= MIN_SEGMENT_SECONDS
+    );
+  }, [duration, quietRanges]);
 
   /* Audio that survives as a track is highlighted; the gaps that get
      cut away render grey. */
   const isKept = useCallback(
-    (time: number) => !quietRanges.some((gap) => time >= gap.startSeconds && time <= gap.endSeconds),
-    [quietRanges]
+    (time: number) =>
+      segments.some((seg) => time >= seg.startSeconds && time <= seg.endSeconds),
+    [segments]
   );
+
+  const overCap = segments.length > MAX_SEGMENTS;
 
   if (failed) {
     return (
@@ -134,14 +219,16 @@ function SplitPreview({ file, thresholdDb, minDuration }: { file: File; threshol
       <div className="flex items-center justify-between">
         <span className="text-xs text-text-muted">Preview — where it would split</span>
         {duration !== null && (
-          <span className="font-mono text-xs tabular-nums text-text-subtle">{formatTime(duration)} total</span>
+          <span className="font-mono text-xs tabular-nums text-text-subtle">
+            {formatTime(duration)} total
+          </span>
         )}
       </div>
 
-      <div className="relative h-24 overflow-hidden rounded-lg border border-graphite-700 bg-graphite-850">
+      <div className="relative h-24 overflow-hidden rounded-xl border border-graphite-700 bg-graphite-850">
         {duration === null ? (
           <div className="flex h-full items-center justify-center gap-2 text-xs text-text-subtle">
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            <Loader2 className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
             Analyzing track…
           </div>
         ) : (
@@ -155,12 +242,12 @@ function SplitPreview({ file, thresholdDb, minDuration }: { file: File; threshol
               className="absolute inset-0 block"
             />
 
-            {/* Split-point markers at each gap boundary */}
-            {quietRanges.map((gap, i) => (
+            {/* Split-point markers at each kept segment's start */}
+            {segments.map((seg, i) => (
               <div
                 key={`marker-${i}`}
                 className="pointer-events-none absolute inset-y-0 w-px bg-amber-400"
-                style={{ left: `${(gap.startSeconds / duration) * 100}%` }}
+                style={{ left: `${(seg.startSeconds / duration) * 100}%` }}
               />
             ))}
 
@@ -173,23 +260,51 @@ function SplitPreview({ file, thresholdDb, minDuration }: { file: File; threshol
         )}
       </div>
 
-      {duration !== null && (
+      {duration !== null && timeline && (
         <>
-          <p className="flex items-center gap-1.5 text-[11px] text-text-subtle">
-            {segments.length > 1 ? (
-              <>Would produce {segments.length} tracks at these settings.</>
-            ) : (
-              <>
-                <AlertTriangle className="h-3 w-3 shrink-0 text-amber-400" aria-hidden />
-                No qualifying gaps found — this would produce a single track. Try a higher threshold or
-                shorter minimum gap.
-              </>
-            )}
-          </p>
+          {segments.length === 0 ? (
+            /* Distinct from "one track". At a high threshold on a quiet
+               recording every stretch falls under the length floor, and the
+               honest answer is that nothing comes back at all. */
+            <Hint tone="warn">
+              Nothing would survive at these settings — every stretch is shorter than{" "}
+              {MIN_SEGMENT_SECONDS}s once the gaps are cut. Lower the threshold or raise the
+              minimum gap.
+            </Hint>
+          ) : segments.length === 1 ? (
+            <Hint tone="warn">
+              No qualifying gaps found — this would produce a single track. Try a higher threshold
+              or a shorter minimum gap.
+            </Hint>
+          ) : (
+            <>
+              <p className="text-[11px] text-text-subtle">
+                About {segments.length} tracks at these settings
+                {MIN_SEGMENT_SECONDS > 0 ? `, ignoring anything under ${MIN_SEGMENT_SECONDS}s` : ""}.
+              </p>
+              {/*
+                DOES NOT PREDICT THE SERVER'S COUNT.
+
+                This preview runs its own dB scan in the browser; the server
+                runs a different one, then drops short segments, THEN checks
+                the 50 cap. So the two numbers can differ, and the server
+                already refuses with a message that names the real count and
+                the fix — before writing any files, so nothing is half-done.
+                Restating the limit in our own words would compete with that
+                message and lose. This says only that the failure exists.
+              */}
+              {overCap && (
+                <Hint tone="warn">
+                  Files with many short gaps can exceed the {MAX_SEGMENTS}-segment limit. If this
+                  one does, nothing is written and the error will say what to change.
+                </Hint>
+              )}
+            </>
+          )}
 
           {segments.length > 1 && (
-            <div className="max-h-40 divide-y divide-graphite-800 overflow-y-auto rounded-lg border border-graphite-700">
-              {segments.map((seg, i) => (
+            <div className="max-h-40 divide-y divide-graphite-800 overflow-y-auto rounded-xl border border-graphite-700">
+              {segments.slice(0, MAX_SEGMENTS).map((seg, i) => (
                 <div key={i} className="flex items-center gap-3 px-3 py-2 text-xs">
                   <ListMusic className="h-3.5 w-3.5 shrink-0 text-text-subtle" aria-hidden />
                   <span className="w-16 shrink-0 text-text-muted">Track {i + 1}</span>
@@ -218,6 +333,8 @@ export function SilenceSplitForm() {
   const [thresholdDb, setThresholdDb] = useState(THRESHOLD_DEFAULT);
   const [minDurationSeconds, setMinDurationSeconds] = useState(MIN_DURATION_DEFAULT);
 
+  const setGap = (v: number) => setMinDurationSeconds(normalizeGap(v, minDurationSeconds));
+
   return (
     <MultiOutputToolForm
       endpoint="silence-split"
@@ -243,58 +360,39 @@ export function SilenceSplitForm() {
         { at: 15, label: "Encoding each track" },
         { at: 30, label: "Packaging the results" },
       ]}
-      rateLimitMessage="You've reached the limit (3 splits per 5 minutes). Try again shortly."
+      rateLimitMessage={
+        RATE_LIMIT_LABEL
+          ? `You've reached the limit (${RATE_LIMIT_LABEL}). Try again shortly.`
+          : undefined
+      }
       renderControls={(file, disabled) => (
         <div className="space-y-5">
           {file ? (
             <SplitPreview file={file} thresholdDb={thresholdDb} minDuration={minDurationSeconds} />
           ) : (
-            <p className="text-xs text-text-subtle">Upload a file to preview exactly where it would split.</p>
+            <p className="text-xs text-text-subtle">
+              Upload a file to preview exactly where it would split.
+            </p>
           )}
 
-          <fieldset className="space-y-2" disabled={disabled}>
-            <legend className="mb-2 text-sm font-medium text-text-primary">Output format</legend>
-            <div className="grid grid-cols-3 gap-2 sm:grid-cols-4" role="radiogroup" aria-label="Output format">
-              {OUTPUT_FORMATS.map((fmt) => {
-                const spec = FORMAT_SPECS[fmt];
-                const selected = format === fmt;
-                return (
-                  <button
-                    key={fmt}
-                    type="button"
-                    role="radio"
-                    aria-checked={selected}
-                    onClick={() => setFormat(fmt)}
-                    disabled={disabled}
-                    className={cn(
-                      "rounded-lg border px-2.5 py-2 text-left transition-all",
-                      "focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40",
-                      "disabled:cursor-not-allowed disabled:opacity-40",
-                      selected
-                        ? "border-amber-500/60 bg-amber-500/[0.07]"
-                        : "border-graphite-700 bg-graphite-850 hover:border-graphite-700/60 hover:bg-graphite-800/60"
-                    )}
-                  >
-                    <span
-                      className={cn(
-                        "block font-mono text-xs font-semibold uppercase",
-                        selected ? "text-amber-400" : "text-text-primary"
-                      )}
-                    >
-                      {fmt}
-                    </span>
-                    <span className="mt-0.5 block text-[10px] text-text-subtle">{spec.detail}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </fieldset>
+          <ControlField as="fieldset" label="Output format">
+            <OptionCards
+              label="Output format"
+              options={FORMAT_OPTIONS}
+              value={format}
+              onChange={setFormat}
+              columns={4}
+              disabled={disabled}
+              mono
+            />
+          </ControlField>
 
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <label className="text-sm font-medium text-text-primary">Silence threshold</label>
-              <span className="font-mono text-sm font-semibold text-amber-400">{thresholdDb} dB</span>
-            </div>
+          <ControlField
+            as="fieldset"
+            label="Silence threshold"
+            meta={<span className="text-[13px] font-semibold text-amber-400">{thresholdDb} dB</span>}
+            hint={`Lower (toward ${THRESHOLD_MIN_DB} dB) catches quieter background noise as silence too. Higher (toward ${THRESHOLD_MAX_DB} dB) only cuts near-total silence.`}
+          >
             <ThresholdMeter
               value={thresholdDb}
               min={THRESHOLD_MIN_DB}
@@ -303,68 +401,43 @@ export function SilenceSplitForm() {
               disabled={disabled || !file}
               onChange={setThresholdDb}
             />
-            <p className="text-[11px] leading-snug text-text-subtle">
-              Lower (toward {THRESHOLD_MIN_DB} dB) catches quieter background noise as silence too. Higher
-              (toward {THRESHOLD_MAX_DB} dB) only cuts near-total silence.
-            </p>
-          </div>
+          </ControlField>
 
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <label className="text-sm font-medium text-text-primary">Minimum gap length</label>
-              <span className="flex items-center overflow-hidden rounded-md border border-graphite-700 bg-graphite-850">
-                <input
-                  type="number"
-                  min={MIN_DURATION_MIN}
-                  max={MIN_DURATION_MAX}
-                  step={0.1}
-                  value={minDurationSeconds}
-                  disabled={disabled || !file}
-                  onChange={(e) => setMinDurationSeconds(clamp(Number(e.target.value), MIN_DURATION_MIN, MIN_DURATION_MAX))}
-                  className="w-14 bg-transparent px-2 py-1 text-right font-mono text-text-primary [appearance:textfield] focus:outline-none disabled:opacity-40 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                />
-                <span className="flex flex-col border-l border-graphite-700">
-                  <button
-                    type="button"
-                    aria-label="Increase"
-                    disabled={disabled || !file}
-                    onClick={() =>
-                      setMinDurationSeconds((v) => clamp(Math.round((v + 0.1) * 10) / 10, MIN_DURATION_MIN, MIN_DURATION_MAX))
-                    }
-                    className="flex h-3.5 w-5 items-center justify-center text-text-subtle transition-colors hover:bg-graphite-800 hover:text-amber-400 disabled:opacity-40"
-                  >
-                    <ChevronUp className="h-2.5 w-2.5" />
-                  </button>
-                  <button
-                    type="button"
-                    aria-label="Decrease"
-                    disabled={disabled || !file}
-                    onClick={() =>
-                      setMinDurationSeconds((v) => clamp(Math.round((v - 0.1) * 10) / 10, MIN_DURATION_MIN, MIN_DURATION_MAX))
-                    }
-                    className="flex h-3.5 w-5 items-center justify-center border-t border-graphite-700 text-text-subtle transition-colors hover:bg-graphite-800 hover:text-amber-400 disabled:opacity-40"
-                  >
-                    <ChevronDown className="h-2.5 w-2.5" />
-                  </button>
-                </span>
-              </span>
-            </div>
+          <ControlField
+            as="fieldset"
+            label="Minimum gap length"
+            meta={
+              <Stepper
+                label="Minimum gap"
+                value={minDurationSeconds}
+                step={GAP_STEP}
+                bigStep={GAP_STEP}
+                precision={1}
+                unit="s"
+                disabled={disabled || !file}
+                onChange={setGap}
+              />
+            }
+            hint="How long a quiet stretch must last before it counts as a split point — shorter values cut on brief pauses too, longer values only cut long gaps."
+          >
+            {/* Native range for the same reason as SilenceRemoveForm:
+                ThresholdMeter rounds to whole numbers, which would quantise
+                this to 1-second steps. */}
             <input
               type="range"
               min={MIN_DURATION_MIN}
               max={MIN_DURATION_MAX}
-              step={0.1}
+              step={GAP_STEP}
               value={minDurationSeconds}
-              onChange={(e) => setMinDurationSeconds(Number(e.target.value))}
+              onChange={(e) => setGap(Number(e.target.value))}
               disabled={disabled || !file}
-              className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-graphite-700 accent-amber-500 disabled:opacity-40"
+              className={cn(
+                "h-1.5 w-full cursor-pointer appearance-none rounded-full bg-graphite-700",
+                "accent-amber-500 disabled:opacity-40"
+              )}
+              aria-label="Minimum silence gap duration in seconds"
             />
-            <p className="text-[11px] leading-snug text-text-subtle">
-              How long a quiet stretch must last before it counts as a split point — shorter values cut
-              on brief pauses too, longer values only cut long gaps.
-            </p>
-          </div>
-
+          </ControlField>
         </div>
       )}
     />

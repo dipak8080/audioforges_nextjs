@@ -36,28 +36,49 @@ import type {
  * still supplies a valid (inert) context, so no consumer needs a null check
  * and no component has to know why it's empty.
  *
- * ── THIS PASS: THREE FIXES ─────────────────────────────────────────────
+ * FIXED IN AN EARLIER PASS, still true:
+ *  1. `refresh` is stable — it returns the in-flight promise from a ref and
+ *     depends on `enabled` alone, so consumers listing it in deps don't re-run
+ *     on every balance change.
+ *  2. A failed refetch doesn't wipe the balance. getCreditsMe() returns null on
+ *     failure by design ("treat as paywall off"), and writing that into state
+ *     made a paying customer's credits vanish on one flaky refocus.
+ *  3. `rate_limit` and `paywall` are read defensively — a payload missing
+ *     either key used to throw inside a useMemo in a provider that wraps the
+ *     entire site, which is a blank page on every route.
  *
- * 1. `refresh` IS NOW STABLE. It used to close over `me` (for the in-flight
- *    early return), so it got a new identity on every balance change. Every
- *    consumer that lists it in useCallback/useEffect deps therefore re-ran on
- *    every refetch. That was not cosmetic: /checkout/success has a poll
- *    effect keyed on a callback that depends on `refresh`, so each refetch
- *    restarted the poll AND reset its baseline balance and its 60-second
- *    deadline — meaning the "balance went up" comparison could never fire and
- *    the timeout state was unreachable. It now returns the in-flight promise
- *    from a ref and depends on `enabled` alone.
+ * ── THIS PASS ──────────────────────────────────────────────────────────
  *
- * 2. A FAILED REFETCH NO LONGER WIPES THE BALANCE. getCreditsMe() returns
- *    null on failure by design ("treat as paywall off"), and this used to
- *    write that null straight into state — so one flaky refocus refetch made
- *    a paying customer's credits vanish from the navbar until the next
- *    successful call. Null is now ignored and the last good value stands.
+ * 1. THE MODULE CACHE WAS READ DURING SERVER RENDER. `useState(cachedMe)`
+ *    evaluates on the server too, and module scope on a server is shared by
+ *    every request that process handles. The note below argued this was safe
+ *    because nothing WRITES the cache server-side — which is true today and is
+ *    a convention, not a guarantee. One future `await refresh()` in a server
+ *    component, or a `applyBalance` call that isn't client-only, and one
+ *    visitor's balance and email render into another visitor's HTML. The read
+ *    is now gated on `typeof window`, so the guarantee is structural.
  *
- * 3. DEFENSIVE READS ON `rate_limit` AND `paywall`. These were dotted into
- *    without optional chaining. A payload missing either key threw inside a
- *    useMemo in a provider that wraps the entire site, which is a blank page
- *    on every route rather than one broken pill.
+ * 2. `applyBalance` SILENTLY DROPPED THE UPDATE WHEN `me` WAS NULL. It bails on
+ *    `!prev`, which is the state during the very first /credits/me — and a
+ *    metered submit can resolve before that does. The charge landed, the server
+ *    reported the new balance, and the navbar kept showing nothing until some
+ *    later refetch. It can't fabricate a whole CreditsMe from two numbers, so
+ *    it asks for one instead.
+ *
+ * 3. SIGN-OUT LEFT THE PREVIOUS ACCOUNT IN THE MODULE CACHE. `refresh()` only
+ *    overwrites `cachedMe` when the fetch succeeds — correct for a network
+ *    blip, wrong immediately after a logout, where a failed refetch leaves the
+ *    signed-out user's balance and email to be repainted by the next remount.
+ *    On the shared machine this button exists for, that's the whole point of
+ *    pressing it. `refresh({ reset: true })` clears the cache first.
+ *
+ *    CreditAccountPanel's sign-out should pass it:
+ *        await refresh({ reset: true });
+ *
+ * 4. A THROWING FETCH REJECTED THE PROMISE. getCreditsMe() is documented to
+ *    return null rather than throw, but `await refresh()` sat in a sign-out
+ *    handler with no catch — so the day that contract slips, the button stops
+ *    completing. It resolves to null now, like the function it wraps.
  */
 
 interface CreditContextValue {
@@ -66,8 +87,14 @@ interface CreditContextValue {
   /** Null while loading, or whenever the paywall is off. */
   me: CreditsMe | null;
   loading: boolean;
-  /** Refetch after a purchase, an upgrade, a login, or a logout. */
-  refresh: () => Promise<CreditsMe | null>;
+  /**
+   * Refetch after a purchase, an upgrade, a login, or a logout.
+   *
+   * Pass `{ reset: true }` when the IDENTITY may have changed — logout, or a
+   * magic link that signed a different account in. It drops the cross-mount
+   * cache so a failed refetch can't repaint the previous account.
+   */
+  refresh: (options?: { reset?: boolean }) => Promise<CreditsMe | null>;
   /** Optimistically overwrite after a route hands back fresh billing data. */
   applyBalance: (balance: number, freeRemaining?: number) => void;
 
@@ -128,13 +155,18 @@ const REFOCUS_THROTTLE_MS = 20_000;
  * lets a remount paint the balance it already knows instead of flashing empty
  * while it refetches.
  *
- * SAFE UNDER SSR: this is a "use client" module, so the server evaluates it
- * but only ever reads these — `refresh()` runs from an effect, which is
- * client-only. Nothing a server render produces can leak one visitor's
- * balance into another's HTML.
+ * NOT READ DURING SERVER RENDER. On a server, module scope is shared by every
+ * request the process handles, so a value written by one visitor is readable by
+ * the next. Nothing writes these on the server today — but "nothing writes it"
+ * is a convention, and the failure it protects against is one visitor's balance
+ * and email rendering into another visitor's HTML. `readCache()` makes the
+ * guarantee structural instead.
  */
 let lastFetchedAt = 0;
 let cachedMe: CreditsMe | null = null;
+
+const isBrowser = () => typeof window !== "undefined";
+const readCache = (): CreditsMe | null => (isBrowser() ? cachedMe : null);
 
 export function CreditProvider({
   flags,
@@ -146,9 +178,11 @@ export function CreditProvider({
   const enabled = flags.paywallEnabled;
 
   // Seeded from the module cache so a remount within the window renders the
-  // known balance immediately rather than blanking the navbar pill.
-  const [me, setMe] = useState<CreditsMe | null>(cachedMe);
-  const [loading, setLoading] = useState(enabled && cachedMe === null);
+  // known balance immediately rather than blanking the navbar pill. Lazy
+  // initializers, so the browser check runs at mount rather than being
+  // evaluated into the server's render output.
+  const [me, setMe] = useState<CreditsMe | null>(() => readCache());
+  const [loading, setLoading] = useState(() => enabled && readCache() === null);
   const mounted = useRef(true);
   /**
    * The in-flight request itself, not a boolean. A second caller during a
@@ -166,32 +200,54 @@ export function CreditProvider({
     };
   }, []);
 
-  const refresh = useCallback(async (): Promise<CreditsMe | null> => {
-    if (!enabled) return null;
-    if (pending.current) return pending.current;
+  const refresh = useCallback(
+    async (options?: { reset?: boolean }): Promise<CreditsMe | null> => {
+      if (!enabled) return null;
 
-    const request = (async () => {
-      try {
-        const next = await getCreditsMe();
-        lastFetchedAt = Date.now();
-        if (next) cachedMe = next;
-        if (mounted.current) {
-          // getCreditsMe() returns null on failure, meaning "treat as paywall
-          // off" — NOT "the balance is now nothing". Writing that null into
-          // state made a paying customer's credits disappear on any transient
-          // network error. Keep the last good value instead.
-          if (next) setMe(next);
-          setLoading(false);
-        }
-        return next;
-      } finally {
-        pending.current = null;
+      if (options?.reset) {
+        // The identity may have changed. Drop the cross-mount cache BEFORE the
+        // request, so even a failed refetch can't leave the previous account's
+        // balance and email to be repainted on the next mount.
+        cachedMe = null;
+        lastFetchedAt = 0;
+        if (mounted.current) setMe(null);
       }
-    })();
 
-    pending.current = request;
-    return request;
-  }, [enabled]);
+      // A reset has to reach the server; joining an in-flight request that was
+      // issued as the old identity would answer the wrong question.
+      if (pending.current && !options?.reset) return pending.current;
+
+      const request = (async () => {
+        try {
+          const next = await getCreditsMe();
+          lastFetchedAt = Date.now();
+          if (next) cachedMe = next;
+          if (mounted.current) {
+            // getCreditsMe() returns null on failure, meaning "treat as paywall
+            // off" — NOT "the balance is now nothing". Writing that null into
+            // state made a paying customer's credits disappear on any transient
+            // network error. Keep the last good value instead.
+            if (next) setMe(next);
+            setLoading(false);
+          }
+          return next;
+        } catch {
+          // Documented to return null rather than throw, but this promise is
+          // awaited in a sign-out handler with no catch of its own — so the day
+          // that contract slips, the button would stop completing. Resolve like
+          // the function this wraps.
+          if (mounted.current) setLoading(false);
+          return null;
+        } finally {
+          pending.current = null;
+        }
+      })();
+
+      pending.current = request;
+      return request;
+    },
+    [enabled]
+  );
 
   // Initial load. Guarded on `enabled`, which is the whole point of the file.
   //
@@ -239,21 +295,41 @@ export function CreditProvider({
    * watching the number, which would otherwise show a stale balance for a beat
    * and then jump.
    */
-  const applyBalance = useCallback((balance: number, freeRemaining?: number) => {
-    setMe((prev) => {
-      if (!prev) return prev;
-      const next = {
-        ...prev,
-        balance,
-        free_remaining: freeRemaining ?? prev.free_remaining,
-      };
-      // Keep the module cache in step. Without this a remount inside the
-      // throttle window would restore the PRE-charge balance from cache and
-      // silently undo the number the user just watched go down.
-      cachedMe = next;
-      return next;
-    });
-  }, []);
+  const applyBalance = useCallback(
+    (balance: number, freeRemaining?: number) => {
+      let hadPrevious = true;
+
+      setMe((prev) => {
+        if (!prev) {
+          // First /credits/me hasn't landed yet — and a metered submit can
+          // easily resolve before it does. Two numbers aren't a CreditsMe
+          // (packs, rate_limit, paywall all live there), so this can't
+          // synthesize one; dropping the update outright is what left the
+          // navbar empty after a charge the server had already applied.
+          hadPrevious = false;
+          return prev;
+        }
+        const next = {
+          ...prev,
+          balance,
+          free_remaining: freeRemaining ?? prev.free_remaining,
+        };
+        // Keep the module cache in step. Without this a remount inside the
+        // throttle window would restore the PRE-charge balance from cache and
+        // silently undo the number the user just watched go down.
+        cachedMe = next;
+        return next;
+      });
+
+      // Outside the updater: a state updater must be pure, and asking for a
+      // network request from inside one isn't.
+      if (!hadPrevious) {
+        lastFetchedAt = 0; // don't let the throttle swallow it
+        void refresh();
+      }
+    },
+    [refresh]
+  );
 
   const value = useMemo<CreditContextValue>(() => {
     if (!enabled) return InertContext;

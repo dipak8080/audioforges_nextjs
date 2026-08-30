@@ -2,24 +2,23 @@
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import {
+  AudioLines,
   Download,
-  AlertTriangle,
-  Wand2,
-  Mic2,
   Drum,
   Guitar,
+  ListMusic,
+  Mic2,
   Music2,
   Music4,
-  ListMusic,
-  AudioLines,
   Play,
   RotateCcw,
+  Wand2,
 } from "lucide-react";
+import Link from "next/link";
 import { Button, buttonStyles } from "@/components/ui/Button";
 import { FileDropZone } from "@/components/ui/FileDropZone";
 import { Waveform } from "@/components/ui/Waveform";
 import { AudioPlayer } from "@/components/ui/AudioPlayer";
-import Link from "next/link";
 import { SupportBlock } from "@/components/ui/SupportBlock";
 import { useCreditGate } from "@/components/credits/useCreditGate";
 import { useCredits } from "@/components/credits/CreditProvider";
@@ -30,6 +29,7 @@ import { trackCredits } from "@/lib/analytics";
 import type { MeteredToolKey } from "@/lib/types/credits";
 import type { UpgradeFamily } from "@/lib/api/credits";
 import { validateAudioFile } from "@/lib/utils/validation";
+import { getRetryAfterFallback } from "@/lib/data/rate-limits";
 import {
   getMultiOutputStatus,
   getMultiOutputPreviewUrl,
@@ -38,86 +38,77 @@ import {
   type JobSubmitResponse,
 } from "@/lib/api/railway";
 import { cn } from "@/lib/utils/cn";
+import {
+  CooldownBar,
+  ErrorPanel,
+  FormShell,
+  ResultHeader,
+  Section,
+  ValidationNote,
+  WorkingPanel,
+  easedProgress,
+  formatCooldown,
+  formatElapsed,
+  isRetryableSubmitError,
+  sleep,
+  serverFailure,
+  stageIndexFor,
+  terminalPollError,
+  useCooldownSeconds,
+  useElapsedSeconds,
+  type FormError,
+  type PollTiming,
+  type ProcessingStage,
+  type UiState,
+} from "@/components/tools/JobFormKit";
+
+export type { ProcessingStage };
 
 /**
- * ── THIS PASS: SIX FIXES ───────────────────────────────────────────────
+ * ── THIS PASS ──────────────────────────────────────────────────────────
  *
- * Every new prop is OPTIONAL and every default reproduces the old behaviour,
- * so /silence-split — which passes no credits props at all — is unchanged.
+ * Rebuilt on JobFormKit, so the header, step rail, working panel, result
+ * header, error panel and action bar are the same components the other two
+ * forms use. Every prop is unchanged — /stems, /silence-split and
+ * /youtube/stems keep working untouched.
  *
- * 1. AN UPGRADED JOB WAS POLLED WITH THE WRONG CEILING. `handleUpgraded` had
- *    `[]` deps and an eslint-disable, so it captured `startPolling` — and
- *    through it `maxPollMs` and `pollIntervalMs` — from FIRST MOUNT, when the
- *    caller's quality toggle still said Standard. An upgrade is always to HQ,
- *    whose backend timeout is 1800s, but the captured frontend cap was the
- *    standard 720s. Any upgraded run past twelve minutes was declared "taking
- *    unusually long" on a job the backend was still processing and would have
- *    completed. Four-stem HQ is the slowest job in the product, so this is
- *    where it bit hardest.
+ * Three bugs went with the rewrite:
  *
- * 2. THE UPGRADE PRODUCED NO RECEIPT. `handleUpgraded` took only a job id, so
- *    `billing` stayed at whatever the original free run left it — null. After
- *    spending a credit the result showed no "1 credit used" line and kept
- *    asking for a tip.
+ * 1. A REJECTED POLL WAS TREATED AS A SLOW JOB. Only 404 was terminal here;
+ *    JobToolForm already handled 401/403 and this file never got the fix. An
+ *    auth failure repeated identically for the full twelve minutes and then
+ *    reported "taking unusually long" about a job the server had settled in
+ *    about one. Now shared, via terminalPollError().
  *
- * 3. `poll` CHURNED ON EVERY RENDER. It depended on the `onComplete` and
- *    `onFailed` props, which callers pass as inline arrows. Read through refs
- *    now, which also means a caller's notification handler can never be
- *    captured stale.
+ * 2. CANCEL LEFT THE LAST RUN'S RECEIPT BEHIND. `billing` and
+ *    `completedMetered` survived handleCancel, so an idle form still believed
+ *    it was holding a charged run: the next cancel said "Stop watching… the
+ *    credit is already spent" about a job that had never started, and the tip
+ *    block stayed suppressed. handleReset cleared both; handleCancel didn't.
  *
- * 4. CANCEL WAS DISHONEST ON A CHARGED RUN. It stops the poll; it does not
- *    stop the job or refund the credit. On a free tool that's fine. On a run
- *    the user just paid for, pressing a button labelled "Cancel" and losing
- *    both the credit and the result is the worst outcome this form can
- *    produce. The control now says what it actually does, and says the credit
- *    is already spent, so the choice is informed.
+ * 3. STALE OUTPUTS SURVIVED CANCEL. jobId was nulled but `outputs` and
+ *    `activeOutput` weren't, so the previous run's track list sat in state
+ *    behind an idle form.
  *
- * 5. THE GATE WAS A DEAD END. A 402 opened the modal, the user bought, and
- *    they were returned to an idle form still holding their file with no sign
- *    the thing they wanted is now possible. `onCredited` re-runs the submit.
- *
- * 6. THE OUTPUT ROWS HAD NO VISIBLE KEYBOARD FOCUS. `focus:outline-none` with
- *    no focus-visible ring means a keyboard user tabbing a 50-segment
- *    silence-split list has no idea where they are.
+ * Kept from the previous pass and still true:
+ *  · An upgraded job is polled with the HQ ceiling, passed explicitly, not
+ *    captured from whatever tier the toggle was on at first mount.
+ *  · The upgrade reports its own billing, so the receipt is right.
+ *  · onComplete/onFailed are read through refs, so `poll` is stable and a
+ *    caller's notification handler can never be captured stale.
  */
 
-type UiState = "idle" | "uploading" | "processing" | "complete" | "failed" | "error";
-
-/** A stage label that appears once `at` seconds have elapsed. */
-export interface ProcessingStage {
-  at: number;
-  label: string;
-}
-
 const DEFAULT_MAX_POLL_MS = 12 * 60 * 1000;
+const STEPS = ["File", "Run", "Result"] as const;
 
-/* ------------------------------------------------------------------ */
-/* Helpers                                                             */
-/* ------------------------------------------------------------------ */
-
-function formatElapsed(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${m}:${s.toString().padStart(2, "0")}`;
-}
-
-function formatCooldown(seconds: number): string {
-  if (seconds >= 3600) return `${Math.ceil(seconds / 3600)}h`;
-  if (seconds >= 60) return `${Math.ceil(seconds / 60)}m`;
-  return `${seconds}s`;
-}
-
-function isRetryableSubmitError(error: unknown): boolean {
-  if (!(error instanceof ApiError)) return false;
-  return error.isTimeout || error.isServerBusy || error.status === 0;
-}
-
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-/** Errors say what happened and what to do about it. */
-function humanizeError(raw: string): { title: string; hint: string } {
+/**
+ * SUBMIT errors only.
+ *
+ * A failed JOB's message comes from the server already written for the user —
+ * see serverFailure at the poll site. This handles the other path, where the
+ * text is an ApiError message and generic copy is often the better read.
+ */
+function humanizeError(raw: string): FormError {
   const text = raw.toLowerCase();
 
   if (text.includes("too large") || text.includes("size")) {
@@ -164,13 +155,6 @@ function defaultOutputIcon(name: string): ReactNode {
   return <AudioLines className="h-4 w-4" aria-hidden />;
 }
 
-/** Timings for one polling run. Carried through the recursion so an upgraded
- *  job cannot inherit the tier it was upgraded FROM. */
-interface PollTiming {
-  intervalMs: number;
-  maxMs: number;
-}
-
 /* ------------------------------------------------------------------ */
 /* Props                                                               */
 /* ------------------------------------------------------------------ */
@@ -205,17 +189,27 @@ interface MultiOutputToolFormProps {
   /** Give up polling after this long rather than spinning forever. */
   maxPollMs?: number;
   /**
+   * Time constant for the progress curve, in seconds. Bigger for slower tools.
+   * Roughly: the bar passes 60% at `progressTau` seconds and 90% at ~2.3x it,
+   * so pick something near the tool's TYPICAL duration rather than its ceiling.
+   *
+   * Default 25 suits a standard separation. Four-stem HQ wants ~110 — at 25 the
+   * bar reaches 92% about a minute in and then stops, on the longest wait in
+   * the product.
+   */
+  progressTau?: number;
+  /**
    * Timings for a job started by the upgrade card. An upgrade always produces
    * an HQ job, whose backend ceiling is far higher than the standard tier's —
-   * without these the upgraded run is polled against whatever tier the
-   * caller's toggle happened to be on, and gets declared stuck while the
-   * backend is still working. Default to the normal values, so a tool with no
-   * HQ tier is unaffected.
+   * without these the upgraded run is polled against whatever tier the caller's
+   * toggle happened to be on, and gets declared stuck while the backend is
+   * still working. Default to the normal values, so a tool with no HQ tier is
+   * unaffected.
    */
   upgradePollIntervalMs?: number;
   upgradeMaxPollMs?: number;
-  /** Fires once, when the job finishes successfully — after outputs are set
-   * but in the same tick as the status flip to "complete". Intended for side
+  /** Fires once, when the job finishes successfully — after outputs are set but
+   * in the same tick as the status flip to "complete". Intended for side
    * effects (browser notifications, analytics) that shouldn't block or alter
    * the render; not called on every render. */
   onComplete?: (outputs: string[], title: string | null) => void;
@@ -244,9 +238,9 @@ interface MultiOutputToolFormProps {
   /**
    * OPT-IN CREDITS WIRING.
    *
-   * This component is shared by /stems, /silence-split and /youtube/stems.
-   * Only some of those are ever metered, so credits are props rather than
-   * built in — silence-split passes neither and behaves exactly as before.
+   * This component is shared by /stems, /silence-split and /youtube/stems. Only
+   * some of those are ever metered, so credits are props rather than built in —
+   * silence-split passes neither and behaves exactly as before.
    *
    * `meteredToolKey` is the key for the CURRENTLY SELECTED tier, so the caller
    * passes null while Standard is chosen. It drives only the free-tier 429
@@ -277,6 +271,7 @@ export function MultiOutputToolForm({
   toolMeta,
   stages,
   maxPollMs = DEFAULT_MAX_POLL_MS,
+  progressTau = 25,
   upgradePollIntervalMs,
   upgradeMaxPollMs,
   onComplete,
@@ -293,12 +288,7 @@ export function MultiOutputToolForm({
   const [file, setFile] = useState<File | null>(null);
   const [status, setStatus] = useState<UiState>("idle");
   const [validationError, setValidationError] = useState<string | null>(null);
-  const [error, setError] = useState<{
-    title: string;
-    hint: string;
-    /** Free-tier rate limit on a metered tool — an offer, not a dead end. */
-    offerCredits?: boolean;
-  } | null>(null);
+  const [error, setError] = useState<FormError | null>(null);
   /**
    * Whether the FINISHED job ran on a metered route. Derived from the presence
    * of the `billing` block rather than from the caller's current toggle, which
@@ -313,9 +303,22 @@ export function MultiOutputToolForm({
   const [resultTitle, setResultTitle] = useState<string | null>(null);
   const [outputs, setOutputs] = useState<string[]>([]);
   const [activeOutput, setActiveOutput] = useState<string | null>(null);
-  const [cooldownSeconds, setCooldownSeconds] = useState(0);
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [retryNotice, setRetryNotice] = useState<string | null>(null);
+
+  const isBusy = status === "uploading" || status === "processing";
+  const [elapsedSeconds, setElapsedSeconds] = useElapsedSeconds(isBusy);
+  const [cooldownSeconds, setCooldownSeconds] = useCooldownSeconds();
+  /**
+   * Seeded from the endpoint's real window rather than a flat guess.
+   *
+   * Every endpoint this shell receives IS a RATE_LIMITS key — "stems" (6/hour),
+   * "silence-split" (3 per 5 min), "youtube/stems" (6/hour) — so this resolves
+   * to a real window rather than the helper's default. Note that /stems and
+   * /stems-hq both arrive as endpoint="stems", so an HQ 429 seeds from the
+   * FREE tier's window; the server's Retry-After overrides it whenever present,
+   * which on a tiered route it should be.
+   */
+  const cooldownCeilingRef = useRef(getRetryAfterFallback(endpoint));
 
   const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pollStartedAtRef = useRef(0);
@@ -331,11 +334,10 @@ export function MultiOutputToolForm({
   const onFailedRef = useRef(onFailed);
   /*
     Synced in an EFFECT, not assigned during render. Writing to a ref while
-    rendering is what react-hooks/refs rejects, and it stops being merely
-    untidy the moment the React Compiler is enabled: a memoised render can be
-    skipped, and the assignment with it. An effect with no dependency array
-    runs after every render, so the value a callback reads is always the
-    latest one.
+    rendering is what react-hooks/refs rejects, and it stops being merely untidy
+    the moment the React Compiler is enabled: a memoised render can be skipped,
+    and the assignment with it. An effect with no dependency array runs after
+    every render, so the value a callback reads is always the latest one.
   */
   useEffect(() => {
     onCompleteRef.current = onComplete;
@@ -349,7 +351,6 @@ export function MultiOutputToolForm({
     onCredited: () => submitRef.current(),
   });
 
-  const isBusy = status === "uploading" || status === "processing";
   const isFailed = status === "failed" || status === "error";
   const canSubmit = Boolean(file) && !isBusy && status !== "complete" && cooldownSeconds === 0;
 
@@ -357,7 +358,7 @@ export function MultiOutputToolForm({
    * Keyed on what was CHARGED, not on whether the route was metered. A
    * free-tier Studio Quality run is still a free result, so it keeps the tip
    * block; only a run someone paid a credit for loses it. Also drives the
-   * honest cancel copy below.
+   * honest cancel copy.
    */
   const chargedRun = billing?.charged === "credit";
 
@@ -370,32 +371,23 @@ export function MultiOutputToolForm({
 
   useEffect(() => stopPolling, [stopPolling]);
 
-  useEffect(() => {
-    if (cooldownSeconds <= 0) return;
-    const id = setTimeout(() => setCooldownSeconds((s) => Math.max(0, s - 1)), 1000);
-    return () => clearTimeout(id);
-  }, [cooldownSeconds]);
-
-  useEffect(() => {
-    if (!isBusy) return;
-    const id = setInterval(() => setElapsedSeconds((s) => s + 1), 1000);
-    return () => clearInterval(id);
-  }, [isBusy]);
-
   /* --- polling: recursive timeout, so slow responses never stack --- */
   const poll = useCallback(
     async (id: string, timing: PollTiming) => {
       if (cancelledRef.current) return;
 
-      if (Date.now() - pollStartedAtRef.current > timing.maxMs) {
+      const fail = (failure: FormError) => {
         stopPolling();
-        const humanized = {
+        setError(failure);
+        setStatus("failed");
+        onFailedRef.current?.(failure.title);
+      };
+
+      if (Date.now() - pollStartedAtRef.current > timing.maxMs) {
+        fail({
           title: "This is taking unusually long",
           hint: "The job may be stuck. Upload the file again to start a fresh run.",
-        };
-        setError(humanized);
-        setStatus("failed");
-        onFailedRef.current?.(humanized.title);
+        });
         return;
       }
 
@@ -413,21 +405,30 @@ export function MultiOutputToolForm({
           return;
         }
         if (result.status === "failed") {
-          stopPolling();
-          const humanized = humanizeError(result.error || "Processing failed.");
-          setError(humanized);
-          setStatus("failed");
-          onFailedRef.current?.(humanized.title);
+          /*
+            VERBATIM. Confirmed against routes/_shared.py: an AudioToolError's
+            message goes into job["error"] unmodified because it is written for
+            the person who uploaded the file — and it is almost always more
+            specific than anything we could write. The silence-split cap names
+            the real segment count AND the fix; humanizeError used to discard
+            that and tell the user to try a different file.
+
+            Our copy is the fallback, for when the server sent nothing.
+          */
+          fail(
+            serverFailure(result.error, {
+              title: "Processing failed",
+              hint: "Run it again. If it keeps failing, try a different file.",
+            })
+          );
           return;
         }
       } catch (err) {
         if (cancelledRef.current) return;
-        if (err instanceof ApiError && err.status === 404) {
-          stopPolling();
-          const humanized = humanizeError("This job expired.");
-          setError(humanized);
-          setStatus("failed");
-          onFailedRef.current?.(humanized.title);
+        // 401/403/404 are answers, not blips: waiting cannot change them.
+        const terminal = terminalPollError(err);
+        if (terminal) {
+          fail(terminal);
           return;
         }
         // Transient network blips fall through to the next tick.
@@ -470,8 +471,8 @@ export function MultiOutputToolForm({
   /**
    * The upgrade route returns a NEW job id that works against the same
    * status/preview/download routes, so the existing polling loop handles it
-   * unchanged — but NOT with the same timings. An upgrade is always to HQ, so
-   * it gets the HQ ceiling explicitly rather than inheriting whatever tier the
+   * unchanged — but NOT with the same timings. An upgrade is always to HQ, so it
+   * gets the HQ ceiling explicitly rather than inheriting whatever tier the
    * caller's toggle was on.
    */
   const handleUpgraded = useCallback(
@@ -496,15 +497,23 @@ export function MultiOutputToolForm({
         maxMs: upgradeMaxPollMs ?? maxPollMs,
       });
     },
-    [startPolling, applyBalance, upgradePollIntervalMs, pollIntervalMs, upgradeMaxPollMs, maxPollMs]
+    [
+      startPolling,
+      applyBalance,
+      setElapsedSeconds,
+      upgradePollIntervalMs,
+      pollIntervalMs,
+      upgradeMaxPollMs,
+      maxPollMs,
+    ]
   );
 
-  const handleReset = () => {
+  /** Everything about the current run, gone. Used by reset and cancel alike —
+   *  they differ only in whether the file survives. */
+  const clearRun = useCallback(() => {
     stopPolling();
     cancelledRef.current = true;
-    setFile(null);
     setStatus("idle");
-    setValidationError(null);
     setError(null);
     setJobId(null);
     setResultTitle(null);
@@ -512,20 +521,20 @@ export function MultiOutputToolForm({
     setActiveOutput(null);
     setRetryNotice(null);
     setElapsedSeconds(0);
+    // A cleared form describes no job, so it must not carry the last one's
+    // receipt into the next render — which is what made an idle form claim a
+    // credit had been spent.
     setBilling(null);
     setCompletedMetered(false);
+  }, [stopPolling, setElapsedSeconds]);
+
+  const handleReset = () => {
+    clearRun();
+    setFile(null);
+    setValidationError(null);
   };
 
-  const handleCancel = () => {
-    cancelledRef.current = true;
-    stopPolling();
-    setStatus("idle");
-    setError(null);
-    setJobId(null);
-    setResultTitle(null);
-    setRetryNotice(null);
-    setElapsedSeconds(0);
-  };
+  const handleCancel = () => clearRun();
 
   const handleSubmit = async () => {
     if (!file) return;
@@ -559,9 +568,9 @@ export function MultiOutputToolForm({
       } catch (err) {
         if (cancelledRef.current) return;
 
-        // Out of credits is a decision point, not a failure. Back to idle
-        // leaves the file and the tier selection intact, so buying and
-        // pressing the button again just works.
+        // Out of credits is a decision point, not a failure. Back to idle leaves
+        // the file and the tier selection intact, so buying and pressing the
+        // button again just works.
         if (catchCreditError(err)) {
           setRetryNotice(null);
           setStatus("idle");
@@ -580,21 +589,23 @@ export function MultiOutputToolForm({
         setRetryNotice(null);
 
         if (err instanceof ApiError && err.isRateLimit) {
-          // The best-qualified moment in the product: they used the good mode
-          // up to its free ceiling and immediately wanted more.
-          const freeTierOnMetered =
-            err.rateLimit?.tier === "free" && Boolean(meteredToolKey);
+          // The best-qualified moment in the product: they used the good mode up
+          // to its free ceiling and immediately wanted more.
+          const freeTierOnMetered = err.rateLimit?.tier === "free" && Boolean(meteredToolKey);
 
           setError({
-            title: freeTierOnMetered
-              ? "Studio Quality limit reached"
-              : "You're going a little fast",
+            title: freeTierOnMetered ? "Studio Quality limit reached" : "You're going a little fast",
             hint: freeTierOnMetered
               ? "That's the free-tier limit. Credits raise it to 30 per hour — and they never expire."
               : rateLimitMessage || "Wait for the timer, then run it again.",
             offerCredits: freeTierOnMetered,
           });
-          setCooldownSeconds(err.retryAfterSeconds ?? 60);
+          // The endpoint's real window, not a flat minute — /silence-split runs
+          // on a five-minute window, so re-enabling at sixty seconds just buys
+          // another 429.
+          const wait = err.retryAfterSeconds ?? getRetryAfterFallback(endpoint);
+          cooldownCeilingRef.current = Math.max(1, wait);
+          setCooldownSeconds(wait);
         } else {
           setError(humanizeError(err instanceof ApiError ? err.message : "Something went wrong."));
         }
@@ -611,57 +622,66 @@ export function MultiOutputToolForm({
     };
   });
 
+  const stageIndex = stageIndexFor(stages, elapsedSeconds);
   const stageLabel = (() => {
     if (status === "uploading") return retryNotice || "Uploading your file";
-    if (!stages?.length) return processingLabel;
-    let label = stages[0].label;
-    for (const stage of stages) if (elapsedSeconds >= stage.at) label = stage.label;
-    return label;
+    if (stageIndex < 0 || !stages) return processingLabel;
+    return stages[stageIndex].label;
   })();
 
   // Called once and checked, rather than inlined into the JSX. When a tool's
-  // controls return null (TrimControls does, until a file is chosen) the
-  // wrapper div still rendered — an empty element collecting a 24px space-y
-  // margin, which is why the card had a phantom gap under the dropzone and
-  // looked bottom-heavy.
+  // controls return null (TrimControls does, until a file is chosen) the wrapper
+  // still rendered — an empty element collecting a margin, which is why the card
+  // had a phantom gap under the dropzone and looked bottom-heavy.
   const controls = renderControls?.(file, isBusy) ?? null;
 
-  // Eases toward 92%; separation jobs are slow enough that a longer time
-  // constant keeps the curve from looking stuck near the end.
-  const progress = Math.min(92, Math.round((1 - Math.exp(-elapsedSeconds / 25)) * 100));
+  const progress = easedProgress(elapsedSeconds, progressTau);
+  // Choosing a file is still step one. `isBusy || file` lit "Run" before
+  // anything ran, and disagreed with the two sibling shells.
+  const step: 1 | 2 | 3 = status === "complete" ? 3 : isBusy ? 2 : 1;
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-graphite-800 bg-graphite-900">
-      <div className="flex items-center justify-between border-b border-graphite-800 px-6 py-3.5 sm:px-8">
-        <div className="flex items-center gap-2.5">
-          <span
-            className={cn(
-              "h-1.5 w-1.5 rounded-full bg-amber-500",
-              isBusy && "animate-pulse motion-reduce:animate-none"
-            )}
-            aria-hidden
-          />
-          <span className="font-mono text-[11px] font-medium uppercase tracking-[0.18em] text-text-muted">
-            {toolLabel || submitLabel}
-          </span>
-        </div>
-        {toolMeta && <span className="font-mono text-[11px] text-text-subtle">{toolMeta}</span>}
-      </div>
-
-      {/*
-        ZONES SEPARATED BY HAIRLINES, NOT BY MORE VERTICAL SPACE.
-        This was one padded box with `space-y-6` between every block, so the
-        dropzone, the tool's own controls and the progress panel all sat at the
-        same level with nothing grouping them — a pile of widgets rather than a
-        panel with parts. `divide-y` draws a rule between whichever sections
-        actually render, which is the layout contract TranscriptionForm already
-        documents. Applies to every caller: /stems, /silence-split and
-        /youtube/stems.
-      */}
-      <div className="divide-y divide-graphite-800">
-        {/* SOURCE — the file, and anything wrong with it. */}
-        {status !== "complete" && (
-          <section className="space-y-4 p-6 sm:p-8">
+    <>
+      <FormShell
+        toolLabel={toolLabel || submitLabel}
+        toolMeta={toolMeta}
+        steps={STEPS}
+        step={step}
+        busy={isBusy}
+        failed={isFailed}
+        complete={status === "complete"}
+        footer={
+        /* Hidden until there's a file, rather than shown disabled — a full-width
+           h-12 slab at 40% opacity carries the weight of the primary action
+           while doing nothing, and a dimmed amber fill renders as a muddy brown
+           bar. isFailed keeps "Try again" reachable after an error. */
+        status !== "complete" && (file || isFailed) ? (
+          <>
+            <Button
+              variant="primary"
+              size="lg"
+              className="w-full"
+              onClick={handleSubmit}
+              disabled={!canSubmit && !isBusy}
+              loading={isBusy}
+            >
+              {!isBusy && <Wand2 />}
+              {isBusy
+                ? "Working"
+                : cooldownSeconds > 0
+                  ? `Try again in ${formatCooldown(cooldownSeconds)}`
+                  : isFailed
+                    ? "Try again"
+                    : submitLabel}
+            </Button>
+            <CooldownBar seconds={cooldownSeconds} ceiling={cooldownCeilingRef.current} />
+          </>
+        ) : undefined
+      }
+    >
+      {/* SOURCE — the file, and anything wrong with it. */}
+      {status !== "complete" && (
+        <Section className="space-y-4">
           <FileDropZone
             onFileSelect={handleFileSelect}
             currentFile={file}
@@ -669,292 +689,190 @@ export function MultiOutputToolForm({
             disabled={isBusy}
             accept={fileAccept}
           />
-
           {/* An error about the file belongs beside the file, not below the
               tool's controls. */}
-          {validationError && (
+          {validationError && <ValidationNote message={validationError} />}
+        </Section>
+      )}
+
+      {/* SETTINGS — whatever this tool needs before it can run. */}
+      {status !== "complete" && controls && <Section>{controls}</Section>}
+
+      {/* WORKING */}
+      {isBusy && (
+        <Section>
+          <WorkingPanel
+            stageLabel={stageLabel}
+            stages={stages}
+            stageIndex={stageIndex}
+            showStageList={status === "processing"}
+            elapsedSeconds={elapsedSeconds}
+            progress={progress}
+            expectedRange={expectedRange}
+            chargedRun={chargedRun}
+            onCancel={handleCancel}
+            waveform={<Waveform />}
+          />
+        </Section>
+      )}
+
+      {/* RESULT */}
+      {status === "complete" && jobId && (
+        <Section className="space-y-4">
+          <ResultHeader
+            verb={resultVerb}
+            title={resultTitle || `${outputs.length} outputs ready`}
+            meta={`Finished in ${formatElapsed(elapsedSeconds)}`}
+            /* Marks WHICH model produced these files. Someone downloading four
+               stems over a week can't tell from the filenames. */
+            tag={completedMetered ? <StudioQualityTag /> : undefined}
+          />
+
+          {/*
+            Track-list layout, not tabs: every output is visible as its own row
+            (icon, name, independent download button) rather than hidden behind a
+            pill switcher. Scales from 4 stems to 50 silence-split segments
+            without the list becoming unusable — the container caps height and
+            scrolls once it's tall enough to need it, rather than pushing the
+            whole page down.
+
+            Only ONE <audio> element exists at a time (inside AudioPlayer below,
+            bound to activeOutput) regardless of how many rows are listed —
+            clicking a row swaps its src rather than mounting a player per
+            output.
+          */}
+          {outputs.length > 0 && (
             <div
-              className="flex items-start gap-3 rounded-lg border border-red-500/25 bg-red-500/[0.07] p-4"
-              role="alert"
+              role="group"
+              aria-label="Outputs"
+              className="af-scroll max-h-72 divide-y divide-graphite-800 overflow-y-auto rounded-xl border border-graphite-700"
             >
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-400" aria-hidden />
-              <span className="text-sm text-text-primary">{validationError}</span>
+              {outputs.map((name) => {
+                const isActive = activeOutput === name;
+                return (
+                  <div
+                    key={name}
+                    className={cn(
+                      "flex items-center gap-3 px-3 py-2.5 transition-colors",
+                      isActive ? "bg-amber-500/[0.06]" : "hover:bg-graphite-850/60"
+                    )}
+                  >
+                    {/* Not a <Button>: this is the row's select target,
+                        full-width and left-aligned with its own icon treatment.
+                        Button would have to be stripped of height, padding,
+                        radius and centring to fit. */}
+                    <button
+                      type="button"
+                      onClick={() => setActiveOutput(name)}
+                      aria-pressed={isActive}
+                      className="flex min-w-0 flex-1 items-center gap-3 rounded-md text-left outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70"
+                    >
+                      <span
+                        className={cn(
+                          "flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors",
+                          isActive
+                            ? "bg-amber-500 text-graphite-950"
+                            : "bg-graphite-800 text-text-muted"
+                        )}
+                      >
+                        {isActive ? (
+                          <Play className="h-3.5 w-3.5" fill="currentColor" aria-hidden />
+                        ) : (
+                          getOutputIcon(name)
+                        )}
+                      </span>
+                      <span
+                        className={cn(
+                          "truncate text-sm font-medium",
+                          isActive ? "text-amber-400" : "text-text-primary"
+                        )}
+                      >
+                        {formatOutputName(name)}
+                      </span>
+                    </button>
+
+                    {/* Borrows the ghost icon-button styling, sized down to h-8 so
+                        the row height doesn't grow. Stays an <a> because it's a
+                        real download URL. */}
+                    <a
+                      href={getMultiOutputDownloadUrl(endpoint, jobId, name, queryParam)}
+                      download
+                      aria-label={`Download ${formatOutputName(name)}`}
+                      className={buttonStyles({
+                        variant: "ghost",
+                        size: "icon-sm",
+                        className: "shrink-0 hover:text-amber-400",
+                      })}
+                    >
+                      <Download />
+                    </a>
+                  </div>
+                );
+              })}
             </div>
           )}
-          </section>
-        )}
 
-        {/* SETTINGS — whatever this tool needs before it can run. */}
-        {status !== "complete" && controls && (
-          <section className="p-6 sm:p-8">{controls}</section>
-        )}
+          {activeOutput && (
+            <AudioPlayer
+              key={activeOutput}
+              src={getMultiOutputPreviewUrl(endpoint, jobId, activeOutput, queryParam)}
+            />
+          )}
 
-        {/* WORKING */}
-        {isBusy && (
-          <section className="p-6 sm:p-8">
-          <div
-            className="space-y-3 rounded-lg border border-graphite-800 bg-graphite-850/60 p-4"
-            role="status"
-            aria-live="polite"
-            aria-busy="true"
-          >
-            <div className="flex items-center justify-between gap-3">
-              <span className="min-w-0 truncate text-sm text-text-primary">{stageLabel}</span>
-              <span className="shrink-0 font-mono text-xs tabular-nums text-text-subtle">
-                {formatElapsed(elapsedSeconds)}
-              </span>
-            </div>
+          {/* Under the player, above the downloads. The user has just heard the
+              bleed in their own track — the only moment where the pitch makes
+              itself. Silent unless the server says this job is eligible, and
+              never on a job that already ran at Studio Quality. */}
+          {upgradeFamily && !completedMetered && (
+            <UpgradeToHqCard family={upgradeFamily} jobId={jobId} onUpgraded={handleUpgraded} />
+          )}
 
-            <div
-              role="progressbar"
-              aria-valuenow={progress}
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-label="Processing progress"
-              className="h-1 w-full overflow-hidden rounded-full bg-graphite-800"
-            >
-              <div
-                className="h-full rounded-full bg-amber-500 transition-[width] duration-1000 ease-out motion-reduce:transition-none"
-                style={{ width: `${progress}%` }}
-              />
-            </div>
+          <CreditReceipt billing={billing} />
 
-            <div className="flex items-center justify-between">
-              <div className="opacity-60 motion-reduce:hidden">
-                <Waveform />
-              </div>
-              {/* Plain button on purpose: an underlined text link, not a button
-                  shape — see the matching note in JobToolForm.
+          {/* Asking for a tip right after charging someone a credit is a bad
+              look. A free-tier run is still free, so it keeps the block. */}
+          {!chargedRun && <SupportBlock />}
 
-                  The LABEL changes on a charged run because the behaviour is
-                  not what "Cancel" implies: this stops the poll, not the job,
-                  and the credit is already spent. Telling someone they can
-                  cancel and then taking both their credit and their result is
-                  the worst thing this form can do. */}
-              <button
-                type="button"
-                onClick={handleCancel}
-                className="rounded px-1 text-xs text-text-subtle underline underline-offset-2 outline-none transition-colors hover:text-red-400 focus-visible:ring-2 focus-visible:ring-amber-400/70"
-              >
-                {chargedRun ? "Stop watching" : "Cancel"}
-              </button>
-            </div>
-
-            <p className="text-xs leading-relaxed text-text-subtle">
-              {expectedRange ? `Typically ${expectedRange}. ` : ""}Keep this tab open.
-              {chargedRun && " This run has already used its credit — stopping here won't return it."}
-            </p>
-          </div>
-          </section>
-        )}
-
-        {/* RESULT */}
-        {status === "complete" && jobId && (
-          <section className="space-y-4 p-6 sm:p-8" role="status" aria-live="polite">
-            <div className="border-b border-graphite-800 pb-4">
-              <div className="flex items-center gap-2">
-                <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-teal-400">
-                  {resultVerb}
-                </p>
-                {/* Marks WHICH model produced these files. Someone downloading
-                    four stems over a week can't tell from the filenames. */}
-                {completedMetered && <StudioQualityTag />}
-              </div>
-              <p className="mt-1.5 truncate text-sm font-medium text-text-primary">
-                {resultTitle || `${outputs.length} outputs ready`}
-              </p>
-            </div>
-
-            {/*
-              Track-list layout, not tabs: every output is visible as its own
-              row (icon, name, independent download button) rather than hidden
-              behind a pill switcher. Scales from 4 stems to 50 silence-split
-              segments without the list becoming unusable — the container caps
-              height and scrolls once it's tall enough to need it, rather than
-              pushing the whole page down.
-
-              Only ONE <audio> element exists at a time (inside AudioPlayer
-              below, bound to activeOutput) regardless of how many rows are
-              listed — clicking a row swaps its src rather than mounting a new
-              player per output.
-            */}
-            {outputs.length > 0 && (
-              <div
-                role="group"
-                aria-label="Outputs"
-                className="max-h-72 divide-y divide-graphite-800 overflow-y-auto rounded-lg border border-graphite-700"
-              >
-                {outputs.map((name) => {
-                  const isActive = activeOutput === name;
-                  return (
-                    <div
-                      key={name}
-                      className={cn(
-                        "flex items-center gap-3 px-3 py-2.5 transition-colors",
-                        isActive ? "bg-amber-500/[0.06]" : "hover:bg-graphite-850/60"
-                      )}
-                    >
-                      {/* Not a <Button>: this is the row's select target,
-                          full-width and left-aligned with its own icon
-                          treatment. Button would have to be stripped of
-                          height, padding, radius and centring to fit. */}
-                      <button
-                        type="button"
-                        onClick={() => setActiveOutput(name)}
-                        aria-pressed={isActive}
-                        className="flex min-w-0 flex-1 items-center gap-3 rounded-md text-left outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70"
-                      >
-                        <span
-                          className={cn(
-                            "flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors",
-                            isActive
-                              ? "bg-amber-500 text-graphite-950"
-                              : "bg-graphite-800 text-text-muted"
-                          )}
-                        >
-                          {isActive ? (
-                            <Play className="h-3.5 w-3.5" fill="currentColor" aria-hidden />
-                          ) : (
-                            getOutputIcon(name)
-                          )}
-                        </span>
-                        <span
-                          className={cn(
-                            "truncate text-sm font-medium",
-                            isActive ? "text-amber-400" : "text-text-primary"
-                          )}
-                        >
-                          {formatOutputName(name)}
-                        </span>
-                      </button>
-
-                      {/* Borrows the ghost icon-button styling, sized down to
-                          h-8 so the row height doesn't grow. Stays an <a>
-                          because it's a real download URL. */}
-                      <a
-                        href={getMultiOutputDownloadUrl(endpoint, jobId, name, queryParam)}
-                        download
-                        aria-label={`Download ${formatOutputName(name)}`}
-                        className={buttonStyles({
-                          variant: "ghost",
-                          size: "icon",
-                          className: "h-8 w-8 shrink-0 hover:bg-graphite-800 hover:text-amber-400",
-                        })}
-                      >
-                        <Download />
-                      </a>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {activeOutput && (
-              <AudioPlayer
-                key={activeOutput}
-                src={getMultiOutputPreviewUrl(endpoint, jobId, activeOutput, queryParam)}
-              />
-            )}
-
-            {/* Under the player, above the downloads. The user has just heard
-                the bleed in their own track — the only moment where the pitch
-                makes itself. Silent unless the server says this job is
-                eligible, and never on a job that already ran at Studio
-                Quality. */}
-            {upgradeFamily && !completedMetered && (
-              <UpgradeToHqCard
-                family={upgradeFamily}
-                jobId={jobId}
-                onUpgraded={handleUpgraded}
-              />
-            )}
-
-            <CreditReceipt billing={billing} />
-
-            {/* Asking for a tip right after charging someone a credit is a bad
-                look. A free-tier run is still free, so it keeps the block. */}
-            {!chargedRun && <SupportBlock />}
-
-            <Button variant="outline" size="md" className="w-full" onClick={handleReset}>
-              <RotateCcw />
-              Process another file
-            </Button>
-          </section>
-        )}
-
-        {/* FAILED */}
-        {isFailed && error && (
-          <section className="space-y-4 p-6 sm:p-8">
-            <div
-              className="flex items-start gap-3 rounded-lg border border-red-500/25 bg-red-500/[0.07] p-4"
-              role="alert"
-            >
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-400" aria-hidden />
-              <div>
-                <p className="text-sm font-medium text-text-primary">{error.title}</p>
-                <p className="mt-0.5 text-xs leading-relaxed text-text-muted">{error.hint}</p>
-                {error.offerCredits && (
-                  <Link
-                    href="/pricing"
-                    onClick={() =>
-                      trackCredits("credits_rate_limited", {
-                        tool: meteredToolKey ?? undefined,
-                      })
-                    }
-                    className="mt-2 inline-block rounded text-xs font-medium text-amber-400 outline-none underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-amber-400/70"
-                  >
-                    See credit packs →
-                  </Link>
-                )}
-              </div>
-            </div>
-            {/*
-              NO TIP JAR ON A BROKEN RUN.
-              These forms carry two failure states and they are not the same
-              thing. `error` means the SUBMIT was rejected — a file too large,
-              an unsupported format, a rate limit — which is the form doing its
-              job, and asking for support after one is fine. `failed` means the
-              job ran and broke, or polling gave up on it. Following "This is
-              taking unusually long" with "Enjoying AudioForges? Buy us a
-              coffee" is the worst timing on the site.
-            */}
-            {status === "error" && <SupportBlock />}
-          </section>
-        )}
-
-        {/* ACTION BAR. Recessed and pinned to the bottom edge so the primary
-            control sits in the same place in every state, rather than being
-            the last item in whichever stack happens to be rendered.
-
-            Hidden until there's a file, rather than shown disabled — a
-            full-width h-12 slab at 40% opacity carries the weight of the
-            primary action while doing nothing, and a dimmed amber fill renders
-            as a muddy brown bar. isFailed keeps "Try again" reachable after an
-            error. */}
-        {status !== "complete" && (file || isFailed) && (
-          <div className="rounded-b-2xl bg-graphite-950/40 p-4 sm:px-8 sm:py-5">
-          <Button
-            variant="primary"
-            size="lg"
-            className="w-full"
-            onClick={handleSubmit}
-            disabled={!canSubmit && !isBusy}
-            loading={isBusy}
-          >
-            {!isBusy && <Wand2 />}
-            {isBusy
-              ? "Working"
-              : cooldownSeconds > 0
-                ? `Try again in ${formatCooldown(cooldownSeconds)}`
-                : isFailed
-                  ? "Try again"
-                  : submitLabel}
+          <Button variant="outline" size="md" className="w-full" onClick={handleReset}>
+            <RotateCcw />
+            Process another file
           </Button>
-          </div>
-        )}
-      </div>
+        </Section>
+      )}
+
+      {/* FAILED */}
+      {isFailed && error && (
+        <Section className="space-y-4">
+          <ErrorPanel error={error}>
+            {error.offerCredits && (
+              <Link
+                href="/pricing"
+                onClick={() =>
+                  trackCredits("credits_rate_limited", { tool: meteredToolKey ?? undefined })
+                }
+                className="mt-2 inline-block rounded text-xs font-medium text-amber-400 underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-amber-400/70"
+              >
+                See credit packs →
+              </Link>
+            )}
+          </ErrorPanel>
+          {/*
+            NO TIP JAR ON A BROKEN RUN.
+            These forms carry two failure states and they are not the same thing.
+            `error` means the SUBMIT was rejected — a file too large, an
+            unsupported format, a rate limit — which is the form doing its job,
+            and asking for support after one is fine. `failed` means the job ran
+            and broke, or polling gave up on it. Following "This is taking
+            unusually long" with "Enjoying AudioForges? Buy us a coffee" is the
+            worst timing on the site.
+          */}
+          {status === "error" && <SupportBlock />}
+        </Section>
+      )}
+
+    </FormShell>
 
       {gate}
-    </div>
+    </>
   );
 }

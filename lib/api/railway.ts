@@ -458,14 +458,36 @@ export async function getFeatureFlags(): Promise<FeatureFlags> {
 
 // ============ YOUTUBE DOWNLOAD (synchronous) ============
 
+/**
+ * WHY `response` IS A PARAMETER AND NOT JUST SWITCHED TO "url"
+ *
+ * The backend still defaults to base64 and will keep the branch until we
+ * confirm url mode is stable in production. Leaving the default here as
+ * "base64" means every existing caller behaves exactly as it did, and the one
+ * page we're migrating opts in explicitly — so a revert is deleting one
+ * argument, not restoring a deleted code path.
+ *
+ * WHAT url MODE CHANGES, for whoever reads this next: the response carries a
+ * RELATIVE `url`, an `expires_at` (Unix seconds, one hour out) and usually a
+ * `size_bytes`, instead of the audio itself. The file is served with
+ * FileResponse, so it streams and supports Range — the browser writes straight
+ * to disk and nothing is held in memory on either end. At 40 minutes of WAV,
+ * base64 mode peaked around a gigabyte in the tab, which is an out-of-memory
+ * kill on most phones.
+ */
+export type DownloadResponseMode = "base64" | "url";
+
 export async function downloadYouTubeAudio(
   url: string,
   format: OutputFormat,
-  opts: RequestOptions = {}
+  opts: RequestOptions & { response?: DownloadResponseMode } = {}
 ): Promise<DownloadResponse> {
   const body = new URLSearchParams();
   body.set("url", url);
   body.set("format", format);
+  // Only sent when asked for. An absent field is the backend's own default,
+  // so this cannot change behaviour for a caller that doesn't pass it.
+  if (opts.response) body.set("response", opts.response);
 
   const res = await fetchWithTimeout(
     `${RAILWAY_API_BASE}/download`,
@@ -485,6 +507,58 @@ export async function downloadYouTubeAudio(
 export function extractBase64Audio(payload: DownloadResponse): string | null {
   return payload.audio_base64 || payload.audio || payload.base64 || payload.data || null;
 }
+
+/**
+ * Absolute URL for a url-mode download.
+ *
+ * The backend returns a RELATIVE path, and handing that straight to an <a> or
+ * an <audio> would resolve it against audioforges.com rather than
+ * api.audioforges.com — a 404 on our own site, which looks like the tool
+ * broke rather than like a wiring mistake.
+ *
+ * Returns null when the payload isn't url mode, so a caller can fall back
+ * without a type assertion.
+ */
+export function resolveDownloadUrl(payload: DownloadResponse): string | null {
+  const path = typeof payload.url === "string" ? payload.url : null;
+  if (!path) return null;
+  return path.startsWith("http") ? path : `${RAILWAY_API_BASE}${path}`;
+}
+
+/**
+ * The same signed link, asking to be PLAYED rather than saved.
+ *
+ * `FileResponse(filename=...)` sets `Content-Disposition: attachment`, and the
+ * download button NEEDS that header: `<a download>` is ignored on a
+ * cross-origin URL, and api.audioforges.com is cross-origin from
+ * audioforges.com — so that header is the only thing making a click save
+ * instead of navigate away. An attachment isn't playable, though, so the
+ * preview player asks for the inline variant of the same token.
+ *
+ * Range support, expiry and access are identical; only the header differs.
+ * `disposition` is deliberately OUTSIDE the signature — it changes
+ * presentation, not access, so flipping it gains nobody anything they didn't
+ * already have with a valid token. That's why the player needs no second
+ * signed link.
+ *
+ * Built through URL rather than string concatenation so the existing `?token=`
+ * can't be turned into a second `?`. The catch covers a relative or malformed
+ * href, which shouldn't happen after resolveDownloadUrl but shouldn't throw
+ * inside a render either.
+ */
+export function inlineDownloadUrl(href: string): string {
+  try {
+    const u = new URL(href);
+    u.searchParams.set("disposition", "inline");
+    return u.toString();
+  } catch {
+    return href.includes("?") ? `${href}&disposition=inline` : `${href}?disposition=inline`;
+  }
+}
+
+/* The freshness check lives in the FORM, not here: it operates on the
+   ConversionResult the form stores, not on the raw payload, and a second
+   version taking DownloadResponse would be one more thing to keep in step. */
 
 // ============ KEY/BPM ANALYSIS (synchronous) ============
 

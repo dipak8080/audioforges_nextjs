@@ -4,29 +4,66 @@ import { VolumeForm } from "@/components/converter/VolumeForm";
 import { FAQSection } from "@/components/faq/FAQSection";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
+import {
+  getLimits,
+  durationCapFor,
+  durationLabel,
+  retentionSentences,
+} from "@/lib/api/limits";
+
+/**
+ * ── THIS PASS ──────────────────────────────────────────────────────────
+ *
+ * 1. THE LENGTH LIMIT WAS UNDERSTATED BY FORTY MINUTES. The FAQ said "up to
+ *    80MB and 20 minutes long". /volume isn't in exempt_tools and has no
+ *    per-tool override, so it takes audio_tools_default_seconds — one hour.
+ *    80MB was right; 20 minutes was not.
+ *
+ *    Identical to the error found on /trim, and 20 minutes is the
+ *    transcription cap, so both look like the same copy-paste. Nobody is
+ *    rejected by it: someone with a 40-minute lecture reads it, decides the
+ *    tool can't help, and leaves. No error, no log line.
+ *
+ * 2. THE HowTo SCHEMA IS GONE. Google retired HowTo rich results for web
+ *    search; it earned nothing and duplicated the visible steps. `keywords`
+ *    removed for the same reason as every other page.
+ *
+ * 3. RETENTION ANSWER ADDED, and formats now read from
+ *    allowed_audio_formats.
+ *
+ * The gain range (-30dB to +30dB) is NOT read from the backend: it's a
+ * client-side control range defined in VolumeForm, not a server limit, so
+ * there is nothing in /limits to read it from. Check it against
+ * MIN_GAIN/MAX_GAIN there if it ever changes.
+ */
+
+const PAGE_TITLE = "Free Audio Volume Booster";
+const PAGE_DESCRIPTION =
+  "Increase or reduce audio volume online free. Adjust gain from -30dB to +30dB on MP3, WAV, FLAC, and more. No sign-up, no watermark, fast processing.";
 
 export const metadata: Metadata = {
-  title: "Free Audio Volume Booster",
-  description:
-    "Increase or reduce audio volume online free. Adjust gain from -30dB to +30dB on MP3, WAV, FLAC, and more. No sign-up, no watermark, fast processing.",
-  keywords: [
-    "volume booster",
-    "audio volume booster",
-    "increase audio volume",
-    "increase mp3 volume",
-    "boost mp3 volume",
-    "reduce audio volume online",
-    "audio gain adjuster",
-    "make audio louder",
-    "lower mp3 volume",
-    "audio clipping",
-    "gain vs volume",
-  ],
+  title: PAGE_TITLE,
+  description: PAGE_DESCRIPTION,
+  /*
+    `keywords` removed — ignored by Google since 2009. Target terms kept for
+    reference:
+
+      volume booster
+      audio volume booster
+      increase audio volume
+      increase mp3 volume
+      boost mp3 volume
+      reduce audio volume online
+      audio gain adjuster
+      make audio louder
+      lower mp3 volume
+      audio clipping
+      gain vs volume
+  */
   alternates: { canonical: `${SITE_URL}/volume` },
   openGraph: {
     title: "Free Audio Volume Booster — Increase or Reduce Volume Online",
-    description:
-      "Increase or reduce audio volume online free. Adjust gain from -30dB to +30dB on MP3, WAV, FLAC, and more. No sign-up, no watermark, fast processing.",
+    description: PAGE_DESCRIPTION,
     url: `${SITE_URL}/volume`,
     siteName: SITE_NAME,
     type: "website",
@@ -42,8 +79,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "Free Audio Volume Booster — Increase or Reduce Volume Online",
-    description:
-      "Increase or reduce audio volume online free. Adjust gain from -30dB to +30dB on MP3, WAV, FLAC, and more. No sign-up, no watermark, fast processing.",
+    description: PAGE_DESCRIPTION,
     images: ["/images/og-default.png"],
   },
 };
@@ -73,88 +109,112 @@ const breadcrumbJsonLd = {
   ],
 };
 
-const howToJsonLd = {
-  "@context": "https://schema.org",
-  "@type": "HowTo",
-  name: "How to Increase or Reduce Audio Volume Online",
-  step: [
-    { "@type": "HowToStep", name: "Upload", text: "Upload your MP3, WAV, FLAC, or other supported audio file." },
-    { "@type": "HowToStep", name: "Set gain", text: "Move the gain slider between -30dB and +30dB." },
-    { "@type": "HowToStep", name: "Apply", text: "Click Adjust volume to process the file." },
-    { "@type": "HowToStep", name: "Download", text: "Download the volume-adjusted file in the original format." },
-  ],
-};
+// NOTE: No HowTo schema — Google retired HowTo rich results for web search, so
+// it earned nothing while duplicating the visible steps below. Matches every
+// other tool page.
+// FAQPage schema is emitted by <FAQSection /> — do not duplicate it here.
 
-// Same 10 questions and answers as before, word-for-word - only the
-// structure changed, feeding both the schema and the accordion from one array.
-const faqs = [
-  {
-    question: "What gain range can I use?",
-    answer:
-      "From -30dB to +30dB. Extreme values near either end will often sound distorted or overly quiet — that's expected behavior, not a bug.",
-  },
-  {
-    question: "What's a safe boost amount?",
-    answer:
-      "+6dB to +10dB is a solid, clearly audible boost without heavy clipping risk on most source material.",
-  },
-  {
-    question: "Is this really free?",
-    answer: "Yes — completely free, no sign-up, no watermark on the output.",
-  },
-  {
-    question: "What formats are supported?",
-    answer: "MP3, WAV, FLAC, M4A, AAC, OGG, and AIFF, up to 80MB and 20 minutes long.",
-  },
-  {
-    question: "Does boosting volume reduce quality?",
-    answer:
-      "The gain change itself doesn't discard any audio quality. The only quality risk is clipping if you push the boost high enough that peaks exceed the format's maximum level — moderate boosts don't carry that risk.",
-  },
-  {
-    question: "Why is my audio still quiet after boosting?",
-    answer:
-      "If the source recording was very quiet to begin with, a single gain boost may not be enough to reach a comfortable listening level without introducing clipping. Try a moderate boost first and check the result before pushing higher.",
-  },
-  {
-    question: "What is clipping?",
-    answer:
-      "Clipping is the harsh distortion that happens when a boosted signal tries to exceed the loudest level a format can represent, and the peaks get cut off flat instead of following the natural waveform.",
-  },
-  {
-    question: "Is this different from normalization?",
-    answer:
-      "Yes. Normalization automatically raises a track to a target loudness level. This tool applies a fixed gain change you choose yourself, which gives you direct control but means you're responsible for picking a value that doesn't clip.",
-  },
-  {
-    question: "Will boosting volume remove background noise?",
-    answer:
-      "No — a volume boost raises everything in the recording equally, including background noise. If the noise itself is the problem, a dedicated noise reduction tool is the better fix.",
-    answerNode: (
-      <>
-        No — a volume boost raises everything in the recording equally,
-        including background noise. If the noise itself is the problem, a{" "}
-        <Link href="/noise-remove" className="text-amber-400 hover:underline">
-          dedicated noise reduction tool
-        </Link>{" "}
-        is the better fix.
-      </>
-    ),
-  },
-  {
-    question: "Does it work on mobile?",
-    answer: "Yes — it works in any mobile browser on iPhone or Android, no app install required.",
-  },
-];
-
-export default function VolumePage() {
+export default async function VolumePage() {
   const relatedTools = getRelatedTools("volume", 5);
+
+  const limits = await getLimits();
+  const durationCap = durationCapFor(limits, "volume");
+  const retention = retentionSentences(limits.retention.audio_tools);
+
+  const formats = limits.allowedAudioFormats.map((f) => f.toUpperCase());
+  const formatList = formats.join(", ").replace(/, ([^,]*)$/, ", or $1");
+
+  const faqs = [
+    {
+      question: "What gain range can I use?",
+      answer:
+        "From -30dB to +30dB. Extreme values near either end will often sound distorted or overly quiet — that's expected behavior, not a bug.",
+    },
+    {
+      question: "What's a safe boost amount?",
+      answer:
+        "+6dB to +10dB is a solid, clearly audible boost without heavy clipping risk on most source material.",
+    },
+    {
+      question: "Is this really free?",
+      answer: "Yes — completely free, no sign-up, no watermark on the output.",
+    },
+    {
+      /*
+        CORRECTED. Said "up to 80MB and 20 minutes long". The size was right;
+        the length was wrong by forty minutes. /volume takes the audio_tools
+        default of one hour — 20 minutes is the transcription cap, which is
+        almost certainly where it was copied from. Both figures now come from
+        /limits.
+      */
+      question: "What formats are supported, and is there a size limit?",
+      answer:
+        durationCap === null
+          ? `${formatList}, up to ${limits.maxUploadMb}MB per file with no length limit.`
+          : `${formatList}, up to ${limits.maxUploadMb}MB and ${durationLabel(durationCap)} long.`,
+    },
+    {
+      question: "Does boosting volume reduce quality?",
+      answer:
+        "The gain change itself doesn't discard any audio quality. The only quality risk is clipping if you push the boost high enough that peaks exceed the format's maximum level — moderate boosts don't carry that risk.",
+    },
+    {
+      question: "Why is my audio still quiet after boosting?",
+      answer:
+        "If the source recording was very quiet to begin with, a single gain boost may not be enough to reach a comfortable listening level without introducing clipping. Try a moderate boost first and check the result before pushing higher.",
+    },
+    {
+      question: "What is clipping?",
+      answer:
+        "Clipping is the harsh distortion that happens when a boosted signal tries to exceed the loudest level a format can represent, and the peaks get cut off flat instead of following the natural waveform.",
+    },
+    {
+      question: "Is this different from normalization?",
+      answer:
+        "Yes. Normalization automatically raises a track to a target loudness level. This tool applies a fixed gain change you choose yourself, which gives you direct control but means you're responsible for picking a value that doesn't clip.",
+      answerNode: (
+        <>
+          Yes. The{" "}
+          <Link href="/loudness-normalizer" className="text-amber-400 hover:underline">
+            Loudness Normalizer
+          </Link>{" "}
+          automatically raises a track to a target loudness level. This tool
+          applies a fixed gain change you choose yourself, which gives you
+          direct control but means you&apos;re responsible for picking a value
+          that doesn&apos;t clip.
+        </>
+      ),
+    },
+    {
+      question: "Will boosting volume remove background noise?",
+      answer:
+        "No — a volume boost raises everything in the recording equally, including background noise. If the noise itself is the problem, a dedicated noise reduction tool is the better fix.",
+      answerNode: (
+        <>
+          No — a volume boost raises everything in the recording equally,
+          including background noise. If the noise itself is the problem, a{" "}
+          <Link href="/noise-remove" className="text-amber-400 hover:underline">
+            dedicated noise reduction tool
+          </Link>{" "}
+          is the better fix.
+        </>
+      ),
+    },
+    {
+      // ADDED: no retention answer existed.
+      question: "Are my uploaded files kept?",
+      answer: `${retention.input} ${retention.output} There are no accounts, so nothing is linked to you.`,
+    },
+    {
+      question: "Does it work on mobile?",
+      answer: "Yes — it works in any mobile browser on iPhone or Android, no app install required.",
+    },
+  ];
 
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(webAppJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(howToJsonLd) }} />
 
       <main className="mx-auto max-w-3xl px-4 py-12 sm:py-16 space-y-12">
         <header className="text-center space-y-4">
@@ -169,15 +229,25 @@ export default function VolumePage() {
 
         <VolumeForm />
 
-        <section className="grid gap-4 sm:grid-cols-3">
+        {/* One bordered strip with hairline dividers, matching the other tool
+            pages. */}
+        <section className="grid divide-y divide-graphite-800 overflow-hidden rounded-xl border border-graphite-800 bg-graphite-900 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
           {[
             { title: "-30 to +30dB", desc: "Full range gain control, either direction." },
             { title: "Fast", desc: "Most adjustments finish in a few seconds." },
-            { title: "No sign-up", desc: "No account, no email, no watermark." },
+            {
+              title: "No sign-up",
+              desc:
+                durationCap === null
+                  ? `No account, no email, no watermark. Up to ${limits.maxUploadMb}MB per file.`
+                  : `No account, no email, no watermark. Up to ${limits.maxUploadMb}MB and ${durationLabel(durationCap)}.`,
+            },
           ].map((f) => (
-            <div key={f.title} className="rounded-xl border border-graphite-800 bg-graphite-900 p-5 space-y-2">
-              <p className="font-semibold text-text-primary">{f.title}</p>
-              <p className="text-sm text-text-muted">{f.desc}</p>
+            <div key={f.title} className="space-y-1.5 p-5">
+              <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-amber-400">
+                {f.title}
+              </p>
+              <p className="text-sm leading-relaxed text-text-muted">{f.desc}</p>
             </div>
           ))}
         </section>
@@ -226,7 +296,7 @@ export default function VolumePage() {
         <section className="space-y-4">
           <h2 className="text-2xl font-bold text-text-primary">How to increase or reduce audio volume</h2>
           <ol className="list-decimal list-inside space-y-2 text-text-muted leading-relaxed">
-            <li>Upload your MP3, WAV, FLAC, M4A, AAC, OGG, or AIFF file.</li>
+            <li>Upload your {formatList} file.</li>
             <li>Move the gain slider to your target dB value, positive to boost or negative to reduce.</li>
             <li>Click Adjust volume to process the file.</li>
             <li>Download the result — same format as your upload, just at the new level.</li>
@@ -285,7 +355,9 @@ export default function VolumePage() {
             Where clipping actually sets in depends on how much headroom the
             original recording already had — a very quiet source can often
             take a bigger boost before clipping than a recording that was
-            already close to its loudest point.
+            already close to its loudest point. The tool reads your file&apos;s
+            loudest peak before you run it and shows what the boost would do to
+            it, so you can see a clip coming rather than hearing it afterwards.
           </p>
         </section>
 
@@ -330,8 +402,13 @@ export default function VolumePage() {
               Noise Remover
             </Link>{" "}
             is the better fit — a volume boost raises noise right along with
-            everything else. Need to cut a clip down before adjusting its
-            level? Try{" "}
+            everything else. If you want a target loudness rather than a fixed
+            gain change, the{" "}
+            <Link href="/loudness-normalizer" className="text-amber-400 hover:underline">
+              Loudness Normalizer
+            </Link>{" "}
+            picks the amount for you. Need to cut a clip down before adjusting
+            its level? Try{" "}
             <Link href="/trim" className="text-amber-400 hover:underline">
               Trim Audio
             </Link>{" "}
@@ -358,6 +435,7 @@ export default function VolumePage() {
                 <Link
                   key={tool.slug}
                   href={`/${tool.slug}`}
+                  prefetch={false}
                   className="rounded-xl border border-graphite-800 bg-graphite-900 p-4 hover:border-amber-500/40 transition-colors"
                 >
                   <h3 className="font-semibold text-text-primary">{tool.name}</h3>

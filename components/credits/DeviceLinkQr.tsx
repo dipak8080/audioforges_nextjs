@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Loader2, Smartphone, RefreshCw, EyeOff } from "lucide-react";
-import { Button } from "@/components/ui/Button";
+import { cn } from "@/lib/utils/cn";
+import { Button, buttonStyles } from "@/components/ui/Button";
 import { createDeviceLink } from "@/lib/api/credits";
 import { ApiError } from "@/lib/api/railway";
 import { trackCredits } from "@/lib/analytics";
@@ -33,21 +34,32 @@ import { trackCredits } from "@/lib/analytics";
  * screen for every buyer whether or not they wanted a second device. That's why
  * the button exists.
  *
- * ── THIS PASS: TWO FIXES ───────────────────────────────────────────────
+ * IT USED TO OUTLIVE ITS OWN VALIDITY (2026-08-21). Once generated it stayed
+ * rendered until unmount — on /checkout/success, the rest of the session. The
+ * token is 300s server-side, so after five minutes the screen showed a dead QR
+ * still captioned "expires in 5 minutes", and anyone who scanned it got an
+ * error with no explanation.
  *
- * 1. THE CODE OUTLIVED ITS OWN VALIDITY. Once generated it stayed rendered
- *    until the component unmounted — on /checkout/success that is the rest of
- *    the session. The token is 300s server-side, so after five minutes the
- *    screen showed a dead QR still captioned "expires in 5 minutes", and
- *    anyone who scanned it got an error with no explanation. Worse, the file's
- *    own security notes promise a credential that isn't left lying around, and
- *    it was. There is now a live countdown, and at zero the QR is replaced
- *    rather than left on screen. A Hide control does the same on demand.
+ * ── THIS PASS ──────────────────────────────────────────────────────────
  *
- * 2. THE QR WAS INVISIBLE TO SCREEN READERS. A div of raw SVG with no role and
- *    no label announces nothing at all, so a blind user pressed a button and
- *    got silence. It is now a labelled image, and the countdown is a live
- *    region.
+ * 1. THE DEAD CREDENTIAL WAS STILL IN MEMORY. Expiry was derived, so the QR
+ *    stopped RENDERING at zero — but `svg` still held the encoded sign-in URL
+ *    for the life of the component, and a "New code" would replace it while the
+ *    old one sat in state until then. The list above promises a credential that
+ *    doesn't linger; it lingered. It's cleared at zero now, with the expiry
+ *    notice tracked separately so wiping the token doesn't also wipe the
+ *    explanation.
+ *
+ * 2. THE FILE'S OWN NOTES CONTRADICTED THE CODE. They said the countdown is a
+ *    live region; it is deliberately `aria-live="off"`, because a timer that
+ *    announces itself every second is unusable. The note was the wrong half.
+ *
+ * 3. THE LIFETIME WASN'T VISIBLE AS A QUANTITY. "4:12" is a number you have to
+ *    read and compare against a lifetime you were never told. A draining bar
+ *    shows how much of the window is left without arithmetic — the same meter
+ *    idiom as the rest of the product.
+ *
+ * 4. "New code" AND "Hide" ARE `buttonStyles`.
  */
 
 /** Below this the countdown turns amber — enough time to scan, not to linger. */
@@ -57,6 +69,11 @@ export function DeviceLinkQr() {
   const [svg, setSvg] = useState<string | null>(null);
   const [email, setEmail] = useState<string | null>(null);
   const [expiresAt, setExpiresAt] = useState<number | null>(null);
+  /** Full lifetime the server granted, so the bar below has a denominator. */
+  const [lifetimeMs, setLifetimeMs] = useState(0);
+  /** Survives the credential being wiped — otherwise clearing the token also
+   *  clears the reason the QR vanished. */
+  const [expiredNotice, setExpiredNotice] = useState(false);
   const [now, setNow] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -99,8 +116,7 @@ export function DeviceLinkQr() {
    * DERIVED, not stored. This used to be an effect that nulled the markup and
    * set an `expired` flag — a synchronous setState in an effect body, which
    * renders once with the dead code still visible before clearing it. Deriving
-   * it means the expired QR is never committed to the DOM at all, which is
-   * both correct and strictly safer for the thing this guard exists to protect.
+   * it means the expired QR is never committed to the DOM at all.
    */
   const isExpired = remainingMs !== null && remainingMs <= 0;
 
@@ -108,13 +124,35 @@ export function DeviceLinkQr() {
     setSvg(null);
     setExpiresAt(null);
     setEmail(null);
+    setLifetimeMs(0);
   }, []);
+
+  /**
+   * Deriving expiry keeps the dead code off the screen; it does not get it out
+   * of memory. The encoded sign-in URL sat in state until the component
+   * unmounted or another code replaced it — which contradicts the promise at
+   * the top of this file. Wiping it AFTER the render that already stopped
+   * showing it costs nothing and honours it.
+   */
+  useEffect(() => {
+    if (!isExpired) return;
+    // Deferred by a tick, for the same reason as the clock above: a synchronous
+    // setState in an effect body cascades a render and the React compiler lint
+    // rejects it. The QR is already off screen by this point — this only clears
+    // the token out of memory.
+    const t = setTimeout(() => {
+      setExpiredNotice(true);
+      clear();
+    }, 0);
+    return () => clearTimeout(t);
+  }, [isExpired, clear]);
 
   const generate = useCallback(async () => {
     if (busy.current) return;
     busy.current = true;
     setLoading(true);
     setError(null);
+    setExpiredNotice(false);
 
     try {
       const res = await createDeviceLink();
@@ -142,6 +180,7 @@ export function DeviceLinkQr() {
       // Lifetime comes from the SERVER, never a hardcoded string. It is 300s
       // today and the copy must follow if that ever changes — telling someone
       // "30 minutes" about a 5-minute token is a promise the product breaks.
+      setLifetimeMs(res.expires_in_seconds * 1_000);
       setExpiresAt(Date.now() + res.expires_in_seconds * 1_000);
       trackCredits("credits_magic_link_requested", { source: "device_qr" });
     } catch (err) {
@@ -163,6 +202,11 @@ export function DeviceLinkQr() {
 
   if (svg && !isExpired) {
     const urgent = remainingMs !== null && remainingMs < URGENT_REMAINING_MS;
+    const lifeLeft =
+      lifetimeMs > 0 && remainingMs !== null
+        ? Math.max(0, Math.min(100, (remainingMs / lifetimeMs) * 100))
+        : 100;
+
     return (
       /*
        * FOCUS IS MOVED HERE ON PURPOSE.
@@ -178,9 +222,7 @@ export function DeviceLinkQr() {
         <div
           role="img"
           aria-label={
-            email
-              ? `QR code that signs another device in to ${email}`
-              : "Sign-in QR code"
+            email ? `QR code that signs another device in to ${email}` : "Sign-in QR code"
           }
           className="mx-auto w-full max-w-[200px] rounded-lg bg-white p-3"
           // The encoder's own SVG output, not user content.
@@ -189,17 +231,37 @@ export function DeviceLinkQr() {
 
         {/* The countdown, in the same mono readout language as every other
             number in this product. It is doing real work: this is a live
-            credential and the user should be able to see it dying. */}
-        <p
-          className="flex items-baseline justify-center gap-2 font-mono text-[10px] uppercase tracking-[0.14em]"
-          role="timer"
-          aria-live="off"
-        >
-          <span className="text-text-subtle">Expires in</span>
-          <span className={urgent ? "text-amber-400" : "text-text-muted"}>
-            {formatRemaining(remainingMs)}
-          </span>
-        </p>
+            credential and the user should be able to see it dying.
+
+            aria-live is OFF deliberately — a timer that announces itself every
+            second is unusable. The moment that matters IS announced: the
+            expiry notice below carries role="status". */}
+        <div className="space-y-1.5">
+          <p
+            className="flex items-baseline justify-center gap-2 font-mono text-[10px] uppercase tracking-[0.14em]"
+            role="timer"
+            aria-live="off"
+          >
+            <span className="text-text-subtle">Expires in</span>
+            <span className={urgent ? "text-amber-400" : "text-text-muted"}>
+              {formatRemaining(remainingMs)}
+            </span>
+          </p>
+          {/* The same number as a quantity. "4:12" is only meaningful against a
+              lifetime nobody stated; a draining bar needs no arithmetic. */}
+          <div
+            className="mx-auto h-0.5 w-full max-w-[200px] overflow-hidden rounded-full bg-graphite-800"
+            aria-hidden
+          >
+            <div
+              className={cn(
+                "h-full rounded-full transition-[width] duration-1000 ease-linear motion-reduce:transition-none",
+                urgent ? "bg-amber-500" : "bg-graphite-600"
+              )}
+              style={{ width: `${lifeLeft}%` }}
+            />
+          </div>
+        </div>
 
         {email && (
           <p className="text-center text-[11px] text-text-muted">
@@ -208,25 +270,29 @@ export function DeviceLinkQr() {
         )}
 
         <p className="text-center text-[11px] leading-relaxed text-text-subtle">
-          Scan with your phone&apos;s camera. Works once — don&apos;t share this
-          screen or let it be photographed.
+          Scan with your phone&apos;s camera. Works once — don&apos;t share this screen or let it
+          be photographed.
         </p>
 
-        <div className="flex items-center justify-center gap-4">
+        <div className="flex items-center justify-center gap-2">
           <button
             type="button"
             onClick={generate}
-            className="flex items-center gap-1.5 rounded text-xs text-text-muted outline-none transition-colors hover:text-amber-400 focus-visible:ring-2 focus-visible:ring-amber-400/70"
+            className={buttonStyles({
+              variant: "ghost",
+              size: "sm",
+              className: "text-text-muted hover:text-amber-400",
+            })}
           >
-            <RefreshCw className="h-3 w-3" aria-hidden />
+            <RefreshCw aria-hidden />
             New code
           </button>
           <button
             type="button"
             onClick={clear}
-            className="flex items-center gap-1.5 rounded text-xs text-text-muted outline-none transition-colors hover:text-text-primary focus-visible:ring-2 focus-visible:ring-amber-400/70"
+            className={buttonStyles({ variant: "ghost", size: "sm", className: "text-text-muted" })}
           >
-            <EyeOff className="h-3 w-3" aria-hidden />
+            <EyeOff aria-hidden />
             Hide
           </button>
         </div>
@@ -240,20 +306,20 @@ export function DeviceLinkQr() {
         variant="outline"
         size="md"
         loading={loading}
+        loadingLabel="Creating a code"
         onClick={generate}
         className="w-full"
       >
-        <Smartphone className="h-4 w-4" aria-hidden />
-        {isExpired ? "Show a new code" : "Use on my phone"}
+        <Smartphone aria-hidden />
+        {expiredNotice ? "Show a new code" : "Use on my phone"}
       </Button>
       {error ? (
         <p role="alert" className="text-[11px] leading-relaxed text-red-400">
           {error}
         </p>
-      ) : isExpired ? (
+      ) : expiredNotice ? (
         <p role="status" className="text-[11px] leading-relaxed text-text-subtle">
-          That code expired and has been cleared. Generate another whenever you
-          need one.
+          That code expired and has been cleared. Generate another whenever you need one.
         </p>
       ) : (
         <p className="text-[11px] leading-relaxed text-text-subtle">
@@ -274,7 +340,5 @@ function formatRemaining(ms: number | null): string {
 
 /** Inline spinner for callers that render their own trigger. */
 export function DeviceLinkSpinner() {
-  return (
-    <Loader2 className="h-4 w-4 animate-spin text-text-subtle motion-reduce:animate-none" />
-  );
+  return <Loader2 className="h-4 w-4 animate-spin text-text-subtle motion-reduce:animate-none" />;
 }

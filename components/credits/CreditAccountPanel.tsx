@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
 import { Loader2, LogOut, Mail, Check, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
+import { buttonStyles } from "@/components/ui/Button";
 import { useCredits } from "./CreditProvider";
 import { DeviceLinkQr } from "./DeviceLinkQr";
 import { logout, requestMagicLink } from "@/lib/api/credits";
@@ -22,16 +23,35 @@ import { ApiError } from "@/lib/api/railway";
  * honest equivalent: email a sign-in link, which is how you'd reach a laptop
  * from here. Same job, right tool for the device.
  *
+ * IT NO LONGER RENDERS NOTHING FOR FREE USERS (2026-08-21). This returned
+ * `null` unless authenticated, so a free-tier visitor opening the mobile sheet
+ * saw no trace of the two runs they have. The free state is the top of the
+ * entire funnel — it gets a block of its own.
+ *
  * ── THIS PASS ──────────────────────────────────────────────────────────
  *
- * IT NO LONGER RENDERS NOTHING FOR FREE USERS. This returned `null` unless
- * authenticated, so a free-tier visitor opening the mobile sheet saw no trace
- * of the two runs they have. The free state is the top of the entire funnel —
- * it gets a block of its own, with the reset date and a route to /pricing.
+ * 0. THE FREE ALLOWANCE IS NOT "STUDIO QUALITY RUNS". `free_usage` has no tool
+ *    in its key — N ops is N TOTAL across HQ separation, transcription and
+ *    multi-track MIDI, not N per tool. Calling them Studio Quality runs sends
+ *    someone who spent both on transcripts to a stem page expecting runs they
+ *    no longer have, which is the exact bounce the backend notes predict.
  *
- * The balance is set in the same mono readout language as the pack rail and
- * the checkout screen, so the number looks like the same number everywhere it
- * appears.
+ * 1. A SIGNED-IN USER'S FREE RUNS WERE INVISIBLE. The authenticated block shows
+ *    the credit balance and nothing else, so someone with 0 credits and 2 free
+ *    Studio Quality runs left read "0 credits" and concluded they had nothing.
+ *    They then either bought a pack they didn't need yet or left. Free runs are
+ *    now stated on the same card, in the same readout language.
+ *
+ * 2. `me.email` COULD RENDER AS AN EMPTY LINE. The type allows null, and both
+ *    the balance card and the sign-out note printed it unguarded — one blank
+ *    row, one sentence ending in " with .".
+ *
+ * 3. THE HELD-CREDITS NOTE WAS FOUR SENTENCES INSIDE A POPOVER. Everything it
+ *    said was true and worth saying; it just didn't need to be said at that
+ *    length in a 288px-wide panel. Two sentences, same facts.
+ *
+ * 4. EVERY BUTTON AND LINK HERE IS `buttonStyles` NOW. Four hand-rolled
+ *    surfaces, four sets of padding and focus ring, none with a press state.
  */
 export function CreditAccountPanel({
   variant,
@@ -71,6 +91,19 @@ export function CreditAccountPanel({
 
   const isMobile = variant === "mobile";
 
+  /** Full-width row, used by every action in this panel. Mobile gets more
+   *  height because it's a touch target; desktop stays compact in a popover. */
+  const rowClass = (extra?: string) =>
+    buttonStyles({
+      variant: "ghost",
+      size: isMobile ? "lg" : "md",
+      className: cn(
+        "w-full justify-start text-sm text-text-muted hover:text-text-primary",
+        isMobile ? "rounded-xl px-4 font-medium" : "rounded-md px-2",
+        extra
+      ),
+    });
+
   if (!enabled) return null;
 
   /**
@@ -82,9 +115,7 @@ export function CreditAccountPanel({
     return (
       <div
         className={cn(
-          isMobile
-            ? "rounded-xl border border-graphite-800 bg-graphite-900 p-4"
-            : "px-4 py-3"
+          isMobile ? "rounded-xl border border-graphite-800 bg-graphite-900 p-4" : "px-4 py-3"
         )}
       >
         <div className="flex items-center gap-2">
@@ -96,18 +127,21 @@ export function CreditAccountPanel({
         <p className="mt-1.5 font-mono text-2xl font-semibold tabular-nums text-amber-400">
           {freeRemaining}
         </p>
+        {/* Says "runs", not "Studio Quality runs". The counter is per subject,
+            not per tool: these are spendable on HQ separation, transcription or
+            multi-track MIDI, whichever comes first. */}
         <p className="mt-0.5 text-xs text-text-muted">
-          Studio Quality {freeRemaining === 1 ? "run" : "runs"} left
+          {freeRemaining === 1 ? "run" : "runs"} left on any paid tool
           {resetsOn ? `, resets ${resetsOn}` : ""}
         </p>
         <Link
           href="/pricing"
           onClick={onNavigate}
-          className={cn(
-            "mt-3 block rounded-lg border border-graphite-700 px-4 py-2.5 text-center text-sm font-medium text-text-muted",
-            "outline-none transition-colors hover:border-amber-500/40 hover:text-amber-400",
-            "focus-visible:ring-2 focus-visible:ring-amber-400/70"
-          )}
+          className={buttonStyles({
+            variant: "outline",
+            size: "md",
+            className: "mt-3 w-full text-text-muted hover:border-amber-500/40 hover:text-amber-400",
+          })}
         >
           See what credits cost
         </Link>
@@ -130,30 +164,43 @@ export function CreditAccountPanel({
         <p className="mt-1 font-mono text-2xl font-semibold tabular-nums text-amber-400">
           {balance}
         </p>
-        <p className="text-xs text-text-muted">
-          {balance === 1 ? "credit" : "credits"}
-        </p>
+        <p className="text-xs text-text-muted">{balance === 1 ? "credit" : "credits"}</p>
+
+        {/* A signed-in user's free runs used to be invisible here. Someone at 0
+            credits with 2 free Studio Quality runs left read "0 credits" and
+            concluded they had nothing to run with. */}
+        {freeRemaining > 0 && (
+          <p className="mt-1.5 text-xs text-text-muted">
+            <span className="tabular-nums text-teal-400">{freeRemaining}</span> free{" "}
+            {freeRemaining === 1 ? "run" : "runs"} left on any paid tool
+            {resetsOn ? `, resets ${resetsOn}` : ""}
+          </p>
+        )}
+
         {/* Whose account. Matters the moment someone has a work address and a
-            personal one, with credits on only one. */}
-        <p className="mt-2 truncate text-xs text-text-subtle" title={me.email ?? undefined}>
-          {me.email}
-        </p>
+            personal one, with credits on only one. Guarded: the type allows
+            null, and an unguarded render left a blank row here. */}
+        {me.email && (
+          <p className="mt-2 truncate text-xs text-text-subtle" title={me.email}>
+            {me.email}
+          </p>
+        )}
+
         {heldCredits > 0 && (
           /*
-            This said "held by a running job — returned automatically if it
-            fails", which is true and still leaves someone stuck. The common way
-            to see it is: start a job, press Cancel, and find a credit still
-            held. Cancel stops the PAGE watching; it does not stop the job, so
-            the hold is correct and the user has no way to know that.
-            So it now says what the hold is waiting for and that it resolves
-            without them — the two facts that turn a worry into a wait.
+            This used to say "held by a running job — returned automatically if
+            it fails", which is true and still leaves someone stuck: the common
+            way to see it is start a job, press Cancel, and find a credit still
+            held. Cancel stops the PAGE watching; it does not stop the job.
+
+            The four-sentence version that replaced it was right and too long
+            for a 288px popover. Same two facts, one line each: why it's held,
+            and that it resolves without them.
           */
           <p className="mt-2 border-t border-amber-500/15 pt-2 text-[11px] leading-relaxed text-text-muted">
-            {heldCredits === 1 ? "1 credit is" : `${heldCredits} credits are`} held
-            while a run finishes. Closing the page or pressing Cancel doesn&apos;t
-            stop the run — it keeps going on our servers. If it succeeds the
-            credit is spent; if it fails or never finishes, it comes back on its
-            own. Nothing to do either way.
+            {heldCredits === 1 ? "1 credit is" : `${heldCredits} credits are`} held while a run
+            finishes — cancelling or closing the page doesn&apos;t stop it. Spent if it
+            succeeds, returned on its own if it doesn&apos;t.
           </p>
         )}
       </div>
@@ -169,17 +216,7 @@ export function CreditAccountPanel({
       </div>
 
       <div className={cn(isMobile ? "space-y-1" : "p-2")}>
-        <Link
-          href="/pricing"
-          onClick={onNavigate}
-          className={cn(
-            "block text-sm text-text-muted outline-none transition-colors hover:text-text-primary",
-            "focus-visible:ring-2 focus-visible:ring-amber-400/70",
-            isMobile
-              ? "rounded-xl px-4 py-3 font-medium hover:bg-graphite-900"
-              : "rounded-md px-2 py-2 hover:bg-graphite-850"
-          )}
-        >
+        <Link href="/pricing" onClick={onNavigate} className={rowClass()}>
           Buy more credits
         </Link>
 
@@ -187,18 +224,12 @@ export function CreditAccountPanel({
           type="button"
           onClick={handleSignOut}
           disabled={signingOut}
-          className={cn(
-            "flex w-full items-center gap-2 text-left text-sm text-text-muted outline-none transition-colors hover:text-text-primary disabled:opacity-50",
-            "focus-visible:ring-2 focus-visible:ring-amber-400/70",
-            isMobile
-              ? "rounded-xl px-4 py-3 font-medium hover:bg-graphite-900"
-              : "rounded-md px-2 py-2 hover:bg-graphite-850"
-          )}
+          className={rowClass()}
         >
           {signingOut ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
+            <Loader2 className="animate-spin motion-reduce:animate-none" />
           ) : (
-            <LogOut className="h-3.5 w-3.5" aria-hidden />
+            <LogOut aria-hidden />
           )}
           Sign out
         </button>
@@ -212,8 +243,8 @@ export function CreditAccountPanel({
             isMobile ? "px-4 pt-1" : "px-2 pb-1 pt-1.5"
           )}
         >
-          Your credits stay on your account — sign back in any time with{" "}
-          {me.email}.
+          Your credits stay on your account
+          {me.email ? ` — sign back in any time with ${me.email}.` : " — sign back in any time."}
         </p>
       </div>
     </div>
@@ -253,14 +284,11 @@ function EmailDeviceLink() {
 
   if (sent) {
     return (
-      <p
-        role="status"
-        className="flex items-start gap-2 text-xs leading-relaxed text-amber-400"
-      >
+      <p role="status" className="flex items-start gap-2 text-xs leading-relaxed text-amber-400">
         <Check className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
         <span>
-          Sign-in link sent. Open it on the device you want to use — it works
-          once and expires in 30 minutes.
+          Sign-in link sent. Open it on the device you want to use — it works once and expires in
+          30 minutes.
         </span>
       </p>
     );
@@ -271,18 +299,17 @@ function EmailDeviceLink() {
       <button
         type="button"
         onClick={send}
-        disabled={sending}
-        className={cn(
-          "flex w-full items-center justify-center gap-2 rounded-lg border border-graphite-700 px-4 py-2.5 text-sm font-medium text-text-muted",
-          "outline-none transition-colors hover:border-amber-500/40 hover:text-amber-400 disabled:opacity-50",
-          "focus-visible:ring-2 focus-visible:ring-amber-400/70"
-        )}
+        /* Disabled rather than `loading`: there's nothing underneath to keep in
+           place, and this button genuinely can't be pressed again until the
+           request settles. */
+        disabled={sending || !email}
+        className={buttonStyles({
+          variant: "outline",
+          size: "md",
+          className: "w-full text-text-muted hover:border-amber-500/40 hover:text-amber-400",
+        })}
       >
-        {sending ? (
-          <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />
-        ) : (
-          <Mail className="h-4 w-4" aria-hidden />
-        )}
+        {sending ? <Loader2 className="animate-spin motion-reduce:animate-none" /> : <Mail aria-hidden />}
         Use on another device
       </button>
       {error ? (

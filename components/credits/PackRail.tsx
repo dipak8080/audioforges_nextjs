@@ -18,6 +18,38 @@ import type { CreditPack } from "@/lib/types/credits";
  *
  * It is also short. In the modal that matters: the old stacked list was
  * ~170px of the viewport, this is ~90px including the readout.
+ *
+ * WHY THESE AREN'T <Button>: they're radio segments — full-height, stacked
+ * label over value, and painted by a sliding indicator that lives behind them
+ * rather than by their own background. Running them through Button would mean
+ * overriding its height, padding, radius, background and press behaviour, at
+ * which point nothing of the component is left.
+ *
+ * ── THIS PASS ──────────────────────────────────────────────────────────
+ *
+ * 1. "BEST VALUE" WAS ONLY VISIBLE ONCE YOU'D ALREADY PICKED IT. The label
+ *    rendered only when the best-value pack happened to be the selected one,
+ *    so the thing it exists to advertise was invisible until you'd found it by
+ *    accident. It's marked on the segment now, so it can be seen before it's
+ *    chosen.
+ *
+ * 2. CHANGING PACKS WAS SILENT TO A SCREEN READER. The segments announce a
+ *    bare number — "30" — and the price, per-run cost and saving all live in a
+ *    separate readout with no association to the group. Arrowing through the
+ *    rail changed three figures nobody was told about. Each option now carries
+ *    the whole offer in its accessible name.
+ *
+ * 3. THE THIRD READOUT PRINTED A NUMBER ALREADY ON SCREEN. When the selected
+ *    pack was the baseline (no saving) it swapped to "Runs — 30", which is the
+ *    same figure as the segment above it in the same typeface. It says "Base"
+ *    now, which is a fact the other two cells don't already carry.
+ *
+ * 4. AN EMPTY RAIL WAS INDISTINGUISHABLE FROM A MISSING ONE. `return null` on
+ *    no selection meant a caller that passed a key not in `packs` — or an empty
+ *    array — rendered nothing at all, with no clue why. Empty still renders
+ *    nothing (the callers handle that case with their own copy), but a
+ *    mismatched key now falls back to the default pack rather than blanking the
+ *    control.
  */
 
 /** Middle pack. Not the cheapest — that anchors the page at $3 — and not
@@ -75,9 +107,14 @@ export function PackRail({
     [packs]
   );
 
-  const selectedIndex = packs.findIndex((p) => p.key === selectedKey);
-  const selected = selectedIndex >= 0 ? packs[selectedIndex] : null;
-  if (!selected) return null;
+  if (packs.length === 0) return null;
+
+  /* A key that isn't in the list used to blank the whole control. Falling back
+     to the default keeps the rail on screen and visibly out of sync with its
+     parent, which is far easier to notice than a component that vanished. */
+  const requested = packs.findIndex((p) => p.key === selectedKey);
+  const selectedIndex = requested >= 0 ? requested : Math.min(1, packs.length - 1);
+  const selected = packs[selectedIndex];
 
   const perRun = selected.price_usd / selected.credits;
   const savingPct = worstPerRun > 0 ? Math.round((1 - perRun / worstPerRun) * 100) : 0;
@@ -121,6 +158,8 @@ export function PackRail({
         />
         {packs.map((pack, i) => {
           const isSelected = pack.key === selected.key;
+          const isBestValue = pack.key === bestValueKey;
+          const packPerRun = pack.price_usd / pack.credits;
           return (
             <button
               key={pack.key}
@@ -131,6 +170,12 @@ export function PackRail({
               role="radio"
               aria-checked={isSelected}
               tabIndex={isSelected ? 0 : -1}
+              /* The whole offer, not just the number. Arrowing along this rail
+                 changed the price, the per-run cost and the saving underneath,
+                 and announced none of them — the segment said "30". */
+              aria-label={`${pack.credits} credits for $${pack.price_usd.toFixed(
+                2
+              )}, $${packPerRun.toFixed(2)} per run${isBestValue ? ", best value" : ""}`}
               onClick={() => onSelect(pack)}
               className={cn(
                 "relative z-10 flex-1 rounded-md px-2 py-3 text-center outline-none transition-colors",
@@ -138,6 +183,16 @@ export function PackRail({
                 isSelected ? "text-graphite-950" : "text-text-muted hover:text-text-primary"
               )}
             >
+              {/* Marks best value ON the segment, so it can be seen before it's
+                  picked. The header label above only ever appeared once you had
+                  already landed on it — advertising a choice exclusively to the
+                  people who had already made it. */}
+              {isBestValue && !isSelected && (
+                <span
+                  aria-hidden
+                  className="absolute left-1/2 top-1 h-1 w-1 -translate-x-1/2 rounded-full bg-amber-500"
+                />
+              )}
               <span className="block font-mono text-xl font-semibold tabular-nums sm:text-2xl">
                 {pack.credits}
               </span>
@@ -157,10 +212,10 @@ export function PackRail({
       <div className="mt-3 grid grid-cols-3 divide-x divide-graphite-800 overflow-hidden rounded-lg border border-graphite-800 bg-graphite-950/40">
         <Readout label="You pay" value={`$${selected.price_usd.toFixed(2)}`} accent />
         <Readout label="Per run" value={`$${perRun.toFixed(2)}`} />
-        <Readout
-          label={savingPct >= 1 ? "You save" : "Runs"}
-          value={savingPct >= 1 ? `${savingPct}%` : `${selected.credits}`}
-        />
+        {/* Was "Runs — 30" on the baseline pack, which reprints the number
+            already displayed two rows up in the same typeface. "Base" is a
+            fact neither of the other cells carries. */}
+        <Readout label="You save" value={savingPct >= 1 ? `${savingPct}%` : "Base"} />
       </div>
     </div>
   );
@@ -177,9 +232,7 @@ function Readout({
 }) {
   return (
     <div className="px-3 py-3 text-center">
-      <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-text-subtle">
-        {label}
-      </p>
+      <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-text-subtle">{label}</p>
       <p
         className={cn(
           "mt-1 font-mono text-lg font-semibold tabular-nums",

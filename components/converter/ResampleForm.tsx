@@ -1,9 +1,45 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Info } from "lucide-react";
 import { JobToolForm } from "@/components/converter/JobToolForm";
-import { cn } from "@/lib/utils/cn";
+import {
+  ControlField,
+  Hint,
+  OptionCards,
+  Segmented,
+  type CardOption,
+} from "@/components/converter/ToolControls";
+import { getRateLimitLabel } from "@/lib/data/rate-limits";
+
+/**
+ * ── THIS PASS ──────────────────────────────────────────────────────────
+ *
+ * 1. IT DECODED THE ENTIRE FILE TO READ ONE NUMBER. probeSampleRate ran
+ *    decodeAudioData on the whole upload — up to 80MB, minutes of audio,
+ *    hundreds of megabytes of Float32 in memory — to learn the sample rate,
+ *    which for a WAV is sixteen bytes into a header this file was ALREADY
+ *    parsing for bit depth. The header read now answers both for WAV, and the
+ *    decode is the fallback for formats that don't expose it that cheaply.
+ *
+ * 2. IT BUILT AN AudioContext PER FILE. Chrome caps a document at six and
+ *    construction opens an audio device. Shared, and only reached now when the
+ *    header path can't answer.
+ *
+ * 3. THE PROBE COULDN'T BE CANCELLED. `cancelled` stopped the RESULT being
+ *    used, not the decode — pick three files quickly and three full decodes
+ *    ran to completion against each other.
+ *
+ * 4. TWO MORE FAKE RADIOGROUPS. Both the rate cards and the bit-depth row
+ *    declared `role="radiogroup"` over plain buttons with no roving tabindex
+ *    and no arrow keys — so between them, seven tab stops where assistive tech
+ *    was promised two.
+ *
+ * 5. THE BIT-DEPTH ROW IS `Segmented` NOW, the same compact pill row Pitch,
+ *    Tempo and Volume each hand-rolled for their presets. Fourth copy avoided.
+ *
+ * 6. A 429 NAMES THE LIMIT. Note the key: the endpoint is `resample`, the
+ *    RATE_LIMITS entry is `sample-rate-converter` (the public slug).
+ */
 
 interface RateSpec {
   rate: number;
@@ -26,6 +62,21 @@ const BIT_DEPTH_NOTES: Record<number, string> = {
   32: "Float — for further processing, not distribution",
 };
 
+const RATE_LIMIT_LABEL = getRateLimitLabel("sample-rate-converter");
+
+/** "keep" is a real choice here, not the absence of one — the backend omits
+ *  the field entirely and the file's own depth survives. */
+type BitDepthChoice = "keep" | "16" | "24" | "32";
+
+const BIT_DEPTH_OPTIONS: ReadonlyArray<{ value: BitDepthChoice; label: string; ariaLabel?: string }> = [
+  { value: "keep", label: "Keep", ariaLabel: "Keep the file's current bit depth" },
+  ...BIT_DEPTHS.map((d) => ({
+    value: String(d) as BitDepthChoice,
+    label: `${d}-bit`,
+    ariaLabel: `${d} bit`,
+  })),
+];
+
 /* ------------------------------------------------------------------ */
 /* File probing — what the upload actually is, before you pick a target */
 /* ------------------------------------------------------------------ */
@@ -35,68 +86,103 @@ interface FileAudioInfo {
   bitDepth: number | null;
 }
 
-/** Reads a WAV's `fmt ` chunk directly from the bytes rather than a full
- *  decode — bit depth doesn't survive decodeAudioData (the Web Audio API
- *  always hands back 32-bit float regardless of source), so this is the
- *  only way to know what the file originally was. Scans for the chunk
- *  rather than assuming a fixed offset, since RIFF files can have extra
- *  chunks (LIST, JUNK, etc.) before `fmt `. Returns null for anything
- *  that isn't a plain WAV — AIFF and compressed formats don't expose a
- *  bit depth this cheaply, and aren't worth a full decode just for this.
+/**
+ * One AudioContext for the page, created on first use, never closed. Chrome
+ * throws past six per document and construction opens an audio device.
  */
-async function readWavBitDepth(file: File): Promise<number | null> {
-  if (!/\.wav$/i.test(file.name)) return null;
+let sharedCtx: AudioContext | null = null;
+
+/**
+ * Reads a WAV's `fmt ` chunk directly from the bytes.
+ *
+ * Bit depth doesn't survive decodeAudioData — the Web Audio API always hands
+ * back 32-bit float regardless of source — so for that, this is the only way.
+ * SAMPLE RATE is in the same chunk four bytes earlier, which is the whole
+ * reason this now returns both: the old code read this header for the depth
+ * and then decoded the entire file to learn a number sitting right next to it.
+ *
+ * Scans for the chunk rather than assuming a fixed offset, since RIFF files
+ * can carry extra chunks (LIST, JUNK) before `fmt `. Returns nulls for
+ * anything that isn't a plain WAV.
+ */
+async function readWavHeader(file: File): Promise<FileAudioInfo> {
+  const empty: FileAudioInfo = { sampleRate: null, bitDepth: null };
+  if (!/\.wav$/i.test(file.name)) return empty;
   try {
     const head = await file.slice(0, 4096).arrayBuffer();
     const view = new DataView(head);
     const asciiAt = (offset: number, len: number) =>
       String.fromCharCode(...new Uint8Array(head, offset, len));
 
-    if (asciiAt(0, 4) !== "RIFF" || asciiAt(8, 4) !== "WAVE") return null;
+    if (asciiAt(0, 4) !== "RIFF" || asciiAt(8, 4) !== "WAVE") return empty;
 
     let offset = 12;
     while (offset + 8 <= head.byteLength) {
       const chunkId = asciiAt(offset, 4);
       const chunkSize = view.getUint32(offset + 4, true);
       if (chunkId === "fmt " && offset + 8 + 16 <= head.byteLength) {
-        return view.getUint16(offset + 8 + 14, true); // bitsPerSample field
+        return {
+          // fmt layout: audioFormat(2) channels(2) sampleRate(4) …
+          // bitsPerSample sits 14 bytes in.
+          sampleRate: view.getUint32(offset + 8 + 4, true) || null,
+          bitDepth: view.getUint16(offset + 8 + 14, true) || null,
+        };
       }
       offset += 8 + chunkSize + (chunkSize % 2); // chunks are word-aligned
     }
   } catch {
-    // Fall through to null — the tool still works, it just can't show
-    // the "your file is currently X-bit" context.
+    // Fall through — the tool still works, it just can't show the
+    // "your file is currently X" context.
   }
-  return null;
+  return empty;
 }
 
-async function probeSampleRate(file: File): Promise<number | null> {
+/**
+ * The fallback, for formats whose sample rate isn't readable from a header we
+ * can parse. This is a FULL decode: expensive, and the reason the WAV path
+ * above exists.
+ */
+async function decodeSampleRate(file: File, signal?: AbortSignal): Promise<number | null> {
   try {
     const arrayBuffer = await file.arrayBuffer();
-    const Ctx =
-      window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    const ctx = new Ctx();
-    try {
-      const buffer = await ctx.decodeAudioData(arrayBuffer);
-      return buffer.sampleRate;
-    } finally {
-      ctx.close();
+    if (signal?.aborted) return null;
+
+    if (!sharedCtx) {
+      const Ctx =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      sharedCtx = new Ctx();
     }
+
+    const buffer = await sharedCtx.decodeAudioData(arrayBuffer);
+    if (signal?.aborted) return null;
+    return buffer.sampleRate;
   } catch {
     return null;
   }
 }
 
+async function probeFile(file: File, signal?: AbortSignal): Promise<FileAudioInfo> {
+  const header = await readWavHeader(file);
+  if (signal?.aborted) return { sampleRate: null, bitDepth: null };
+  // Header answered it: no decode at all for the common case.
+  if (header.sampleRate !== null) return header;
+  return { sampleRate: await decodeSampleRate(file, signal), bitDepth: header.bitDepth };
+}
+
 /* ------------------------------------------------------------------ */
+
+function formatKhz(rate: number): string {
+  return (rate / 1000).toFixed(2).replace(/\.?0+$/, "");
+}
 
 function guidanceFor(current: number | null, target: number): string | null {
   if (current === null) return null;
   if (target === current) return "Same as your file — no resampling needed.";
   if (target > current) {
-    return `Upsampling from ${(current / 1000).toFixed(1)} kHz — interpolates between existing samples, doesn't add detail that wasn't there.`;
+    return `Upsampling from ${formatKhz(current)} kHz — interpolates between existing samples, doesn't add detail that wasn't there.`;
   }
-  const targetNyquist = target / 2 / 1000;
-  return `Downsampling from ${(current / 1000).toFixed(1)} kHz — removes anything above ${targetNyquist} kHz.`;
+  return `Downsampling from ${formatKhz(current)} kHz — removes anything above ${target / 2 / 1000} kHz.`;
 }
 
 function bitDepthGuidance(current: number | null, target: number | null): string | null {
@@ -110,19 +196,36 @@ function bitDepthGuidance(current: number | null, target: number | null): string
 
 export function ResampleForm() {
   const [sampleRate, setSampleRate] = useState(44100);
-  const [bitDepth, setBitDepth] = useState<number | null>(null);
+  const [bitChoice, setBitChoice] = useState<BitDepthChoice>("keep");
   const [fileInfo, setFileInfo] = useState<FileAudioInfo>({ sampleRate: null, bitDepth: null });
+
+  const bitDepth = bitChoice === "keep" ? null : Number(bitChoice);
+
+  const rateOptions: CardOption<string>[] = SAMPLE_RATES.map((spec) => ({
+    value: String(spec.rate),
+    title: spec.label,
+    meta: `≤${spec.nyquistKhz} kHz`,
+    detail: spec.use,
+  }));
+
+  const rateGuidance = guidanceFor(fileInfo.sampleRate, sampleRate);
+  const depthGuidance = bitDepthGuidance(fileInfo.bitDepth, bitDepth);
 
   return (
     <JobToolForm
       endpoint="resample"
       pollIntervalMs={2500}
       toolLabel="Sample rate converter"
-      toolMeta={`→ ${(sampleRate / 1000).toFixed(sampleRate % 1000 === 0 ? 0 : 2)} kHz`}
+      toolMeta={`→ ${formatKhz(sampleRate)} kHz`}
       submitLabel="Convert sample rate"
       processingLabel="Resampling"
       expectedRange="a few seconds"
       resultVerb="Resampled"
+      rateLimitMessage={
+        RATE_LIMIT_LABEL
+          ? `Sample rate conversion is limited to ${RATE_LIMIT_LABEL}. Wait for the timer, then run it again.`
+          : undefined
+      }
       stages={[
         { at: 0, label: "Reading the audio" },
         { at: 3, label: "Applying the anti-aliasing filter" },
@@ -134,139 +237,58 @@ export function ResampleForm() {
         if (bitDepth !== null) fields.bit_depth = String(bitDepth);
         return fields;
       }}
-      renderControls={(file, disabled) => {
-        // Probe once per newly-selected file — cheap enough at 80MB cap,
-        // and it's the only way to give live upsample/downsample context
-        // instead of a bare list of numbers with no relationship to what
-        // was actually uploaded.
-        return (
-          <FileProbe file={file} onProbe={setFileInfo}>
-            <div className="space-y-5">
-              {fileInfo.sampleRate !== null && (
-                <p className="flex items-center gap-1.5 text-xs text-text-subtle">
-                  <Info className="h-3 w-3 shrink-0" aria-hidden />
-                  Your file is currently {(fileInfo.sampleRate / 1000).toFixed(2).replace(/\.?0+$/, "")} kHz
-                  {fileInfo.bitDepth !== null ? `, ${fileInfo.bitDepth}-bit` : ""}.
-                </p>
-              )}
+      renderControls={(file, disabled) => (
+        <div className="space-y-5">
+          <FileProbe file={file} onProbe={setFileInfo} />
 
-              <fieldset className="space-y-2" disabled={disabled}>
-                <legend className="mb-2 text-sm font-medium text-text-primary">Sample rate</legend>
-                <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Sample rate">
-                  {SAMPLE_RATES.map((spec) => {
-                    const selected = sampleRate === spec.rate;
-                    return (
-                      <button
-                        key={spec.rate}
-                        type="button"
-                        role="radio"
-                        aria-checked={selected}
-                        onClick={() => setSampleRate(spec.rate)}
-                        disabled={disabled}
-                        className={cn(
-                          "rounded-lg border p-3 text-left transition-all",
-                          "focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40",
-                          "disabled:cursor-not-allowed disabled:opacity-40",
-                          selected
-                            ? "border-amber-500/60 bg-amber-500/[0.07]"
-                            : "border-graphite-700 bg-graphite-850 hover:border-graphite-700/60 hover:bg-graphite-800/60"
-                        )}
-                      >
-                        <div className="flex items-baseline justify-between gap-2">
-                          <span
-                            className={cn(
-                              "font-mono text-sm font-semibold",
-                              selected ? "text-amber-400" : "text-text-primary"
-                            )}
-                          >
-                            {spec.label}
-                          </span>
-                          <span
-                            className={cn(
-                              "font-mono text-[10px]",
-                              selected ? "text-amber-500/80" : "text-text-subtle"
-                            )}
-                          >
-                            ≤{spec.nyquistKhz} kHz
-                          </span>
-                        </div>
-                        <p className="mt-1 text-[11px] leading-snug text-text-muted">{spec.use}</p>
-                      </button>
-                    );
-                  })}
-                </div>
+          {fileInfo.sampleRate !== null && (
+            <Hint>
+              Your file is currently {formatKhz(fileInfo.sampleRate)} kHz
+              {fileInfo.bitDepth !== null ? `, ${fileInfo.bitDepth}-bit` : ""}.
+            </Hint>
+          )}
 
-                {(() => {
-                  const guidance = guidanceFor(fileInfo.sampleRate, sampleRate);
-                  return guidance ? (
-                    <p className="flex items-start gap-1.5 pt-1 text-[11px] text-text-subtle">
-                      <Info className="mt-0.5 h-3 w-3 shrink-0" aria-hidden />
-                      {guidance}
-                    </p>
-                  ) : null;
-                })()}
-              </fieldset>
+          <ControlField
+            as="fieldset"
+            label="Sample rate"
+            hint={rateGuidance ? <Hint>{rateGuidance}</Hint> : undefined}
+          >
+            <OptionCards
+              label="Sample rate"
+              options={rateOptions}
+              value={String(sampleRate)}
+              onChange={(v) => setSampleRate(Number(v))}
+              disabled={disabled}
+              mono
+            />
+          </ControlField>
 
-              <fieldset className="space-y-2" disabled={disabled}>
-                <legend className="mb-2 text-sm font-medium text-text-primary">
-                  Bit depth <span className="font-normal text-text-subtle">(WAV/AIFF only, optional)</span>
-                </legend>
-                <div className="grid grid-cols-4 gap-2" role="radiogroup" aria-label="Bit depth">
-                  <button
-                    type="button"
-                    role="radio"
-                    aria-checked={bitDepth === null}
-                    onClick={() => setBitDepth(null)}
-                    disabled={disabled}
-                    className={cn(
-                      "rounded-lg border px-2 py-2 text-xs font-medium transition-colors disabled:opacity-40",
-                      bitDepth === null
-                        ? "border-amber-500/60 bg-amber-500/10 text-amber-400"
-                        : "border-graphite-700 bg-graphite-850 text-text-muted hover:text-text-primary"
-                    )}
-                  >
-                    Keep
-                  </button>
-                  {BIT_DEPTHS.map((depth) => (
-                    <button
-                      key={depth}
-                      type="button"
-                      role="radio"
-                      aria-checked={bitDepth === depth}
-                      onClick={() => setBitDepth(depth)}
-                      disabled={disabled}
-                      className={cn(
-                        "rounded-lg border px-2 py-2 text-xs font-mono font-semibold transition-colors disabled:opacity-40",
-                        bitDepth === depth
-                          ? "border-amber-500/60 bg-amber-500/10 text-amber-400"
-                          : "border-graphite-700 bg-graphite-850 text-text-muted hover:text-text-primary"
-                      )}
-                    >
-                      {depth}-bit
-                    </button>
-                  ))}
-                </div>
-
-                <p className="text-[11px] leading-snug text-text-subtle">
+          <ControlField
+            as="fieldset"
+            label="Bit depth"
+            meta="WAV/AIFF only"
+            hint={
+              <>
+                <span className="block">
                   {bitDepth !== null
                     ? BIT_DEPTH_NOTES[bitDepth]
                     : "Only applies to uncompressed WAV/AIFF — ignored for MP3, FLAC, AAC, and OGG."}
-                </p>
-
-                {(() => {
-                  const guidance = bitDepthGuidance(fileInfo.bitDepth, bitDepth);
-                  return guidance ? (
-                    <p className="flex items-start gap-1.5 text-[11px] text-text-subtle">
-                      <Info className="mt-0.5 h-3 w-3 shrink-0" aria-hidden />
-                      {guidance}
-                    </p>
-                  ) : null;
-                })()}
-              </fieldset>
-            </div>
-          </FileProbe>
-        );
-      }}
+                </span>
+                {depthGuidance && <Hint>{depthGuidance}</Hint>}
+              </>
+            }
+          >
+            <Segmented
+              label="Bit depth"
+              options={BIT_DEPTH_OPTIONS}
+              value={bitChoice}
+              onChange={setBitChoice}
+              disabled={disabled}
+              mono
+            />
+          </ControlField>
+        </div>
+      )}
     />
   );
 }
@@ -275,29 +297,41 @@ export function ResampleForm() {
 /* Probe wrapper — runs once per file, reports up via onProbe           */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Renders nothing. It used to wrap the whole control tree as `children`, which
+ * meant every probe result re-rendered through this component for no reason —
+ * it has no opinion about what it wraps.
+ */
 function FileProbe({
   file,
   onProbe,
-  children,
 }: {
   file: File | null;
   onProbe: (info: FileAudioInfo) => void;
-  children: React.ReactNode;
 }) {
   useEffect(() => {
     if (!file) {
       onProbe({ sampleRate: null, bitDepth: null });
       return;
     }
+
     let cancelled = false;
-    Promise.all([probeSampleRate(file), readWavBitDepth(file)]).then(([sampleRate, bitDepth]) => {
-      if (!cancelled) onProbe({ sampleRate, bitDepth });
+    // The flag stopped the RESULT being used; a full decode still ran to
+    // completion. Three files picked quickly meant three of them at once.
+    const abort = new AbortController();
+
+    probeFile(file, abort.signal).then((info) => {
+      if (!cancelled) onProbe(info);
     });
+
     return () => {
       cancelled = true;
+      abort.abort();
     };
+    // onProbe is a stable setState from the parent; adding it would re-probe
+    // the file on every unrelated render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [file]);
 
-  return <>{children}</>;
+  return null;
 }

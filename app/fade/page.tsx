@@ -4,10 +4,49 @@ import { FadeForm } from "@/components/converter/FadeForm";
 import { FAQSection } from "@/components/faq/FAQSection";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
+import {
+  getLimits,
+  durationCapFor,
+  durationLabel,
+  retentionSentences,
+} from "@/lib/api/limits";
+
+/**
+ * ── THIS PASS ──────────────────────────────────────────────────────────
+ *
+ * NO FACTUAL ERROR ON THIS PAGE. 30 seconds per fade matches FADE_MAX_SECONDS
+ * in FadeForm, 80MB is right, `keywords` was already absent and the HowTo
+ * schema was already removed. Second page out of fifteen with nothing wrong on
+ * it, after /video-to-audio.
+ *
+ * So this is the shared treatment only:
+ *
+ * 1. THE LENGTH LIMIT IS STATED. /fade isn't exempt and has no per-tool
+ *    override, so it takes the audio_tools default of one hour. The page named
+ *    the size cap and not the length one — not wrong, but the four pages that
+ *    DID state a length all got it wrong, so silence was the safer failure and
+ *    it's still worth closing.
+ *
+ * 2. RETENTION ANSWER ADDED, formats read from allowed_audio_formats, prefetch
+ *    disabled on the tool grid, feature strip matched to the other pages.
+ *
+ * 3. One behavioural detail the page never mentioned: FadeForm clamps each
+ *    fade against the track's own length, so a 30-second fade isn't available
+ *    on a 20-second clip. Worth one sentence — someone with a short sample
+ *    otherwise reads "up to 30 seconds" and finds the handle won't go there.
+ */
 
 const PAGE_TITLE = "Free Audio Fade In & Fade Out Online";
 const PAGE_DESCRIPTION =
   "Add a smooth fade in and fade out to any MP3, WAV, FLAC, or other audio file online, free. Avoid clicks and hard cuts. No sign-up, no watermark.";
+
+/**
+ * The per-fade ceiling, from the same constant FadeForm enforces
+ * (FADE_MAX_SECONDS). Not a backend limit — it's a client-side control range —
+ * so there is nothing in /limits to read it from. If it changes, change it
+ * there and here together.
+ */
+const MAX_FADE_SECONDS = 30;
 
 export const metadata: Metadata = {
   title: PAGE_TITLE,
@@ -41,7 +80,7 @@ const webAppJsonLd = {
   offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
   featureList: [
     "Independent fade in and fade out durations",
-    "Up to 30 seconds per fade",
+    `Up to ${MAX_FADE_SECONDS} seconds per fade`,
     "Output keeps the original file format",
     "No sign-up required",
     "No watermark",
@@ -58,97 +97,105 @@ const breadcrumbJsonLd = {
 };
 // NOTE: No HowTo schema — deprecated by Google (desktop since Sept 2023),
 // no ranking or rich-result benefit remains.
+// FAQPage schema is emitted by <FAQSection /> — do not duplicate it here.
 
-const SUPPORTED_FORMATS = ["MP3", "WAV", "FLAC", "M4A", "AAC", "OGG", "AIFF"];
-
-/** Same style as the convert/stems/mono-stereo pages — clean mono badges,
- *  no check icons. Check icons are reserved for comparison-table cells. */
-function FormatBadges() {
-  return (
-    <div className="flex flex-wrap gap-2">
-      {SUPPORTED_FORMATS.map((format) => (
-        <span
-          key={format}
-          className="rounded-lg border border-graphite-700 bg-graphite-850 px-3 py-1.5 font-mono text-sm font-semibold text-amber-400"
-        >
-          {format}
-        </span>
-      ))}
-    </div>
-  );
-}
-
-const faqs = [
-  {
-    question: "What is an audio fade?",
-    answer:
-      "A fade is a gradual change in volume over a short span, rather than an instant jump. A fade in ramps up from silence; a fade out ramps down to silence. Both smooth out what would otherwise be an abrupt start or stop.",
-  },
-  {
-    question: "Do I need both a fade in and a fade out?",
-    answer:
-      "No — turn on just one if that's all you need. At least one of the two has to be enabled to submit, but they're otherwise independent.",
-  },
-  {
-    question: "Can a fade prevent clicks and pops?",
-    answer:
-      "It addresses the most common cause: a hard cut at a point where the waveform isn't at zero, which produces a sudden jump in amplitude your speakers reproduce as a click. A fade ramps the volume down to (or up from) zero instead, removing that jump. It won't fix clicks caused by something else, like a corrupted file or a bad recording.",
-  },
-  {
-    question: "How long should a fade be?",
-    answer:
-      "It depends on the use. A loop point usually wants a very short fade, since anything long enough to be noticeable also changes how the loop sounds on repeat. A podcast outro or the end of a voice recording can take a longer, more deliberate fade without feeling abrupt. Up to 30 seconds is available for either fade.",
-  },
-  {
-    question: "What's the difference between a fade and a volume adjustment?",
-    answer:
-      "A volume adjustment changes the loudness of the whole file by a fixed amount. A fade changes loudness progressively, over a duration you set, specifically at the start and/or end — the rest of the file is untouched either way.",
-  },
-  {
-    question: "What's the difference between a fade and trimming?",
-    answer:
-      "Trimming cuts a file down to a specific start and end point, removing everything outside that range. A fade doesn't remove any audio — it smooths the volume at whatever start and end points you already have.",
-  },
-  {
-    question: "Does fading reduce audio quality?",
-    answer:
-      "No — a fade only adjusts the volume envelope at the start and/or end of the file. The output keeps the same format as the file you uploaded.",
-  },
-  {
-    question: "Will this change my file format?",
-    answer: "No — the output keeps the same format as the file you uploaded.",
-  },
-  {
-    question: "What audio formats are supported?",
-    answer: "MP3, WAV, FLAC, M4A, AAC, OGG, and AIFF.",
-  },
-  {
-    question: "Is there a file size limit?",
-    answer: "Yes, 80MB per upload.",
-  },
-  {
-    question: "Can I trim my file first and then add a fade?",
-    answer:
-      "Yes — trim it down with the Audio Trimmer first, then run the result through this tool to add a fade to the trimmed clip.",
-    answerNode: (
-      <>
-        Yes — trim it down with the{" "}
-        <Link href="/trim" className="text-amber-400 hover:underline">
-          Audio Trimmer
-        </Link>{" "}
-        first, then run the result through this tool to add a fade to the
-        trimmed clip.
-      </>
-    ),
-  },
-  {
-    question: "Is this really free?",
-    answer: "Yes — completely free, no sign-up, no watermark on the output.",
-  },
-];
-
-export default function FadePage() {
+export default async function FadePage() {
   const relatedTools = getRelatedTools("fade", 5);
+
+  const limits = await getLimits();
+  const durationCap = durationCapFor(limits, "fade");
+  const retention = retentionSentences(limits.retention.audio_tools);
+
+  const formats = limits.allowedAudioFormats.map((f) => f.toUpperCase());
+  const formatList = formats.join(", ").replace(/, ([^,]*)$/, ", or $1");
+
+  const faqs = [
+    {
+      question: "What is an audio fade?",
+      answer:
+        "A fade is a gradual change in volume over a short span, rather than an instant jump. A fade in ramps up from silence; a fade out ramps down to silence. Both smooth out what would otherwise be an abrupt start or stop.",
+    },
+    {
+      question: "Do I need both a fade in and a fade out?",
+      answer:
+        "No — turn on just one if that's all you need. At least one of the two has to be enabled to submit, but they're otherwise independent.",
+    },
+    {
+      question: "Can a fade prevent clicks and pops?",
+      answer:
+        "It addresses the most common cause: a hard cut at a point where the waveform isn't at zero, which produces a sudden jump in amplitude your speakers reproduce as a click. A fade ramps the volume down to (or up from) zero instead, removing that jump. It won't fix clicks caused by something else, like a corrupted file or a bad recording.",
+    },
+    {
+      question: "How long should a fade be?",
+      answer: `It depends on the use. A loop point usually wants a very short fade, since anything long enough to be noticeable also changes how the loop sounds on repeat. A podcast outro or the end of a voice recording can take a longer, more deliberate fade without feeling abrupt. Up to ${MAX_FADE_SECONDS} seconds is available for either fade.`,
+    },
+    {
+      /*
+        ADDED. FadeForm clamps each fade against the track's own length — two
+        fades can never overlap past the end of the file — so the ceiling on a
+        short clip is the clip, not the 30 seconds the page advertises.
+        Someone with a 20-second sample otherwise reads "up to 30 seconds" and
+        finds the handle refuses to go there.
+      */
+      question: `Why won't my fade go to ${MAX_FADE_SECONDS} seconds?`,
+      answer: `Because the clip is shorter than that, or the other fade is using the room. Each fade is capped at ${MAX_FADE_SECONDS} seconds OR whatever the track's length leaves after the other one — a 20-second clip can't hold two 15-second fades, so the handles stop where they'd collide. The limit you hit on a short file is the file, not the tool.`,
+    },
+    {
+      question: "What's the difference between a fade and a volume adjustment?",
+      answer:
+        "A volume adjustment changes the loudness of the whole file by a fixed amount. A fade changes loudness progressively, over a duration you set, specifically at the start and/or end — the rest of the file is untouched either way.",
+    },
+    {
+      question: "What's the difference between a fade and trimming?",
+      answer:
+        "Trimming cuts a file down to a specific start and end point, removing everything outside that range. A fade doesn't remove any audio — it smooths the volume at whatever start and end points you already have.",
+    },
+    {
+      question: "Does fading reduce audio quality?",
+      answer:
+        "No — a fade only adjusts the volume envelope at the start and/or end of the file. The output keeps the same format as the file you uploaded.",
+    },
+    {
+      question: "Will this change my file format?",
+      answer: "No — the output keeps the same format as the file you uploaded.",
+    },
+    {
+      question: "What audio formats are supported?",
+      answer: `${formatList}.`,
+    },
+    {
+      // The length half was never stated. /fade takes the audio_tools default.
+      question: "Is there a file size or length limit?",
+      answer:
+        durationCap === null
+          ? `Yes, ${limits.maxUploadMb}MB per upload, with no length limit.`
+          : `Yes — ${limits.maxUploadMb}MB per upload, and up to ${durationLabel(durationCap)} of audio.`,
+    },
+    {
+      question: "Can I trim my file first and then add a fade?",
+      answer:
+        "Yes — trim it down with the Audio Trimmer first, then run the result through this tool to add a fade to the trimmed clip.",
+      answerNode: (
+        <>
+          Yes — trim it down with the{" "}
+          <Link href="/trim" className="text-amber-400 hover:underline">
+            Audio Trimmer
+          </Link>{" "}
+          first, then run the result through this tool to add a fade to the
+          trimmed clip.
+        </>
+      ),
+    },
+    {
+      // ADDED: no retention answer existed.
+      question: "Are my uploaded files kept?",
+      answer: `${retention.input} ${retention.output} There are no accounts, so nothing is linked to you.`,
+    },
+    {
+      question: "Is this really free?",
+      answer: "Yes — completely free, no sign-up, no watermark on the output.",
+    },
+  ];
 
   return (
     <>
@@ -169,15 +216,25 @@ export default function FadePage() {
         {/* Tool stays first — SEO content supports it, doesn't bury it */}
         <FadeForm />
 
-        <section className="grid gap-4 sm:grid-cols-3">
+        {/* One bordered strip with hairline dividers, matching the other tool
+            pages. */}
+        <section className="grid divide-y divide-graphite-800 overflow-hidden rounded-xl border border-graphite-800 bg-graphite-900 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
           {[
             { title: "Independent fades", desc: "Fade in and fade out lengths set separately." },
-            { title: "Up to 30s each", desc: "Plenty of range for a gentle or dramatic fade." },
-            { title: "No sign-up", desc: "No account, no email, no watermark." },
+            { title: `Up to ${MAX_FADE_SECONDS}s each`, desc: "Plenty of range for a gentle or dramatic fade." },
+            {
+              title: "No sign-up",
+              desc:
+                durationCap === null
+                  ? `No account, no email, no watermark. Up to ${limits.maxUploadMb}MB per file.`
+                  : `No account, no email, no watermark. Up to ${limits.maxUploadMb}MB and ${durationLabel(durationCap)}.`,
+            },
           ].map((f) => (
-            <div key={f.title} className="rounded-xl border border-graphite-800 bg-graphite-900 p-5 space-y-2">
-              <p className="font-semibold text-text-primary">{f.title}</p>
-              <p className="text-sm text-text-muted">{f.desc}</p>
+            <div key={f.title} className="space-y-1.5 p-5">
+              <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-amber-400">
+                {f.title}
+              </p>
+              <p className="text-sm leading-relaxed text-text-muted">{f.desc}</p>
             </div>
           ))}
         </section>
@@ -201,7 +258,9 @@ export default function FadePage() {
             <table className="w-full text-sm text-left text-text-muted">
               <thead className="bg-graphite-900 text-text-primary">
                 <tr>
-                  <th className="px-4 py-3 font-semibold">&nbsp;</th>
+                  <th className="px-4 py-3 font-semibold">
+                    <span className="sr-only">Comparison</span>
+                  </th>
                   <th className="px-4 py-3 font-semibold">Fade In</th>
                   <th className="px-4 py-3 font-semibold">Fade Out</th>
                 </tr>
@@ -229,14 +288,17 @@ export default function FadePage() {
             They&apos;re independent settings — plenty of clips only need one.
             A recording that already starts cleanly from silence might only
             need a fade out where it was trimmed; a clip pulled from the
-            middle of a longer file might want both.
+            middle of a longer file might want both. The one place they
+            interact is length: the two together can&apos;t exceed the track,
+            so on a short clip each handle stops before it would collide with
+            the other.
           </p>
         </section>
 
         <section className="space-y-4">
           <h2 className="text-2xl font-bold text-text-primary">How to fade audio online</h2>
           <ol className="list-decimal list-inside space-y-2 text-text-muted leading-relaxed">
-            <li>Upload an MP3, WAV, FLAC, M4A, AAC, OGG, or AIFF file.</li>
+            <li>Upload an {formatList} file.</li>
             <li>Turn on fade in and/or fade out and set how many seconds each should last.</li>
             <li>Download the result.</li>
           </ol>
@@ -253,7 +315,8 @@ export default function FadePage() {
             trade-off: too short and a loud, sudden waveform might still
             produce an audible click; too long and the fade itself becomes an
             obvious part of the audio rather than an invisible fix. Either
-            fade can run up to 30 seconds here.
+            fade can run up to {MAX_FADE_SECONDS} seconds here, or as long as
+            the track leaves once the other fade has its share.
           </p>
         </section>
 
@@ -331,10 +394,22 @@ export default function FadePage() {
 
         <section className="space-y-4">
           <h2 className="text-2xl font-bold text-text-primary">Supported formats</h2>
-          <FormatBadges />
+          {/* Rendered from the backend's allowed_audio_formats rather than a
+              hand-written array — the mechanism that left AIFF off /stems. */}
+          <div className="flex flex-wrap gap-2">
+            {formats.map((format) => (
+              <span
+                key={format}
+                className="rounded-lg border border-graphite-700 bg-graphite-850 px-3 py-1.5 font-mono text-sm font-semibold text-amber-400"
+              >
+                {format}
+              </span>
+            ))}
+          </div>
           <p className="text-text-muted leading-relaxed">
-            Upload any of the formats above, up to 80MB per file. The output
-            keeps the same format you uploaded.
+            Upload any of the formats above, up to {limits.maxUploadMb}MB per file
+            {durationCap !== null ? ` and ${durationLabel(durationCap)} long` : ""}. The
+            output keeps the same format you uploaded.
           </p>
         </section>
 
@@ -356,6 +431,7 @@ export default function FadePage() {
                 <Link
                   key={tool.slug}
                   href={`/${tool.slug}`}
+                  prefetch={false}
                   className="rounded-xl border border-graphite-800 bg-graphite-900 p-4 hover:border-amber-500/40 transition-colors"
                 >
                   <h3 className="font-semibold text-text-primary">{tool.name}</h3>

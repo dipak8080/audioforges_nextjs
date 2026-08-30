@@ -4,6 +4,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { Sparkles, Loader2, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
+import { buttonStyles } from "@/components/ui/Button";
 import { useCredits } from "./CreditProvider";
 import { CreditAccountPanel } from "./CreditAccountPanel";
 
@@ -21,21 +22,37 @@ import { CreditAccountPanel } from "./CreditAccountPanel";
  *  3. WHICH ACCOUNT. "48 credits" doesn't say whose. The moment someone has a
  *     work address and a personal one, the email is the answer.
  *
+ * THE EMPTY CASE HAS A DOOR (2026-08-21). This returned `null` when balance and
+ * free runs were both zero — meaning the person who just burned their
+ * allowance, the single most likely buyer on the site, had no route to /pricing
+ * from the navbar at all. They get a quiet "Credits" link.
+ *
+ * ARIA (2026-08-21). `role="menu"` on a container of links and buttons is
+ * invalid — a menu's children must be menuitems, and screen readers announce
+ * the mismatch as an empty menu. It's a disclosure, so it's labelled as one.
+ *
+ * FOCUS IS MANAGED (2026-08-21). Opening moved focus nowhere and Escape
+ * returned it nowhere, so a keyboard user opened a popover they could not reach
+ * and closed it into limbo.
+ *
  * ── THIS PASS ──────────────────────────────────────────────────────────
  *
- * THE EMPTY CASE NOW HAS A DOOR. This returned `null` when balance and free
- * runs were both zero — meaning the person who just burned their allowance,
- * the single most likely buyer on the site, had no route to /pricing from the
- * navbar at all. They now get a quiet "Credits" link.
+ * 1. AN EMPTY DIV WAS EATING 8px OF THE PHONE HEADER. The trigger is
+ *    `hidden md:flex`, but its positioning wrapper wasn't — so on mobile a
+ *    zero-width div still sat in the header's `gap-2` flex row and pushed
+ *    everything after it across. The wrapper hides with its contents now.
  *
- * ARIA FIXED. `role="menu"` on a container of links and buttons is invalid —
- * a menu's children must be menuitems, and screen readers announce the
- * mismatch as an empty menu. It's a disclosure, so it's labelled as one.
+ * 2. THE POPOVER'S LABEL WASN'T EXPOSED. `aria-label` on a plain <div> with no
+ *    role is ignored outright, so the thing that opened announced as nothing.
  *
- * FOCUS IS MANAGED. Opening moved focus nowhere and Escape returned it
- * nowhere, so a keyboard user opened a popover they could not reach and
- * closed it into limbo. Now: open moves focus in, Escape closes and returns
- * it to the trigger, and focus leaving the popover closes it.
+ * 3. HELD CREDITS WERE VISUAL-ONLY. The "+2 held" figure carried `aria-hidden`
+ *    and never made it into the trigger's accessible name, so a screen reader
+ *    heard a balance with no explanation of why it looked short.
+ *
+ * 4. EVERY BUTTON SURFACE HERE IS `buttonStyles` NOW. The pill, the two link
+ *    variants and the mobile chip were four hand-rolled sets of padding,
+ *    radius, transition and focus ring — four chances to drift from the rest of
+ *    the site, and they already had (no press state on any of them).
  */
 export function CreditMenu({ className }: { className?: string }) {
   const { enabled, loading, me, balance, freeRemaining, heldCredits } = useCredits();
@@ -69,7 +86,7 @@ export function CreditMenu({ className }: { className?: string }) {
   useEffect(() => {
     if (!open) return;
     const first = panelRef.current?.querySelector<HTMLElement>(
-      'button:not([disabled]), a[href], input:not([disabled])'
+      "button:not([disabled]), a[href], input:not([disabled])"
     );
     first?.focus();
   }, [open]);
@@ -85,7 +102,7 @@ export function CreditMenu({ className }: { className?: string }) {
     return (
       <span
         className={cn(
-          "hidden items-center gap-1.5 rounded-md border border-graphite-800 px-3 py-2 text-sm text-text-subtle md:flex",
+          "hidden h-10 items-center gap-1.5 rounded-lg border border-graphite-800 px-3 text-sm text-text-subtle md:flex",
           className
         )}
         aria-hidden="true"
@@ -98,14 +115,19 @@ export function CreditMenu({ className }: { className?: string }) {
   const hasCredits = balance > 0;
   const hasFree = freeRemaining > 0;
 
-  const triggerClass = cn(
-    "hidden items-center gap-1.5 rounded-md border px-3 py-2 text-sm font-medium md:flex",
-    "transition-colors duration-200 outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70",
-    hasCredits
-      ? "border-amber-500/25 bg-amber-500/5 text-amber-400/90 hover:border-amber-500/60 hover:bg-amber-500/10 hover:text-amber-300"
-      : "border-graphite-700 text-text-muted hover:border-amber-500/40 hover:text-amber-400",
-    className
-  );
+  /* One definition for all three shapes this takes — pill, free link, empty
+     link — so they can't drift apart the way four hand-rolled versions did. */
+  const pillClass = buttonStyles({
+    variant: "outline",
+    size: "md",
+    className: cn(
+      "hidden md:inline-flex",
+      hasCredits
+        ? "border-amber-500/25 bg-amber-500/5 text-amber-400/90 hover:border-amber-500/60 hover:bg-amber-500/10 hover:text-amber-300"
+        : "text-text-muted hover:border-amber-500/40 hover:text-amber-400",
+      className
+    ),
+  });
 
   /**
    * ORDER MATTERS HERE, and it was wrong.
@@ -126,12 +148,11 @@ export function CreditMenu({ className }: { className?: string }) {
     return (
       <Link
         href="/pricing"
-        className={cn(
-          "hidden rounded-md px-3 py-2 text-sm font-medium text-text-muted md:block",
-          "outline-none transition-colors duration-200 hover:bg-graphite-900 hover:text-amber-400",
-          "focus-visible:ring-2 focus-visible:ring-amber-400/70",
-          className
-        )}
+        className={buttonStyles({
+          variant: "ghost",
+          size: "md",
+          className: cn("hidden text-text-muted hover:text-amber-400 md:inline-flex", className),
+        })}
       >
         Credits
       </Link>
@@ -145,12 +166,16 @@ export function CreditMenu({ className }: { className?: string }) {
     return (
       <Link
         href="/pricing"
-        title={`${freeRemaining} free Studio Quality ${
+        /* Not "free Studio Quality runs". `free_usage` has no tool in its key
+           — the allowance is N ops TOTAL across HQ separation, transcription
+           and multi-track MIDI. Naming one tool sends someone who spent theirs
+           on transcripts to a stem page expecting runs they no longer have. */
+        title={`${freeRemaining} free ${
           freeRemaining === 1 ? "run" : "runs"
-        } left this month`}
-        className={triggerClass}
+        } left this month, usable on any paid tool`}
+        className={pillClass}
       >
-        <Sparkles className="h-3.5 w-3.5" aria-hidden />
+        <Sparkles aria-hidden />
         <span>{freeRemaining} free</span>
       </Link>
     );
@@ -160,14 +185,26 @@ export function CreditMenu({ className }: { className?: string }) {
     ? `${balance} ${balance === 1 ? "credit" : "credits"}`
     : hasFree
       ? `${freeRemaining} free`
-      // Signed in and empty. Says so plainly rather than reading as a balance
-      // the UI failed to load.
-      : "0 credits";
+      : // Signed in and empty. Says so plainly rather than reading as a balance
+        // the UI failed to load.
+        "0 credits";
+
+  /* The held figure is visual-only in the pill, so it has to reach the
+     accessible name some other way — otherwise a screen reader hears a balance
+     that looks short with nothing explaining why. */
+  const triggerLabel =
+    heldCredits > 0
+      ? `${label}, plus ${heldCredits} held by a running job. Open account menu`
+      : `${label}. Open account menu`;
 
   return (
     <div
       ref={rootRef}
-      className="relative"
+      /* `hidden md:block`, not just `relative`. The trigger inside was already
+         desktop-only, but this wrapper wasn't — so on a phone it stayed in the
+         header's flex row as a zero-width child and still collected its `gap-2`,
+         shifting everything to its right by 8px for no reason. */
+      className="relative hidden md:block"
       onKeyDown={(e) => {
         if (e.key === "Escape") {
           e.stopPropagation();
@@ -180,10 +217,12 @@ export function CreditMenu({ className }: { className?: string }) {
         type="button"
         onClick={() => (open ? close(true) : setOpen(true))}
         aria-expanded={open}
+        aria-haspopup="true"
         aria-controls={panelId}
-        className={triggerClass}
+        aria-label={triggerLabel}
+        className={pillClass}
       >
-        <Sparkles className="h-3.5 w-3.5" aria-hidden />
+        <Sparkles aria-hidden />
         <span className="tabular-nums">{label}</span>
         {heldCredits > 0 && (
           <span className="font-mono text-[11px] text-text-subtle" aria-hidden="true">
@@ -193,7 +232,7 @@ export function CreditMenu({ className }: { className?: string }) {
         <ChevronDown
           aria-hidden
           className={cn(
-            "h-3 w-3 transition-transform duration-200 motion-reduce:transition-none",
+            "transition-transform duration-200 motion-reduce:transition-none",
             open && "rotate-180"
           )}
         />
@@ -203,8 +242,11 @@ export function CreditMenu({ className }: { className?: string }) {
         <div
           id={panelId}
           ref={panelRef}
+          /* A label needs a role to be exposed at all. Without one this
+             announced as an unnamed group of links. */
+          role="group"
           aria-label="Your credits"
-          className="absolute right-0 top-full z-50 mt-2 w-72 overflow-hidden rounded-xl border border-graphite-800 bg-graphite-900 shadow-2xl"
+          className="absolute right-0 top-full z-50 mt-2 w-72 overflow-hidden rounded-xl border border-graphite-800 bg-graphite-900 shadow-2xl shadow-graphite-950/60"
         >
           <CreditAccountPanel variant="desktop" onNavigate={() => close()} />
         </div>
@@ -222,10 +264,10 @@ export function CreditMenu({ className }: { className?: string }) {
  * Deliberately NOT a menu of its own: two competing dropdowns in a 375px
  * header is exactly the clutter this avoids.
  *
- * FIXED: this always opened the nav sheet, including for anonymous free-tier
- * users — for whom CreditAccountPanel renders nothing, so tapping a credits
- * chip produced a list of forty tools and no mention of credits. Anonymous
- * now goes straight to /pricing, matching what the desktop pill does.
+ * FIXED (2026-08-21): this always opened the nav sheet, including for anonymous
+ * free-tier users — for whom CreditAccountPanel renders nothing, so tapping a
+ * credits chip produced a list of forty tools and no mention of credits.
+ * Anonymous now goes straight to /pricing, matching the desktop pill.
  */
 export function CreditChipMobile({ onOpenSheet }: { onOpenSheet: () => void }) {
   const { enabled, loading, me, balance, freeRemaining } = useCredits();
@@ -244,18 +286,21 @@ export function CreditChipMobile({ onOpenSheet }: { onOpenSheet: () => void }) {
     ? `${balance} ${balance === 1 ? "credit" : "credits"}`
     : `${freeRemaining} free ${freeRemaining === 1 ? "run" : "runs"} left this month`;
 
-  const chipClass = cn(
-    "flex items-center gap-1 rounded-md border px-2.5 py-2 text-sm font-medium tabular-nums md:hidden",
-    "transition-colors duration-200 outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70",
-    hasCredits
-      ? "border-amber-500/25 bg-amber-500/5 text-amber-400/90"
-      : "border-graphite-700 text-text-muted"
-  );
+  const chipClass = buttonStyles({
+    variant: "outline",
+    size: "md",
+    className: cn(
+      "gap-1 px-2.5 tabular-nums md:hidden",
+      hasCredits
+        ? "border-amber-500/25 bg-amber-500/5 text-amber-400/90"
+        : "text-text-muted"
+    ),
+  });
 
   if (!me?.authenticated) {
     return (
       <Link href="/pricing" aria-label={title} title={title} className={chipClass}>
-        <Sparkles className="h-3.5 w-3.5" aria-hidden />
+        <Sparkles aria-hidden />
         {value}
       </Link>
     );
@@ -265,11 +310,11 @@ export function CreditChipMobile({ onOpenSheet }: { onOpenSheet: () => void }) {
     <button
       type="button"
       onClick={onOpenSheet}
-      aria-label={title}
+      aria-label={`${title}. Open account menu`}
       title={title}
       className={chipClass}
     >
-      <Sparkles className="h-3.5 w-3.5" aria-hidden />
+      <Sparkles aria-hidden />
       {value}
     </button>
   );

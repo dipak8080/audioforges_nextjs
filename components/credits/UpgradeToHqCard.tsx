@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Sparkles, Clock } from "lucide-react";
+import { AlertTriangle, Clock, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { getUpgradeInfo, upgradeToHq, type UpgradeFamily } from "@/lib/api/credits";
 import { ApiError } from "@/lib/api/railway";
@@ -31,10 +31,10 @@ import type { SubmitBilling } from "@/lib/types/converter";
  * WHAT THIS COMPONENT NEVER DOES
  *
  * It never renders when the server says ineligible. Ten `reason` values come
- * back and every one of them means "don't ask" — expired input, over the
- * 6-minute cap, paywall off, tool not metered, already upgraded. A CTA that
- * appears and then fails is worse than no CTA, so eligibility is the server's
- * call and the card is silent by default.
+ * back and every one of them means "don't ask" — expired input, over the cap,
+ * paywall off, tool not metered, already upgraded. A CTA that appears and then
+ * fails is worse than no CTA, so eligibility is the server's call and the card
+ * is silent by default.
  *
  * It also never appears while the paywall is off. During metering-only,
  * `/separate/upgrade/` would run HQ for free, and free GPU-heavy runs for
@@ -42,27 +42,64 @@ import type { SubmitBilling } from "@/lib/types/converter";
  * and this stays hidden — so there's also no free upgrade path to take away
  * from users later.
  *
- * ── THIS PASS: THREE FIXES ─────────────────────────────────────────────
+ * ── THIS PASS ──────────────────────────────────────────────────────────
  *
- * 1. THE BILLING BLOCK NOW REACHES THE FORM. `onUpgraded` handed back only the
- *    new job id, so the parent kept `billing: null` and the finished upgrade
- *    rendered with no Studio Quality tag, no "1 credit used" receipt, and the
- *    tip block still asking for money. The single most expensive click in the
- *    product acknowledged itself by looking exactly like a free run.
+ * 1. A DOUBLE-CLICK WIPED THE RECEIPT FOR THE CHARGE THAT DID HAPPEN.
+ *    `already_upgraded` is a 200 with no billing block, and `res.billing ??
+ *    null` turned that absence into an explicit null. The parent's guard is
+ *    `if (billing !== undefined)`, so null passed it and overwrote the billing
+ *    from the FIRST click: CreditReceipt went blank and SupportBlock came back
+ *    on a run someone had just paid a credit for. `undefined` is the sentinel
+ *    the guard was written for.
  *
- * 2. THE ELIGIBILITY FETCH HAD NO CATCH. `await getUpgradeInfo(...)` inside a
- *    bare async IIFE meant any throw became an unhandled rejection. Harmless on
- *    screen, invisible in logs, and it masks a real backend fault behind "the
- *    card just doesn't show up".
+ * 2. `submitting` WAS NEVER CLEARED ON SUCCESS. Every failure path resets it;
+ *    the success path relied on all three callers flipping to "processing" and
+ *    unmounting this card. That's a load-bearing assumption living in three
+ *    other files, and the failure mode is a permanently spinning button on the
+ *    component that takes money.
  *
- * 3. A 410 IS NOW ANSWERED. The source file is swept on a 2h TTL, so it can
- *    expire between this card rendering and the user clicking it. That used to
- *    surface the raw server message inside an amber upsell box. It now says
- *    what happened and what to do instead.
+ * KEPT FROM THE PREVIOUS PASS
+ *
+ * 3. THE EXPIRY CLOCK WAS OFF BY THE USER'S UTC OFFSET, AND IN NEPAL THAT
+ *    HID THE CARD ENTIRELY. `Date.parse` treats an ISO string with no zone
+ *    suffix as LOCAL time, and the backend sends naive UTC — the same trap the
+ *    logs dashboard already carries a `parseTs` helper for. At UTC+5:45 a
+ *    deadline two hours out parsed as three hours and forty-five minutes in the
+ *    PAST, so `expired` was true on first tick and the highest-value component
+ *    in the product returned null. It only looked like it worked at UTC+0 or
+ *    behind it.
+ *
+ * 4. THE ERROR WAS A BARE RED LINE INSIDE AN AMBER BOX. Every other failure
+ *    surface on the site is an icon, a statement and a next step; this one was
+ *    a sentence in red with nothing marking it as different from the copy above
+ *    it — on the one card where the user has just been told nothing was
+ *    charged.
+ *
+ * 5. THE SUBMITTING LABEL FOUGHT THE SPINNER. `loading` already overlays a
+ *    spinner on the existing label, so swapping the text to "Starting Studio
+ *    Quality…" underneath it changed a string nobody can see, and made the
+ *    button briefly wider on release.
+ *
+ *  · The billing block travels back with the new job id, so an upgraded run
+ *    shows its Studio Quality tag and its receipt.
+ *  · The eligibility fetch catches, rather than becoming an unhandled rejection
+ *    that hides a real backend fault behind "the card just doesn't show up".
+ *  · A 410 replaces the card instead of colouring it red.
  */
 
 /** Below this, the source file's remaining life is worth stating. */
 const EXPIRY_NOTICE_THRESHOLD_MS = 30 * 60_000;
+
+/**
+ * The backend writes naive UTC timestamps. `Date.parse` reads a date-time with
+ * no offset as LOCAL time, so every user east of Greenwich saw a deadline
+ * shifted into their own past — and this card hides itself once the deadline
+ * passes. Same helper, same reason, as the one in the logs dashboard.
+ */
+function parseServerTime(iso: string): number {
+  const hasZone = /Z$|[+-]\d{2}:\d{2}$/.test(iso);
+  return Date.parse(hasZone ? iso : `${iso}Z`);
+}
 
 export function UpgradeToHqCard({
   family,
@@ -116,8 +153,8 @@ export function UpgradeToHqCard({
         }
       } catch (err) {
         // Stay silent on screen — an upsell that can't confirm it's allowed
-        // must not render — but do not swallow it into an unhandled
-        // rejection either.
+        // must not render — but do not swallow it into an unhandled rejection
+        // either.
         if (!cancelled) console.error("Upgrade eligibility check failed:", err);
       }
     })();
@@ -177,9 +214,24 @@ export function UpgradeToHqCard({
         void refresh();
       }
 
-      // The billing block travels with the job id. Without it the parent has
-      // no way to know this run was paid for.
-      onUpgraded(res.job_id, res.billing ?? null);
+      /*
+        The billing block travels with the job id — without it the parent has no
+        way to know this run was paid for.
+
+        `undefined`, NOT null, when the route sends no block. That happens on
+        `already_upgraded`, which is a 200: the server is idempotent per source
+        job, so a double-click returns the first call's child rather than
+        charging again. The parent's guard is `if (billing !== undefined)`, so
+        null would pass it and erase the receipt from the click that DID spend a
+        credit — blanking CreditReceipt and bringing the tip jar back on a paid
+        run. undefined means "nothing to report, keep what you have".
+      */
+      onUpgraded(res.job_id, res.billing ?? undefined);
+      // Callers currently unmount this card by switching to "processing", so
+      // this is belt-and-braces — but "the parent will unmount me" is an
+      // assumption living in three other files, and a spinning button that
+      // never stops is a bad way to find out one of them changed.
+      setSubmitting(false);
     } catch (err) {
       // 402 opens the gate rather than rendering an error. Out of credits is a
       // decision point, not a failure.
@@ -204,18 +256,12 @@ export function UpgradeToHqCard({
           : "That didn't go through. Nothing was charged — try again."
       );
     }
-  }, [
-    submitting,
-    info,
-    family,
-    jobId,
-    applyBalance,
-    refresh,
-    onUpgraded,
-    catchCreditError,
-  ]);
+  }, [submitting, info, family, jobId, applyBalance, refresh, onUpgraded, catchCreditError]);
 
-  // Assigned during render so onCredited calls the CURRENT handleUpgrade.
+  // Synced after every render, so onCredited calls the CURRENT handleUpgrade.
+  // In an effect rather than during render: a render-phase ref write is what
+  // the React Compiler is free to skip, and the same note is on the notify refs
+  // in the separation forms.
   useEffect(() => {
     upgradeRef.current = () => {
       void handleUpgrade();
@@ -223,18 +269,17 @@ export function UpgradeToHqCard({
   });
 
   // All derived from `now`, so this stays a pure render.
-  const deadline = info?.eligible ? Date.parse(info.input_expires_at) : Number.NaN;
+  const deadline = info?.eligible ? parseServerTime(info.input_expires_at) : Number.NaN;
   const remainingMs = deadline - now;
   const expired = now > 0 && !Number.isNaN(deadline) && remainingMs <= 0;
 
   if (sourceGone) {
     return (
-      <p className="flex items-start gap-2 rounded-lg border border-graphite-800 bg-graphite-850/40 px-3.5 py-3 text-xs leading-relaxed text-text-subtle">
+      <p className="flex items-start gap-2 rounded-xl border border-graphite-800 bg-graphite-850/40 px-3.5 py-3 text-xs leading-relaxed text-text-subtle">
         <Clock className="mt-0.5 h-3 w-3 shrink-0" aria-hidden />
         <span>
-          The source file for this job has expired, so the one-click re-run is
-          gone. Nothing was charged. Upload the track again to run it at Studio
-          Quality.
+          The source file for this job has expired, so the one-click re-run is gone. Nothing was
+          charged. Upload the track again to run it at Studio Quality.
         </span>
       </p>
     );
@@ -243,9 +288,9 @@ export function UpgradeToHqCard({
   /**
    * The ONE ineligible reason worth surfacing.
    *
-   * Standard separation accepts 10-minute inputs; Studio Quality caps at 6. So
-   * an 8-minute track separates fine and then the upgrade card renders nothing
-   * — which looks like a missing feature rather than a documented limit, and
+   * Standard separation accepts 10-minute inputs; Studio Quality caps lower. So
+   * a long track separates fine and then the upgrade card renders nothing —
+   * which looks like a missing feature rather than a documented limit, and
    * leaves the user wondering why the option they read about didn't appear.
    *
    * Every OTHER reason stays silent: expired input, paywall off, tool not
@@ -254,16 +299,14 @@ export function UpgradeToHqCard({
    * than no card.
    */
   if (enabled && info && !info.eligible && info.reason === "too_long_for_hq") {
-    // Fallback only — the server sends max_seconds with the reason. 10, not
-    // 6, since the HQ cap was raised to match the standard tier.
+    // Fallback only — the server sends max_seconds with the reason.
     const maxMinutes = info.max_seconds ? Math.floor(info.max_seconds / 60) : 10;
     return (
-      <p className="flex items-start gap-2 rounded-lg border border-graphite-800 bg-graphite-850/40 px-3.5 py-3 text-xs leading-relaxed text-text-subtle">
+      <p className="flex items-start gap-2 rounded-xl border border-graphite-800 bg-graphite-850/40 px-3.5 py-3 text-xs leading-relaxed text-text-subtle">
         <Clock className="mt-0.5 h-3 w-3 shrink-0" aria-hidden />
         <span>
-          Studio Quality supports tracks up to {maxMinutes} minutes. This one is
-          longer, so the standard result above is the full-quality version
-          available for it.
+          Studio Quality supports tracks up to {maxMinutes} minutes. This one is longer, so the
+          standard result above is the full-quality version available for it.
         </span>
       </p>
     );
@@ -283,7 +326,7 @@ export function UpgradeToHqCard({
 
   return (
     <>
-      <div className="overflow-hidden rounded-lg border border-amber-500/25 bg-amber-500/[0.05]">
+      <div className="overflow-hidden rounded-xl border border-amber-500/25 bg-amber-500/[0.05]">
         <div className="flex items-center justify-between border-b border-amber-500/15 px-4 py-2">
           <span className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-amber-400">
             <Sparkles className="h-3 w-3" aria-hidden />
@@ -302,8 +345,8 @@ export function UpgradeToHqCard({
           */}
           <p className="text-sm font-medium text-text-primary">Hear this cleaner</p>
           <p className="mt-1 text-xs leading-relaxed text-text-muted">
-            Runs a heavier model on the same file — noticeably less bleed between
-            the stems. No re-upload, no waiting for another conversion.
+            Runs a heavier model on the same file — noticeably less bleed between the stems. No
+            re-upload, no waiting for another conversion.
           </p>
 
           {showExpiry && (
@@ -320,23 +363,30 @@ export function UpgradeToHqCard({
           )}
 
           {error && (
-            <p role="alert" className="mt-3 text-xs leading-relaxed text-red-400">
-              {error}
-            </p>
+            /* Was a bare red sentence inside an amber box — on the one card
+               where the message's whole job is to say nothing was charged. It
+               reads as a failure panel now, like every other one on the site. */
+            <div
+              role="alert"
+              className="mt-3 flex items-start gap-2 rounded-lg border border-red-500/25 bg-red-500/[0.07] p-2.5 text-xs leading-relaxed text-red-200"
+            >
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-red-400" aria-hidden />
+              <span>{error}</span>
+            </div>
           )}
 
           <Button
             variant="primary"
             size="md"
             loading={submitting}
+            loadingLabel="Starting Studio Quality"
             onClick={handleUpgrade}
             className="mt-3.5 w-full"
           >
-            {submitting
-              ? "Starting Studio Quality…"
-              : isFree
-                ? "Run at Studio Quality — free"
-                : "Run at Studio Quality — 1 credit"}
+            {/* One label, not two. `loading` overlays a spinner on top of this
+                and keeps its width — swapping the text underneath changed a
+                string nobody can see and made the button jump on release. */}
+            {isFree ? "Run at Studio Quality — free" : "Run at Studio Quality — 1 credit"}
           </Button>
 
           {isFree && freeLeft > 0 && (

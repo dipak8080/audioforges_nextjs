@@ -1,11 +1,47 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Play, Square, Loader2, ChevronUp, ChevronDown } from "lucide-react";
+import { Play, Square, Loader2 } from "lucide-react";
 import { JobToolForm } from "@/components/converter/JobToolForm";
+import { ControlField, Stepper } from "@/components/converter/ToolControls";
 import { WaveformCanvas, WAVEFORM_RULER_HEIGHT } from "@/components/ui/WaveformCanvas";
 import { Button } from "@/components/ui/Button";
+import { getRateLimitLabel } from "@/lib/data/rate-limits";
 import { computeWaveformEnvelopeAsync, type WaveformEnvelope } from "@/lib/utils/waveform";
+
+/**
+ * ── THIS PASS ──────────────────────────────────────────────────────────
+ *
+ * Three fixes. The drag handling, the rAF playhead, the ref mirrors and the
+ * one-update-per-gesture contract with the parent are the load-bearing parts of
+ * this file and none of them are touched.
+ *
+ * 1. `formatPrecise` COULD PRINT "0:60.0". It took the minutes from the
+ *    unrounded value and the seconds from a remainder that `toFixed(1)` then
+ *    rounded UP — so 59.95s rendered as 0:60.0 and 119.98s as 1:60.0. This is
+ *    the readout of the trim range, on a control whose entire job is landing on
+ *    fractional seconds, so it is hit by dragging rather than by an edge case.
+ *    Same bug TempoForm's formatDuration had and fixed; this copy drifted.
+ *    Rounds to a tenth FIRST, then splits.
+ *
+ * 2. `await audio.play().catch(() => {})` THEN AN UNCONDITIONAL
+ *    setIsPreviewing(true). Swallowing the rejection and setting the flag
+ *    anyway means a blocked play — autoplay policy, a pause landing between the
+ *    call and the promise — leaves the button reading "Stop" over silence, with
+ *    a stop timer running against audio that never started. FadeForm and
+ *    RingtoneForm both already resolved this the right way; this was the last
+ *    copy.
+ *
+ * 3. A 429 NAMES THE LIMIT. /trim is 5 per minute — the tightest window on the
+ *    site, and trimming several takes of the same recording in a row is the
+ *    normal way to use it, so it's among the easiest to hit by accident.
+ *
+ * ALSO: `sharedCtx` moved to the top of the module. It was declared at the
+ * BOTTOM, below the component that reads it. That works — `let` is hoisted and
+ * the read happens inside an async callback long after evaluation — but it
+ * reads as a dangling assignment, and the day someone calls it during module
+ * init it's a TDZ error rather than a null check.
+ */
 
 const KEY_STEP = 0.1;
 const KEY_STEP_LARGE = 1;
@@ -13,17 +49,47 @@ const KEY_STEP_LARGE = 1;
  *  keep between each other so they can never cross. */
 const MIN_SELECTION = 0.1;
 
-function formatTime(seconds: number): string {
-  if (!Number.isFinite(seconds)) return "0:00";
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
-  return `${m}:${s.toString().padStart(2, "0")}`;
+const RATE_LIMIT_LABEL = getRateLimitLabel("trim");
+
+/**
+ * Module-scoped, created on first use, never closed. A context per file hits
+ * Chrome's six-context ceiling and pays for an audio device every time someone
+ * picks a track.
+ *
+ * Declared HERE rather than at the foot of the file: it was below the component
+ * that reads it, which works by hoisting but reads like an accident.
+ */
+let sharedCtx: AudioContext | null = null;
+
+function getAudioContext(): AudioContext {
+  if (!sharedCtx) {
+    const Ctx =
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    sharedCtx = new Ctx();
+  }
+  return sharedCtx;
 }
 
+function formatTime(seconds: number): string {
+  if (!Number.isFinite(seconds)) return "0:00";
+  const total = Math.max(0, Math.floor(seconds));
+  return `${Math.floor(total / 60)}:${(total % 60).toString().padStart(2, "0")}`;
+}
+
+/**
+ * Rounds to a TENTH first, then splits.
+ *
+ * The old version divided the raw seconds for the minutes and took `% 60` for
+ * the remainder, then let toFixed(1) round that — so 59.95 became "0:60.0" and
+ * 119.98 became "1:60.0". Dragging a handle lands on values like these
+ * constantly.
+ */
 function formatPrecise(seconds: number): string {
-  if (!Number.isFinite(seconds)) return "0:00.0";
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
+  if (!Number.isFinite(seconds) || seconds < 0) return "0:00.0";
+  const total = Math.round(seconds * 10) / 10;
+  const m = Math.floor(total / 60);
+  const s = total - m * 60;
   return `${m}:${s.toFixed(1).padStart(4, "0")}`;
 }
 
@@ -51,6 +117,11 @@ export function TrimForm() {
       processingLabel="Trimming"
       expectedRange="a few seconds"
       resultVerb="Trimmed"
+      rateLimitMessage={
+        RATE_LIMIT_LABEL
+          ? `Trimming is limited to ${RATE_LIMIT_LABEL}. Wait for the timer, then run it again.`
+          : undefined
+      }
       stages={[
         { at: 0, label: "Reading the audio" },
         { at: 2, label: "Cutting the selection" },
@@ -157,18 +228,25 @@ function TrimControls({ file, disabled, start: committedStart, onChange }: TrimC
     (async () => {
       try {
         const arrayBuffer = await file.arrayBuffer();
-        const Ctx =
-          window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-        const ctx = new Ctx();
-        try {
-          const buffer = await ctx.decodeAudioData(arrayBuffer);
-          // Scanned in slices so a long file can't block the main
-          // thread in one go — see computeWaveformEnvelopeAsync.
-          const next = await computeWaveformEnvelopeAsync(buffer, undefined, abort.signal);
-          if (!cancelled) setEnvelope(next);
-        } finally {
-          ctx.close();
-        }
+        /*
+          ONE AudioContext for the page, not one per file.
+
+          This constructed its own and closed it in a finally. Chrome caps a
+          document at six concurrent AudioContexts and throws on the seventh,
+          and construction opens an audio device — real time, every time a file
+          is picked. waveform.ts holds one for exactly this reason; the source
+          here is a File rather than a URL, so the decode stays local, but the
+          context doesn't need to be.
+
+          Not closed: a suspended context is harmless and decodeAudioData works
+          while suspended.
+        */
+        const buffer = await getAudioContext().decodeAudioData(arrayBuffer);
+        if (cancelled) return;
+        // Scanned in slices so a long file can't block the main thread in one
+        // go — see computeWaveformEnvelopeAsync.
+        const next = await computeWaveformEnvelopeAsync(buffer, undefined, abort.signal);
+        if (!cancelled) setEnvelope(next);
       } catch {
         // decodeAudioData supports fewer formats than <audio> does, so a
         // failure here costs the drawing only — duration, handles and
@@ -245,7 +323,24 @@ function TrimControls({ file, disabled, start: committedStart, onChange }: TrimC
     const audio = audioElRef.current;
     if (!audio || duration === null || end <= start) return;
     audio.currentTime = start;
-    await audio.play().catch(() => {});
+
+    /*
+      Only claim to be playing if play() actually resolved.
+
+      This used to be `await audio.play().catch(() => {})` followed by an
+      unconditional setIsPreviewing(true) — so a blocked play (autoplay policy,
+      a pause landing between the call and the promise) left the button reading
+      "Stop" over silence, with a stop timer counting down against audio that
+      never started. FadeForm and RingtoneForm both resolved this correctly;
+      this was the last copy.
+    */
+    try {
+      await audio.play();
+    } catch {
+      setIsPreviewing(false);
+      return;
+    }
+
     setIsPreviewing(true);
     if (previewStopRef.current) clearTimeout(previewStopRef.current);
     previewStopRef.current = setTimeout(() => stopPreview(), (end - start) * 1000);
@@ -419,24 +514,32 @@ function TrimControls({ file, disabled, start: committedStart, onChange }: TrimC
       <audio ref={audioElRef} preload="metadata" />
 
       {duration === null ? (
-        <div className="flex h-28 items-center justify-center gap-2 rounded-lg border border-graphite-700 bg-graphite-850 text-xs text-text-subtle">
-          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        <div className="flex h-28 items-center justify-center gap-2 rounded-xl border border-graphite-700 bg-graphite-850 text-xs text-text-subtle">
+          <Loader2 className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
           Reading audio…
         </div>
       ) : (
-        <>
-          <div className="flex items-center justify-between">
-            <label className="text-sm font-medium text-text-primary">Clip range</label>
-            <span className="font-mono text-sm text-amber-400">
+        <ControlField
+          as="fieldset"
+          label="Clip range"
+          meta={
+            <span className="text-[13px] text-amber-400">
               {formatPrecise(start)} – {formatPrecise(end)}
             </span>
-          </div>
-
+          }
+          hint={
+            <>
+              Full length: {formatTime(duration)} — selected clip:{" "}
+              {formatTime(Math.max(0, end - start))}. Drag across the waveform to select,
+              double-click to reset.
+            </>
+          }
+        >
           <div
             ref={containerRef}
             onPointerDown={handleTrackPointerDown}
             onDoubleClick={() => !disabled && commit({ start: 0, end: duration })}
-            className="relative h-28 touch-none select-none overflow-hidden rounded-lg border border-graphite-700 bg-graphite-850"
+            className="relative h-28 touch-none select-none overflow-hidden rounded-xl border border-graphite-700 bg-graphite-850"
           >
             <WaveformCanvas
               envelope={envelope}
@@ -507,34 +610,37 @@ function TrimControls({ file, disabled, start: committedStart, onChange }: TrimC
             </div>
           </div>
 
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center justify-between gap-3 pt-1">
+            {/* The kit's Stepper takes a raw value and leaves bounds to the
+                caller — which is what this file already did, so the arrows and
+                the typed field go through the same clamp and can't disagree. */}
             <Stepper
               label="Start"
               value={start}
+              step={KEY_STEP}
+              bigStep={KEY_STEP_LARGE}
               disabled={disabled}
-              onIncrement={() => nudge("start", KEY_STEP_LARGE)}
-              onDecrement={() => nudge("start", -KEY_STEP_LARGE)}
               onChange={(v) => commit({ start: clamp(v, 0, end - MIN_SELECTION), end })}
             />
 
             {/* Was a hand-rolled <button> until 2026-08-17. Moving to the
                 shared Button brings the press state and, more usefully,
-                `disabled:pointer-events-none` - the old one dimmed to 40%
-                but still ran its hover styles, so a disabled control lit
-                up amber under the cursor.
+                `disabled:pointer-events-none` — the old one dimmed to 40% but
+                still ran its hover styles, so a disabled control lit up amber
+                under the cursor.
 
                 aria-pressed was missing entirely: this is a toggle, and a
                 screen reader had no way to know which state it was in.
 
-                rounded-full and the amber hover are kept as overrides -
-                it's a pill sitting between two steppers, not a standard
-                action button. */}
+                rounded-full and the amber hover are kept as overrides — it's a
+                pill sitting between two steppers, not a standard action
+                button. */}
             <Button
               variant="outline"
               size="sm"
               disabled={disabled || end <= start}
               aria-pressed={isPreviewing}
-              onClick={isPreviewing ? stopPreview : startPreview}
+              onClick={isPreviewing ? stopPreview : () => void startPreview()}
               className="rounded-full hover:border-amber-500/40 hover:text-amber-400"
             >
               {isPreviewing ? (
@@ -548,78 +654,14 @@ function TrimControls({ file, disabled, start: committedStart, onChange }: TrimC
             <Stepper
               label="End"
               value={end}
+              step={KEY_STEP}
+              bigStep={KEY_STEP_LARGE}
               disabled={disabled}
-              onIncrement={() => nudge("end", KEY_STEP_LARGE)}
-              onDecrement={() => nudge("end", -KEY_STEP_LARGE)}
               onChange={(v) => commit({ start, end: clamp(v, start + MIN_SELECTION, duration) })}
             />
           </div>
-
-          <p className="text-center text-xs text-text-subtle">
-            Full length: {formatTime(duration)} — selected clip: {formatTime(Math.max(0, end - start))}. Drag across the
-            waveform to select, double-click to reset.
-          </p>
-        </>
+        </ControlField>
       )}
     </div>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-
-function Stepper({
-  label,
-  value,
-  disabled,
-  onIncrement,
-  onDecrement,
-  onChange,
-}: {
-  label: string;
-  value: number;
-  disabled: boolean;
-  onIncrement: () => void;
-  onDecrement: () => void;
-  onChange: (v: number) => void;
-}) {
-  return (
-    <label className="flex items-center gap-1.5 text-xs text-text-muted">
-      {label}
-      <span className="flex items-center overflow-hidden rounded-md border border-graphite-700 bg-graphite-850">
-        <input
-          type="number"
-          step={0.1}
-          value={Math.round(value * 10) / 10}
-          disabled={disabled}
-          onChange={(e) => onChange(Number(e.target.value))}
-          className="w-16 bg-transparent px-2 py-1 text-right font-mono text-text-primary [appearance:textfield] focus:outline-none disabled:opacity-40 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-        />
-        {/* NOT converted to <Button> deliberately: these are h-3.5 segments
-            sharing a border with the number input, i.e. parts of a compound
-            control rather than standalone buttons. Button's smallest size is
-            h-8, so fitting them would take enough overrides that nothing of
-            the component would survive. */}
-        <span className="flex flex-col border-l border-graphite-700">
-          <button
-            type="button"
-            aria-label={`Increase ${label.toLowerCase()}`}
-            disabled={disabled}
-            onClick={onIncrement}
-            className="flex h-3.5 w-5 items-center justify-center text-text-subtle transition-colors hover:bg-graphite-800 hover:text-amber-400 disabled:opacity-40"
-          >
-            <ChevronUp className="h-2.5 w-2.5" />
-          </button>
-          <button
-            type="button"
-            aria-label={`Decrease ${label.toLowerCase()}`}
-            disabled={disabled}
-            onClick={onDecrement}
-            className="flex h-3.5 w-5 items-center justify-center border-t border-graphite-700 text-text-subtle transition-colors hover:bg-graphite-800 hover:text-amber-400 disabled:opacity-40"
-          >
-            <ChevronDown className="h-2.5 w-2.5" />
-          </button>
-        </span>
-      </span>
-    </label>
   );
 }

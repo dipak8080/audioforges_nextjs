@@ -4,6 +4,39 @@ import { ResampleForm } from "@/components/converter/ResampleForm";
 import { FAQSection } from "@/components/faq/FAQSection";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
+import {
+  getLimits,
+  durationCapFor,
+  durationLabel,
+  retentionSentences,
+} from "@/lib/api/limits";
+
+/**
+ * ── THIS PASS ──────────────────────────────────────────────────────────
+ *
+ * 1. UNESCAPED QUOTES AND APOSTROPHES WOULD FAIL THE BUILD. In the
+ *    44.1kHz-vs-48kHz paragraph:
+ *
+ *      Neither is simply "better" than the other; they're different
+ *      conventions ... matching a video editor's timeline calls for 48kHz
+ *
+ *    Straight double quotes and two raw apostrophes, all inside JSX text —
+ *    react/no-unescaped-entities errors on these under Next's default config.
+ *    Second page in a row with this, and again it reads perfectly fine; only
+ *    the build catches it.
+ *
+ * 2. THE LENGTH LIMIT IS NOW STATED (one hour, the audio_tools default). The
+ *    page named the size cap and not the length one.
+ *
+ * 3. Retention answer added, formats read from allowed_audio_formats, prefetch
+ *    disabled on the tool grid, feature strip matched to the other pages.
+ *
+ * The four sample rates and three bit depths are NOT read from the backend:
+ * they're the option set ResampleForm offers, not a server limit, so there is
+ * nothing in /limits to read them from. Check against that component if they
+ * change.
+ */
+
 const PAGE_TITLE = "Free Sample Rate Converter — 44.1kHz, 48kHz & 96kHz";
 const PAGE_DESCRIPTION =
   "Convert audio sample rates online for free. Resample to 22.05kHz, 44.1kHz, 48kHz, or 96kHz, with optional bit depth conversion. No sign-up.";
@@ -58,65 +91,82 @@ const breadcrumbJsonLd = {
 // NOTE: No HowTo schema — deprecated by Google (desktop since Sept 2023),
 // no ranking or rich-result benefit remains. Visible "how to" steps stay;
 // only the structured-data markup is removed.
+// FAQPage schema is emitted by <FAQSection /> — do not duplicate it here.
 
-const faqs = [
-  {
-    question: "What is sample rate?",
-    answer:
-      "How many times per second the audio signal is measured when it's digitized. 44.1kHz (44,100 samples per second) is the CD standard; 48kHz is standard for video and broadcast; 96kHz is used in some high-resolution audio and production workflows.",
-  },
-  {
-    question: "What sample rate should I use for music?",
-    answer:
-      "44.1kHz is the long-standing standard for music distribution and matches the CD format most sample libraries and DAWs default to.",
-  },
-  {
-    question: "What sample rate should I use for video?",
-    answer:
-      "48kHz is the broadcast and video-editing standard — matching it avoids sync or compatibility issues when the audio is going into a video project.",
-  },
-  {
-    question: "Should I convert 44.1kHz to 48kHz, or the other way around?",
-    answer:
-      "Whichever direction matches what your destination actually requires — a video editor expecting 48kHz, or a music project expecting 44.1kHz. Neither rate is inherently better; it's a compatibility choice, not a quality one.",
-  },
-  {
-    question: "Why would I need to change sample rate at all?",
-    answer:
-      "A project, platform, or piece of software sometimes requires audio at a specific sample rate — a video editor working at 48kHz, for example, or a sample library that expects 44.1kHz.",
-  },
-  {
-    question: "Does converting to a higher sample rate improve quality?",
-    answer:
-      "No — converting 44.1kHz audio up to 96kHz doesn't add detail that wasn't in the original recording, it just represents the same information with more samples. Quality is set by the original recording, not by the sample rate you convert to afterward.",
-  },
-  {
-    question: "Does changing sample rate reduce audio quality?",
-    answer:
-      "Converting to a higher rate doesn't lose anything, but converting to a lower rate is a genuine change — fewer samples per second means less of the original signal is represented afterward, though 44.1kHz already covers the full range of normal human hearing.",
-  },
-  {
-    question: "What is bit depth, and when does it apply?",
-    answer:
-      "Bit depth controls how finely each sample's amplitude is measured — 16-bit is CD standard, 24-bit and 32-bit are common in production. It only applies to uncompressed WAV/AIFF files here; compressed formats like MP3 or AAC don't expose a user-facing PCM bit depth to convert.",
-  },
-  {
-    question: "What's the difference between sample rate and bit depth?",
-    answer:
-      "Sample rate measures how often the signal is sampled per second (a time-axis measurement); bit depth measures how finely each of those samples' amplitude is captured (an amplitude-axis measurement). They're independent settings that happen to be adjusted together in a lot of audio software.",
-  },
-  {
-    question: "Is there a file size limit?",
-    answer: "Yes, 80MB per upload.",
-  },
-  {
-    question: "Is this really free?",
-    answer: "Yes — completely free, no sign-up, no watermark on the output.",
-  },
-];
-
-export default function ResamplePage() {
+export default async function ResamplePage() {
   const relatedTools = getRelatedTools("sample-rate-converter", 5);
+
+  const limits = await getLimits();
+  const durationCap = durationCapFor(limits, "sample-rate-converter");
+  const retention = retentionSentences(limits.retention.audio_tools);
+
+  const formats = limits.allowedAudioFormats.map((f) => f.toUpperCase());
+  const formatList = formats.join(", ").replace(/, ([^,]*)$/, ", or $1");
+
+  const faqs = [
+    {
+      question: "What is sample rate?",
+      answer:
+        "How many times per second the audio signal is measured when it's digitized. 44.1kHz (44,100 samples per second) is the CD standard; 48kHz is standard for video and broadcast; 96kHz is used in some high-resolution audio and production workflows.",
+    },
+    {
+      question: "What sample rate should I use for music?",
+      answer:
+        "44.1kHz is the long-standing standard for music distribution and matches the CD format most sample libraries and DAWs default to.",
+    },
+    {
+      question: "What sample rate should I use for video?",
+      answer:
+        "48kHz is the broadcast and video-editing standard — matching it avoids sync or compatibility issues when the audio is going into a video project.",
+    },
+    {
+      question: "Should I convert 44.1kHz to 48kHz, or the other way around?",
+      answer:
+        "Whichever direction matches what your destination actually requires — a video editor expecting 48kHz, or a music project expecting 44.1kHz. Neither rate is inherently better; it's a compatibility choice, not a quality one.",
+    },
+    {
+      question: "Why would I need to change sample rate at all?",
+      answer:
+        "A project, platform, or piece of software sometimes requires audio at a specific sample rate — a video editor working at 48kHz, for example, or a sample library that expects 44.1kHz.",
+    },
+    {
+      question: "Does converting to a higher sample rate improve quality?",
+      answer:
+        "No — converting 44.1kHz audio up to 96kHz doesn't add detail that wasn't in the original recording, it just represents the same information with more samples. Quality is set by the original recording, not by the sample rate you convert to afterward.",
+    },
+    {
+      question: "Does changing sample rate reduce audio quality?",
+      answer:
+        "Converting to a higher rate doesn't lose anything, but converting to a lower rate is a genuine change — fewer samples per second means less of the original signal is represented afterward, though 44.1kHz already covers the full range of normal human hearing.",
+    },
+    {
+      question: "What is bit depth, and when does it apply?",
+      answer:
+        "Bit depth controls how finely each sample's amplitude is measured — 16-bit is CD standard, 24-bit and 32-bit are common in production. It only applies to uncompressed WAV/AIFF files here; compressed formats like MP3 or AAC don't expose a user-facing PCM bit depth to convert.",
+    },
+    {
+      question: "What's the difference between sample rate and bit depth?",
+      answer:
+        "Sample rate measures how often the signal is sampled per second (a time-axis measurement); bit depth measures how finely each of those samples' amplitude is captured (an amplitude-axis measurement). They're independent settings that happen to be adjusted together in a lot of audio software.",
+    },
+    {
+      // The length half was never stated.
+      question: "Is there a size or length limit?",
+      answer:
+        durationCap === null
+          ? `Yes, ${limits.maxUploadMb}MB per upload, with no length limit.`
+          : `Yes — ${limits.maxUploadMb}MB per upload, and up to ${durationLabel(durationCap)} of audio.`,
+    },
+    {
+      // ADDED: no retention answer existed.
+      question: "Are my uploaded files kept?",
+      answer: `${retention.input} ${retention.output} There are no accounts, so nothing is linked to you.`,
+    },
+    {
+      question: "Is this really free?",
+      answer: "Yes — completely free, no sign-up, no watermark on the output.",
+    },
+  ];
 
   return (
     <>
@@ -137,15 +187,25 @@ export default function ResamplePage() {
         {/* Tool stays first — SEO content supports it, doesn't bury it */}
         <ResampleForm />
 
-        <section className="grid gap-4 sm:grid-cols-3">
+        {/* One bordered strip with hairline dividers, matching the other tool
+            pages. */}
+        <section className="grid divide-y divide-graphite-800 overflow-hidden rounded-xl border border-graphite-800 bg-graphite-900 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
           {[
             { title: "4 sample rates", desc: "22.05kHz, 44.1kHz, 48kHz, and 96kHz." },
             { title: "Optional bit depth", desc: "16, 24, or 32-bit for WAV/AIFF." },
-            { title: "No sign-up", desc: "No account, no email, no watermark." },
+            {
+              title: "No sign-up",
+              desc:
+                durationCap === null
+                  ? `No account, no email, no watermark. Up to ${limits.maxUploadMb}MB per file.`
+                  : `No account, no email, no watermark. Up to ${limits.maxUploadMb}MB and ${durationLabel(durationCap)}.`,
+            },
           ].map((f) => (
-            <div key={f.title} className="rounded-xl border border-graphite-800 bg-graphite-900 p-5 space-y-2">
-              <p className="font-semibold text-text-primary">{f.title}</p>
-              <p className="text-sm text-text-muted">{f.desc}</p>
+            <div key={f.title} className="space-y-1.5 p-5">
+              <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-amber-400">
+                {f.title}
+              </p>
+              <p className="text-sm leading-relaxed text-text-muted">{f.desc}</p>
             </div>
           ))}
         </section>
@@ -164,14 +224,17 @@ export default function ResamplePage() {
 
         <section className="space-y-4">
           <h2 className="text-2xl font-bold text-text-primary">44.1kHz vs. 48kHz</h2>
+          {/* The straight quotes around "better" and the two raw apostrophes
+              in this paragraph were unescaped — react/no-unescaped-entities
+              errors on all three. */}
           <p className="text-text-muted leading-relaxed">
             44.1kHz is the long-standing standard for music — it&apos;s the CD
             format, and most sample libraries, DAWs, and music distribution
             pipelines default to it. 48kHz is the standard for video and
-            broadcast audio instead. Neither is simply "better" than the
-            other; they're different conventions for different destinations.
+            broadcast audio instead. Neither is simply &ldquo;better&rdquo; than the
+            other; they&apos;re different conventions for different destinations.
             The right choice comes down to what your project or platform
-            actually requires — matching a video editor's timeline calls for
+            actually requires — matching a video editor&apos;s timeline calls for
             48kHz, while a music-focused project usually calls for 44.1kHz.
           </p>
         </section>
@@ -222,7 +285,9 @@ export default function ResamplePage() {
             <table className="w-full text-sm text-left text-text-muted">
               <thead className="bg-graphite-900 text-text-primary">
                 <tr>
-                  <th className="px-4 py-3 font-semibold">&nbsp;</th>
+                  <th className="px-4 py-3 font-semibold">
+                    <span className="sr-only">Comparison</span>
+                  </th>
                   <th className="px-4 py-3 font-semibold">Sample rate</th>
                   <th className="px-4 py-3 font-semibold">Bit depth</th>
                 </tr>
@@ -292,7 +357,7 @@ export default function ResamplePage() {
         <section className="space-y-4">
           <h2 className="text-2xl font-bold text-text-primary">How to convert sample rate</h2>
           <ol className="list-decimal list-inside space-y-2 text-text-muted leading-relaxed">
-            <li>Upload an MP3, WAV, FLAC, M4A, AAC, OGG, or AIFF file.</li>
+            <li>Upload an {formatList} file.</li>
             <li>Choose a target sample rate, and optionally a bit depth for WAV/AIFF.</li>
             <li>Download the converted file.</li>
           </ol>
@@ -314,7 +379,7 @@ export default function ResamplePage() {
             <Link href="/guides/sample-rate-and-bit-depth-explained" className="text-amber-400 hover:underline">
               Read Sample Rate and Bit Depth: What They Actually Change
             </Link>. Combining files afterward? The{" "}
-            <Link href="/audio-joiner" className="text-amber-400 hover:underline">
+            <Link href="/audio-joiner" prefetch={false} className="text-amber-400 hover:underline">
               Audio Joiner
             </Link>{" "}
             already normalizes sample rate automatically when it merges files, but
@@ -331,6 +396,7 @@ export default function ResamplePage() {
                 <Link
                   key={tool.slug}
                   href={`/${tool.slug}`}
+                  prefetch={false}
                   className="rounded-xl border border-graphite-800 bg-graphite-900 p-4 hover:border-amber-500/40 transition-colors"
                 >
                   <h3 className="font-semibold text-text-primary">{tool.name}</h3>

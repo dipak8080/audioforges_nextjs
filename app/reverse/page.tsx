@@ -4,34 +4,52 @@ import { ReverseForm } from "@/components/converter/ReverseForm";
 import { FAQSection } from "@/components/faq/FAQSection";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
+import {
+  getLimits,
+  durationCapFor,
+  durationLabel,
+  retentionSentences,
+} from "@/lib/api/limits";
+
+/**
+ * ── THIS PASS ──────────────────────────────────────────────────────────
+ *
+ * 1. THE LENGTH LIMIT WAS UNDERSTATED BY FORTY MINUTES — the fourth page with
+ *    this exact error, after /trim, /volume and (in the other direction)
+ *    /pitch. "Files up to 80MB and 20 minutes long": the size was right, the
+ *    length is one hour. And 20 minutes is the transcription cap again, which
+ *    is where all three copied it from.
+ *
+ *    Worth naming the pattern rather than just fixing the instance: a length
+ *    limit typed as a literal has been wrong on more than half the pages that
+ *    state one, always downward, and never in a way that produces an error.
+ *
+ * 2. The HowTo schema and `keywords` removed, retention answer added, formats
+ *    read from allowed_audio_formats, prefetch disabled on the tool grid.
+ */
+
+const PAGE_TITLE = "Free Audio Reverser — Play a Track Backwards";
+const PAGE_DESCRIPTION =
+  "Reverse MP3, WAV, FLAC, AAC, M4A, OGG, and AIFF files online for free. Create backwards audio instantly with no sign-up, no watermark, and no software required.";
 
 export const metadata: Metadata = {
-  title: "Free Audio Reverser — Play a Track Backwards",
-  description:
-    "Reverse MP3, WAV, FLAC, AAC, M4A, OGG, and AIFF files online for free. Create backwards audio instantly with no sign-up, no watermark, and no software required.",
-  keywords: [
-    "reverse audio",
-    "reverse audio online",
-    "audio reverser",
-    "play audio backwards",
-    "reverse audio online free",
-    "reverse mp3",
-    "reverse wav",
-    "reverse song",
-    "reverse music",
-    "backwards audio",
-    "flip audio track",
-    "reverse sound",
-    "reverse recording",
-    "reverse voice recording",
-    "reverse audio effect",
-    "backwards music",
-  ],
+  title: PAGE_TITLE,
+  description: PAGE_DESCRIPTION,
+  /*
+    `keywords` removed — ignored by Google since 2009. Target terms kept for
+    reference:
+
+      reverse audio / reverse audio online / audio reverser
+      play audio backwards / reverse audio online free
+      reverse mp3 / reverse wav / reverse song / reverse music
+      backwards audio / flip audio track / reverse sound
+      reverse recording / reverse voice recording
+      reverse audio effect / backwards music
+  */
   alternates: { canonical: `${SITE_URL}/reverse` },
   openGraph: {
-    title: "Free Audio Reverser — Play a Track Backwards",
-    description:
-      "Reverse MP3, WAV, FLAC, AAC, M4A, OGG, and AIFF files online for free. Create backwards audio instantly with no sign-up, no watermark, and no software required.",
+    title: PAGE_TITLE,
+    description: PAGE_DESCRIPTION,
     url: `${SITE_URL}/reverse`,
     siteName: SITE_NAME,
     type: "website",
@@ -46,9 +64,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Free Audio Reverser — Play a Track Backwards",
-    description:
-      "Reverse MP3, WAV, FLAC, AAC, M4A, OGG, and AIFF files online for free. Create backwards audio instantly with no sign-up, no watermark, and no software required.",
+    title: PAGE_TITLE,
+    description: PAGE_DESCRIPTION,
     images: ["/images/og-default.png"],
   },
 };
@@ -77,63 +94,72 @@ const breadcrumbJsonLd = {
     { "@type": "ListItem", position: 2, name: "Audio Reverser", item: `${SITE_URL}/reverse` },
   ],
 };
+// NOTE: No HowTo schema — deprecated by Google (desktop since Sept 2023), no
+// ranking or rich-result benefit remains. Visible how-to steps stay.
+// FAQPage schema is emitted by <FAQSection /> — do not duplicate it here.
 
-const howToJsonLd = {
-  "@context": "https://schema.org",
-  "@type": "HowTo",
-  name: "How to Reverse an Audio File",
-  step: [
-    { "@type": "HowToStep", name: "Upload", text: "Upload an MP3, WAV, FLAC, M4A, AAC, OGG, or AIFF file." },
-    { "@type": "HowToStep", name: "Reverse", text: "Click Reverse — no settings to configure." },
-    { "@type": "HowToStep", name: "Download", text: "Download the reversed file in its original format." },
-  ],
-};
-
-// Same 7 questions and answers as before, word-for-word.
-const faqs = [
-  {
-    question: "What does reversing audio do?",
-    answer:
-      "It flips the entire file so it plays back to front — the last sound becomes the first, and vice versa.",
-  },
-  {
-    question: "Does reversing reduce audio quality?",
-    answer:
-      "No. Reversing changes the playback order only, not the underlying audio data. Since the output stays in your original format, there's no additional quality loss beyond that format's normal characteristics.",
-  },
-  {
-    question: "Can I reverse just part of a track?",
-    answer:
-      "This tool reverses the entire file. If you only want a section reversed, trim the clip you want first, then reverse the trimmed result.",
-  },
-  {
-    question: "Is this really free?",
-    answer: "Yes — reversing audio is free, with no sign-up and no watermark on the output.",
-  },
-  {
-    question: "What formats are supported?",
-    answer:
-      "MP3, WAV, FLAC, M4A, AAC, OGG, and AIFF. The output keeps the same format as your upload.",
-  },
-  {
-    question: "Is there a file size or length limit?",
-    answer: "Files up to 80MB and 20 minutes long are supported.",
-  },
-  {
-    question: "Can I reverse a voice recording?",
-    answer:
-      "Yes. The tool works with voice recordings, podcasts, music, sound effects, and any other supported audio file.",
-  },
-];
-
-export default function ReversePage() {
+export default async function ReversePage() {
   const relatedTools = getRelatedTools("reverse", 5);
+
+  const limits = await getLimits();
+  const durationCap = durationCapFor(limits, "reverse");
+  const retention = retentionSentences(limits.retention.audio_tools);
+
+  const formats = limits.allowedAudioFormats.map((f) => f.toUpperCase());
+  const formatList = formats.join(", ").replace(/, ([^,]*)$/, ", or $1");
+
+  const faqs = [
+    {
+      question: "What does reversing audio do?",
+      answer:
+        "It flips the entire file so it plays back to front — the last sound becomes the first, and vice versa.",
+    },
+    {
+      question: "Does reversing reduce audio quality?",
+      answer:
+        "No. Reversing changes the playback order only, not the underlying audio data. Since the output stays in your original format, there's no additional quality loss beyond that format's normal characteristics.",
+    },
+    {
+      question: "Can I reverse just part of a track?",
+      answer:
+        "This tool reverses the entire file. If you only want a section reversed, trim the clip you want first, then reverse the trimmed result.",
+    },
+    {
+      question: "Is this really free?",
+      answer: "Yes — reversing audio is free, with no sign-up and no watermark on the output.",
+    },
+    {
+      question: "What formats are supported?",
+      answer: `${formatList}. The output keeps the same format as your upload.`,
+    },
+    {
+      /*
+        CORRECTED. Said "up to 80MB and 20 minutes long". The size was right;
+        the length was wrong by forty minutes — /reverse takes the audio_tools
+        default of one hour. Both figures now come from /limits.
+      */
+      question: "Is there a file size or length limit?",
+      answer:
+        durationCap === null
+          ? `Files up to ${limits.maxUploadMb}MB are supported, with no length limit.`
+          : `Files up to ${limits.maxUploadMb}MB and ${durationLabel(durationCap)} long are supported.`,
+    },
+    {
+      // ADDED: no retention answer existed.
+      question: "Are my uploaded files kept?",
+      answer: `${retention.input} ${retention.output} There are no accounts, so nothing is linked to you.`,
+    },
+    {
+      question: "Can I reverse a voice recording?",
+      answer:
+        "Yes. The tool works with voice recordings, podcasts, music, sound effects, and any other supported audio file.",
+    },
+  ];
 
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(webAppJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(howToJsonLd) }} />
 
       <main className="mx-auto max-w-3xl px-4 py-12 sm:py-16 space-y-12">
         <header className="text-center space-y-4">
@@ -148,15 +174,26 @@ export default function ReversePage() {
 
         <ReverseForm />
 
-        <section className="grid gap-4 sm:grid-cols-3">
+        {/* One bordered strip with hairline dividers, matching the other tool
+            pages. The third cell carries the limits — this page stated them
+            only in the FAQ, and stated one of them wrongly. */}
+        <section className="grid divide-y divide-graphite-800 overflow-hidden rounded-xl border border-graphite-800 bg-graphite-900 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
           {[
             { title: "Fast", desc: "Most reversals finish in a few seconds." },
             { title: "One click", desc: "No settings to configure — just upload." },
-            { title: "No sign-up", desc: "No account, no email, no watermark." },
+            {
+              title: "No sign-up",
+              desc:
+                durationCap === null
+                  ? `No account, no email, no watermark. Up to ${limits.maxUploadMb}MB per file.`
+                  : `No account, no email, no watermark. Up to ${limits.maxUploadMb}MB and ${durationLabel(durationCap)}.`,
+            },
           ].map((f) => (
-            <div key={f.title} className="rounded-xl border border-graphite-800 bg-graphite-900 p-5 space-y-2">
-              <p className="font-semibold text-text-primary">{f.title}</p>
-              <p className="text-sm text-text-muted">{f.desc}</p>
+            <div key={f.title} className="space-y-1.5 p-5">
+              <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-amber-400">
+                {f.title}
+              </p>
+              <p className="text-sm leading-relaxed text-text-muted">{f.desc}</p>
             </div>
           ))}
         </section>
@@ -164,7 +201,7 @@ export default function ReversePage() {
         <section className="space-y-4">
           <h2 className="text-2xl font-bold text-text-primary">How to reverse an audio file</h2>
           <ol className="list-decimal list-inside space-y-2 text-text-muted leading-relaxed">
-            <li>Upload an MP3, WAV, FLAC, M4A, AAC, OGG, or AIFF file.</li>
+            <li>Upload an {formatList} file.</li>
             <li>Click Reverse — nothing to configure.</li>
             <li>Download the reversed file, same format as your upload.</li>
           </ol>
@@ -268,6 +305,7 @@ export default function ReversePage() {
                 <Link
                   key={tool.slug}
                   href={`/${tool.slug}`}
+                  prefetch={false}
                   className="rounded-xl border border-graphite-800 bg-graphite-900 p-4 hover:border-amber-500/40 transition-colors"
                 >
                   <h3 className="font-semibold text-text-primary">{tool.name}</h3>

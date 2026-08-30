@@ -4,6 +4,30 @@ import { ChannelsForm } from "@/components/converter/ChannelsForm";
 import { FAQSection } from "@/components/faq/FAQSection";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
+import {
+  getLimits,
+  durationCapFor,
+  durationLabel,
+  retentionSentences,
+} from "@/lib/api/limits";
+
+/**
+ * ── THIS PASS ──────────────────────────────────────────────────────────
+ *
+ * FACTUALLY CLEAN, and clean on escaping too — the fourth page out of
+ * twenty-one with nothing wrong in it. 80MB is right, both conversion
+ * directions are described accurately, and the page is unusually careful about
+ * the thing most competitors get wrong (mono-to-stereo doesn't create width).
+ *
+ * Standard treatment only:
+ *
+ * 1. THE LENGTH LIMIT IS NOW STATED (one hour, the audio_tools default). The
+ *    page named "80MB per upload" twice and the length not at all.
+ *
+ * 2. Retention answer added; formats read from allowed_audio_formats rather
+ *    than the hand-written SUPPORTED_FORMATS array; prefetch disabled on the
+ *    tool grid; feature strip matched to the other pages.
+ */
 
 const PAGE_TITLE = "Free Audio to Stereo & Mono Converter";
 const PAGE_DESCRIPTION =
@@ -58,83 +82,81 @@ const breadcrumbJsonLd = {
 };
 // NOTE: No HowTo schema — deprecated by Google (desktop since Sept 2023),
 // no ranking or rich-result benefit remains.
+// FAQPage schema is emitted by <FAQSection /> — do not duplicate it here.
 
-const SUPPORTED_FORMATS = ["MP3", "WAV", "FLAC", "M4A", "AAC", "OGG", "AIFF"];
-
-/** Same style as the convert/stems pages — clean mono badges, no check icons.
- *  Check icons are reserved for comparison-table cells, not format lists. */
-function FormatBadges() {
-  return (
-    <div className="flex flex-wrap gap-2">
-      {SUPPORTED_FORMATS.map((format) => (
-        <span
-          key={format}
-          className="rounded-lg border border-graphite-700 bg-graphite-850 px-3 py-1.5 font-mono text-sm font-semibold text-amber-400"
-        >
-          {format}
-        </span>
-      ))}
-    </div>
-  );
-}
-
-const faqs = [
-  {
-    question: "How do I convert mono to stereo?",
-    answer:
-      "Upload your mono file, choose stereo as the target, and download the result. The tool duplicates the single mono signal onto both the left and right channels.",
-  },
-  {
-    question: "How do I convert stereo to mono?",
-    answer:
-      "Upload your stereo file, choose mono as the target, and download the result. The tool combines the left and right channels into a single centered channel.",
-  },
-  {
-    question: "Does mono to stereo create real stereo?",
-    answer:
-      "No. It duplicates the identical mono signal onto both channels rather than inventing new left/right content. It satisfies a two-channel requirement, but there's no actual stereo width or separation, since there was nothing to separate in the mono source.",
-  },
-  {
-    question: "Is mono better for voice recordings?",
-    answer:
-      "Often, yes — a single voice usually doesn't benefit from stereo width, and many phone systems, IVR platforms, and podcast hosts expect or prefer single-channel audio for spoken content.",
-  },
-  {
-    question: "Is stereo better for music?",
-    answer:
-      "Music that was recorded or mixed with genuine left/right separation — instruments panned to different sides, stereo effects — benefits from staying in stereo, since converting it to mono collapses that separation into one channel.",
-  },
-  {
-    question: "Does converting stereo to mono lose left/right information?",
-    answer:
-      "Yes — combining two channels into one is a real change. Any separation between the left and right channels in the original is gone in the mono result; the audio isn't damaged, but it's a genuinely different listening experience from the stereo original.",
-  },
-  {
-    question: "Does this conversion affect audio quality?",
-    answer:
-      "It changes channel count, not fidelity — but stereo-to-mono is not a lossless no-op, since it genuinely discards the left/right separation that existed. Mono-to-stereo doesn't lose anything, since it's only duplicating what's already there.",
-  },
-  {
-    question: "Will converting to mono make my file smaller?",
-    answer:
-      "Often, since there's less channel data to store, but the exact difference depends on the output format and encoding settings rather than being a fixed, guaranteed reduction.",
-  },
-  {
-    question: "What audio formats are supported?",
-    answer: "MP3, WAV, FLAC, M4A, AAC, OGG, and AIFF.",
-  },
-  {
-    question: "What is the maximum upload size?",
-    answer: "80MB per upload.",
-  },
-  {
-    question: "Is this really free?",
-    answer: "Yes — completely free, no sign-up, no watermark on the output.",
-  },
-];
-
-export default function ChannelsPage() {
+export default async function ChannelsPage() {
   const relatedTools = getRelatedTools("mono-stereo-converter", 5);
+
+  const limits = await getLimits();
+  const durationCap = durationCapFor(limits, "mono-stereo-converter");
+  const retention = retentionSentences(limits.retention.audio_tools);
+
+  const formats = limits.allowedAudioFormats.map((f) => f.toUpperCase());
+  const formatList = formats.join(", ").replace(/, ([^,]*)$/, ", or $1");
+
+  const faqs = [
+    {
+      question: "How do I convert mono to stereo?",
+      answer:
+        "Upload your mono file, choose stereo as the target, and download the result. The tool duplicates the single mono signal onto both the left and right channels.",
+    },
+    {
+      question: "How do I convert stereo to mono?",
+      answer:
+        "Upload your stereo file, choose mono as the target, and download the result. The tool combines the left and right channels into a single centered channel.",
+    },
+    {
+      question: "Does mono to stereo create real stereo?",
+      answer:
+        "No. It duplicates the identical mono signal onto both channels rather than inventing new left/right content. It satisfies a two-channel requirement, but there's no actual stereo width or separation, since there was nothing to separate in the mono source.",
+    },
+    {
+      question: "Is mono better for voice recordings?",
+      answer:
+        "Often, yes — a single voice usually doesn't benefit from stereo width, and many phone systems, IVR platforms, and podcast hosts expect or prefer single-channel audio for spoken content.",
+    },
+    {
+      question: "Is stereo better for music?",
+      answer:
+        "Music that was recorded or mixed with genuine left/right separation — instruments panned to different sides, stereo effects — benefits from staying in stereo, since converting it to mono collapses that separation into one channel.",
+    },
+    {
+      question: "Does converting stereo to mono lose left/right information?",
+      answer:
+        "Yes — combining two channels into one is a real change. Any separation between the left and right channels in the original is gone in the mono result; the audio isn't damaged, but it's a genuinely different listening experience from the stereo original.",
+    },
+    {
+      question: "Does this conversion affect audio quality?",
+      answer:
+        "It changes channel count, not fidelity — but stereo-to-mono is not a lossless no-op, since it genuinely discards the left/right separation that existed. Mono-to-stereo doesn't lose anything, since it's only duplicating what's already there.",
+    },
+    {
+      question: "Will converting to mono make my file smaller?",
+      answer:
+        "Often, since there's less channel data to store, but the exact difference depends on the output format and encoding settings rather than being a fixed, guaranteed reduction.",
+    },
+    {
+      question: "What audio formats are supported?",
+      answer: `${formatList}.`,
+    },
+    {
+      // Was "80MB per upload" with no length figure. Both from /limits now.
+      question: "Is there a size or length limit?",
+      answer:
+        durationCap === null
+          ? `${limits.maxUploadMb}MB per upload, with no length limit.`
+          : `${limits.maxUploadMb}MB per upload, and up to ${durationLabel(durationCap)} of audio.`,
+    },
+    {
+      // ADDED: no retention answer existed.
+      question: "Are my uploaded files kept?",
+      answer: `${retention.input} ${retention.output} There are no accounts, so nothing is linked to you.`,
+    },
+    {
+      question: "Is this really free?",
+      answer: "Yes — completely free, no sign-up, no watermark on the output.",
+    },
+  ];
 
   return (
     <>
@@ -155,15 +177,25 @@ export default function ChannelsPage() {
         {/* Tool stays first — SEO content supports it, doesn't bury it */}
         <ChannelsForm />
 
-        <section className="grid gap-4 sm:grid-cols-3">
+        {/* One bordered strip with hairline dividers, matching the other tool
+            pages. */}
+        <section className="grid divide-y divide-graphite-800 overflow-hidden rounded-xl border border-graphite-800 bg-graphite-900 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
           {[
             { title: "Both directions", desc: "Mono to stereo, or stereo to mono." },
-            { title: "Any format", desc: "MP3, WAV, FLAC, M4A, AAC, OGG, AIFF." },
-            { title: "No sign-up", desc: "No account, no email, no watermark." },
+            { title: "Any format", desc: `${formats.join(", ")}.` },
+            {
+              title: "No sign-up",
+              desc:
+                durationCap === null
+                  ? `No account, no email, no watermark. Up to ${limits.maxUploadMb}MB per file.`
+                  : `No account, no email, no watermark. Up to ${limits.maxUploadMb}MB and ${durationLabel(durationCap)}.`,
+            },
           ].map((f) => (
-            <div key={f.title} className="rounded-xl border border-graphite-800 bg-graphite-900 p-5 space-y-2">
-              <p className="font-semibold text-text-primary">{f.title}</p>
-              <p className="text-sm text-text-muted">{f.desc}</p>
+            <div key={f.title} className="space-y-1.5 p-5">
+              <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-amber-400">
+                {f.title}
+              </p>
+              <p className="text-sm leading-relaxed text-text-muted">{f.desc}</p>
             </div>
           ))}
         </section>
@@ -194,7 +226,9 @@ export default function ChannelsPage() {
             <table className="w-full text-sm text-left text-text-muted">
               <thead className="bg-graphite-900 text-text-primary">
                 <tr>
-                  <th className="px-4 py-3 font-semibold">&nbsp;</th>
+                  <th className="px-4 py-3 font-semibold">
+                    <span className="sr-only">Comparison</span>
+                  </th>
                   <th className="px-4 py-3 font-semibold">Mono</th>
                   <th className="px-4 py-3 font-semibold">Stereo</th>
                 </tr>
@@ -307,7 +341,7 @@ export default function ChannelsPage() {
         <section className="space-y-4">
           <h2 className="text-2xl font-bold text-text-primary">How to convert between mono and stereo</h2>
           <ol className="list-decimal list-inside space-y-2 text-text-muted leading-relaxed">
-            <li>Upload an MP3, WAV, FLAC, M4A, AAC, OGG, or AIFF file.</li>
+            <li>Upload an {formatList} file.</li>
             <li>Choose mono or stereo as the target.</li>
             <li>Download the converted file.</li>
           </ol>
@@ -315,9 +349,22 @@ export default function ChannelsPage() {
 
         <section className="space-y-4">
           <h2 className="text-2xl font-bold text-text-primary">Supported formats</h2>
-          <FormatBadges />
+          {/* Rendered from the backend's allowed_audio_formats rather than a
+              hand-written array — the mechanism that left AIFF off /stems and
+              /key-finder. */}
+          <div className="flex flex-wrap gap-2">
+            {formats.map((format) => (
+              <span
+                key={format}
+                className="rounded-lg border border-graphite-700 bg-graphite-850 px-3 py-1.5 font-mono text-sm font-semibold text-amber-400"
+              >
+                {format}
+              </span>
+            ))}
+          </div>
           <p className="text-text-muted leading-relaxed">
-            Upload any of the formats above, up to 80MB per file.
+            Upload any of the formats above, up to {limits.maxUploadMb}MB per file
+            {durationCap !== null ? ` and ${durationLabel(durationCap)} long` : ""}.
           </p>
         </section>
 
@@ -365,6 +412,7 @@ export default function ChannelsPage() {
                 <Link
                   key={tool.slug}
                   href={`/${tool.slug}`}
+                  prefetch={false}
                   className="rounded-xl border border-graphite-800 bg-graphite-900 p-4 hover:border-amber-500/40 transition-colors"
                 >
                   <h3 className="font-semibold text-text-primary">{tool.name}</h3>

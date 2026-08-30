@@ -1,9 +1,48 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Info, Copy, Check } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
-import type { AnalysisResult } from "@/lib/types/converter";
+import type { AnalysisResult, AnalyzeResponse } from "@/lib/types/converter";
+
+/* ------------------------------------------------------------------ */
+/* Response mapping                                                     */
+/* ------------------------------------------------------------------ */
+
+/**
+ * AnalyzeResponse → AnalysisResult.
+ *
+ * ── THIS PASS ──
+ * KeyFinderForm and YouTubeAnalyzeForm each carried their own copy of this,
+ * character for character: the same `toPct`, the same fallbacks, the same
+ * `typeof … === "boolean"` guards on cross_check. Two copies of a mapping is
+ * two places to fix when the backend adds a field, and the first symptom of
+ * drift would be the same track reporting different confidence depending on
+ * whether it was uploaded or pasted.
+ *
+ * It lives next to the component that consumes it, so a change to the shape
+ * and a change to the rendering land in the same file.
+ *
+ * The percentage rule handles both conventions the backend has used: a 0–1
+ * fraction and an already-scaled 0–100. `n > 1` picks between them, and a
+ * clean 1.0 reads as 100% rather than 1% — which is the case that makes the
+ * naive `n * 100` version wrong in the least visible way.
+ */
+export function toAnalysisResult(data: AnalyzeResponse): AnalysisResult {
+  const toPct = (n: number) => Math.round(n > 1 ? n : n * 100);
+
+  return {
+    key: (data.key as string) || "Unknown",
+    camelot: (data.camelot as string) || "N/A",
+    bpm: Math.round(Number(data.bpm) || 0),
+    confidence: toPct(Number(data.confidence) || 0),
+    bpmConfidence: toPct(Number(data.bpm_confidence) || 0),
+    keyAgrees:
+      typeof data.cross_check?.key_agrees === "boolean" ? data.cross_check.key_agrees : null,
+    bpmAgrees:
+      typeof data.cross_check?.bpm_agrees === "boolean" ? data.cross_check.bpm_agrees : null,
+  };
+}
 
 /* ------------------------------------------------------------------ */
 /* Camelot helpers — pure client-side maths off the wheel               */
@@ -45,7 +84,15 @@ function confidenceTone(pct: number): { bar: string; text: string; word: string 
 
 /* ------------------------------------------------------------------ */
 
-function ConfidenceMeter({ label, pct, disagrees }: { label: string; pct: number; disagrees: boolean }) {
+function ConfidenceMeter({
+  label,
+  pct,
+  disagrees,
+}: {
+  label: string;
+  pct: number;
+  disagrees: boolean;
+}) {
   const tone = confidenceTone(pct);
   return (
     <div className="space-y-1.5">
@@ -55,12 +102,24 @@ function ConfidenceMeter({ label, pct, disagrees }: { label: string; pct: number
           {tone.word} · {pct}%
         </span>
       </div>
-      <div className="h-1 w-full overflow-hidden rounded-full bg-graphite-800">
-        <div className={cn("h-full rounded-full", tone.bar)} style={{ width: `${pct}%` }} />
+      {/* The bar is decoration for the number beside it, which is why it
+          carries progressbar semantics rather than being announced twice. */}
+      <div
+        role="progressbar"
+        aria-label={label}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={pct}
+        className="h-1 w-full overflow-hidden rounded-full bg-graphite-800"
+      >
+        <div
+          className={cn("h-full rounded-full", tone.bar)}
+          style={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
+        />
       </div>
       {disagrees && (
         <p className="flex items-center gap-1 text-[11px] text-amber-400/90">
-          <Info className="h-3 w-3 shrink-0" />
+          <Info className="h-3 w-3 shrink-0" aria-hidden />
           Two detectors disagreed — check by ear before you commit
         </p>
       )}
@@ -76,16 +135,29 @@ function ConfidenceMeter({ label, pct, disagrees }: { label: string; pct: number
  */
 export function AnalysisResultCard({ result }: { result: AnalysisResult }) {
   const [copied, setCopied] = useState(false);
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const neighbours = camelotNeighbours(result.camelot);
   const alternatives = tempoAlternatives(result.bpm);
 
   const summary = `${result.key} · ${result.camelot} · ${result.bpm} BPM`;
 
+  /* The "Copied" flag reverts on a timer, and the user can navigate away
+     inside those two seconds — analysing another track unmounts this card.
+     Without the cleanup that's a setState on an unmounted component. */
+  useEffect(
+    () => () => {
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+    },
+    []
+  );
+
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(summary);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+      copyTimerRef.current = setTimeout(() => setCopied(false), 2000);
     } catch {
       // Clipboard blocked — the values are on screen to read off.
     }
@@ -126,11 +198,20 @@ export function AnalysisResultCard({ result }: { result: AnalysisResult }) {
         <button
           type="button"
           onClick={handleCopy}
-          className="mt-3 flex items-center gap-1.5 rounded-md border border-graphite-700 px-2.5 py-1.5 text-xs text-text-muted transition-colors hover:border-graphite-700/60 hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40"
+          className="mt-3 flex items-center gap-1.5 rounded-md border border-graphite-700 px-2.5 py-1.5 text-xs text-text-muted outline-none transition-colors hover:border-graphite-700/60 hover:text-text-primary focus-visible:ring-2 focus-visible:ring-amber-500/40"
         >
-          {copied ? <Check className="h-3.5 w-3.5 text-teal-400" /> : <Copy className="h-3.5 w-3.5" />}
+          {copied ? (
+            <Check className="h-3.5 w-3.5 text-teal-400" aria-hidden />
+          ) : (
+            <Copy className="h-3.5 w-3.5" aria-hidden />
+          )}
           {copied ? "Copied" : "Copy key & BPM"}
         </button>
+        {/* Announced separately: the button's own label changing is a visual
+            cue, and a screen reader shouldn't have to re-focus it to notice. */}
+        <span className="sr-only" role="status" aria-live="polite">
+          {copied ? `Copied ${summary}` : ""}
+        </span>
       </div>
 
       {/* Signature: what this track mixes into */}
@@ -155,8 +236,16 @@ export function AnalysisResultCard({ result }: { result: AnalysisResult }) {
 
       {/* How much to trust the numbers above */}
       <div className="space-y-4 rounded-xl border border-graphite-800 bg-graphite-850 p-5">
-        <ConfidenceMeter label="Key detection" pct={result.confidence} disagrees={result.keyAgrees === false} />
-        <ConfidenceMeter label="Tempo detection" pct={result.bpmConfidence} disagrees={result.bpmAgrees === false} />
+        <ConfidenceMeter
+          label="Key detection"
+          pct={result.confidence}
+          disagrees={result.keyAgrees === false}
+        />
+        <ConfidenceMeter
+          label="Tempo detection"
+          pct={result.bpmConfidence}
+          disagrees={result.bpmAgrees === false}
+        />
       </div>
     </div>
   );

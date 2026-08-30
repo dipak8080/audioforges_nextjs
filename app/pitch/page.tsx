@@ -4,28 +4,53 @@ import { PitchForm } from "@/components/converter/PitchForm";
 import { FAQSection } from "@/components/faq/FAQSection";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
+import { getRateLimitLabel } from "@/lib/data/rate-limits";
+import { getDurationLabel } from "@/lib/data/tool-limits";
+import { FILE_SIZE_LIMITS } from "@/lib/utils/validation";
+
+/**
+ * ── THIS PASS ──────────────────────────────────────────────────────────
+ *
+ * 1. THE FAQ UNDERSTATED THE LIMIT BY 40%. It said "3 requests per 5 minutes",
+ *    typed as a literal. rate-limits.ts raised `pitch` from 3 to 5 on
+ *    2026-08-22, and the reason it was raised is exactly the reason this
+ *    sentence matters: pitch and tempo are the only ITERATIVE tools on the
+ *    site — the real workflow is +2, listen, +3, listen — so someone reading
+ *    "3" plans a smaller experiment than they're actually allowed.
+ *
+ *    Read from RATE_LIMITS now, like every other limit figure on the site.
+ *
+ * 2. THE HowTo SCHEMA IS GONE. Google deprecated HowTo rich results on desktop
+ *    in September 2023 and dropped them entirely after; there is no ranking or
+ *    rich-result benefit left. /vocal-remover, /stems and both YouTube
+ *    separation pages already removed theirs and carry a note saying why —
+ *    this page kept emitting it. The VISIBLE how-to steps stay; only the
+ *    JSON-LD block goes.
+ *
+ * 3. THE `keywords` META IS GONE. Google has ignored it since 2009.
+ *    /vocal-remover removed its copy as dead weight; fifteen entries here made
+ *    this the last page still carrying one.
+ *
+ * 4. THE PAGE NEVER STATED ITS OWN LIMITS. PitchForm blocks submission over
+ *    the duration cap and validateAudioFile rejects over the size cap — but
+ *    neither number appeared anywhere a visitor could read BEFORE choosing a
+ *    file. The whole positioning of these pages is "we state the real limit up
+ *    front"; this one stated none. Both now come from the same constants the
+ *    form enforces.
+ *
+ * NOT ADDED: a retention answer. /vocal-remover has one because the two-hour
+ * source TTL was confirmed against the backend. Nobody has told me what
+ * happens to a pitch job's file, and the lesson from that page is that a
+ * retention claim written on an assumption is worse than none — it shipped
+ * wrong there and sat wrong for weeks. Ask, then write it.
+ */
 
 export const metadata: Metadata = {
   title: "Free Pitch Shifter — Change Key Without Changing Speed",
   description:
     "Change audio pitch or transpose music online for free. Shift MP3, WAV, FLAC, AAC, M4A, OGG, and AIFF up or down by up to 12 semitones without changing tempo.",
-  keywords: [
-    "pitch shifter online",
-    "change pitch of audio free",
-    "transpose audio key",
-    "pitch shift mp3",
-    "key changer audio",
-    "raise pitch of song",
-    "lower pitch of song",
-    "change key of song",
-    "audio key changer",
-    "transpose vocal",
-    "transpose song",
-    "change song key",
-    "audio transpose",
-    "pitch changer online",
-    "change vocal pitch",
-  ],
+  // `keywords` removed: ignored by Google since 2009, and no other tool page
+  // on the site carries it.
   alternates: { canonical: `${SITE_URL}/pitch` },
   openGraph: {
     title: "Free Pitch Shifter — Change Key Without Changing Speed",
@@ -77,19 +102,22 @@ const breadcrumbJsonLd = {
   ],
 };
 
-const howToJsonLd = {
-  "@context": "https://schema.org",
-  "@type": "HowTo",
-  name: "How to Shift the Pitch of an Audio File",
-  step: [
-    { "@type": "HowToStep", name: "Upload", text: "Upload an MP3, WAV, FLAC, M4A, AAC, OGG, or AIFF file." },
-    { "@type": "HowToStep", name: "Set shift amount", text: "Move the slider to your target semitone shift, up to a full octave either direction." },
-    { "@type": "HowToStep", name: "Apply", text: "Click to process the shift." },
-    { "@type": "HowToStep", name: "Download", text: "Download the pitch-shifted file, tempo unchanged." },
-  ],
-};
+// NOTE: No HowTo schema — deprecated by Google (desktop since Sept 2023), no
+// ranking or rich-result benefit remains. Visible how-to steps stay. This
+// matches the standard already applied on /stems, /vocal-remover and both
+// YouTube separation pages.
+// FAQPage schema is emitted by <FAQSection /> — do not duplicate it here.
 
-// Same 7 questions and answers as before, word-for-word.
+/**
+ * All three read from the same constants the tool enforces.
+ *
+ * The rate limit is the one that was wrong: it said 3, typed as a literal,
+ * while config.py has allowed 5 since 2026-08-22.
+ */
+const RATE_LIMIT_LABEL = getRateLimitLabel("pitch");
+const MAX_DURATION_LABEL = getDurationLabel("pitch");
+const MAX_UPLOAD_LABEL = `${Math.round(FILE_SIZE_LIMITS.audio / (1024 * 1024))}MB`;
+
 const faqs = [
   {
     question: "Does pitch shifting change the tempo?",
@@ -111,9 +139,24 @@ const faqs = [
       "Pitch is the raw frequency of a sound; key is the overall tonal center a piece of music is built around. Shifting a track's pitch by a fixed number of semitones effectively transposes it into a new key.",
   },
   {
+    // The tool blocks both of these before anything uploads, and neither
+    // number appeared anywhere on the page — so the first time a visitor
+    // learned the limit was when the button refused to run. Both read from the
+    // constants the form actually enforces.
+    question: "Is there a size or length limit?",
+    answer: MAX_DURATION_LABEL
+      ? `Yes — up to ${MAX_UPLOAD_LABEL} per file, and up to ${MAX_DURATION_LABEL} of audio. Longer files are caught in your browser before anything uploads, so you're not left waiting on a transfer that gets rejected at the end.`
+      : `Yes — up to ${MAX_UPLOAD_LABEL} per file.`,
+  },
+  {
+    // CORRECTED: said "3 requests per 5 minutes", typed as a literal, while
+    // rate-limits.ts has said 5 since 2026-08-22 — raised deliberately BECAUSE
+    // this tool is iterative and three locked people out mid-decision. Reading
+    // it from the table means the copy can't drift from the config again.
     question: "Why is there a stricter limit on this tool?",
-    answer:
-      "Pitch shifting is more CPU-intensive than simple conversions, so it's limited to 3 requests per 5 minutes to keep it available for everyone.",
+    answer: RATE_LIMIT_LABEL
+      ? `Pitch shifting is more CPU-intensive than a simple conversion, so it's limited to ${RATE_LIMIT_LABEL} to keep it available for everyone. That's deliberately higher than the older limit, because transposing is usually iterative — shift, listen, adjust.`
+      : "Pitch shifting is more CPU-intensive than a simple conversion, so it's rate-limited to keep it available for everyone.",
   },
   {
     question: "Is this really free?",
@@ -133,7 +176,6 @@ export default function PitchPage() {
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(webAppJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(howToJsonLd) }} />
 
       <main className="mx-auto max-w-3xl px-4 py-12 sm:py-16 space-y-12">
         <header className="text-center space-y-4">
@@ -148,15 +190,21 @@ export default function PitchPage() {
 
         <PitchForm />
 
-        <section className="grid gap-4 sm:grid-cols-3">
+        {/* One bordered strip with hairline dividers rather than three floating
+            cards — the same treatment /vocal-remover uses. Three separate boxes
+            directly under the tool read as three more things to deal with;
+            divided cells read as one row of facts about the thing above them. */}
+        <section className="grid divide-y divide-graphite-800 overflow-hidden rounded-xl border border-graphite-800 bg-graphite-900 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
           {[
             { title: "±1 octave", desc: "Shift up to 12 semitones either way." },
             { title: "Tempo unaffected", desc: "Duration and speed stay identical." },
             { title: "No sign-up", desc: "No account, no email, no watermark." },
           ].map((f) => (
-            <div key={f.title} className="rounded-xl border border-graphite-800 bg-graphite-900 p-5 space-y-2">
-              <p className="font-semibold text-text-primary">{f.title}</p>
-              <p className="text-sm text-text-muted">{f.desc}</p>
+            <div key={f.title} className="space-y-1.5 p-5">
+              <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-amber-400">
+                {f.title}
+              </p>
+              <p className="text-sm leading-relaxed text-text-muted">{f.desc}</p>
             </div>
           ))}
         </section>
@@ -195,7 +243,9 @@ export default function PitchPage() {
             <table className="w-full text-sm text-left text-text-muted">
               <thead className="bg-graphite-900 text-text-primary">
                 <tr>
-                  <th className="px-4 py-3 font-semibold">&nbsp;</th>
+                  <th className="px-4 py-3 font-semibold">
+                    <span className="sr-only">Comparison</span>
+                  </th>
                   <th className="px-4 py-3 font-semibold">Pitch Shifter</th>
                   <th className="px-4 py-3 font-semibold">Tempo Changer</th>
                 </tr>
@@ -287,6 +337,10 @@ export default function PitchPage() {
                 <Link
                   key={tool.slug}
                   href={`/${tool.slug}`}
+                  // prefetch disabled on bulk tool links, matching
+                  // /vocal-remover — four edge requests per route adds up on a
+                  // grid that renders on every tool page.
+                  prefetch={false}
                   className="rounded-xl border border-graphite-800 bg-graphite-900 p-4 hover:border-amber-500/40 transition-colors"
                 >
                   <h3 className="font-semibold text-text-primary">{tool.name}</h3>

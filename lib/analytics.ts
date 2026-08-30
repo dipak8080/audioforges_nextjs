@@ -34,6 +34,14 @@ export type CreditsEvent =
   | "credits_claim_submitted"
   /** Redirect to Ko-fi actually fired. */
   | "credits_checkout_started"
+  /**
+   * The browser blocked the Ko-fi tab, so the buyer had to press a second
+   * link to get there. Worth a row of its own: it fires for in-app browsers
+   * (Instagram, TikTok, Facebook), which is most social traffic, and it sits
+   * between checkout_started and checkout_returned — so a gap between those
+   * two is explained by this rather than by people changing their minds.
+   */
+  | "credits_checkout_popup_blocked"
   /** Landed back on /checkout/success. */
   | "credits_checkout_returned"
   /** Balance observed to increase after returning — the actual conversion. */

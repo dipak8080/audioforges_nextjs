@@ -47,6 +47,8 @@
 // ---------------------------------------------------------------
 //
 // Verified against config.py on 2026-08-22.
+// Re-verified 2026-08-30 for the pitch/tempo override wiring (see the
+// "PITCH / TEMPO" block below); nothing else changed in that pass.
 
 export interface ToolLimits {
   /** Max number of files per request, where the tool accepts several. */
@@ -205,18 +207,36 @@ export const TOOL_LIMITS: Record<string, ToolLimits> = {
 
   // ---- GENERIC AUDIO TOOLS (trim/volume/reverse/convert/etc) ----
   //
-  // WATCH THIS ONE. The backend now has a per-tool override map
-  // (AUDIO_TOOL_MAX_DURATION_SECONDS in config.py) alongside the
-  // MAX_AUDIO_TOOL_DURATION_SECONDS fallback this mirrors. Today only
-  // pitch and tempo are in that map (900s), and it is NOT yet wired
-  // into the submit path — so this 3600 is still correct for every
-  // tool. The moment it is wired, pitch and tempo need their own
-  // entries here or any page reading getDurationLabel("audio-tools")
-  // for them will claim an hour against a real 15-minute cap.
+  // This 3600 is the MAX_AUDIO_TOOL_DURATION_SECONDS fallback, and it
+  // applies to every generic audio tool EXCEPT any tool listed in the
+  // backend's per-tool override map (AUDIO_TOOL_MAX_DURATION_SECONDS in
+  // config.py). That map is now wired into the submit path, so a tool
+  // in it is really capped lower than this entry claims.
+  //
+  // Overridden today: pitch, tempo (900s) — both have their own entries
+  // below. If another tool is added to the map, give it an entry here
+  // too, or any page reading getDurationLabel("audio-tools") for it
+  // will advertise an hour against a real, enforced 15-minute cap.
   "audio-tools": {
     maxFileBytes: 80 * MB,
     maxTotalDurationSeconds: 3600,
     envVars: ["MAX_UPLOAD_BYTES", "MAX_AUDIO_TOOL_DURATION_SECONDS"],
+  },
+
+  // ---- PITCH / TEMPO ----
+  // The per-tool override the "audio-tools" note above warned about. Wired
+  // into the submit path 2026-08-30; before that these validated against the
+  // 3600 fallback, so a 50-minute file was accepted, took one of four slots,
+  // and died on pitch's 600s rubberband timeout ten minutes later.
+  pitch: {
+    maxFileBytes: 80 * MB,
+    maxTotalDurationSeconds: 900,
+    envVars: ["MAX_UPLOAD_BYTES", "AUDIO_TOOL_MAX_DURATION_SECONDS"],
+  },
+  tempo: {
+    maxFileBytes: 80 * MB,
+    maxTotalDurationSeconds: 900,
+    envVars: ["MAX_UPLOAD_BYTES", "AUDIO_TOOL_MAX_DURATION_SECONDS"],
   },
 
   // ---- RINGTONE ----

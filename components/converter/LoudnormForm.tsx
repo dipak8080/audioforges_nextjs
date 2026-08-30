@@ -1,30 +1,62 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AlertTriangle, ChevronUp, ChevronDown } from "lucide-react";
 import { JobToolForm } from "@/components/converter/JobToolForm";
+import { ControlField, Hint, OptionCards, Stepper, type CardOption } from "@/components/converter/ToolControls";
+import { getRateLimitLabel } from "@/lib/data/rate-limits";
 import { cn } from "@/lib/utils/cn";
+
+/**
+ * ── THIS PASS ──────────────────────────────────────────────────────────
+ *
+ * 1. THE CUSTOM FIELD PRODUCED NaN AND SUBMITTED IT. Every target here is
+ *    NEGATIVE, so typing one starts with "-" — and `Number("-")` is NaN, which
+ *    survives clamp and roundHalf untouched. It lands in customLufs, renders
+ *    the header as "NaN LUFS", and goes to the backend as `custom_lufs: "NaN"`.
+ *    The custom preset's entire purpose was unreachable by typing; only the
+ *    drag and the arrows worked. Same bug as VolumeForm, worse here because
+ *    every legitimate value trips it.
+ *
+ * 2. SWITCHING TO CUSTOM THREW AWAY WHERE YOU WERE. Pick Club (-9), click
+ *    Custom, and the marker jumps to -14 — customLufs' own default, unrelated
+ *    to what you were just looking at. Custom is where you go to ADJUST the
+ *    preset you nearly wanted, so it now starts from that value.
+ *
+ * 3. THE REFERENCE LABELS COLLIDED ON A PHONE. -23, -14, -9 and 0 sit at 63%,
+ *    75%, 81% and 93% of a -70..+5 ruler, so "Broadcast", "Streaming" and
+ *    "Club" overlap below about 400px. The words hide on small screens; the
+ *    numbers, which are the part that positions anything, stay.
+ *
+ * 4. THE NON-NULL ASSERTIONS ARE GONE. `PRESETS.find(...)!.lufs!` was two
+ *    assertions guarding an invariant nothing enforces — a preset added
+ *    without a lufs value would have crashed the render rather than failed a
+ *    typecheck.
+ *
+ * 5. A 429 NAMES THE LIMIT. Key is `loudness-normalizer`, endpoint is
+ *    `loudnorm`.
+ */
 
 type Preset = "streaming" | "club" | "broadcast" | "custom";
 
-interface PresetSpec {
-  value: Preset;
-  label: string;
-  lufs: number | null;
-  description: string;
-}
+const PRESET_LUFS: Record<Exclude<Preset, "custom">, number> = {
+  streaming: -14,
+  club: -9,
+  broadcast: -23,
+};
 
-const PRESETS: PresetSpec[] = [
-  { value: "streaming", label: "Streaming", lufs: -14, description: "Spotify, YouTube, Apple Music" },
-  { value: "club", label: "Club / DJ", lufs: -9, description: "Louder, club-ready masters" },
-  { value: "broadcast", label: "Broadcast", lufs: -23, description: "EBU R128 / ATSC A/85" },
-  { value: "custom", label: "Custom", lufs: null, description: "Set your own target" },
+const PRESET_OPTIONS: CardOption<Preset>[] = [
+  { value: "streaming", title: "Streaming", meta: "-14", detail: "Spotify, YouTube, Apple Music" },
+  { value: "club", title: "Club / DJ", meta: "-9", detail: "Louder, club-ready masters" },
+  { value: "broadcast", title: "Broadcast", meta: "-23", detail: "EBU R128 / ATSC A/85" },
+  { value: "custom", title: "Custom", detail: "Set your own target" },
 ];
 
 const CUSTOM_LUFS_MIN = -70;
 const CUSTOM_LUFS_MAX = 5;
 const KEY_STEP = 0.5;
 const KEY_STEP_LARGE = 3;
+
+const RATE_LIMIT_LABEL = getRateLimitLabel("loudness-normalizer");
 
 // Reference points plotted on the ruler regardless of which preset is
 // active, so "-14" always reads against something instead of floating
@@ -40,8 +72,11 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
 
-function roundHalf(value: number): number {
-  return Math.round(value * 2) / 2;
+/** Snaps to the nearest half-dB and refuses NaN — the guard the old custom
+ *  field was missing, which is how "NaN LUFS" reached the request body. */
+function normalizeLufs(value: number, fallback = -14): number {
+  if (!Number.isFinite(value)) return fallback;
+  return Math.round(clamp(value, CUSTOM_LUFS_MIN, CUSTOM_LUFS_MAX) * 2) / 2;
 }
 
 /** Maps an LUFS value to a 0–100 position on the ruler. */
@@ -49,9 +84,9 @@ function percentFor(lufs: number): number {
   return clamp(((lufs - CUSTOM_LUFS_MIN) / (CUSTOM_LUFS_MAX - CUSTOM_LUFS_MIN)) * 100, 0, 100);
 }
 
-function riskFor(lufs: number): { label: string; tone: string } | null {
-  if (lufs >= -1) return { label: "High clipping risk", tone: "text-red-400" };
-  if (lufs >= -6) return { label: "Loud — watch true peak", tone: "text-amber-400" };
+function riskFor(lufs: number): { label: string; tone: "warn" | "bad" } | null {
+  if (lufs >= -1) return { label: "High clipping risk", tone: "bad" };
+  if (lufs >= -6) return { label: "Loud — watch true peak", tone: "warn" };
   return null;
 }
 
@@ -75,8 +110,7 @@ function LoudnessRuler({ value, interactive, disabled, onChange }: LoudnessRuler
       if (!trackRef.current) return;
       const rect = trackRef.current.getBoundingClientRect();
       const fraction = clamp((clientX - rect.left) / rect.width, 0, 1);
-      const lufs = CUSTOM_LUFS_MIN + fraction * (CUSTOM_LUFS_MAX - CUSTOM_LUFS_MIN);
-      onChange(roundHalf(clamp(lufs, CUSTOM_LUFS_MIN, CUSTOM_LUFS_MAX)));
+      onChange(normalizeLufs(CUSTOM_LUFS_MIN + fraction * (CUSTOM_LUFS_MAX - CUSTOM_LUFS_MIN)));
     },
     [onChange]
   );
@@ -87,9 +121,13 @@ function LoudnessRuler({ value, interactive, disabled, onChange }: LoudnessRuler
     const onUp = () => setDragging(false);
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
+    // pointercancel too: an interrupted drag otherwise leaves `dragging` true
+    // and these listeners attached.
+    window.addEventListener("pointercancel", onUp);
     return () => {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
     };
   }, [dragging, setFromClientX]);
 
@@ -98,10 +136,10 @@ function LoudnessRuler({ value, interactive, disabled, onChange }: LoudnessRuler
     const step = e.shiftKey ? KEY_STEP_LARGE : KEY_STEP;
     if (e.key === "ArrowLeft" || e.key === "ArrowDown") {
       e.preventDefault();
-      onChange(roundHalf(clamp(value - step, CUSTOM_LUFS_MIN, CUSTOM_LUFS_MAX)));
+      onChange(normalizeLufs(value - step));
     } else if (e.key === "ArrowRight" || e.key === "ArrowUp") {
       e.preventDefault();
-      onChange(roundHalf(clamp(value + step, CUSTOM_LUFS_MIN, CUSTOM_LUFS_MAX)));
+      onChange(normalizeLufs(value + step));
     } else if (e.key === "Home") {
       e.preventDefault();
       onChange(CUSTOM_LUFS_MIN);
@@ -110,8 +148,6 @@ function LoudnessRuler({ value, interactive, disabled, onChange }: LoudnessRuler
       onChange(CUSTOM_LUFS_MAX);
     }
   };
-
-  const markerPercent = percentFor(value);
 
   return (
     <div className="space-y-2 pt-1">
@@ -149,14 +185,19 @@ function LoudnessRuler({ value, interactive, disabled, onChange }: LoudnessRuler
           onKeyDown={handleKeyDown}
           className={cn(
             "absolute top-1/2 flex h-5 w-5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 border-amber-500 bg-graphite-900 shadow-sm transition-transform focus:outline-none",
-            interactive && !disabled && "cursor-ew-resize hover:scale-110 focus-visible:scale-110 focus-visible:ring-2 focus-visible:ring-amber-500/40",
+            interactive &&
+              !disabled &&
+              "cursor-ew-resize hover:scale-110 focus-visible:scale-110 focus-visible:ring-2 focus-visible:ring-amber-500/40",
             dragging && "scale-110"
           )}
-          style={{ left: `${markerPercent}%` }}
+          style={{ left: `${percentFor(value)}%` }}
         />
       </div>
 
-      {/* Reference labels under the ruler */}
+      {/* Reference labels under the ruler. The four marks sit at 63%, 75%, 81%
+          and 93% of the scale, so the WORDS collide below ~400px — they hide
+          on small screens and the numbers, which are what actually position
+          anything, stay. */}
       <div className="relative h-8 text-[10px] text-text-subtle">
         {REFERENCE_MARKS.map((mark) => (
           <span
@@ -165,7 +206,7 @@ function LoudnessRuler({ value, interactive, disabled, onChange }: LoudnessRuler
             style={{ left: `${percentFor(mark.lufs)}%` }}
           >
             <span className="font-mono">{mark.lufs}</span>
-            <span>{mark.label}</span>
+            <span className="hidden sm:block">{mark.label}</span>
           </span>
         ))}
       </div>
@@ -181,8 +222,23 @@ export function LoudnormForm() {
   const [preset, setPreset] = useState<Preset>("streaming");
   const [customLufs, setCustomLufs] = useState(-14);
 
-  const activeLufs = preset === "custom" ? customLufs : PRESETS.find((p) => p.value === preset)!.lufs!;
+  // No non-null assertions: a preset without a target falls back to the
+  // custom value rather than crashing the render.
+  const activeLufs = preset === "custom" ? customLufs : (PRESET_LUFS[preset] ?? customLufs);
   const risk = riskFor(activeLufs);
+  const isCustom = preset === "custom";
+
+  /**
+   * Switching to Custom carries the value you were looking at.
+   *
+   * It used to jump to customLufs' own default, so choosing Club (-9) and then
+   * Custom landed on -14 — a number you never asked for. Custom is where you
+   * go to nudge the preset you nearly wanted.
+   */
+  const choosePreset = (next: Preset) => {
+    if (next === "custom" && preset !== "custom") setCustomLufs(activeLufs);
+    setPreset(next);
+  };
 
   return (
     <JobToolForm
@@ -195,6 +251,11 @@ export function LoudnormForm() {
       processingLabel="Measuring and normalizing loudness"
       expectedRange="10–30 seconds — two-pass analysis"
       resultVerb="Normalized"
+      rateLimitMessage={
+        RATE_LIMIT_LABEL
+          ? `Loudness normalization is limited to ${RATE_LIMIT_LABEL}. Wait for the timer, then run it again.`
+          : undefined
+      }
       stages={[
         { at: 0, label: "First pass — measuring loudness" },
         { at: 6, label: "Calculating the gain curve" },
@@ -205,125 +266,69 @@ export function LoudnormForm() {
         if (preset === "custom") return { custom_lufs: String(customLufs) };
         return { preset };
       }}
-      renderControls={(file, disabled) => (
+      renderControls={(_file, disabled) => (
         <div className="space-y-5">
-          <fieldset className="space-y-2" disabled={disabled}>
-            <legend className="mb-2 text-sm font-medium text-text-primary">Target loudness</legend>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" role="radiogroup" aria-label="Loudness preset">
-              {PRESETS.map((p) => {
-                const selected = preset === p.value;
-                return (
-                  <button
-                    key={p.value}
-                    type="button"
-                    role="radio"
-                    aria-checked={selected}
-                    onClick={() => setPreset(p.value)}
-                    disabled={disabled}
-                    className={cn(
-                      "rounded-lg border p-3 text-left transition-all",
-                      "focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40",
-                      "disabled:cursor-not-allowed disabled:opacity-40",
-                      selected
-                        ? "border-amber-500/60 bg-amber-500/[0.07]"
-                        : "border-graphite-700 bg-graphite-850 hover:border-graphite-700/60 hover:bg-graphite-800/60"
-                    )}
-                  >
-                    <div className="flex items-baseline justify-between gap-1">
-                      <span
-                        className={cn(
-                          "text-sm font-semibold",
-                          selected ? "text-amber-400" : "text-text-primary"
-                        )}
-                      >
-                        {p.label}
-                      </span>
-                      {p.lufs !== null && (
-                        <span
-                          className={cn(
-                            "font-mono text-[10px]",
-                            selected ? "text-amber-500/80" : "text-text-subtle"
-                          )}
-                        >
-                          {p.lufs}
-                        </span>
-                      )}
-                    </div>
-                    <p className="mt-1 text-[11px] leading-snug text-text-muted">{p.description}</p>
-                  </button>
-                );
-              })}
-            </div>
-          </fieldset>
+          <ControlField as="fieldset" label="Target loudness">
+            <OptionCards
+              label="Loudness preset"
+              options={PRESET_OPTIONS}
+              value={preset}
+              onChange={choosePreset}
+              columns={4}
+              disabled={disabled}
+            />
+          </ControlField>
 
           {/* Ruler always visible — shows where the active preset (or
               custom value) sits against real-world reference points,
               instead of a bare number with no context. */}
-          <div className="rounded-lg border border-graphite-800 bg-graphite-850/60 p-4">
-            <div className="flex items-baseline justify-between">
+          <div className="rounded-xl border border-graphite-800 bg-graphite-850/60 p-4">
+            <div className="flex items-baseline justify-between gap-3">
               <span className="text-xs text-text-muted">
-                {preset === "custom" ? "Drag or use arrow keys to set your target" : "Target for this preset"}
+                {isCustom ? "Drag or use arrow keys to set your target" : "Target for this preset"}
               </span>
-              <span className="font-mono text-sm font-semibold text-amber-400">{activeLufs} LUFS</span>
+              <span className="shrink-0 font-mono text-sm font-semibold text-amber-400">
+                {activeLufs} LUFS
+              </span>
             </div>
 
             <LoudnessRuler
               value={activeLufs}
-              interactive={preset === "custom"}
+              interactive={isCustom}
               disabled={disabled}
               onChange={setCustomLufs}
             />
 
-            {preset === "custom" && (
-              <div className="mt-3 flex items-center justify-center gap-1.5">
-                <span className="flex items-center overflow-hidden rounded-md border border-graphite-700 bg-graphite-850">
-                  <input
-                    type="number"
-                    min={CUSTOM_LUFS_MIN}
-                    max={CUSTOM_LUFS_MAX}
-                    step={0.5}
-                    value={customLufs}
-                    disabled={disabled}
-                    onChange={(e) =>
-                      setCustomLufs(roundHalf(clamp(Number(e.target.value), CUSTOM_LUFS_MIN, CUSTOM_LUFS_MAX)))
-                    }
-                    className="w-16 bg-transparent px-2 py-1 text-right font-mono text-text-primary [appearance:textfield] focus:outline-none disabled:opacity-40 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                  />
-                  <span className="flex flex-col border-l border-graphite-700">
-                    <button
-                      type="button"
-                      aria-label="Increase target LUFS"
-                      disabled={disabled}
-                      onClick={() => setCustomLufs((v) => roundHalf(clamp(v + KEY_STEP, CUSTOM_LUFS_MIN, CUSTOM_LUFS_MAX)))}
-                      className="flex h-3.5 w-5 items-center justify-center text-text-subtle transition-colors hover:bg-graphite-800 hover:text-amber-400 disabled:opacity-40"
-                    >
-                      <ChevronUp className="h-2.5 w-2.5" />
-                    </button>
-                    <button
-                      type="button"
-                      aria-label="Decrease target LUFS"
-                      disabled={disabled}
-                      onClick={() => setCustomLufs((v) => roundHalf(clamp(v - KEY_STEP, CUSTOM_LUFS_MIN, CUSTOM_LUFS_MAX)))}
-                      className="flex h-3.5 w-5 items-center justify-center border-t border-graphite-700 text-text-subtle transition-colors hover:bg-graphite-800 hover:text-amber-400 disabled:opacity-40"
-                    >
-                      <ChevronDown className="h-2.5 w-2.5" />
-                    </button>
-                  </span>
-                </span>
-                <span className="text-xs text-text-subtle">LUFS</span>
+            {isCustom && (
+              <div className="mt-3 flex justify-center">
+                {/* Every target here is negative, so typing one starts with a
+                    "-". The kit's field keeps a draft while focused; the old
+                    one turned that first keystroke into NaN. */}
+                <Stepper
+                  label="Target"
+                  value={customLufs}
+                  step={KEY_STEP}
+                  bigStep={KEY_STEP}
+                  precision={1}
+                  unit="LUFS"
+                  disabled={disabled}
+                  onChange={(v) => setCustomLufs(normalizeLufs(v, customLufs))}
+                />
               </div>
             )}
 
             {risk && (
-              <p className={cn("mt-3 flex items-start gap-1.5 text-[11px]", risk.tone)}>
-                <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" aria-hidden />
-                {risk.label} — targets above -6 LUFS leave little headroom before the true peak clips.
-              </p>
+              <div className="mt-3">
+                <Hint tone={risk.tone}>
+                  {risk.label} — targets above -6 LUFS leave little headroom before the true peak
+                  clips.
+                </Hint>
+              </div>
             )}
 
             <p className="mt-2 text-[11px] leading-snug text-text-subtle">
-              Lower (more negative) is quieter with more headroom. Higher (closer to 0) is louder, with
-              a greater risk of clipping.
+              Lower (more negative) is quieter with more headroom. Higher (closer to 0) is louder,
+              with a greater risk of clipping.
             </p>
           </div>
         </div>

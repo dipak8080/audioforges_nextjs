@@ -6,8 +6,14 @@ import { SectionHeading } from "@/components/ui/SectionHeading";
 import { FAQSection } from "@/components/faq/FAQSection";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
-import { getRateLimitLabel } from "@/lib/data/rate-limits";
-import { TRANSCRIPTION_LIMITS, TRANSCRIPTION_MODEL } from "@/lib/api/transcription";
+import { TRANSCRIPTION_MODEL } from "@/lib/api/transcription";
+import {
+  getLimits,
+  windowFor,
+  rateLimitLabel,
+  durationLabel,
+  retentionSentences,
+} from "@/lib/api/limits";
 
 /* ==================================================================== */
 /* TARGETING — READ THIS BEFORE EDITING THE COPY                        */
@@ -41,9 +47,7 @@ import { TRANSCRIPTION_LIMITS, TRANSCRIPTION_MODEL } from "@/lib/api/transcripti
  * Being absent from the entity entirely was the earlier mistake: it
  * cost the match without buying any protection from the wrong intent,
  * and it made the title read as a restriction on the tool ("only works
- * when captions are off") rather than a capability. The sibling pages
- * both lead with entity + "Free" + differentiator; this one now does
- * the same.
+ * when captions are off") rather than a capability.
  *
  * ── THE REAL FIX IS A BACKEND CHANGE ──────────────────────────────────
  *
@@ -72,17 +76,65 @@ import { TRANSCRIPTION_LIMITS, TRANSCRIPTION_MODEL } from "@/lib/api/transcripti
  * have no length limit.
  */
 
-/* ------------------------------------------------------------------ */
-/* Derived facts — nothing below writes a limit as text                */
-/* ------------------------------------------------------------------ */
-const RATE_LIMIT = getRateLimitLabel("youtube/transcribe") ?? "2 per 5 minutes";
-const MAX_MINUTES = TRANSCRIPTION_LIMITS.durationSeconds / 60;
+/**
+ * ── THIS PASS ──────────────────────────────────────────────────────────
+ *
+ * Third of the transcription trio, and it carried the same two faults as the
+ * other two plus one of its own.
+ *
+ * 1. THE FALLBACK WAS STALE AND TOO GENEROUS. `?? "2 per 5 minutes"` against a
+ *    limit that moved to 2 per hour on 2026-08-26. All three routes changed in
+ *    one commit; all three tables were updated; none of the three fallbacks
+ *    were. Derived end-to-end now.
+ *
+ * 2. LAST_VERIFIED SAT AT 2026-08-21, five days before that change. The footer
+ *    publishes it as a promise about the numbers above it.
+ *
+ * 3. NO RETENTION ANSWER, and this is the route where the shared helper
+ *    doesn't fit. retentionSentences().input says "your upload is deleted…" —
+ *    but nothing is uploaded here. The user sends a URL and the server fetches
+ *    the audio itself, so that sentence describes something that never
+ *    happened. The output half is identical to the other two and comes from
+ *    the helper unchanged; the input half is written for this route, with the
+ *    stronger fact stated first: what you send is a link, not a file.
+ *
+ * 4. `keywords` moved out of metadata — ignored by Google since 2009, treated
+ *    as a spam signal by Bing. The list is preserved as a comment because the
+ *    targeting reasoning above depends on knowing what it contains.
+ */
 
 const PUBLISHED: string = "2026-08-20";
-const LAST_VERIFIED: string = "2026-08-21";
+/** Move ONLY after re-checking the limits and the model. It sat at 2026-08-21
+ *  through a rate-limit change on the 26th — the exact failure it exists to
+ *  prevent. */
+const LAST_VERIFIED: string = "2026-08-30";
 
 const formatDate = (iso: string) =>
   new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+
+/*
+  TARGET TERMS — reference only, deliberately NOT emitted as a meta tag.
+
+  The winnable cluster, first:
+    youtube transcript captions disabled
+    transcript from youtube video without captions
+    youtube video no subtitles transcript
+    youtube auto captions wrong
+    transcribe youtube video free
+
+  Entity terms — present in the copy, not targeted. See the note above:
+    youtube to text
+    youtube transcript
+    youtube to srt
+    youtube transcript no sign up
+    get transcript from youtube video
+
+  Head terms surfaced by the gap run. Recorded as targeting HISTORY, not as a
+  claim this page can win them — see the fast-path TODO. Revisit both when it
+  ships:
+    transcription youtube          (~110k)
+    transcript youtube videos      (~22k)
+*/
 
 // 46 chars → 60 with the " | AudioForges" suffix, which sits right at
 // the desktop truncation edge (~580px). "Captions" is the at-risk word
@@ -91,30 +143,19 @@ const formatDate = (iso: string) =>
 // "Free YouTube Transcript Without Captions" is 40 → 54 and renders
 // guaranteed, at the cost of some of the phrasing's warmth.
 const PAGE_TITLE = "Free YouTube Transcript, Even Without Captions";
-const PAGE_DESCRIPTION = `Free YouTube transcript with no account or extension. It reads the audio, so it works even when captions are disabled. Export TXT, SRT or VTT, up to ${MAX_MINUTES} min.`;
+
+/**
+ * `metadata` is evaluated at module scope, where getLimits() can't be awaited.
+ * This matches the fallback in lib/api/limits.ts, so head and body can only
+ * disagree if the backend moved AND that fallback wasn't updated.
+ */
+const DESCRIPTION_MINUTES = 20;
+const PAGE_DESCRIPTION = `Free YouTube transcript with no account or extension. It reads the audio, so it works even when captions are disabled. Export TXT, SRT or VTT, up to ${DESCRIPTION_MINUTES} min.`;
 
 export const metadata: Metadata = {
   title: PAGE_TITLE,
   description: PAGE_DESCRIPTION,
-  keywords: [
-    // The winnable cluster, first.
-    "youtube transcript captions disabled",
-    "transcript from youtube video without captions",
-    "youtube video no subtitles transcript",
-    "youtube auto captions wrong",
-    "transcribe youtube video free",
-    // Entity terms — present, not targeted. See the note above.
-    "youtube to text",
-    "youtube transcript",
-    "youtube to srt",
-    "youtube transcript no sign up",
-    "get transcript from youtube video",
-    // Head terms surfaced by the gap run. Recorded here as targeting
-    // history, NOT as a claim this page can win them — see the fast
-    // path TODO above. Revisit both when it ships.
-    "transcription youtube",
-    "transcript youtube videos",
-  ],
+  // `keywords` intentionally absent — see the term list above.
   alternates: { canonical: `${SITE_URL}/youtube-to-text` },
   openGraph: {
     title: PAGE_TITLE,
@@ -132,30 +173,6 @@ export const metadata: Metadata = {
   },
 };
 
-const webAppJsonLd = {
-  "@context": "https://schema.org",
-  "@type": "WebApplication",
-  name: "YouTube to Text Transcript Generator",
-  alternateName: ["YouTube Transcript Generator", "YouTube to SRT", "YouTube Video to Text"],
-  url: `${SITE_URL}/youtube-to-text`,
-  applicationCategory: "MultimediaApplication",
-  operatingSystem: "Any",
-  browserRequirements: "Requires JavaScript.",
-  dateModified: LAST_VERIFIED,
-  offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
-  featureList: [
-    "Transcribe a YouTube video from its link",
-    "Works on videos with captions disabled — it reads the audio",
-    `Runs ${TRANSCRIPTION_MODEL} on a GPU`,
-    "Automatic language detection, or set the language yourself",
-    "Translate non-English speech to English in the same pass",
-    "Timestamped segments",
-    "Export as TXT, SRT or VTT",
-    "No account, no email, no browser extension",
-    `Videos up to ${MAX_MINUTES} minutes`,
-  ],
-};
-
 const breadcrumbJsonLd = {
   "@context": "https://schema.org",
   "@type": "BreadcrumbList",
@@ -165,71 +182,125 @@ const breadcrumbJsonLd = {
   ],
 };
 
-/**
- * Plain strings only.
- *
- * The old "Is this free" entry carried both `answer` and `answerNode`,
- * on the assumption FAQSection renders the node. If it doesn't, the link
- * inside it never appeared and nobody would notice — the plain answer
- * renders and looks fine. Rather than depend on that, the internal link
- * lives in body copy where it's visible either way.
- *
- * Every answer opens with the answer: extractive summarisers take the
- * first clause, and AI panels are where a page with no backlinks gets
- * its first impressions.
- */
-const faqs = [
-  {
-    question: "Can I get a transcript if captions are turned off?",
-    answer:
-      "Yes — this transcribes the audio directly, so it doesn't depend on whether a caption track exists. That's the one thing browser extensions and most free transcript sites can't do: they read YouTube's existing captions, so when the creator disables them there's nothing for those tools to read.",
-  },
-  {
-    question: "Doesn't YouTube already show a transcript?",
-    answer:
-      "Often, yes — under the video, via the three-dot menu, and that's the faster route when it's there and you only need to read it. It falls short when the creator disabled captions, when the language isn't one YouTube auto-captions, when you want a downloadable SRT rather than text you have to clean up by hand, or when the auto-captions are visibly wrong.",
-  },
-  {
-    question: "The auto-captions are wrong. Can I get a better transcript?",
-    answer: `Sometimes, and it's worth comparing. YouTube's auto-captions and this run on different systems — ours is ${TRANSCRIPTION_MODEL} — so on accented speech, technical vocabulary or music under the voice they often disagree. Neither is authoritative. Having two independent passes to compare is more useful than either side claiming an accuracy percentage.`,
-  },
-  {
-    question: "Do I need to download the video or install an extension?",
-    answer:
-      "Neither. Paste the link and that's it — nothing is downloaded to your device, and there's no extension, no add-on and no permissions to grant.",
-  },
-  {
-    question: `Can I transcribe a video longer than ${MAX_MINUTES} minutes?`,
-    answer: `Not in one pass — ${MAX_MINUTES} minutes is the per-video limit, which rules out most full podcasts and long-form talks. The workaround is to convert the video to audio, split it at natural pauses, and transcribe each section. If the video does have captions, YouTube's own transcript panel has no length limit and is the better route for something that long.`,
-  },
-  {
-    question: "Can I get SRT subtitles from a YouTube video?",
-    answer:
-      "Yes — SRT and VTT both download free, alongside plain text. YouTube's own transcript panel has no download button for viewers, which is usually why people end up here.",
-  },
-  {
-    question: "Does it work with Shorts and youtu.be links?",
-    answer:
-      "Yes — standard watch links, youtu.be short links, and /shorts URLs are all accepted. Private, deleted, and region-blocked videos aren't accessible.",
-  },
-  {
-    question: "Can I get an English transcript from a video in another language?",
-    answer:
-      "Yes — choose English output and it translates as it transcribes, in one pass. English is the only translation target available.",
-  },
-  {
-    question: "Is this free, and is there an account?",
-    answer: `Free, with no account, no email and no credits. Exports aren't paywalled. The limits are ${MAX_MINUTES} minutes per video and ${RATE_LIMIT}, and they exist to keep the queue moving — there's no paid tier to upgrade to.`,
-  },
-  {
-    question: "Can I use a YouTube transcript I generate here?",
-    answer:
-      "That depends on the video and what you're doing with it. Transcribing someone else's video for personal reference, accessibility, study or quotation is generally reasonable; republishing the transcript as your own content is not. You're responsible for how you use it.",
-  },
-];
-
-export default function YouTubeToTextPage() {
+export default async function YouTubeToTextPage() {
   const relatedTools = getRelatedTools("youtube-to-text", 4);
+
+  const limits = await getLimits();
+
+  const maxMinutesLabel = durationLabel(limits.featureDurations.transcription);
+
+  // Derived end-to-end. The old fallback read "2 per 5 minutes".
+  const rateLimit = rateLimitLabel(
+    limits.rateLimits.youtube_transcribe ?? 2,
+    windowFor(limits, "youtube_transcribe")
+  );
+
+  /*
+    OUTPUT half only. retentionSentences().input opens "Your upload is
+    deleted…" and there is no upload on this route — the user sends a link and
+    the server fetches the audio. Using it unchanged would describe something
+    that never happened, which on a privacy answer reads as boilerplate.
+  */
+  const retention = retentionSentences(limits.retention.transcription);
+
+  const webAppJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    name: "YouTube to Text Transcript Generator",
+    alternateName: ["YouTube Transcript Generator", "YouTube to SRT", "YouTube Video to Text"],
+    url: `${SITE_URL}/youtube-to-text`,
+    applicationCategory: "MultimediaApplication",
+    operatingSystem: "Any",
+    browserRequirements: "Requires JavaScript.",
+    dateModified: LAST_VERIFIED,
+    offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+    featureList: [
+      "Transcribe a YouTube video from its link",
+      "Works on videos with captions disabled — it reads the audio",
+      `Runs ${TRANSCRIPTION_MODEL} on a GPU`,
+      "Automatic language detection, or set the language yourself",
+      "Translate non-English speech to English in the same pass",
+      "Timestamped segments",
+      "Export as TXT, SRT or VTT",
+      "No account, no email, no browser extension",
+      `Videos up to ${maxMinutesLabel}`,
+    ],
+  };
+
+  /**
+   * Plain strings only.
+   *
+   * The old "Is this free" entry carried both `answer` and `answerNode`,
+   * on the assumption FAQSection renders the node. If it doesn't, the link
+   * inside it never appeared and nobody would notice — the plain answer
+   * renders and looks fine. Rather than depend on that, the internal link
+   * lives in body copy where it's visible either way.
+   *
+   * Every answer opens with the answer: extractive summarisers take the
+   * first clause, and AI panels are where a page with no backlinks gets
+   * its first impressions.
+   */
+  const faqs = [
+    {
+      question: "Can I get a transcript if captions are turned off?",
+      answer:
+        "Yes — this transcribes the audio directly, so it doesn't depend on whether a caption track exists. That's the one thing browser extensions and most free transcript sites can't do: they read YouTube's existing captions, so when the creator disables them there's nothing for those tools to read.",
+    },
+    {
+      question: "Doesn't YouTube already show a transcript?",
+      answer:
+        "Often, yes — under the video, via the three-dot menu, and that's the faster route when it's there and you only need to read it. It falls short when the creator disabled captions, when the language isn't one YouTube auto-captions, when you want a downloadable SRT rather than text you have to clean up by hand, or when the auto-captions are visibly wrong.",
+    },
+    {
+      question: "The auto-captions are wrong. Can I get a better transcript?",
+      answer: `Sometimes, and it's worth comparing. YouTube's auto-captions and this run on different systems — ours is ${TRANSCRIPTION_MODEL} — so on accented speech, technical vocabulary or music under the voice they often disagree. Neither is authoritative. Having two independent passes to compare is more useful than either side claiming an accuracy percentage.`,
+    },
+    {
+      question: "Do I need to download the video or install an extension?",
+      answer:
+        "Neither. Paste the link and that's it — nothing is downloaded to your device, and there's no extension, no add-on and no permissions to grant.",
+    },
+    {
+      question: `Can I transcribe a video longer than ${maxMinutesLabel}?`,
+      answer: `Not in one pass — ${maxMinutesLabel} is the per-video limit, which rules out most full podcasts and long-form talks. The workaround is to convert the video to audio, split it at natural pauses, and transcribe each section. If the video does have captions, YouTube's own transcript panel has no length limit and is the better route for something that long.`,
+    },
+    {
+      question: "Can I get SRT subtitles from a YouTube video?",
+      answer:
+        "Yes — SRT and VTT both download free, alongside plain text. YouTube's own transcript panel has no download button for viewers, which is usually why people end up here.",
+    },
+    {
+      question: "Does it work with Shorts and youtu.be links?",
+      answer:
+        "Yes — standard watch links, youtu.be short links, and /shorts URLs are all accepted. Private, deleted, and region-blocked videos aren't accessible.",
+    },
+    {
+      question: "Can I get an English transcript from a video in another language?",
+      answer:
+        "Yes — choose English output and it translates as it transcribes, in one pass. English is the only translation target available.",
+    },
+    {
+      question: "Is this free, and is there an account?",
+      answer: `Free, with no account, no email and no credits. Exports aren't paywalled. The limits are ${maxMinutesLabel} per video and ${rateLimit}, and they exist to keep the queue moving — there's no paid tier to upgrade to.`,
+    },
+    {
+      /*
+        ADDED, and written for this route rather than taken from the shared
+        helper. The input sentence there begins "Your upload is deleted…" and
+        nothing is uploaded here — the strongest true fact is that what leaves
+        your browser is a link, not a file. The output half is the helper's,
+        unchanged, because that part is identical across all three
+        transcription routes.
+      */
+      question: "What happens to the video and the transcript?",
+      answer: `Nothing is uploaded from your device — you send a link, and the audio is fetched server-side. That downloaded audio is deleted as soon as the transcript is finished, whether the job succeeded or failed. ${retention.output} There are no accounts, so nothing is linked to you.`,
+    },
+    {
+      question: "Can I use a YouTube transcript I generate here?",
+      answer:
+        "That depends on the video and what you're doing with it. Transcribing someone else's video for personal reference, accessibility, study or quotation is generally reasonable; republishing the transcript as your own content is not. You're responsible for how you use it.",
+    },
+  ];
 
   return (
     <>
@@ -294,7 +365,7 @@ export default function YouTubeToTextPage() {
             <p>
               This tool takes a different route. It downloads the audio and
               transcribes it with {TRANSCRIPTION_MODEL}, which is slower and
-              capped at {MAX_MINUTES} minutes — and which works in four
+              capped at {maxMinutesLabel} — and which works in four
               situations where reading the caption track gets you nothing:
             </p>
           </div>
@@ -332,7 +403,7 @@ export default function YouTubeToTextPage() {
                   <td className="px-4 py-3 text-text-primary">SRT or VTT, free</td>
                 </tr>
                 <tr>
-                  <td className="px-4 py-3">Video is over {MAX_MINUTES} minutes</td>
+                  <td className="px-4 py-3">Video is over {maxMinutesLabel}</td>
                   <td className="px-4 py-3 text-text-primary">No length limit</td>
                   <td className="px-4 py-3">Rejected — see below</td>
                 </tr>
@@ -428,14 +499,14 @@ export default function YouTubeToTextPage() {
           <div className="lg:col-span-7">
             <SectionHeading
               eyebrow="Long videos"
-              title={`Past ${MAX_MINUTES} minutes, there's a longer route`}
+              title={`Past ${maxMinutesLabel}, there's a longer route`}
             />
             <div className="mt-5 space-y-3 leading-relaxed text-text-muted">
               <p>
-                {MAX_MINUTES} minutes covers most interviews, lectures and music
+                {maxMinutesLabel} covers most interviews, lectures and music
                 videos. It does not cover a two-hour podcast, and pretending
                 otherwise would just waste your time — a longer link is
-                rejected before anything is processed.
+                rejected rather than half-transcribed.
               </p>
               <p>
                 If the video has captions, stop here and use YouTube&apos;s own
@@ -588,7 +659,7 @@ export default function YouTubeToTextPage() {
             </>
           )}
           {". "}
-          {TRANSCRIPTION_MODEL} · {MAX_MINUTES} min per video · {RATE_LIMIT}.
+          {TRANSCRIPTION_MODEL} · {maxMinutesLabel} per video · {rateLimit}.
         </p>
       </main>
     </>

@@ -15,6 +15,19 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
+import {
+  CooldownBar,
+  ErrorPanel,
+  FormShell,
+  Section,
+  formatCooldown,
+  formatElapsed,
+  terminalPollError,
+  useCooldownSeconds,
+  useElapsedSeconds,
+  type FormError,
+} from "@/components/tools/JobFormKit";
+import { Segmented } from "@/components/converter/ToolControls";
 import { SearchableSelect } from "@/components/ui/SearchableSelect";
 import { FileDropZone } from "@/components/ui/FileDropZone";
 import { FileDropOverlay } from "@/components/ui/FileDropOverlay";
@@ -53,45 +66,44 @@ import { CreditReceipt } from "@/components/credits/CreditReceipt";
 import type { SubmitBilling } from "@/lib/types/converter";
 
 /* ==================================================================== */
-/* Layout contract                                                      */
+/* THIS PASS                                                            */
 /* ==================================================================== */
 /**
- * The card is a panel with named zones, not a stack of widgets.
+ * IT USES THE SHELL NOW.
  *
- *   ┌ header ─────────────── state dot · state ····· model ┐
- *   │ SOURCE      file drop / URL field + preview          │
- *   ├──────────────────────────────────────────────────────┤
- *   │ SETTINGS    language · output          (2-up on sm+)  │
- *   ├──────────────────────────────────────────────────────┤
- *   │ ACTION BAR  one button, always in the same place     │
- *   └──────────────────────────────────────────────────────┘
+ * This form was the best-designed island on the site: its own header, its own
+ * zone rhythm, its own action bar, its own working panel — all carefully
+ * argued, all built before JobFormKit existed, and none of it shared. So the
+ * most expensive tool in the product was also the one that looked least like
+ * the other thirty, and every fix that landed in the kit had to be
+ * re-discovered here.
  *
- * Two rules that everything below follows:
+ * FormShell now draws the card, the status dot, the step rail (Source →
+ * Transcribe → Transcript — a three-stage job that never showed you which
+ * stage you were in) and the pinned action bar.
  *
- *  1. ONE action, ONE place. The footer holds exactly one button in
- *     every state — Transcribe, Cancel, or Transcribe another.
+ * WHAT I DELIBERATELY DID NOT ADOPT: the kit's WorkingPanel. Every other tool
+ * eases a fake progress curve toward 92%, which is a reasonable lie when the
+ * work is roughly linear in file size. Transcription is not — a cold start
+ * spends ~90 seconds before any audio is touched, and a 30-second clip and a
+ * 20-minute one finish about the same. This panel's refusal to invent a
+ * percentage, and its two honest steps, is the better design. It stays.
  *
- *  2. Zones are separated by hairlines, not by more vertical space.
- *     Uniform `space-y-6` between seven unrelated blocks is why the old
- *     card read as a pile rather than an instrument.
+ * THREE BUGS
  *
- * Type scale, four steps, no exceptions:
- *   11px mono uppercase  field labels, meta, timers
- *   13px                 helper text, step rows
- *   14px                 body, inputs, controls
- *   16px                 the action button (via Button size="lg")
+ * 1. A REJECTED POLL WAS TREATED AS A SLOW JOB. The catch only short-circuited
+ *    on `kind === "expired"`, so a 401 or 403 was retried until maxPollMs and
+ *    then reported as "taking longer than the server allows" — about a job the
+ *    server had answered immediately. On the tool where a run costs a credit.
  *
- * Radii, three steps: card `rounded-xl`, surfaces `rounded-lg`,
- * micro-controls `rounded-md`.
+ * 2. THE COST LINE READ THE CHARGE ORDER BACKWARDS. `balance > 0 ? "1 credit
+ *    per transcription" : freeRemaining > 0 ? "N free runs left"` — so someone
+ *    holding both credits AND free runs was told a run costs a credit, when
+ *    the free allowance is spent first. It also contradicted FreeTierBadge on
+ *    the same button, which shows free runs first.
  *
- * Control height is 44px (`h-11`) for every settings control, so the
- * settings row has one baseline instead of three.
- *
- * The YouTube confirmation row is NOT defined here. It's
- * <VideoPreviewCard>, shared with YouTubeUrlForm and
- * YouTubeConverterForm — the three used to be three near-copies that had
- * drifted on thumbnail size, fallback copy and whether an image error
- * was handled at all.
+ * 3. THE COOLDOWN HAD NO BAR. The number ticked down inside the button label
+ *    and nowhere else; every other tool draws a countdown you can watch.
  */
 
 /* ------------------------------------------------------------------ */
@@ -103,6 +115,9 @@ export type TranscriptionMode = "audio" | "youtube" | "video";
 interface ModeConfig {
   endpoint: TranscriptionEndpoint;
   submitLabel: string;
+  /** Header eyebrow. The old one said the mode name directly under an h1 that
+   *  already said it; this says what the tool IS, like every other card. */
+  toolLabel: string;
   accept: string;
   /**
    * Size cap in bytes, for display only — the server is the authority.
@@ -122,6 +137,7 @@ const MODES: Record<TranscriptionMode, ModeConfig> = {
   audio: {
     endpoint: "speech-to-text",
     submitLabel: "Transcribe audio",
+    toolLabel: "Audio to text",
     accept: `audio/*,${TRANSCRIPTION_AUDIO_EXTENSIONS.map((e) => `.${e}`).join(",")}`,
     maxBytes: TRANSCRIPTION_LIMITS.audioBytes,
     playable: true,
@@ -129,6 +145,7 @@ const MODES: Record<TranscriptionMode, ModeConfig> = {
   youtube: {
     endpoint: "youtube/transcribe",
     submitLabel: "Transcribe video",
+    toolLabel: "YouTube to text",
     accept: "",
     maxBytes: 0,
     playable: false,
@@ -136,6 +153,7 @@ const MODES: Record<TranscriptionMode, ModeConfig> = {
   video: {
     endpoint: "video-to-text",
     submitLabel: "Transcribe video",
+    toolLabel: "Video to text",
     accept: `video/*,${TRANSCRIPTION_VIDEO_EXTENSIONS.map((e) => `.${e}`).join(",")}`,
     maxBytes: TRANSCRIPTION_LIMITS.videoBytes,
     playable: true,
@@ -148,19 +166,8 @@ type UiState = "idle" | "uploading" | "processing" | "complete" | "failed";
 /* Helpers                                                             */
 /* ------------------------------------------------------------------ */
 
-function formatElapsed(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
-  return `${m}:${s.toString().padStart(2, "0")}`;
-}
-
 function formatMb(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function formatCooldown(seconds: number): string {
-  if (seconds >= 60) return `${Math.ceil(seconds / 60)}m`;
-  return `${seconds}s`;
 }
 
 function extractVideoId(input: string): string | null {
@@ -183,8 +190,7 @@ function extractVideoId(input: string): string | null {
 /* ------------------------------------------------------------------ */
 
 /** Mono micro-label. Matches the page's section eyebrows, so the form
- *  speaks the same language as the copy around it instead of arriving in
- *  a different typographic voice. */
+ *  speaks the same language as the copy around it. */
 function FieldLabel({
   htmlFor,
   icon: Icon,
@@ -224,15 +230,7 @@ type StepState = "done" | "active" | "pending";
  * *what* has happened and *what is happening now* — which is real
  * information, obtained without inventing a percentage.
  */
-function StepRow({
-  state,
-  label,
-  detail,
-}: {
-  state: StepState;
-  label: string;
-  detail?: string;
-}) {
+function StepRow({ state, label, detail }: { state: StepState; label: string; detail?: string }) {
   return (
     <li className="flex items-center gap-2.5">
       <span
@@ -253,12 +251,7 @@ function StepRow({
         )}
       </span>
 
-      <span
-        className={cn(
-          "text-[13px]",
-          state === "pending" ? "text-text-subtle" : "text-text-primary"
-        )}
-      >
+      <span className={cn("text-[13px]", state === "pending" ? "text-text-subtle" : "text-text-primary")}>
         {label}
       </span>
 
@@ -289,7 +282,9 @@ export function TranscriptionForm({ mode, languages: initialLanguages }: Transcr
   const config = MODES[mode];
   const isUrlMode = mode === "youtube";
 
-  const [languages, setLanguages] = useState<TranscriptionLanguages | null>(initialLanguages ?? null);
+  const [languages, setLanguages] = useState<TranscriptionLanguages | null>(
+    initialLanguages ?? null
+  );
 
   const [file, setFile] = useState<File | null>(null);
   /** Decoded once in handleFileSelect and handed to FileDropZone, so the
@@ -304,8 +299,7 @@ export function TranscriptionForm({ mode, languages: initialLanguages }: Transcr
   const [error, setError] = useState<{ message: string; retryable: boolean } | null>(null);
   const [transcript, setTranscript] = useState<Transcript | null>(null);
   /** True when the result on screen is the canned demo rather than a run
-   *  of the user's own file. Gates the banner and keeps the sample's
-   *  static audio out of the object-URL lifecycle below. */
+   *  of the user's own file. */
   const [isSample, setIsSample] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   /** Bytes sent / total, while the file is going up. Null once the
@@ -313,29 +307,24 @@ export function TranscriptionForm({ mode, languages: initialLanguages }: Transcr
    *  is genuinely nothing to measure. */
   const [upload, setUpload] = useState<{ sent: number; total: number } | null>(null);
   /** Sticks around after the upload completes so the finished step can
-   *  still show what was sent. `upload` itself goes null to flip the bar
-   *  to indeterminate. */
+   *  still show what was sent. */
   const [uploadedBytes, setUploadedBytes] = useState<number | null>(null);
   const [resultTitle, setResultTitle] = useState<string | null>(null);
   const [serverTitle, setServerTitle] = useState<string | null>(null);
-  const [cooldownSeconds, setCooldownSeconds] = useState(0);
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
   /** What the server said it charged. Reported verbatim, never inferred. */
   const [billing, setBilling] = useState<SubmitBilling | null>(null);
+
+  const isBusy = status === "uploading" || status === "processing";
+  const [elapsedSeconds, setElapsedSeconds] = useElapsedSeconds(isBusy);
+  const [cooldownSeconds, setCooldownSeconds] = useCooldownSeconds();
+  const cooldownCeilingRef = useRef(getRetryAfterFallback(config.endpoint));
 
   /**
    * CREDITS.
    *
    * All three transcription routes are metered under ONE shared rule key,
    * "transcribe" — they hit one RunPod endpoint and one concurrency pool, so
-   * three keys would hand a caller three budgets for one resource. Everything
-   * below therefore badges, charges and reports against that single key, and
-   * the copy says the allowance is shared rather than letting someone assume
-   * two free runs per tool.
-   *
-   * onCredited re-runs the submit once the gate closes on a purchase, so
-   * buying mid-task doesn't dump the user back onto a form they have to
-   * re-trigger by hand.
+   * three keys would hand a caller three budgets for one resource.
    */
   const submitRef = useRef<() => void>(() => {});
   const { catchCreditError, gate } = useCreditGate({
@@ -350,25 +339,24 @@ export function TranscriptionForm({ mode, languages: initialLanguages }: Transcr
   const abortRef = useRef<AbortController | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const isBusy = status === "uploading" || status === "processing";
   const videoId = useMemo(() => (isUrlMode ? extractVideoId(url.trim()) : null), [isUrlMode, url]);
   const hasInput = isUrlMode ? Boolean(videoId) : Boolean(file);
   const canSubmit = hasInput && !validationError && !isBusy && cooldownSeconds === 0;
+  const isComplete = status === "complete";
+  const isFailed = status === "failed";
   /** Source and settings are visible in exactly the states where they can
-   *  be acted on. During a job they're replaced by the progress panel;
-   *  after one they're replaced by the transcript. */
-  const showEditor = status === "idle" || status === "failed";
+   *  be acted on. */
+  const showEditor = status === "idle" || isFailed;
 
-  /** Title/channel for the pasted link. Shared hook, shared card — see
-   *  components/ui/VideoPreviewCard.tsx. Lives up here rather than inside
-   *  the card because the progress panel needs the same title, and a
-   *  card that owned the fetch would mean requesting it twice. */
+  const step: 1 | 2 | 3 = isComplete ? 3 : isBusy ? 2 : 1;
+  const STEPS: readonly [string, string, string] = isUrlMode
+    ? ["Link", "Transcribe", "Transcript"]
+    : ["File", "Transcribe", "Transcript"];
+
+  /** Title/channel for the pasted link. Shared hook, shared card. */
   const videoMeta = useYouTubeMeta(videoId);
 
-  /* --- preview audio ----------------------------------------------
-     Created and revoked here rather than in TranscriptView, because the
-     sample's audio is a static asset the view doesn't own. One place
-     decides what plays; the view just renders whatever URL it's given. */
+  /* --- preview audio ---------------------------------------------- */
   useEffect(() => {
     if (isSample || !file || !config.playable) {
       setPreviewUrl(null);
@@ -388,20 +376,14 @@ export function TranscriptionForm({ mode, languages: initialLanguages }: Transcr
         if (!cancelled) setLanguages(data);
       })
       .catch(() => {
-        // Auto-detect still works with no list — the select just stays
-        // on "Detect automatically".
+        // Auto-detect still works with no list.
       });
     return () => {
       cancelled = true;
     };
   }, [languages]);
 
-  /* --- link validation, debounced ---------------------------------
-     Matched to the two YouTube tools, which have always done this. The
-     transcription form used to say nothing about a malformed link until
-     you pressed the button, so the only feedback on a typo'd URL was the
-     submit staying grey — which reads as the button being broken, not
-     the link. 450ms is long enough that it never fires mid-paste. */
+  /* --- link validation, debounced --------------------------------- */
   useEffect(() => {
     if (!isUrlMode || isBusy) return;
 
@@ -438,18 +420,6 @@ export function TranscriptionForm({ mode, languages: initialLanguages }: Transcr
     },
     [stopPolling]
   );
-
-  useEffect(() => {
-    if (cooldownSeconds <= 0) return;
-    const id = setTimeout(() => setCooldownSeconds((s) => Math.max(0, s - 1)), 1000);
-    return () => clearTimeout(id);
-  }, [cooldownSeconds]);
-
-  useEffect(() => {
-    if (!isBusy) return;
-    const id = setInterval(() => setElapsedSeconds((s) => s + 1), 1000);
-    return () => clearInterval(id);
-  }, [isBusy]);
 
   /* --- polling ---------------------------------------------------- */
   const poll = useCallback(
@@ -505,14 +475,30 @@ export function TranscriptionForm({ mode, languages: initialLanguages }: Transcr
         }
       } catch (err) {
         if (cancelledRef.current) return;
-        // 404 means the job is genuinely gone; anything else is worth
-        // another poll rather than giving up on one bad response.
-        if (err instanceof ApiError && err.kind === "expired") {
+
+        /*
+          A 401, 403 or 404 is an ANSWER, not a blip.
+
+          This used to short-circuit on `kind === "expired"` alone, so an auth
+          failure fell through to "poll again" and repeated identically until
+          the ceiling — then reported "taking longer than the server allows"
+          about a job the server had settled in seconds. On the one tool where
+          the run costs a credit.
+        */
+        const terminal = terminalPollError(err);
+        if (terminal || (err instanceof ApiError && err.kind === "expired")) {
           stopPolling();
-          setError({ message: err.message, retryable: true });
+          setError({
+            message:
+              err instanceof ApiError && err.kind === "expired"
+                ? err.message
+                : (terminal?.title ?? "This job is no longer available."),
+            retryable: true,
+          });
           setStatus("failed");
           return;
         }
+        // Transient network blips fall through to the next tick.
       }
 
       pollRef.current = setTimeout(() => poll(jobId), TRANSCRIPTION_LIMITS.pollIntervalMs);
@@ -535,33 +521,26 @@ export function TranscriptionForm({ mode, languages: initialLanguages }: Transcr
     setStatus("idle");
     setError(null);
     setTranscript(null);
-    // Picking a file after viewing the demo must drop the demo, or the
-    // preview effect keeps returning null and the real file plays
-    // nothing.
     setIsSample(false);
 
     // Duration needs a decode, so it lands a moment after the file does.
-    // Advisory only — a container the browser can't read returns null and
-    // we let the server make the call rather than blocking a valid file.
+    // Advisory only — a container the browser can't read returns null.
     const duration = await readMediaDuration(selected, kind);
     setFileDuration(duration);
     const durationCheck = validateTranscriptionDuration(duration);
     if (!durationCheck.ok) setValidationError(durationCheck.error ?? null);
   };
 
-  /** Removes the chosen file and nothing else.
-   *
-   *  The dropzone's X used to call handleReset, which also cleared the
-   *  URL field, the transcript, and the elapsed timer. Removing a file is
-   *  not "start over" — the language and output you picked are still the
-   *  ones you want for the file you're about to pick instead. */
+  /** Removes the chosen file and nothing else. Removing a file is not
+   *  "start over" — the language and output you picked are still the ones
+   *  you want for the file you're about to pick instead. */
   const handleClearSource = () => {
     setFile(null);
     setFileDuration(null);
     setUrl("");
     setValidationError(null);
     setError(null);
-    if (status === "failed") setStatus("idle");
+    if (isFailed) setStatus("idle");
   };
 
   const handlePaste = async () => {
@@ -575,9 +554,8 @@ export function TranscriptionForm({ mode, languages: initialLanguages }: Transcr
   };
 
   /** Renders the canned result instantly. Deliberately does NOT call the
-   *  API: a real run would spend up to 90 seconds on a cold start and
-   *  burn one of the user's two submissions per 5 minutes before they'd
-   *  uploaded anything of their own. */
+   *  API: a real run would spend up to 90 seconds on a cold start and burn
+   *  one of the user's submissions before they'd uploaded anything. */
   const handleShowSample = () => {
     stopPolling();
     cancelledRef.current = true;
@@ -586,6 +564,7 @@ export function TranscriptionForm({ mode, languages: initialLanguages }: Transcr
     setResultTitle(SAMPLE_TRANSCRIPT.title);
     setError(null);
     setValidationError(null);
+    setBilling(null);
     setStatus("complete");
   };
 
@@ -622,6 +601,9 @@ export function TranscriptionForm({ mode, languages: initialLanguages }: Transcr
     setUploadedBytes(null);
     setElapsedSeconds(0);
     setServerTitle(null);
+    // Same reason as handleReset: a cancelled run's receipt must not decide
+    // the next run's copy.
+    setBilling(null);
   };
 
   const handleSubmit = async () => {
@@ -685,9 +667,7 @@ export function TranscriptionForm({ mode, languages: initialLanguages }: Transcr
       setStatus("processing");
 
       // The metered route reports what it just charged, so the navbar pill
-      // updates from THIS response rather than a follow-up /credits/me — no
-      // stale number on screen, and no extra request at the one moment the
-      // user is watching the count change.
+      // updates from THIS response rather than a follow-up /credits/me.
       setBilling(jobBilling);
       if (jobBilling) {
         applyBalance(jobBilling.balance, jobBilling.free_remaining);
@@ -700,14 +680,7 @@ export function TranscriptionForm({ mode, languages: initialLanguages }: Transcr
       // ApiError — check that before anything else.
       if (cancelledRef.current || controller.signal.aborted) return;
 
-      // Out of credits is a DECISION POINT, not a failure. Returning to idle
-      // keeps the file or link and the language/output choices, so buying and
-      // pressing the button again just works — and nothing red is rendered.
-      //
-      // Before this, a 402 had no case in toTranscriptionError() either, so it
-      // surfaced as "The request failed. Please try again." with no gate and
-      // no prices: a hard dead end reached by anyone whose per-IP monthly
-      // allowance ran out.
+      // Out of credits is a DECISION POINT, not a failure.
       if (catchCreditError(err)) {
         setStatus("idle");
         return;
@@ -716,10 +689,11 @@ export function TranscriptionForm({ mode, languages: initialLanguages }: Transcr
       if (err instanceof ApiError) {
         setError({ message: err.message, retryable: err.retryable !== false });
         // Prefer the server's Retry-After; fall back to the endpoint's own
-        // window, which is the correct worst case — the limit can't still
-        // be in force past it.
+        // window, which is the correct worst case.
         if (err.isRateLimit) {
-          setCooldownSeconds(err.retryAfterSeconds ?? getRetryAfterFallback(config.endpoint));
+          const wait = err.retryAfterSeconds ?? getRetryAfterFallback(config.endpoint);
+          cooldownCeilingRef.current = Math.max(1, wait);
+          setCooldownSeconds(wait);
         }
       } else {
         setError({ message: "Something went wrong. Please try again.", retryable: true });
@@ -730,7 +704,7 @@ export function TranscriptionForm({ mode, languages: initialLanguages }: Transcr
     }
   };
 
-  // Assigned during render so onCredited always calls the CURRENT
+  // Synced after every render so onCredited always calls the CURRENT
   // handleSubmit rather than the one captured at first mount.
   useEffect(() => {
     submitRef.current = () => {
@@ -741,29 +715,9 @@ export function TranscriptionForm({ mode, languages: initialLanguages }: Transcr
   /* --- derived ----------------------------------------------------- */
 
   /**
-   * Header state. A single dot and a single word, in one fixed place,
-   * that is true in every state. The old header carried the mode name
-   * ("AUDIO TO TEXT") directly beneath an h1 that already said it.
-   */
-  const headerState: { label: string; dot: string; pulse: boolean } = (() => {
-    if (status === "uploading") return { label: "Uploading", dot: "bg-amber-500", pulse: true };
-    if (status === "processing")
-      return {
-        label: isUrlMode && !serverTitle ? "Fetching" : "Transcribing",
-        dot: "bg-amber-500",
-        pulse: true,
-      };
-    if (status === "complete")
-      return { label: isSample ? "Sample" : "Done", dot: "bg-teal-400", pulse: false };
-    if (status === "failed") return { label: "Failed", dot: "bg-red-500", pulse: false };
-    return { label: hasInput ? "Ready" : "Waiting", dot: "bg-graphite-600", pulse: false };
-  })();
-
-  /**
    * Two steps, because there are exactly two things we can honestly
    * report: bytes leaving the browser (measurable) and the server
-   * working (not). Which one is lit is derived from real signals — the
-   * upload callback, and `title` flipping non-null on the YouTube flow.
+   * working (not).
    */
   const steps: { label: string; state: StepState; detail?: string }[] = isUrlMode
     ? [
@@ -797,10 +751,7 @@ export function TranscriptionForm({ mode, languages: initialLanguages }: Transcr
 
   const rateLimitLabel = getRateLimitLabel(config.endpoint);
 
-  /* One sorted list, always complete. The old control showed a handful
-     and hid the rest behind a "Show 90 more languages" button that
-     mutated the options under the user — so the language you wanted
-     wasn't findable until you'd first found the link. */
+  /* One sorted list, always complete. */
   const languageGroups = useMemo(() => {
     const primary = languages?.primary ?? [];
     const extra = (languages?.all ?? [])
@@ -814,538 +765,475 @@ export function TranscriptionForm({ mode, languages: initialLanguages }: Transcr
     ].filter((group) => group.options.length > 0);
   }, [languages]);
 
+  const formError: FormError | null = error
+    ? {
+        // Server messages are written for the end user and carry the specifics
+        // — "Audio is too long (35.2 min)". Shown verbatim as the headline.
+        title: error.message,
+        hint: error.retryable
+          ? "Run it again, or try a different file."
+          : "This one won't succeed on a retry.",
+      }
+    : null;
+
   /* --- render ------------------------------------------------------ */
+
+  const footer = isBusy ? (
+    <Button variant="outline" size="lg" className="w-full" onClick={handleCancel}>
+      <X />
+      Cancel
+    </Button>
+  ) : isComplete ? (
+    <Button variant="outline" size="lg" className="w-full" onClick={handleReset}>
+      <RotateCcw />
+      {isSample ? "Transcribe my own file" : "Transcribe another"}
+    </Button>
+  ) : (
+    <>
+      <Button
+        variant={hasInput ? "primary" : "secondary"}
+        size="lg"
+        className="w-full"
+        onClick={handleSubmit}
+        disabled={!canSubmit}
+      >
+        {isUrlMode ? <Link2 /> : mode === "video" ? <Film /> : <Mic />}
+        {/* Renders nothing while the paywall is off or this rule is disabled. */}
+        <FreeTierBadge tool="transcribe" className="ml-0.5" />
+        {cooldownSeconds > 0
+          ? `Try again in ${formatCooldown(cooldownSeconds)}`
+          : isFailed && error?.retryable
+            ? "Try again"
+            : config.submitLabel}
+      </Button>
+
+      <CooldownBar seconds={cooldownSeconds} ceiling={cooldownCeilingRef.current} />
+
+      {/* One line, not three centred ones. Limits on the left where they're
+          read as terms; the sample on the right where it's read as an action. */}
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5 text-[13px] text-text-subtle">
+        <p>
+          {cooldownSeconds > 0 ? (
+            <span className="text-text-muted">
+              Rate limit reached. The window clears in {formatCooldown(cooldownSeconds)}.
+            </span>
+          ) : metered ? (
+            /*
+              THE SHARED ALLOWANCE, SAID OUT LOUD. All three transcription
+              tools draw on ONE "transcribe" budget, and finding that out by
+              surprise feels like being short-changed.
+
+              FREE RUNS ARE CHECKED FIRST. This used to read `balance > 0 ?
+              "1 credit per transcription" : freeRemaining > 0 ? ...`, so
+              somebody holding credits AND free runs was told the run costs a
+              credit — when the free allowance is spent first. It also
+              contradicted FreeTierBadge on the very same button, which shows
+              free runs first.
+            */
+            <>
+              {freeRemaining > 0 ? (
+                <>
+                  {freeRemaining} free {freeRemaining === 1 ? "run" : "runs"} left this month
+                </>
+              ) : balance > 0 ? (
+                <>1 credit per transcription</>
+              ) : (
+                /*
+                  Nothing left. Stating "0 free runs left" and stopping there
+                  describes the wall without showing the door — and this is a
+                  REAL state, not an edge case: the free allowance is
+                  min(owner, per-IP), so a shared or returning IP reaches it
+                  routinely.
+                */
+                <>
+                  No free runs left this month.{" "}
+                  <Link
+                    href="/pricing"
+                    className="rounded text-amber-400 underline underline-offset-2 outline-none transition-colors hover:text-amber-300 focus-visible:ring-2 focus-visible:ring-amber-400/70"
+                  >
+                    Credits are $0.20–0.30 a run
+                  </Link>
+                </>
+              )}
+              , shared across all three transcription tools. Up to{" "}
+              {TRANSCRIPTION_LIMITS.durationSeconds / 60} min per file.
+            </>
+          ) : (
+            <>
+              Free, no account. Up to {TRANSCRIPTION_LIMITS.durationSeconds / 60} min per file
+              {rateLimitLabel ? `, ${rateLimitLabel}` : ""}.
+            </>
+          )}
+        </p>
+
+        {/* An empty upload box asks someone to commit a file before they know
+            whether the output is any good. */}
+        {!hasInput && (
+          <button
+            type="button"
+            onClick={handleShowSample}
+            className="shrink-0 rounded text-amber-400 underline underline-offset-2 outline-none transition-colors hover:text-amber-300 focus-visible:ring-2 focus-visible:ring-amber-500/40"
+          >
+            See a sample result
+          </button>
+        )}
+      </div>
+    </>
+  );
 
   return (
     <div
       onKeyDown={(e) => {
-        // Cmd/Ctrl+Enter submits from anywhere in the panel. Enter alone
-        // is handled on the URL field only — inside a file form there is
-        // no field for it to mean anything from.
+        // Cmd/Ctrl+Enter submits from anywhere in the panel.
         if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && canSubmit) {
           e.preventDefault();
           void handleSubmit();
         }
       }}
-      /* NO overflow-hidden. It clips the language popover, and — less
-         obviously — it silently breaks the sticky AudioPlayer inside
-         TranscriptView: a sticky element inside an overflow-hidden
-         ancestor sticks to that ancestor, which never scrolls, so it
-         just never moves. The action bar carries rounded-b-xl instead. */
-      className="rounded-xl border border-graphite-800 bg-graphite-900 shadow-[0_1px_0_rgba(255,255,255,0.03)_inset]"
     >
-      {/* Whole window is a drop target, not just the dashed box. Off for
-          the URL mode, while a job runs, and once a result is showing —
-          a stray drop there would throw away the transcript. */}
+      {/* Whole window is a drop target, not just the dashed box. */}
       {!isUrlMode && (
         <FileDropOverlay
           onFile={(dropped) => {
             void handleFileSelect(dropped);
           }}
-          disabled={isBusy || status === "complete"}
+          disabled={isBusy || isComplete}
           label={mode === "video" ? "Drop your video anywhere" : "Drop your audio anywhere"}
-          // Size read off the same config the dropzone uses, so the
-          // overlay and the box can't disagree — they did, and the box
-          // was the one that stayed silent.
           hint={`${
             mode === "video" ? "MP4, MOV, MKV, AVI, WEBM" : "MP3, WAV, FLAC, M4A, AAC, OGG"
           } · up to ${Math.round(config.maxBytes / (1024 * 1024))} MB`}
         />
       )}
 
-      {/* ================= Header ================= */}
-      <div className="flex items-center justify-between gap-3 border-b border-graphite-800 px-5 py-3 sm:px-6">
-        <div className="flex items-center gap-2">
-          <span
-            className={cn(
-              "h-1.5 w-1.5 rounded-full",
-              headerState.dot,
-              headerState.pulse && "animate-pulse motion-reduce:animate-none"
-            )}
-            aria-hidden
-          />
-          <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-text-muted">
-            {headerState.label}
-          </span>
-        </div>
-        <span className="font-mono text-[11px] uppercase tracking-[0.08em] text-text-subtle">
-          {status === "complete" && transcript
+      <FormShell
+        /*
+          The card must NOT clip its children here, and this is the only form
+          where that's true. Two things inside depend on it:
+            · SearchableSelect's ~99-item language popover, which a clipped
+              card cuts off at its own edge.
+            · TranscriptView's sticky player. `position: sticky` resolves
+              against the nearest scrollable ancestor, and overflow-hidden
+              makes the card one — so the player would stick to a container
+              that never scrolls and silently never move.
+          The old hand-rolled card carried this note; moving to the shell
+          reintroduced the bug until the shell learned to opt out.
+        */
+        allowOverflow
+        toolLabel={config.toolLabel}
+        toolMeta={
+          isComplete && transcript
             ? languageName(transcript.language)
             : /* From the languages payload this form already fetches, so it
                  costs no extra request and follows the backend without a
                  deploy. Falls back to the constant. */
-              (languages?.model_name ?? TRANSCRIPTION_MODEL)}
-        </span>
-      </div>
+              (languages?.model_name ?? TRANSCRIPTION_MODEL)
+        }
+        steps={STEPS}
+        step={step}
+        busy={isBusy}
+        failed={isFailed}
+        complete={isComplete}
+        footer={footer}
+      >
+        {/* ================= Source ================= */}
+        {showEditor && (
+          <Section>
+            {!isUrlMode ? (
+              <FileDropZone
+                onFileSelect={handleFileSelect}
+                currentFile={file}
+                onClear={handleClearSource}
+                disabled={isBusy}
+                accept={config.accept}
+                kind={mode === "video" ? "video" : "audio"}
+                // handleFileSelect already decoded this to check the cap.
+                duration={fileDuration}
+                invalid={Boolean(validationError)}
+                maxSize={config.maxBytes}
+              />
+            ) : (
+              <div className="space-y-2.5">
+                <FieldLabel htmlFor="transcribe-url" icon={Link2}>
+                  YouTube link
+                </FieldLabel>
 
-      {/* Announced separately from the visible timer. The old panel put
-          the ticking clock inside the live region, so a screen reader
-          re-read the whole thing once a second. */}
-      <p className="sr-only" role="status" aria-live="polite">
-        {isBusy ? headerState.label : status === "complete" ? "Transcript ready" : ""}
-      </p>
-
-      {/* ================= Source ================= */}
-      {showEditor && (
-        <section className="px-5 py-5 sm:px-6">
-          {!isUrlMode ? (
-            <FileDropZone
-              onFileSelect={handleFileSelect}
-              currentFile={file}
-              onClear={handleClearSource}
-              disabled={isBusy}
-              accept={config.accept}
-              kind={mode === "video" ? "video" : "audio"}
-              // handleFileSelect already decoded this to check the
-              // 20-minute cap. Without the prop the dropzone decodes the
-              // same header a second time and holds a second object URL.
-              duration={fileDuration}
-              // Turns the file card red, so the error underneath is
-              // visibly about the file sitting above it.
-              invalid={Boolean(validationError)}
-              maxSize={config.maxBytes}
-            />
-          ) : (
-            <div className="space-y-2.5">
-              <FieldLabel htmlFor="transcribe-url" icon={Link2}>
-                YouTube link
-              </FieldLabel>
-
-              <div className="relative flex items-center">
-                <Link2
-                  className={cn(
-                    "pointer-events-none absolute left-3.5 h-4 w-4 transition-colors",
-                    videoId ? "text-amber-500" : "text-text-subtle"
-                  )}
-                  aria-hidden
-                />
-                <input
-                  ref={inputRef}
-                  id="transcribe-url"
-                  type="url"
-                  value={url}
-                  onChange={(e) => {
-                    setUrl(sanitizeUserInput(e.target.value, 500));
-                    // Clear immediately; the debounced effect above puts
-                    // it back if the link still doesn't parse.
-                    setValidationError(null);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && canSubmit) {
-                      e.preventDefault();
-                      void handleSubmit();
-                    }
-                  }}
-                  placeholder="https://youtube.com/watch?v=..."
-                  disabled={isBusy}
-                  autoComplete="off"
-                  spellCheck={false}
-                  maxLength={500}
-                  aria-invalid={Boolean(validationError)}
-                  className={cn(
-                    "h-11 w-full rounded-lg border bg-graphite-850 pl-10 pr-24 text-sm text-text-primary",
-                    "placeholder:text-text-subtle transition-colors",
-                    "focus:outline-none focus-visible:ring-2 disabled:opacity-50",
-                    validationError
-                      ? "border-red-500/50 focus-visible:ring-red-500/25"
-                      : videoId
-                        ? "border-amber-500/40 focus-visible:ring-amber-500/20"
-                        : "border-graphite-700 focus-visible:border-amber-500/50 focus-visible:ring-amber-500/20"
-                  )}
-                />
-                <div className="absolute right-2 flex items-center gap-1">
-                  {url && !isBusy && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setUrl("");
-                        setValidationError(null);
-                        inputRef.current?.focus();
-                      }}
-                      aria-label="Clear link"
-                      className="rounded-md p-1.5 text-text-subtle transition-colors hover:bg-graphite-800 hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  )}
-                  {!url && (
-                    <button
-                      type="button"
-                      onClick={handlePaste}
-                      disabled={isBusy}
-                      className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[13px] font-medium text-text-muted transition-colors hover:bg-graphite-800 hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40 disabled:pointer-events-none disabled:opacity-40"
-                    >
-                      <ClipboardPaste className="h-3.5 w-3.5" />
-                      Paste
-                    </button>
-                  )}
+                <div className="relative flex items-center">
+                  <Link2
+                    className={cn(
+                      "pointer-events-none absolute left-3.5 h-4 w-4 transition-colors",
+                      videoId ? "text-amber-500" : "text-text-subtle"
+                    )}
+                    aria-hidden
+                  />
+                  <input
+                    ref={inputRef}
+                    id="transcribe-url"
+                    type="url"
+                    value={url}
+                    onChange={(e) => {
+                      setUrl(sanitizeUserInput(e.target.value, 500));
+                      // Clear immediately; the debounced effect puts it back
+                      // if the link still doesn't parse.
+                      setValidationError(null);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && canSubmit) {
+                        e.preventDefault();
+                        void handleSubmit();
+                      }
+                    }}
+                    placeholder="https://youtube.com/watch?v=..."
+                    disabled={isBusy}
+                    autoComplete="off"
+                    spellCheck={false}
+                    maxLength={500}
+                    aria-invalid={Boolean(validationError)}
+                    className={cn(
+                      "h-11 w-full rounded-lg border bg-graphite-850 pl-10 pr-24 text-sm text-text-primary",
+                      "placeholder:text-text-subtle transition-colors",
+                      "focus:outline-none focus-visible:ring-2 disabled:opacity-50",
+                      validationError
+                        ? "border-red-500/50 focus-visible:ring-red-500/25"
+                        : videoId
+                          ? "border-amber-500/40 focus-visible:ring-amber-500/20"
+                          : "border-graphite-700 focus-visible:border-amber-500/50 focus-visible:ring-amber-500/20"
+                    )}
+                  />
+                  <div className="absolute right-2 flex items-center gap-1">
+                    {url && !isBusy && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setUrl("");
+                          setValidationError(null);
+                          inputRef.current?.focus();
+                        }}
+                        aria-label="Clear link"
+                        className="rounded-md p-1.5 text-text-subtle outline-none transition-colors hover:bg-graphite-800 hover:text-text-primary focus-visible:ring-2 focus-visible:ring-amber-500/40"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                    {!url && (
+                      <button
+                        type="button"
+                        onClick={handlePaste}
+                        disabled={isBusy}
+                        className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[13px] font-medium text-text-muted outline-none transition-colors hover:bg-graphite-800 hover:text-text-primary focus-visible:ring-2 focus-visible:ring-amber-500/40 disabled:pointer-events-none disabled:opacity-40"
+                      >
+                        <ClipboardPaste className="h-3.5 w-3.5" />
+                        Paste
+                      </button>
+                    )}
+                  </div>
                 </div>
+
+                {/* Confirmation row. Shows the actual video, not the string
+                    "Ready to transcribe" — you should be able to tell you
+                    pasted the wrong link before you spend 90 seconds finding
+                    out. */}
+                {videoId ? (
+                  <VideoPreviewCard videoId={videoId} meta={videoMeta} size="md" />
+                ) : (
+                  <p className="text-[13px] text-text-subtle">
+                    Watch links, youtu.be and Shorts. Up to{" "}
+                    {TRANSCRIPTION_LIMITS.durationSeconds / 60} minutes.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Inline, attached to the control that caused it. A full-width
+                red panel for "that file is 92 MB" is heavier than the
+                problem. */}
+            {validationError && (
+              <p className="mt-3 flex items-start gap-2 text-[13px] text-red-400" role="alert">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+                {validationError}
+              </p>
+            )}
+          </Section>
+        )}
+
+        {/* ================= Settings ================= */}
+        {showEditor && (
+          <Section>
+            <div className="grid gap-5 sm:grid-cols-2">
+              {/* Language. Enabled with or without a file — there is no reason
+                  to make someone commit a file before they can say what
+                  language it's in. */}
+              <div className="space-y-2.5">
+                <FieldLabel htmlFor="transcribe-language" icon={Languages}>
+                  Spoken language
+                </FieldLabel>
+
+                {/* Not a <select>. Its option list is an OS-level popup that no
+                    CSS on this page can reach, and ~99 languages in a native
+                    list are only navigable by type-ahead — which breaks the
+                    moment you think "Farsi" instead of "Persian". */}
+                <SearchableSelect
+                  id="transcribe-language"
+                  value={language}
+                  onChange={setLanguage}
+                  disabled={isBusy}
+                  autoOption="Detect automatically"
+                  searchPlaceholder="Search languages"
+                  groups={languageGroups}
+                />
+
+                <p className="text-[13px] leading-relaxed text-text-subtle">
+                  Set it yourself for short clips, heavy accents, or mixed languages.
+                </p>
               </div>
 
-              {/* Confirmation row. Shows the actual video, not the string
-                  "Ready to transcribe" — you should be able to tell you
-                  pasted the wrong link before you spend 90 seconds
-                  finding out. Identical component to the one on
-                  /youtube-to-mp3 and /key-bpm-finder. */}
-              {videoId ? (
-                <VideoPreviewCard videoId={videoId} meta={videoMeta} size="md" />
-              ) : (
-                <p className="text-[13px] text-text-subtle">
-                  Watch links, youtu.be and Shorts. Up to{" "}
-                  {TRANSCRIPTION_LIMITS.durationSeconds / 60} minutes.
-                </p>
-              )}
-            </div>
-          )}
+              {/* Output. The shared Segmented control — same component as every
+                  other binary choice on the site, and the same one
+                  TranscriptView uses for Read/Timestamps. */}
+              <div className="space-y-2.5">
+                <FieldLabel>Output</FieldLabel>
 
-          {/* Inline, attached to the control that caused it, and sized
-              like the helper text it replaces. A full-width red panel for
-              "that file is 92 MB" is heavier than the problem. */}
-          {validationError && (
-            <p
-              className="mt-3 flex items-start gap-2 text-[13px] text-red-400"
-              role="alert"
-            >
-              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-              {validationError}
-            </p>
-          )}
-        </section>
-      )}
-
-      {/* ================= Settings ================= */}
-      {showEditor && (
-        <section className="grid gap-5 border-t border-graphite-800 px-5 py-5 sm:grid-cols-2 sm:px-6">
-          {/* Language.
-              Enabled with or without a file — there is no reason to make
-              someone commit a file before they can say what language it
-              is in, and two greyed-out controls under an empty dropzone
-              is most of why the resting state looked unfinished. */}
-          <div className="space-y-2.5">
-            <FieldLabel htmlFor="transcribe-language" icon={Languages}>
-              Spoken language
-            </FieldLabel>
-
-            {/* Not a <select>. Its option list is an OS-level popup that
-                no CSS on this page can reach, so on Windows/Chrome it
-                draws a thick light scrollbar against the dark card. The
-                search field is the second reason — ~99 languages in a
-                native list are only navigable by type-ahead, which
-                breaks the moment you think "Farsi" instead of
-                "Persian". */}
-            <SearchableSelect
-              id="transcribe-language"
-              value={language}
-              onChange={setLanguage}
-              disabled={isBusy}
-              autoOption="Detect automatically"
-              searchPlaceholder="Search languages"
-              groups={languageGroups}
-            />
-
-            <p className="text-[13px] leading-relaxed text-text-subtle">
-              Set it yourself for short clips, heavy accents, or mixed languages.
-            </p>
-          </div>
-
-          {/* Output.
-              A segmented control, matching the Read/Timestamps switch in
-              TranscriptView — the same kind of choice should look the
-              same everywhere in the feature. Two large bordered cards
-              made a binary look like a menu. */}
-          <div className="space-y-2.5">
-            <FieldLabel>Output</FieldLabel>
-
-            <div
-              role="group"
-              aria-label="Output language"
-              className="grid h-11 grid-cols-2 gap-1 rounded-lg border border-graphite-700 bg-graphite-850 p-1"
-            >
-              {(
-                [
-                  { value: "transcribe", label: "Original" },
-                  { value: "translate", label: "English" },
-                ] as const
-              ).map((option) => (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => setTask(option.value)}
+                <Segmented
+                  label="Output language"
+                  value={task}
+                  onChange={setTask}
                   disabled={isBusy}
-                  aria-pressed={task === option.value}
-                  className={cn(
-                    "rounded-md text-sm font-medium transition-colors",
-                    "focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40",
-                    "disabled:pointer-events-none disabled:opacity-50",
-                    task === option.value
-                      ? "bg-amber-500/12 text-amber-400 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
-                      : "text-text-muted hover:text-text-primary"
-                  )}
-                >
-                  {option.label}
-                </button>
-              ))}
+                  options={[
+                    { value: "transcribe", label: "Original" },
+                    { value: "translate", label: "English" },
+                  ]}
+                />
+
+                <p className="text-[13px] leading-relaxed text-text-subtle">
+                  English translates as it transcribes, in one pass. It&apos;s the only target.
+                </p>
+              </div>
             </div>
+          </Section>
+        )}
 
-            <p className="text-[13px] leading-relaxed text-text-subtle">
-              English translates as it transcribes, in one pass. It&apos;s the only target.
-            </p>
-          </div>
-        </section>
-      )}
+        {/* ================= Working =================
+            NOT the kit's WorkingPanel, and deliberately so. Every other tool
+            eases an invented curve toward 92%, which is a fair approximation
+            when the work scales with file size. Transcription doesn't: a cold
+            start spends ~90 seconds before touching any audio, and a 30-second
+            clip finishes about when a 20-minute one does. Two honest steps and
+            a bar that goes indeterminate the moment we stop being able to
+            measure anything beats a number we'd be making up. */}
+        {isBusy && (
+          <Section>
+            <div aria-busy="true">
+              {isUrlMode && videoId ? (
+                <VideoPreviewCard
+                  videoId={videoId}
+                  meta={videoMeta}
+                  size="sm"
+                  title={serverTitle}
+                  className="mb-3.5"
+                  trailing={
+                    <span
+                      className="shrink-0 font-mono text-[11px] tabular-nums text-text-subtle"
+                      aria-hidden
+                    >
+                      {formatElapsed(elapsedSeconds)}
+                    </span>
+                  }
+                />
+              ) : (
+                <div className="mb-3.5 flex items-baseline justify-between gap-3">
+                  <p className="min-w-0 truncate text-sm font-medium text-text-primary">
+                    {file?.name ?? "Working on your file"}
+                  </p>
+                  <span
+                    className="shrink-0 font-mono text-[11px] tabular-nums text-text-subtle"
+                    aria-hidden
+                  >
+                    {formatElapsed(elapsedSeconds)}
+                  </span>
+                </div>
+              )}
 
-      {/* ================= Working ================= */}
-      {isBusy && (
-        <section className="px-5 py-5 sm:px-6" aria-busy="true">
-          {/* The same card that confirmed the link now carries the job.
-              Watching the thumbnail you chose stay on screen for 90
-              seconds is a stronger "yes, this is running on the right
-              video" than a line of truncated text. */}
-          {isUrlMode && videoId ? (
-            <VideoPreviewCard
-              videoId={videoId}
-              meta={videoMeta}
-              size="sm"
-              title={serverTitle}
-              className="mb-3.5"
-              trailing={
-                <span
-                  className="shrink-0 font-mono text-[11px] tabular-nums text-text-subtle"
-                  aria-hidden
+              {/* Determinate while the bytes are going up, because that IS
+                  measurable — then indeterminate once the server takes over. */}
+              {upload ? (
+                <div
+                  className="h-1.5 w-full overflow-hidden rounded-full bg-graphite-800"
+                  role="progressbar"
+                  aria-label="Upload progress"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={uploadPercent}
                 >
-                  {formatElapsed(elapsedSeconds)}
-                </span>
-              }
-            />
-          ) : (
-            <div className="mb-3.5 flex items-baseline justify-between gap-3">
-              <p className="min-w-0 truncate text-sm font-medium text-text-primary">
-                {file?.name ?? "Working on your file"}
+                  <div
+                    className="h-full rounded-full bg-amber-500 transition-[width] duration-200 ease-out"
+                    style={{ width: `${uploadPercent}%` }}
+                  />
+                </div>
+              ) : (
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-graphite-800">
+                  <div className="h-full w-1/3 animate-indeterminate rounded-full bg-amber-500 motion-reduce:w-full motion-reduce:animate-none" />
+                </div>
+              )}
+
+              <ul className="mt-4 space-y-2.5">
+                {steps.map((s) => (
+                  <StepRow key={s.label} {...s} />
+                ))}
+              </ul>
+
+              {/* Static from the first second, because it's true from the first
+                  second. Swapping this line in at t=15s reflowed the panel and
+                  read as a glitch at exactly the moment the user was watching
+                  it for signs of life. */}
+              <p className="mt-4 border-t border-graphite-800 pt-3.5 text-[13px] leading-relaxed text-text-subtle">
+                The transcription server spins down when idle, so the first run after a quiet
+                period spends about a minute starting up. A short clip and a long one wait about
+                the same. Keep this tab open.
               </p>
-              <span
-                className="shrink-0 font-mono text-[11px] tabular-nums text-text-subtle"
-                aria-hidden
-              >
-                {formatElapsed(elapsedSeconds)}
-              </span>
             </div>
-          )}
+          </Section>
+        )}
 
-          {/* Determinate while the bytes are going up, because that IS
-              measurable — then indeterminate once the server takes over,
-              because nothing about transcription reports progress and the
-              work isn't linear in file length. h-1.5, not h-1: this is
-              the main feedback surface during a 90-second wait and a 4px
-              hairline is not enough to be one. */}
-          {upload ? (
-            <div
-              className="h-1.5 w-full overflow-hidden rounded-full bg-graphite-800"
-              role="progressbar"
-              aria-label="Upload progress"
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-valuenow={uploadPercent}
-            >
-              <div
-                className="h-full rounded-full bg-amber-500 transition-[width] duration-200 ease-out"
-                style={{ width: `${uploadPercent}%` }}
-              />
-            </div>
-          ) : (
-            <div className="h-1.5 w-full overflow-hidden rounded-full bg-graphite-800">
-              <div className="h-full w-1/3 rounded-full bg-amber-500 animate-indeterminate motion-reduce:w-full motion-reduce:animate-none" />
-            </div>
-          )}
+        {/* ================= Complete ================= */}
+        {isComplete && transcript && (
+          <Section>
+            <TranscriptView
+              transcript={transcript}
+              title={resultTitle ?? serverTitle ?? file?.name ?? null}
+              previewSrc={isSample ? SAMPLE_TRANSCRIPT.audioUrl : previewUrl}
+              sampleNote={isSample ? SAMPLE_TRANSCRIPT.attribution : undefined}
+            />
 
-          <ul className="mt-4 space-y-2.5">
-            {steps.map((step) => (
-              <StepRow key={step.label} {...step} />
-            ))}
-          </ul>
+            {/* Renders nothing on a free tool, a free run, or the canned demo —
+                only a real run that spent something says so. */}
+            {!isSample && (
+              <div className="mt-5">
+                <CreditReceipt billing={billing} />
+              </div>
+            )}
 
-          {/* Static from the first second, because it's true from the
-              first second. The old copy swapped this line in at t=15s,
-              which reflowed the panel and read as a glitch at exactly the
-              moment the user was watching it for signs of life. */}
-          <p className="mt-4 border-t border-graphite-800 pt-3.5 text-[13px] leading-relaxed text-text-subtle">
-            The transcription server spins down when idle, so the first run after a quiet period
-            spends about a minute starting up. A short clip and a long one wait about the same.
-            Keep this tab open.
-          </p>
-        </section>
-      )}
+            {/* Asking for a tip immediately after charging someone a credit is
+                a bad look. A free run is still free, so it keeps the block. */}
+            {billing?.charged !== "credit" && (
+              <div className="mt-5">
+                <SupportBlock />
+              </div>
+            )}
+          </Section>
+        )}
 
-      {/* ================= Complete ================= */}
-      {status === "complete" && transcript && (
-        <section className="px-5 py-5 sm:px-6">
-          <TranscriptView
-            transcript={transcript}
-            title={resultTitle ?? serverTitle ?? file?.name ?? null}
-            previewSrc={isSample ? SAMPLE_TRANSCRIPT.audioUrl : previewUrl}
-            sampleNote={isSample ? SAMPLE_TRANSCRIPT.attribution : undefined}
-          />
-
-          {/* Renders nothing on a free tool, a free run, or the canned demo —
-              only a real run that spent something says so. */}
-          {!isSample && (
-            <div className="mt-5">
-              <CreditReceipt billing={billing} />
-            </div>
-          )}
-
-          {/* Asking for a tip immediately after charging someone a credit is a
-              bad look. A free run is still free, so it keeps the block. */}
-          {billing?.charged !== "credit" && (
-            <div className="mt-5">
+        {/* ================= Failed ================= */}
+        {isFailed && formError && (
+          <Section>
+            <div className="space-y-5">
+              <ErrorPanel error={formError} />
+              {/* Most things that land here aren't the tool breaking — "Audio
+                  is too long (35.2 min)" or a rate limit is the form doing its
+                  job. */}
               <SupportBlock />
             </div>
-          )}
-        </section>
-      )}
-
-      {/* ================= Failed ================= */}
-      {status === "failed" && error && (
-        <section className="border-t border-graphite-800 px-5 py-5 sm:px-6">
-          <div
-            className="flex items-start gap-3 rounded-lg border border-red-500/25 bg-red-500/[0.07] p-4"
-            role="alert"
-          >
-            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-400" aria-hidden />
-            {/* Server messages are written for the end user and carry the
-                specifics — "Audio is too long (35.2 min)". Shown verbatim
-                rather than replaced with generic copy. */}
-            <p className="text-sm leading-relaxed text-text-primary">{error.message}</p>
-          </div>
-          {/* Shown after failure as well as success, matching JobToolForm
-              and every other tool on the site. Most things that land here
-              aren't the tool breaking — "Audio is too long (35.2 min)" or
-              a rate limit is the form doing its job. Worth revisiting
-              only for a genuine `service_down` 503, where "Enjoying
-              AudioForges?" lands badly. */}
-          <div className="mt-5">
-            <SupportBlock />
-          </div>
-        </section>
-      )}
-
-      {/* ================= Action bar =================
-          One button, one place, in every state. Slightly recessed so it
-          reads as the panel's controls rather than another block of
-          content. */}
-      <div className="rounded-b-xl border-t border-graphite-800 bg-graphite-950/40 px-5 py-4 sm:px-6">
-        {isBusy ? (
-          <Button variant="outline" size="lg" className="w-full" onClick={handleCancel}>
-            <X />
-            Cancel
-          </Button>
-        ) : status === "complete" ? (
-          <Button variant="outline" size="lg" className="w-full" onClick={handleReset}>
-            <RotateCcw />
-            {isSample ? "Transcribe my own file" : "Transcribe another"}
-          </Button>
-        ) : (
-          <>
-            <Button
-              variant={hasInput ? "primary" : "secondary"}
-              size="lg"
-              className="w-full"
-              onClick={handleSubmit}
-              disabled={!canSubmit}
-            >
-              {isUrlMode ? <Link2 /> : mode === "video" ? <Film /> : <Mic />}
-              {/* Renders nothing while the paywall is off or this rule is
-                  disabled. When it is on, this is the only thing on the page
-                  that says a run costs something before it's spent. */}
-              <FreeTierBadge tool="transcribe" className="ml-0.5" />
-              {cooldownSeconds > 0
-                ? `Try again in ${formatCooldown(cooldownSeconds)}`
-                : status === "failed" && error?.retryable
-                  ? "Try again"
-                  : config.submitLabel}
-            </Button>
-
-            {/* One line, not three centred ones. Limits on the left where
-                they're read as terms; the sample on the right where it's
-                read as an action. Both numbers come from a single source
-                rather than the string they used to be baked into. */}
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5 text-[13px] text-text-subtle">
-              <p>
-                {cooldownSeconds > 0 ? (
-                  <span className="text-text-muted">
-                    Rate limit reached. The window clears in {formatCooldown(cooldownSeconds)}.
-                  </span>
-                ) : metered ? (
-                  /*
-                    THE SHARED ALLOWANCE, SAID OUT LOUD.
-                    All three transcription tools draw on ONE "transcribe"
-                    budget. Someone who reads "2 free" on this page and spends
-                    one here will find one — not two — waiting on
-                    /youtube-to-text, and discovering that by surprise feels
-                    like being short-changed. So it's stated before the click,
-                    not after.
-
-                    No per-hour figure while metered: the shared rule is tiered
-                    (2/hour free, 30/hour credited) and /credits/me's
-                    rate_limit.tools does not yet carry "transcribe", so any
-                    number printed here would be right for one tier and a lie
-                    to the other. The duration cap is safe — it applies to
-                    everyone, paid or not.
-                  */
-                  <>
-                    {balance > 0 ? (
-                      <>1 credit per transcription</>
-                    ) : freeRemaining > 0 ? (
-                      <>
-                        {freeRemaining} free {freeRemaining === 1 ? "run" : "runs"} left this
-                        month
-                      </>
-                    ) : (
-                      /*
-                        Nothing left. Stating "0 free runs left" and stopping
-                        there describes the wall without showing the door —
-                        and this is a REAL state, not an edge case: the free
-                        allowance is min(owner, per-IP), so a shared or
-                        returning IP reaches it routinely. The gate still
-                        opens on submit, but a link here means nobody has to
-                        press a button and be refused to find out what to do.
-                      */
-                      <>
-                        No free runs left this month.{" "}
-                        <Link
-                          href="/pricing"
-                          className="rounded text-amber-400 underline underline-offset-2 outline-none transition-colors hover:text-amber-300 focus-visible:ring-2 focus-visible:ring-amber-400/70"
-                        >
-                          Credits are $0.20–0.30 a run
-                        </Link>
-                      </>
-                    )}
-                    , shared across all three transcription tools. Up to{" "}
-                    {TRANSCRIPTION_LIMITS.durationSeconds / 60} min per file.
-                  </>
-                ) : (
-                  <>
-                    Free, no account. Up to {TRANSCRIPTION_LIMITS.durationSeconds / 60} min per file
-                    {rateLimitLabel ? `, ${rateLimitLabel}` : ""}.
-                  </>
-                )}
-              </p>
-
-              {/* An empty upload box asks someone to commit a file before
-                  they know whether the output is any good. Nothing else
-                  in this search result lets you skip that step. */}
-              {!hasInput && (
-                <button
-                  type="button"
-                  onClick={handleShowSample}
-                  className="shrink-0 rounded text-amber-400 underline underline-offset-2 transition-colors hover:text-amber-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40"
-                >
-                  See a sample result
-                </button>
-              )}
-            </div>
-          </>
+          </Section>
         )}
-      </div>
+      </FormShell>
 
       {gate}
     </div>

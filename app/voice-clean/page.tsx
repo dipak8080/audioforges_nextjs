@@ -4,6 +4,29 @@ import { VoiceCleanForm } from "@/components/converter/VoiceCleanForm";
 import { FAQSection } from "@/components/faq/FAQSection";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
+import {
+  getLimits,
+  durationCapFor,
+  durationLabel,
+  retentionSentences,
+} from "@/lib/api/limits";
+
+/**
+ * ── THIS PASS ──────────────────────────────────────────────────────────
+ *
+ * THE LENGTH LIMIT WAS UNDERSTATED BY FORTY MINUTES — the third live instance
+ * of the same sentence, alongside /echo-remove and /noise-remove:
+ *
+ *   "MP3, WAV, FLAC, M4A, AAC, OGG, and AIFF, up to 80MB and 20 minutes long."
+ *
+ * It matters most here. This page's whole audience is podcasts, interviews and
+ * lecture recordings — the files most likely to run past twenty minutes — so
+ * it's the page where the understatement turned away the most people. Real cap
+ * is one hour; both figures now come from /limits.
+ *
+ * Also: HowTo schema and `keywords` removed, retention answer added, formats
+ * read from allowed_audio_formats, prefetch disabled on the tool grid.
+ */
 
 const PAGE_TITLE = "Free Voice Cleaner — Clean Up Podcasts & Voice Memos";
 const PAGE_DESCRIPTION =
@@ -12,24 +35,17 @@ const PAGE_DESCRIPTION =
 export const metadata: Metadata = {
   title: PAGE_TITLE,
   description: PAGE_DESCRIPTION,
-  keywords: [
-    "voice cleaner",
-    "clean voice recording",
-    "clean podcast audio",
-    "remove background noise from voice",
-    "voice memo cleanup",
-    "podcast audio cleanup free",
-    "speech enhancement online",
-    "voice enhancer",
-    "podcast audio cleaner",
-    "voice recording cleaner",
-    "improve voice recording",
-    "speech cleaner",
-    "voice recording noise removal",
-    "remove hiss from voice recording",
-    "remove hum from voice recording",
-    "speech noise reduction",
-  ],
+  /*
+    `keywords` removed — ignored by Google since 2009. Target terms kept for
+    reference:
+      voice cleaner / clean voice recording / clean podcast audio
+      remove background noise from voice / voice memo cleanup
+      podcast audio cleanup free / speech enhancement online / voice enhancer
+      podcast audio cleaner / voice recording cleaner / improve voice recording
+      speech cleaner / voice recording noise removal
+      remove hiss from voice recording / remove hum from voice recording
+      speech noise reduction
+  */
   alternates: { canonical: `${SITE_URL}/voice-clean` },
   openGraph: {
     title: PAGE_TITLE,
@@ -79,95 +95,106 @@ const breadcrumbJsonLd = {
     { "@type": "ListItem", position: 2, name: "Voice Cleaner", item: `${SITE_URL}/voice-clean` },
   ],
 };
+// NOTE: No HowTo schema — deprecated by Google (desktop since Sept 2023), no
+// ranking or rich-result benefit remains. Visible how-to steps stay.
+// FAQPage schema is emitted by <FAQSection /> — do not duplicate it here.
 
-const howToJsonLd = {
-  "@context": "https://schema.org",
-  "@type": "HowTo",
-  name: "How to Clean Up a Voice Recording",
-  step: [
-    { "@type": "HowToStep", name: "Upload", text: "Upload an MP3, WAV, FLAC, M4A, AAC, OGG, or AIFF speech recording." },
-    { "@type": "HowToStep", name: "Process", text: "The tool automatically cuts rumble, reduces noise, and normalizes loudness — no settings to configure." },
-    { "@type": "HowToStep", name: "Download", text: "Download the cleaned recording." },
-  ],
-};
-
-// Same content as before, PLUS one fix: "Will it reduce audio quality?"
-// existed in the old faqJsonLd schema but was missing from the old visible
-// JSX section entirely - a real schema/content mismatch. It's included
-// here now, so both the schema and the visible accordion show all 11.
-const faqs = [
-  {
-    question: "What does the Voice Cleaner actually do?",
-    answer:
-      "It runs a three-stage chain tuned specifically for speech: cutting low-frequency rumble, applying speech-optimized noise reduction, then normalizing loudness — all in one click.",
-  },
-  {
-    question: "Does it work on Zoom recordings or phone recordings?",
-    answer:
-      "Yes — any speech-only recording works, including calls, Zoom recordings, phone memos, and narration, since the chain is tuned for the voice frequency range generally, not one specific recording method.",
-  },
-  {
-    question: "Does this remove echo or reverb?",
-    answer:
-      "No — echo and reverb are a different problem from noise, and this chain doesn't address them. Use the Echo Remover for mild room echo or slap-back.",
-    answerNode: (
-      <>
-        No — echo and reverb are a different problem from noise, and this
-        chain doesn&apos;t address them. Use the{" "}
-        <Link href="/echo-remove" className="text-amber-400 hover:underline">
-          Echo Remover
-        </Link>{" "}
-        for mild room echo or slap-back.
-      </>
-    ),
-  },
-  {
-    question: "Is this different from a general noise remover?",
-    answer:
-      "Yes. This preset is tuned specifically for speech and has no settings to configure. For music or non-speech audio where you want to control the reduction strength yourself, use the Noise Remover instead.",
-  },
-  {
-    question: "Is this really free?",
-    answer: "Yes — completely free, no sign-up, no watermark on the output.",
-  },
-  {
-    question: "What formats are supported?",
-    answer: "MP3, WAV, FLAC, M4A, AAC, OGG, and AIFF, up to 80MB and 20 minutes long.",
-  },
-  {
-    question: "Will it change my voice?",
-    answer:
-      "No. It only affects background noise and loudness — it doesn't alter pitch, formants, or anything about how your voice actually sounds.",
-  },
-  {
-    question: "Does it remove keyboard clicks or mouse clicks?",
-    answer:
-      "Not reliably. This chain is built for steady background noise like hiss, hum, and rumble — short, one-off sounds like keyboard clicks don't have a consistent noise profile for it to remove, so some may still come through.",
-  },
-  {
-    question: "Can it remove breathing sounds?",
-    answer:
-      "Not specifically — breaths are close enough to speech frequencies that a general noise-reduction chain isn't built to isolate and remove them the way it removes steady background hiss or hum.",
-  },
-  {
-    question: "Can I clean multiple files at once?",
-    answer: "One file at a time — there's currently no batch upload option.",
-  },
-  {
-    question: "Will it reduce audio quality?",
-    answer:
-      "No — it removes noise and evens out loudness without discarding quality from the rest of the recording.",
-  },
-];
-
-export default function VoiceCleanPage() {
+export default async function VoiceCleanPage() {
   const relatedTools = getRelatedTools("voice-clean", 5);
+
+  const limits = await getLimits();
+  const durationCap = durationCapFor(limits, "voice-clean");
+  const retention = retentionSentences(limits.retention.audio_tools);
+
+  const formats = limits.allowedAudioFormats.map((f) => f.toUpperCase());
+  const formatList = formats.join(", ").replace(/, ([^,]*)$/, ", or $1");
+
+  // Includes "Will it reduce audio quality?", which used to exist in the
+  // schema but was missing from the visible accordion — a real schema/content
+  // mismatch. Both are fed from this one array now.
+  const faqs = [
+    {
+      question: "What does the Voice Cleaner actually do?",
+      answer:
+        "It runs a three-stage chain tuned specifically for speech: cutting low-frequency rumble, applying speech-optimized noise reduction, then normalizing loudness — all in one click.",
+    },
+    {
+      question: "Does it work on Zoom recordings or phone recordings?",
+      answer:
+        "Yes — any speech-only recording works, including calls, Zoom recordings, phone memos, and narration, since the chain is tuned for the voice frequency range generally, not one specific recording method.",
+    },
+    {
+      question: "Does this remove echo or reverb?",
+      answer:
+        "No — echo and reverb are a different problem from noise, and this chain doesn't address them. Use the Echo Remover for mild room echo or slap-back.",
+      answerNode: (
+        <>
+          No — echo and reverb are a different problem from noise, and this
+          chain doesn&apos;t address them. Use the{" "}
+          <Link href="/echo-remove" className="text-amber-400 hover:underline">
+            Echo Remover
+          </Link>{" "}
+          for mild room echo or slap-back.
+        </>
+      ),
+    },
+    {
+      question: "Is this different from a general noise remover?",
+      answer:
+        "Yes. This preset is tuned specifically for speech and has no settings to configure. For music or non-speech audio where you want to control the reduction strength yourself, use the Noise Remover instead.",
+    },
+    {
+      question: "Is this really free?",
+      answer: "Yes — completely free, no sign-up, no watermark on the output.",
+    },
+    {
+      /*
+        CORRECTED. Said "up to 80MB and 20 minutes long". The real cap is one
+        hour, and this is the page where the understatement cost most: the
+        audience is podcasts, interviews and lectures, which is exactly the
+        material that runs past twenty minutes.
+      */
+      question: "What formats are supported, and is there a size limit?",
+      answer:
+        durationCap === null
+          ? `${formatList}, up to ${limits.maxUploadMb}MB per upload.`
+          : `${formatList}, up to ${limits.maxUploadMb}MB and ${durationLabel(durationCap)} long — enough for a full podcast episode or lecture recording in one pass.`,
+    },
+    {
+      // ADDED: no retention answer existed.
+      question: "Are my uploaded files kept?",
+      answer: `${retention.input} ${retention.output} There are no accounts, so nothing is linked to you.`,
+    },
+    {
+      question: "Will it change my voice?",
+      answer:
+        "No. It only affects background noise and loudness — it doesn't alter pitch, formants, or anything about how your voice actually sounds.",
+    },
+    {
+      question: "Does it remove keyboard clicks or mouse clicks?",
+      answer:
+        "Not reliably. This chain is built for steady background noise like hiss, hum, and rumble — short, one-off sounds like keyboard clicks don't have a consistent noise profile for it to remove, so some may still come through.",
+    },
+    {
+      question: "Can it remove breathing sounds?",
+      answer:
+        "Not specifically — breaths are close enough to speech frequencies that a general noise-reduction chain isn't built to isolate and remove them the way it removes steady background hiss or hum.",
+    },
+    {
+      question: "Can I clean multiple files at once?",
+      answer: "One file at a time — there's currently no batch upload option.",
+    },
+    {
+      question: "Will it reduce audio quality?",
+      answer:
+        "No — it removes noise and evens out loudness without discarding quality from the rest of the recording.",
+    },
+  ];
 
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(webAppJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(howToJsonLd) }} />
 
       <main className="mx-auto max-w-3xl px-4 py-12 sm:py-16 space-y-12">
         <header className="text-center space-y-4">
@@ -182,15 +209,26 @@ export default function VoiceCleanPage() {
 
         <VoiceCleanForm />
 
-        <section className="grid gap-4 sm:grid-cols-3">
+        {/* One bordered strip with hairline dividers, matching the other tool
+            pages. The limits sit here because this page's audience — podcasts
+            and lectures — is the one most likely to be near them. */}
+        <section className="grid divide-y divide-graphite-800 overflow-hidden rounded-xl border border-graphite-800 bg-graphite-900 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
           {[
             { title: "One click", desc: "No settings to tune — just upload and clean." },
             { title: "Speech-tuned", desc: "Built specifically for voice, not music." },
-            { title: "No sign-up", desc: "No account, no email, no watermark." },
+            {
+              title: "No sign-up",
+              desc:
+                durationCap === null
+                  ? `No account, no email, no watermark. Up to ${limits.maxUploadMb}MB per file.`
+                  : `No account, no email, no watermark. Up to ${limits.maxUploadMb}MB and ${durationLabel(durationCap)}.`,
+            },
           ].map((f) => (
-            <div key={f.title} className="rounded-xl border border-graphite-800 bg-graphite-900 p-5 space-y-2">
-              <p className="font-semibold text-text-primary">{f.title}</p>
-              <p className="text-sm text-text-muted">{f.desc}</p>
+            <div key={f.title} className="space-y-1.5 p-5">
+              <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-amber-400">
+                {f.title}
+              </p>
+              <p className="text-sm leading-relaxed text-text-muted">{f.desc}</p>
             </div>
           ))}
         </section>
@@ -212,7 +250,7 @@ export default function VoiceCleanPage() {
         <section className="space-y-4">
           <h2 className="text-2xl font-bold text-text-primary">How to clean up a voice recording</h2>
           <ol className="list-decimal list-inside space-y-2 text-text-muted leading-relaxed">
-            <li>Upload an MP3, WAV, FLAC, M4A, AAC, OGG, or AIFF speech recording.</li>
+            <li>Upload an {formatList} speech recording.</li>
             <li>The chain runs automatically — rumble cut, denoise, then normalize.</li>
             <li>Download the cleaned result.</li>
           </ol>
@@ -270,7 +308,9 @@ export default function VoiceCleanPage() {
             <table className="w-full text-sm text-left text-text-muted">
               <thead className="bg-graphite-900 text-text-primary">
                 <tr>
-                  <th className="px-4 py-3 font-semibold">&nbsp;</th>
+                  <th className="px-4 py-3 font-semibold">
+                    <span className="sr-only">Comparison</span>
+                  </th>
                   <th className="px-4 py-3 font-semibold">Voice Cleaner</th>
                   <th className="px-4 py-3 font-semibold">Noise Remover</th>
                 </tr>
@@ -316,6 +356,7 @@ export default function VoiceCleanPage() {
                 <Link
                   key={tool.slug}
                   href={`/${tool.slug}`}
+                  prefetch={false}
                   className="rounded-xl border border-graphite-800 bg-graphite-900 p-4 hover:border-amber-500/40 transition-colors"
                 >
                   <h3 className="font-semibold text-text-primary">{tool.name}</h3>

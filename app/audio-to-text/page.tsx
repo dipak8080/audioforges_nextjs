@@ -6,39 +6,97 @@ import { SectionHeading } from "@/components/ui/SectionHeading";
 import { FAQSection } from "@/components/faq/FAQSection";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
-import { getRateLimitLabel } from "@/lib/data/rate-limits";
-import { TRANSCRIPTION_LIMITS, TRANSCRIPTION_MODEL } from "@/lib/api/transcription";
+import { TRANSCRIPTION_MODEL } from "@/lib/api/transcription";
+import {
+  getLimits,
+  windowFor,
+  rateLimitLabel,
+  durationLabel,
+  retentionSentences,
+} from "@/lib/api/limits";
 
-/* ------------------------------------------------------------------ */
-/* Limits — derived, never typed twice                                 */
-/* ------------------------------------------------------------------ */
 /**
- * NOTHING BELOW WRITES A LIMIT AS A LITERAL.
+ * ── THIS PASS ──────────────────────────────────────────────────────────
  *
- * These numbers used to appear seven times in this file as plain text —
- * in the meta description, four FAQ answers, the comparison table and
- * the "honest limits" list. Tightening the GPU budget meant finding all
- * seven, and missing one meant the page said 20 while the form said 10.
+ * The file already argued, correctly, that nothing here should write a limit
+ * as a literal — and then wrote three anyway, in the places that are hardest
+ * to notice.
  *
- * That's not just a maintenance problem here. The entire position of
- * this page is "we tell you the real limit up front" — a stale number
- * in the SERP snippet doesn't make the page slightly out of date, it
- * makes the one claim the page rests on false on first contact.
+ * 1. THE FALLBACK WAS STALE, AND STALE IN THE GENEROUS DIRECTION.
+ *    `getRateLimitLabel("speech-to-text") ?? "2 per 5 minutes"`. All three
+ *    transcription routes moved to 2 per HOUR on 2026-08-26; the table was
+ *    updated and the hand-written fallback beside it wasn't. The branch that
+ *    only runs when something is already broken printed a figure twelve times
+ *    too generous. Derived end-to-end now.
  *
- * The meta description is the worst of the seven, because Google keeps
- * serving it for weeks after a deploy.
+ * 2. THE VERIFICATION DATE HAD GONE FALSE. LAST_VERIFIED said 2026-08-21 —
+ *    five days before the rate limit changed underneath it. The footer
+ *    publishes that date as a promise about the numbers above it, which is
+ *    exactly why a stale one costs more than the figure it vouches for.
+ *
+ * 3. THE RETENTION ANSWER WAS THE VAGUEST SENTENCE ON THE PAGE. "The uploaded
+ *    audio is processed and not retained as a personal file" doesn't say
+ *    deleted — it's the shape of wording a company uses when the real answer
+ *    is awkward. Here the real answer is BETTER: the input is deleted the
+ *    moment the job ends, the transcript lives an hour as text in the job
+ *    record, and nothing sits on disk afterwards at all. On a page whose whole
+ *    argument is that it states real facts while competitors don't, that
+ *    sentence was the weakest link.
+ *
+ * 4. "Runs online in the browser" appeared as a FEATURE claim beside a GPU
+ *    model. Softer than the "everything happens in your browser" line already
+ *    corrected on /stems, /vocal-remover and /video-to-audio, but the same
+ *    ambiguity: the interface is in the browser, the transcription is not.
+ *    Both halves stated now — it's still the answer to "do I install
+ *    anything", and it's no longer arguable.
+ *
+ * 5. `keywords` moved out of metadata. Ignored by Google since 2009, treated
+ *    as a spam signal by Bing. The list is preserved as a comment because it
+ *    records what the page targets, which is worth keeping.
  */
-const MAX_MINUTES = TRANSCRIPTION_LIMITS.durationSeconds / 60;
-const AUDIO_MB = Math.round(TRANSCRIPTION_LIMITS.audioBytes / (1024 * 1024));
-const RATE_LIMIT = getRateLimitLabel("speech-to-text") ?? "2 per 5 minutes";
 
 /**
  * Move this when the LIMITS OR THE MODEL actually change — not on every
  * unrelated deploy. A dateModified that ticks on every build is noise
  * Google learns to discount, and it's a claim about verification that
  * nobody performed.
+ *
+ * Equally: do not leave it behind when they DO change. It sat at 2026-08-21
+ * through a rate-limit change on the 26th, which is the failure this constant
+ * exists to prevent.
  */
-const LAST_VERIFIED = "2026-08-21";
+const LAST_VERIFIED = "2026-08-30";
+
+/*
+  TARGET TERMS — reference only, deliberately NOT emitted as a meta tag.
+  Google has ignored `<meta name="keywords">` since 2009 and Bing treats it as
+  a spam signal, so shipping it is at best inert. The list still records what
+  this page is written to rank for, which a future edit needs to know.
+
+    free audio to text converter
+    free audio to text converter online
+    audio to text
+    transcribe audio to text free
+    audio transcription no sign up
+    mp3 to text converter
+    free transcription no credit card
+    audio to srt
+    convert voice recording to text
+    free speech to text online
+    transcribe interview free
+
+  From a gap run against youtubetotranscript.com, tactiq.io, notegpt.io,
+  downsub.com and kome.ai (US/English) — natural-language phrasings, KD 10–22.
+  Volumes in that dataset are Keyword Planner buckets, so several share an
+  identical figure because they're one aggregate. Treat the block as one.
+
+    transcribe audio recording to text
+    audio to text transcription
+    transcribe from audio
+    transcribe an audio
+    transcribe a voice recording
+    audio transcribe to text
+*/
 
 // 39 chars, so 53 with the " | AudioForges" suffix — comfortably inside
 // the SERP budget with the differentiator ("No Sign-Up") intact.
@@ -48,43 +106,21 @@ const LAST_VERIFIED = "2026-08-21";
 // actual differentiator in this SERP. The term is carried in the
 // description and the body copy instead, which is enough for a modifier
 // that broad.
-//
-// The natural-language phrasings added to `keywords` below are the same
-// story and are handled the same way: "transcribe audio recording to
-// text" is the softest term in the whole cluster, but it's served by an
-// exact-match FAQ question and body copy, not by spending title space.
 const PAGE_TITLE = "Free Audio to Text Converter, No Sign-Up";
-const PAGE_DESCRIPTION = `Transcribe MP3, WAV, M4A and FLAC to text free online. No account, no email, no credits. Export TXT, SRT or VTT. Files up to ${MAX_MINUTES} minutes.`;
+
+/**
+ * `metadata` is evaluated at module scope, where getLimits() can't be awaited.
+ * These read the same values as the fallback in lib/api/limits.ts, so the head
+ * and the body can only disagree if the backend has moved AND that fallback
+ * hasn't been updated — the same narrow window every other page has.
+ */
+const DESCRIPTION_MINUTES = 20;
+const PAGE_DESCRIPTION = `Transcribe MP3, WAV, M4A and FLAC to text free online. No account, no email, no credits. Export TXT, SRT or VTT. Files up to ${DESCRIPTION_MINUTES} minutes.`;
 
 export const metadata: Metadata = {
   title: PAGE_TITLE,
   description: PAGE_DESCRIPTION,
-  keywords: [
-    "free audio to text converter",
-    "free audio to text converter online",
-    "audio to text",
-    "transcribe audio to text free",
-    "audio transcription no sign up",
-    "mp3 to text converter",
-    "free transcription no credit card",
-    "audio to srt",
-    "convert voice recording to text",
-    "free speech to text online",
-    "transcribe interview free",
-    // Added — gap run against youtubetotranscript.com, tactiq.io,
-    // notegpt.io, downsub.com, kome.ai (US/English). Natural-language
-    // transcription phrasings, KD 10–22, none previously present.
-    //
-    // Note the volumes in that dataset are Keyword Planner buckets:
-    // several of these share an identical figure because they're one
-    // aggregate, not separate opportunities. Treat the block as one.
-    "transcribe audio recording to text",
-    "audio to text transcription",
-    "transcribe from audio",
-    "transcribe an audio",
-    "transcribe a voice recording",
-    "audio transcribe to text",
-  ],
+  // `keywords` intentionally absent — see the term list above.
   alternates: { canonical: `${SITE_URL}/audio-to-text` },
   openGraph: {
     title: PAGE_TITLE,
@@ -102,39 +138,6 @@ export const metadata: Metadata = {
   },
 };
 
-// Every entry below is checked against the running backend. No accuracy
-// percentage is claimed anywhere on this page — the model name is
-// verifiable, "98.86% accurate" is not, and being the one result in the
-// SERP that doesn't invent a number is the position.
-//
-// Deliberately NO aggregateRating. Every competitor carries one and a
-// good share of them are invented. A fabricated rating is a structured
-// data violation, and on this page specifically it would contradict the
-// only argument the copy makes.
-const webAppJsonLd = {
-  "@context": "https://schema.org",
-  "@type": "WebApplication",
-  name: "Audio to Text Converter",
-  alternateName: ["Free Audio to Text Converter", "Audio Transcription", "MP3 to Text"],
-  url: `${SITE_URL}/audio-to-text`,
-  applicationCategory: "MultimediaApplication",
-  operatingSystem: "Any",
-  browserRequirements: "Requires JavaScript.",
-  dateModified: LAST_VERIFIED,
-  offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
-  featureList: [
-    "Transcribe MP3, WAV, FLAC, M4A, AAC, OGG and AIFF",
-    "Runs online in the browser — nothing to install",
-    "Automatic language detection, or set the language yourself",
-    "Translate non-English speech to English in the same pass",
-    "Timestamped segments",
-    "Export as TXT, SRT or VTT",
-    "No account or email required",
-    "No watermark and no export paywall",
-    `Files up to ${MAX_MINUTES} minutes and ${AUDIO_MB}MB`,
-  ],
-};
-
 const breadcrumbJsonLd = {
   "@context": "https://schema.org",
   "@type": "BreadcrumbList",
@@ -144,81 +147,149 @@ const breadcrumbJsonLd = {
   ],
 };
 
-/**
- * Every answer leads with the answer.
- *
- * That's a readability rule first, but it's also what gets a page quoted
- * in an AI Overview — an extractive summariser takes the opening clause,
- * so an answer that spends its first sentence setting up context gets
- * either skipped or misquoted. A site with no backlinks yet gets its
- * first impressions from those panels more often than from position 4.
- *
- * ORDER MATTERS HERE. The first entry is the exact-match question form
- * of the softest keyword in the cluster, and early entries get weighted
- * by the same summarisers. Don't reorder without a reason.
- */
-const faqs = [
-  {
-    question: "How do I transcribe an audio recording to text?",
-    answer: `Upload the file above and download the transcript — no account, no email, no credits. It takes MP3, WAV, FLAC, M4A, AAC, OGG and AIFF up to ${AUDIO_MB}MB and ${MAX_MINUTES} minutes, and exports plain text plus SRT and VTT with nothing paywalled.`,
-  },
-  {
-    question: "Is this really free, with no account?",
-    answer: `Yes. No sign-up, no email, no credits, no card. Exports aren't paywalled either — TXT, SRT and VTT all download without an account. ${MAX_MINUTES} minutes per file and ${RATE_LIMIT} are the only limits, and they exist to keep the queue moving rather than to sell you an upgrade.`,
-  },
-  {
-    question: "Do I need to install anything?",
-    answer:
-      "No. It runs online in the browser — there's no app, no extension and no login. Upload the file, wait, and the transcript appears on the same page with the download buttons already on it.",
-  },
-  {
-    question: "What audio formats can I upload?",
-    answer: `MP3, WAV, FLAC, M4A, AAC, OGG and AIFF, up to ${AUDIO_MB}MB and ${MAX_MINUTES} minutes per file. For video, use Video to Text instead — it takes MP4 and MOV directly without extracting the audio first.`,
-  },
-  {
-    question: "How long does a transcript take?",
-    answer:
-      "Usually under a minute. The transcription server spins down when idle, so the first run after a quiet period spends about a minute starting up — which means a 30-second voice memo and a 10-minute podcast often take roughly the same wall time. Once it's warm, most files come back in seconds.",
-  },
-  {
-    question: "How accurate is it?",
-    answer:
-      "It depends far more on your recording than on the tool. Clean speech with one speaker close to a microphone comes back near-perfect; a phone recording of a meeting from across a table won't. We don't publish an accuracy percentage because a single number across every language, accent and recording condition wouldn't mean anything — and nobody publishing one shows their methodology.",
-  },
-  {
-    question: "What model does this use?",
-    answer:
-      `${TRANSCRIPTION_MODEL}, the largest model in that family, running on a GPU. Naming it means you can check it. Most free tools run a smaller variant and don't say which.`,
-  },
-  {
-    question: "Do I have to pick the language?",
-    answer:
-      "No — it's detected automatically. Setting it yourself helps for clips under about thirty seconds, heavy accents, or audio that mixes two languages, since detection works from the opening seconds.",
-  },
-  {
-    question: "Can I get an English transcript from another language?",
-    answer:
-      "Yes — choose English output and it translates as it transcribes, in one pass, at no extra cost. English is the only translation target available.",
-  },
-  {
-    question: "What's the difference between TXT, SRT and VTT?",
-    answer:
-      "TXT is the words with no timing, for reading and searching. SRT and VTT are timed caption formats — SRT for video editors and most upload forms, VTT for HTML5 video on the web. All three are free to export.",
-  },
-  {
-    question: "Are my files kept after transcription?",
-    answer:
-      "The uploaded audio is processed and not retained as a personal file, and there's no account for anything to be attached to. Jobs expire an hour after they're created.",
-  },
-  {
-    question: `Can I transcribe a recording longer than ${MAX_MINUTES} minutes?`,
-    answer:
-      "Not in one pass. Split it into sections first — the Silence Splitter cuts at natural pauses, which gives cleaner boundaries than cutting at a fixed time — then transcribe each section.",
-  },
-];
-
-export default function AudioToTextPage() {
+export default async function AudioToTextPage() {
   const relatedTools = getRelatedTools("audio-to-text", 4);
+
+  const limits = await getLimits();
+
+  // max_upload_mb (80) — NOT max_video_transcribe_mb (100), which is
+  // /video-to-text's, nor max_video_upload_mb (200), which is
+  // /video-to-audio's. Three caps, three routes.
+  const audioMb = limits.maxUploadMb;
+  const maxMinutesLabel = durationLabel(limits.featureDurations.transcription);
+
+  // Derived end-to-end. The old fallback here read "2 per 5 minutes" — the
+  // figure this route carried before 2026-08-26.
+  const rateLimit = rateLimitLabel(
+    limits.rateLimits.speech_to_text ?? 2,
+    windowFor(limits, "speech_to_text")
+  );
+
+  const audioFormats = limits.allowedAudioFormats.map((f) => f.toUpperCase());
+  const audioFormatList = audioFormats.join(", ").replace(/, ([^,]*)$/, " and $1");
+
+  // The `text` shape: the transcript is inline in the job record rather than a
+  // file on disk, so the output sentence is different in kind.
+  const retention = retentionSentences(limits.retention.transcription);
+
+  // Every entry below is checked against the running backend. No accuracy
+  // percentage is claimed anywhere on this page — the model name is
+  // verifiable, "98.86% accurate" is not, and being the one result in the
+  // SERP that doesn't invent a number is the position.
+  //
+  // Deliberately NO aggregateRating. Every competitor carries one and a
+  // good share of them are invented. A fabricated rating is a structured
+  // data violation, and on this page specifically it would contradict the
+  // only argument the copy makes.
+  const webAppJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    name: "Audio to Text Converter",
+    alternateName: ["Free Audio to Text Converter", "Audio Transcription", "MP3 to Text"],
+    url: `${SITE_URL}/audio-to-text`,
+    applicationCategory: "MultimediaApplication",
+    operatingSystem: "Any",
+    browserRequirements: "Requires JavaScript.",
+    dateModified: LAST_VERIFIED,
+    offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+    featureList: [
+      `Transcribe ${audioFormatList}`,
+      // Was "Runs online in the browser — nothing to install", listed as a
+      // feature beside a GPU model. Both halves stated, so it can't be read
+      // as a claim about where the work happens.
+      "Nothing to install — upload in the browser, transcription runs on a GPU",
+      `Runs ${TRANSCRIPTION_MODEL}`,
+      "Automatic language detection, or set the language yourself",
+      "Translate non-English speech to English in the same pass",
+      "Timestamped segments",
+      "Export as TXT, SRT or VTT",
+      "No account or email required",
+      "No watermark and no export paywall",
+      `Files up to ${maxMinutesLabel} and ${audioMb}MB`,
+    ],
+  };
+
+  /**
+   * Every answer leads with the answer.
+   *
+   * That's a readability rule first, but it's also what gets a page quoted
+   * in an AI Overview — an extractive summariser takes the opening clause,
+   * so an answer that spends its first sentence setting up context gets
+   * either skipped or misquoted. A site with no backlinks yet gets its
+   * first impressions from those panels more often than from position 4.
+   *
+   * ORDER MATTERS HERE. The first entry is the exact-match question form
+   * of the softest keyword in the cluster, and early entries get weighted
+   * by the same summarisers. Don't reorder without a reason.
+   */
+  const faqs = [
+    {
+      question: "How do I transcribe an audio recording to text?",
+      answer: `Upload the file above and download the transcript — no account, no email, no credits. It takes ${audioFormatList} up to ${audioMb}MB and ${maxMinutesLabel}, and exports plain text plus SRT and VTT with nothing paywalled.`,
+    },
+    {
+      question: "Is this really free, with no account?",
+      answer: `Yes. No sign-up, no email, no credits, no card. Exports aren't paywalled either — TXT, SRT and VTT all download without an account. ${maxMinutesLabel} per file and ${rateLimit} are the only limits, and they exist to keep the queue moving rather than to sell you an upgrade.`,
+    },
+    {
+      question: "Do I need to install anything?",
+      // Same correction as the featureList entry: the interface is in the
+      // browser, the transcription isn't, and saying both is no longer than
+      // saying one.
+      answer:
+        "No. There's no app, no extension and no login — you upload the file in your browser and the transcription runs on our GPU server. The transcript appears on the same page with the download buttons already on it.",
+    },
+    {
+      question: "What audio formats can I upload?",
+      answer: `${audioFormatList}, up to ${audioMb}MB and ${maxMinutesLabel} per file. For video, use Video to Text instead — it takes MP4 and MOV directly without extracting the audio first.`,
+    },
+    {
+      question: "How long does a transcript take?",
+      answer:
+        "Usually under a minute. The transcription server spins down when idle, so the first run after a quiet period spends about a minute starting up — which means a 30-second voice memo and a 10-minute podcast often take roughly the same wall time. Once it's warm, most files come back in seconds.",
+    },
+    {
+      question: "How accurate is it?",
+      answer:
+        "It depends far more on your recording than on the tool. Clean speech with one speaker close to a microphone comes back near-perfect; a phone recording of a meeting from across a table won't. We don't publish an accuracy percentage because a single number across every language, accent and recording condition wouldn't mean anything — and nobody publishing one shows their methodology.",
+    },
+    {
+      question: "What model does this use?",
+      answer: `${TRANSCRIPTION_MODEL}, the largest model in that family, running on a GPU. Naming it means you can check it. Most free tools run a smaller variant and don't say which.`,
+    },
+    {
+      question: "Do I have to pick the language?",
+      answer:
+        "No — it's detected automatically. Setting it yourself helps for clips under about thirty seconds, heavy accents, or audio that mixes two languages, since detection works from the opening seconds.",
+    },
+    {
+      question: "Can I get an English transcript from another language?",
+      answer:
+        "Yes — choose English output and it translates as it transcribes, in one pass, at no extra cost. English is the only translation target available.",
+    },
+    {
+      question: "What's the difference between TXT, SRT and VTT?",
+      answer:
+        "TXT is the words with no timing, for reading and searching. SRT and VTT are timed caption formats — SRT for video editors and most upload forms, VTT for HTML5 video on the web. All three are free to export.",
+    },
+    {
+      /*
+        REWRITTEN. Said "processed and not retained as a personal file", which
+        doesn't say deleted — it's the shape of wording used when the real
+        answer is awkward. Here the real answer is stronger, so there was
+        nothing to soften: the input goes the moment the job ends, the
+        transcript is text in the job record for an hour, and nothing sits on
+        disk afterwards.
+      */
+      question: "Are my files kept after transcription?",
+      answer: `${retention.input} ${retention.output} There are no accounts, so nothing is linked to you.`,
+    },
+    {
+      question: `Can I transcribe a recording longer than ${maxMinutesLabel}?`,
+      answer:
+        "Not in one pass. Split it into sections first — the Silence Splitter cuts at natural pauses, which gives cleaner boundaries than cutting at a fixed time — then transcribe each section.",
+    },
+  ];
 
   return (
     <>
@@ -234,15 +305,7 @@ export default function AudioToTextPage() {
       <main className="mx-auto max-w-3xl px-4 pb-16">
         {/* Hero — mono eyebrow above the h1, matching the homepage. The
             three facts in it are the entire competitive position, so they
-            go above the fold rather than in a features grid below.
-
-            The body paragraph names the formats, says "online", and
-            carries the verb phrase "transcribe an audio recording" —
-            all three were previously only in the meta description or the
-            FAQ, which meant the first hundred words of actual page copy
-            carried none of them. "Online" in particular is a separate
-            query with its own volume rather than a synonym Google folds
-            in for free. */}
+            go above the fold rather than in a features grid below. */}
         <section className="pt-14 text-center sm:pt-20">
           <p className="font-mono text-xs uppercase tracking-[0.16em] text-amber-500">
             No account · No credits · Free exports
@@ -253,8 +316,8 @@ export default function AudioToTextPage() {
           <p className="mx-auto mt-4 max-w-xl text-lg text-text-muted">
             Transcribe an audio recording to text in a couple of minutes —
             upload an MP3, WAV, M4A or FLAC and get the words back, with
-            timestamps. It runs online in your browser, with nothing to install
-            and no account to make, and TXT, SRT and VTT all export free.
+            timestamps. It works online with nothing to install and no account
+            to make, and TXT, SRT and VTT all export free.
           </p>
         </section>
 
@@ -282,7 +345,9 @@ export default function AudioToTextPage() {
             <table className="w-full text-left text-sm text-text-muted">
               <thead className="bg-graphite-900 text-text-primary">
                 <tr>
-                  <th scope="col" className="px-4 py-3 font-semibold">&nbsp;</th>
+                  <th scope="col" className="px-4 py-3 font-semibold">
+                    <span className="sr-only">Comparison</span>
+                  </th>
                   <th scope="col" className="px-4 py-3 font-semibold">Typically</th>
                   <th scope="col" className="px-4 py-3 font-semibold">Here</th>
                 </tr>
@@ -312,7 +377,7 @@ export default function AudioToTextPage() {
                   <td className="px-4 py-3 font-medium text-text-primary">The real limit</td>
                   <td className="px-4 py-3">Discovered when you hit it</td>
                   <td className="px-4 py-3 text-text-primary">
-                    {MAX_MINUTES} min per file, {RATE_LIMIT}
+                    {maxMinutesLabel} per file, {rateLimit}
                   </td>
                 </tr>
               </tbody>
@@ -348,7 +413,7 @@ export default function AudioToTextPage() {
               {
                 step: "01",
                 title: "Upload",
-                body: `MP3, WAV, FLAC, M4A, AAC, OGG or AIFF, up to ${AUDIO_MB}MB and ${MAX_MINUTES} minutes.`,
+                body: `${audioFormatList}, up to ${audioMb}MB and ${maxMinutesLabel}.`,
               },
               {
                 step: "02",
@@ -482,7 +547,7 @@ export default function AudioToTextPage() {
             </li>
             <li className="border-t border-graphite-800 pt-3">
               <strong className="text-text-primary">
-                {MAX_MINUTES} minutes per file.
+                {maxMinutesLabel} per file.
               </strong>{" "}
               Longer recordings need splitting first with the{" "}
               <Link href="/silence-split" prefetch={false} className="text-amber-400 hover:underline">
@@ -561,7 +626,7 @@ export default function AudioToTextPage() {
               year: "numeric",
             })}
           </time>
-          . {TRANSCRIPTION_MODEL} · {MAX_MINUTES} min per file · {RATE_LIMIT}.
+          . {TRANSCRIPTION_MODEL} · {maxMinutesLabel} per file · {rateLimit}.
         </p>
       </main>
     </>

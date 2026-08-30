@@ -111,7 +111,18 @@ export const TRANSCRIPTION_ENDPOINTS = {
 export const TRANSCRIPTION_LIMITS = {
   /** /speech-to-text */
   audioBytes: 80 * 1024 * 1024,
-  /** /video-to-text — deliberately different from audioBytes. */
+  /**
+   * /video-to-text — deliberately different from audioBytes.
+   *
+   * ⚠️ THIS SITS EXACTLY ON CLOUDFLARE'S BODY LIMIT. The free and pro plans
+   * cap a request body at 100MB, and the two caps measure different things:
+   * this one is the FILE, Cloudflare's is the whole multipart BODY — the file
+   * plus boundaries plus the language/task/mode fields. So a 99.9MB video
+   * passes validateTranscriptionFile and is still refused at the edge with a
+   * 413 the origin never sees. See the `case 413` note in
+   * toTranscriptionError; if that error shows up in real use, lower this to
+   * leave headroom (95MB) rather than treating it as a server fault.
+   */
   videoBytes: 100 * 1024 * 1024,
   /**
    * Applies to the audio track on all three endpoints.
@@ -216,8 +227,10 @@ export type TranscriptionErrorKind =
   | "expired"
   | "not_ready"
   | "rate_limited"
+  | "too_large"
   | "queue_full"
   | "service_down"
+  | "edge_timeout"
   | "blocked"
   | "server_error"
   | "unknown";
@@ -285,7 +298,12 @@ async function toTranscriptionError(res: Response): Promise<ApiError> {
   const build = (
     fallback: string,
     kind: TranscriptionErrorKind,
-    extra: { retryable?: boolean; isRateLimit?: boolean; isServerBusy?: boolean } = {}
+    extra: {
+      retryable?: boolean;
+      isRateLimit?: boolean;
+      isServerBusy?: boolean;
+      isTimeout?: boolean;
+    } = {}
   ) => new ApiError(detail || fallback, res.status, { kind, retryAfterSeconds: retryAfter, ...extra });
 
   switch (res.status) {
@@ -316,6 +334,30 @@ async function toTranscriptionError(res: Response): Promise<ApiError> {
       // finished. The caller polled wrong.
       return build("This transcript isn't ready yet.", "not_ready", { retryable: true });
 
+    case 413:
+      /*
+        NOT the app — this is Cloudflare, and it fires inside a window our own
+        validation cannot close.
+
+        videoBytes is 100MB and Cloudflare's body limit on the free and pro
+        plans is also 100MB, but the two measure different things: ours is the
+        FILE, theirs is the whole multipart BODY — the file plus boundaries
+        plus the language/task/mode fields. So a 99.9MB video passes
+        validateTranscriptionFile, uploads in full, and is refused at the edge
+        with a status the origin never sees.
+
+        Without this case it fell to `default`, which says "The request failed.
+        Please try again" and marks it RETRYABLE — inviting someone to spend
+        another two minutes re-uploading a file that can never succeed.
+
+        Not retryable, and the copy points at the only thing that helps.
+      */
+      return build(
+        "That file is too large to upload. Try one a little under the limit, or trim it first.",
+        "too_large",
+        { retryable: false }
+      );
+
     case 429:
       // Per IP, per endpoint. A user transcribing a few files WILL hit
       // this, so it deserves a countdown rather than a red toast. The
@@ -344,6 +386,37 @@ async function toTranscriptionError(res: Response): Promise<ApiError> {
 
     case 500:
       return build("Something went wrong on our end. Please try again.", "server_error", { retryable: true });
+
+    /*
+      ---- Cloudflare-generated. The origin never sent these. ----
+
+      `detail` is always empty here — there is no JSON body, just an HTML error
+      page — so the fallback copy below is the only thing the user ever sees.
+      railway.ts carries the same block for the same reason: without it these
+      land in `default` and render "The request failed", the least useful
+      message available, on the failure mode most likely to hit a long upload.
+    */
+    case 524:
+      // The edge gave up waiting for response headers at 100s. On an upload
+      // route that usually means the transfer itself ran long, not that
+      // transcription is broken — so the advice is about the file and the
+      // connection, not about the service.
+      return build(
+        "The upload took longer than the connection allows. A smaller file, or a better connection, usually gets through.",
+        "edge_timeout",
+        { isTimeout: true, isServerBusy: true, retryable: true }
+      );
+    case 520:
+    case 521:
+    case 522:
+    case 523:
+    case 525:
+    case 526:
+      return build(
+        "We couldn't reach the transcription server. Please try again in a moment.",
+        "service_down",
+        { isServerBusy: true, retryable: true }
+      );
 
     default:
       return build("The request failed. Please try again.", "unknown", { retryable: true });
@@ -611,6 +684,33 @@ export interface TranscriptionStatus {
   elapsed_seconds: number;
 }
 
+/**
+ * CREDENTIALS — sent, and the check that justified it.
+ *
+ * All three submit paths send the identity cookie (xhr.withCredentials on the
+ * uploads, `credentials: "include"` on the YouTube route). Status and result
+ * did NOT, which left the poll reading a metered job as an anonymous subject.
+ *
+ * That gap was only safe to close after confirming the CORS shape, because
+ * `credentials: "include"` on a GET REQUIRES the server to answer with a
+ * specific origin and an explicit allow-credentials header — against a `*`
+ * origin the browser rejects the response and every poll breaks. Verified
+ * 2026-08-30:
+ *
+ *     access-control-allow-origin: https://www.audioforges.com
+ *     access-control-allow-credentials: true
+ *
+ * Specific origin, credentials allowed. So this is correct and the omission
+ * was the bug.
+ *
+ * WHEN CHECKING THIS AGAIN, SEND AN Origin HEADER. A bare `curl -I` emits no
+ * CORS response headers at all, because there is no request origin to answer —
+ * which reads exactly like "no CORS configured" and is how you talk yourself
+ * out of a real fix:
+ *
+ *     curl -I -H "Origin: https://www.audioforges.com" \
+ *       https://api.audioforges.com/speech-to-text/status/<id>
+ */
 export function getTranscriptionStatus(
   endpoint: TranscriptionEndpoint,
   jobId: string,
@@ -618,7 +718,8 @@ export function getTranscriptionStatus(
 ): Promise<TranscriptionStatus> {
   return fetchWithTimeout(
     `${RAILWAY_API_BASE}/${endpoint}/status/${jobId}`,
-    { method: "GET", signal: opts.signal },
+    // See the note above: verified against the live CORS headers before adding.
+    { method: "GET", credentials: "include", signal: opts.signal },
     READ_TIMEOUT_MS
   ).then(async (res) => {
     if (!res.ok) throw await toTranscriptionError(res);
@@ -666,6 +767,9 @@ export interface Transcript {
 /**
  * Call ONCE, after status reports complete. Calling it early returns 409
  * rather than blocking, and calling it after the TTL returns 404.
+ *
+ * Same credentials note as getTranscriptionStatus above — sent here too, and
+ * for the same reason: this route returns the transcript of a metered job.
  */
 export function getTranscriptionResult(
   endpoint: TranscriptionEndpoint,
@@ -674,7 +778,7 @@ export function getTranscriptionResult(
 ): Promise<Transcript> {
   return fetchWithTimeout(
     `${RAILWAY_API_BASE}/${endpoint}/result/${jobId}`,
-    { method: "GET", signal: opts.signal },
+    { method: "GET", credentials: "include", signal: opts.signal },
     READ_TIMEOUT_MS
   ).then(async (res) => {
     if (!res.ok) throw await toTranscriptionError(res);
@@ -752,6 +856,10 @@ export function readMediaDuration(file: File, kind: "audio" | "video"): Promise<
     const done = (value: number | null) => {
       if (settled) return;
       settled = true;
+      // Cleared rather than left to fire into a settled promise. Harmless
+      // either way, but a stray timer on every file selection is the kind of
+      // thing that shows up in a profile and takes ten minutes to explain.
+      clearTimeout(timer);
       URL.revokeObjectURL(objectUrl);
       resolve(value);
     };
@@ -761,7 +869,7 @@ export function readMediaDuration(file: File, kind: "audio" | "video"): Promise<
     el.onerror = () => done(null);
     // Some containers never fire either event. Don't hang the submit
     // button waiting on a check that's only an optimisation.
-    setTimeout(() => done(null), 8_000);
+    const timer = setTimeout(() => done(null), 8_000);
     el.src = objectUrl;
   });
 }

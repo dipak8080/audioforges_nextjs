@@ -1,22 +1,44 @@
 "use client";
 
 import { useState } from "react";
-import { Info } from "lucide-react";
 import { JobToolForm } from "@/components/converter/JobToolForm";
-import { cn } from "@/lib/utils/cn";
+import { ControlField, Hint, OptionCards, type CardOption } from "@/components/converter/ToolControls";
+import { getRateLimitLabel } from "@/lib/data/rate-limits";
+
+/**
+ * ── THIS PASS ──────────────────────────────────────────────────────────
+ *
+ * 1. ANOTHER radiogroup THAT WASN'T ONE. `role="radiogroup"` promises a single
+ *    tab stop with arrows between the options; these were two plain buttons
+ *    with no tabIndex management and no key handler, so a screen reader
+ *    announced one control and got two. Same bug ConvertForm had. OptionCards
+ *    carries the behaviour, so it can't be forgotten again.
+ *
+ * 2. A 429 NOW NAMES THE LIMIT. Note the key: this endpoint is `channels` but
+ *    its RATE_LIMITS entry is `mono-stereo-converter` (the tool's public slug),
+ *    which is why the lookup doesn't just reuse the endpoint string.
+ */
 
 type ChannelTarget = "mono" | "stereo";
 
-const CHANNEL_SPECS: Record<ChannelTarget, { detail: string; use: string }> = {
-  mono: {
-    detail: "1 channel · downmixed",
-    use: "Voice, phone lines, podcasts — smaller file",
+const RATE_LIMIT_LABEL = getRateLimitLabel("mono-stereo-converter");
+
+const CHANNEL_OPTIONS: CardOption<ChannelTarget>[] = [
+  {
+    value: "mono",
+    title: "Mono",
+    meta: "1 channel",
+    detail: "Voice, phone lines, podcasts — smaller file",
+    footnote: "downmixed",
   },
-  stereo: {
-    detail: "2 channels · duplicated",
-    use: "Platforms that require stereo input",
+  {
+    value: "stereo",
+    title: "Stereo",
+    meta: "2 channels",
+    detail: "Platforms that require stereo input",
+    footnote: "duplicated",
   },
-};
+];
 
 export function ChannelsForm() {
   const [target, setTarget] = useState<ChannelTarget>("mono");
@@ -31,76 +53,41 @@ export function ChannelsForm() {
       processingLabel={`Converting to ${target}`}
       expectedRange="a few seconds"
       resultVerb="Converted"
+      rateLimitMessage={
+        RATE_LIMIT_LABEL
+          ? `Channel conversions are limited to ${RATE_LIMIT_LABEL}. Wait for the timer, then run it again.`
+          : undefined
+      }
       stages={[
         { at: 0, label: "Reading the source channels" },
         { at: 3, label: target === "mono" ? "Downmixing to mono" : "Duplicating to stereo" },
         { at: 8, label: "Writing the output file" },
       ]}
       buildExtraFields={() => ({ target })}
-      renderControls={(file, disabled) => (
-        <ChannelSelect value={target} onChange={setTarget} disabled={disabled} />
+      /* The file argument is unused: this control has nothing to say about the
+         upload, only about the output. */
+      renderControls={(_file, disabled) => (
+        <ControlField
+          as="fieldset"
+          label="Convert to"
+          hint={
+            target === "mono" ? (
+              <Hint>
+                A stereo source downmixed to mono can&apos;t be split back into two independent
+                channels later.
+              </Hint>
+            ) : undefined
+          }
+        >
+          <OptionCards
+            label="Channel target"
+            options={CHANNEL_OPTIONS}
+            value={target}
+            onChange={setTarget}
+            disabled={disabled}
+          />
+        </ControlField>
       )}
     />
-  );
-}
-
-/* ------------------------------------------------------------------ */
-
-interface ChannelSelectProps {
-  value: ChannelTarget;
-  onChange: (value: ChannelTarget) => void;
-  disabled: boolean;
-}
-
-function ChannelSelect({ value, onChange, disabled }: ChannelSelectProps) {
-  const options: ChannelTarget[] = ["mono", "stereo"];
-
-  return (
-    <fieldset className="space-y-2" disabled={disabled}>
-      <legend className="mb-2 text-sm font-medium text-text-primary">Convert to</legend>
-
-      <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Channel target">
-        {options.map((option) => {
-          const spec = CHANNEL_SPECS[option];
-          const selected = value === option;
-          return (
-            <button
-              key={option}
-              type="button"
-              role="radio"
-              aria-checked={selected}
-              onClick={() => onChange(option)}
-              disabled={disabled}
-              className={cn(
-                "rounded-lg border p-3.5 text-left transition-all",
-                "focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40",
-                "disabled:cursor-not-allowed disabled:opacity-40",
-                selected
-                  ? "border-amber-500/60 bg-amber-500/[0.07]"
-                  : "border-graphite-700 bg-graphite-850 hover:border-graphite-700/60 hover:bg-graphite-800/60"
-              )}
-            >
-              <span
-                className={cn(
-                  "text-base font-semibold capitalize tracking-tight",
-                  selected ? "text-amber-400" : "text-text-primary"
-                )}
-              >
-                {option}
-              </span>
-              <p className="mt-1.5 font-mono text-xs text-text-muted">{spec.detail}</p>
-              <p className="mt-1 text-[11px] leading-snug text-text-subtle">{spec.use}</p>
-            </button>
-          );
-        })}
-      </div>
-
-      {value === "mono" && (
-        <p className="flex items-start gap-1.5 text-[11px] text-text-subtle">
-          <Info className="mt-0.5 h-3 w-3 shrink-0" aria-hidden />
-          A stereo source downmixed to mono can't be split back into two independent channels later.
-        </p>
-      )}
-    </fieldset>
   );
 }
