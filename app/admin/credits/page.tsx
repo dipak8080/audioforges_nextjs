@@ -445,7 +445,14 @@ function Select({
         className={cn(
           "h-9 appearance-none rounded-lg border border-graphite-700 bg-graphite-850/80 pl-3 pr-8 text-[13px] text-text-muted outline-none transition-colors",
           "hover:border-graphite-600 hover:text-text-primary",
-          "focus-visible:border-amber-500/50 focus-visible:ring-2 focus-visible:ring-amber-500/20"
+          "focus-visible:border-amber-500/50 focus-visible:ring-2 focus-visible:ring-amber-500/20",
+          // The native popup list is painted by the OS and ignores every class
+          // above it, which is why the open dropdown rendered white against the
+          // dark UI. [color-scheme:dark] tells the browser to draw native
+          // controls dark (this is the fix that works across Chrome, Edge and
+          // Firefox); the [&>option] rules dark-paint the individual rows for
+          // the engines that honour them.
+          "[color-scheme:dark] [&>option]:bg-graphite-900 [&>option]:text-text-primary"
         )}
       >
         {children}
