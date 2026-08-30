@@ -4,7 +4,6 @@ import { JoinForm } from "@/components/converter/JoinForm";
 import { FAQSection } from "@/components/faq/FAQSection";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
-import { TOOL_LIMITS } from "@/lib/data/tool-limits";
 import { getLimits, durationLabel, retentionSentences } from "@/lib/api/limits";
 
 const PAGE_TITLE = "Free Audio Joiner — Merge Multiple Files Online";
@@ -29,10 +28,10 @@ const PAGE_DESCRIPTION =
  *   per-file size    max_upload_mb                  80
  *   combined length  durations.join_max_total_seconds  5400
  *
- * THE FILE COUNT STAYS IN THE HAND TABLE, because /limits doesn't publish it.
- * That's the one number here that can still drift, and it's marked so nobody
- * assumes the whole page is covered. Worth asking the backend to add a
- * `max_join_files` — it's the last hand-maintained figure on this page.
+ * ALL FOUR NOW COME FROM THE BACKEND, including the file count. It was
+ * published all along — nested as `join.max_files` alongside the three size
+ * caps, not as a top-level `max_join_files`, which is why grepping for the
+ * flat name found nothing. Nothing on this page is hand-maintained any more.
  *
  * ALSO: retention answer added. /join is one of the four routes with its own
  * submit path, and the backend confirmed it passes `input_paths` to
@@ -72,22 +71,23 @@ const breadcrumbJsonLd = {
 // no ranking or rich-result benefit remains. Visible how-to steps stay.
 // FAQPage schema is emitted by <FAQSection /> — do not duplicate it here.
 
-/**
- * The ONE figure /limits doesn't publish.
- *
- * Everything else on this page now resolves from the backend. This doesn't,
- * so it is the only number here that can still go stale the way the duration
- * cap did — flagged rather than quietly mixed in with the derived ones.
- */
-const MAX_FILES = TOOL_LIMITS.join?.maxFiles ?? 10;
-
 export default async function AudioJoinerPage() {
   const relatedTools = getRelatedTools("audio-joiner", 5);
 
   const limits = await getLimits();
 
-  const maxTotalSize = `${limits.maxJoinTotalMb}MB`;
-  const maxPerFileSize = `${limits.maxUploadMb}MB`;
+  /*
+    Four caps, all from the backend's `join` block plus durations.
+
+    THE TWO "TOTAL" FIGURES REJECT INDEPENDENTLY and neither is implied by the
+    per-file cap: ten 20MB files pass the per-file check and fail the combined
+    one; ten four-minute tracks pass any per-file duration intuition and fail
+    at forty minutes combined. Both are stated explicitly below for that
+    reason.
+  */
+  const MAX_FILES = limits.join.maxFiles;
+  const maxTotalSize = `${limits.join.maxTotalMb}MB`;
+  const maxPerFileSize = `${limits.join.maxPerFileMb}MB`;
   const maxTotalDuration = durationLabel(limits.durations.joinMaxTotalSeconds);
 
   // Bare lowercase from the API ("mp3"); uppercase is a display choice.

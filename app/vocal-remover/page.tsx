@@ -4,17 +4,45 @@ import { VocalRemoverForm } from "@/components/converter/VocalRemoverForm";
 import { FAQSection, type FAQItem } from "@/components/faq/FAQSection";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
-import { getRateLimitLabel } from "@/lib/data/rate-limits";
-import { FILE_SIZE_LIMITS } from "@/lib/utils/validation";
 import { getFeatureFlags } from "@/lib/api/railway";
+import { getLimits, windowFor, rateLimitLabel, durationLabel } from "@/lib/api/limits";
+
+/**
+ * ── THIS PASS ──────────────────────────────────────────────────────────
+ *
+ * Migration only — every figure on this page was already correct. The rate
+ * limits, the 80MB cap and the two-hour retention window were all fixed in
+ * earlier passes and verified against the backend.
+ *
+ * What changes is the SOURCE: they read from /limits now rather than the
+ * hand-maintained tables, which is the thing that stops a correct number
+ * going quietly wrong later.
+ *
+ * ⚠️ ONE DELIBERATE EXCEPTION — THE RETENTION ANSWER KEEPS ITS PROSE.
+ *
+ * Every other page on the site now renders retention from
+ * retentionSentences(). This one doesn't, and shouldn't. The helper would
+ * produce:
+ *
+ *   "Your upload is kept for 2 hours, then deleted automatically."
+ *   "The results are available to download for 2 hours, then removed."
+ *
+ * Both true, and both worse than what's below. The existing paragraph explains
+ * WHY separation is the one family that holds an upload at all, and that a
+ * single TTL sweep takes the upload and the stems together — neither of which
+ * the helper can know. So the reasoning stays and only the NUMBER derives,
+ * which gets the drift protection without flattening the answer.
+ *
+ * That's the general rule this file is the exception to: derive the figure,
+ * keep the judgement.
+ */
 
 const PAGE_TITLE = "Free AI Vocal Remover – Remove Vocals Online";
 const PAGE_DESCRIPTION =
   "Remove vocals from songs online with AI for free. Extract instrumentals or acapellas from MP3, WAV, FLAC, AAC and more. No sign-up, no watermark.";
 
-// FIX 2: `keywords` meta removed. Google has ignored the keywords meta tag
-// since 2009, and no other tool page on the site carries it — it was dead
-// weight and an inconsistency, not a ranking factor.
+// `keywords` meta removed. Google has ignored the keywords meta tag since
+// 2009, and no other tool page on the site carries it.
 export const metadata: Metadata = {
   title: PAGE_TITLE,
   description: PAGE_DESCRIPTION,
@@ -46,9 +74,8 @@ const webAppJsonLd = {
   "@context": "https://schema.org",
   "@type": "WebApplication",
   name: "AI Vocal Remover",
-  // FIX 3: alternateName carries the head terms as standalone entity labels,
-  // which helps Google associate the page with each query independently.
-  // Same pattern already used on /video-to-audio.
+  // alternateName carries the head terms as standalone entity labels, which
+  // helps Google associate the page with each query independently.
   // Volumes (SE Ranking, Aug 2026, US):
   //   vocal remover              90,500/mo
   //   remove vocals              22,200/mo
@@ -91,32 +118,48 @@ const breadcrumbJsonLd = {
 };
 // NOTE: No HowTo schema — deprecated by Google (desktop since Sept 2023),
 // no ranking or rich-result benefit remains. Visible how-to steps stay.
-// This matches the standard already applied on /stems and both YouTube
-// separation pages.
 // FAQPage schema is emitted by <FAQSection /> — do not duplicate it here.
-
-// Rate-limit numbers shown in the "Standard vs. Studio Quality" table below
-// AND in the FAQ are read from lib/data/rate-limits.ts rather than hardcoded —
-// same source VocalRemoverForm.tsx uses ("separate"/"separate-hq", the
-// file-upload Vocal Remover's own endpoint, distinct from the 4-stem
-// Stem Splitter and the YouTube Vocal Remover). Fallback text only fires
-// if a key is ever missing/renamed in rate-limits.ts.
-const FALLBACK_RATE_LIMIT_LABEL = "rate limited";
-const standardLimitLabel = getRateLimitLabel("separate") ?? FALLBACK_RATE_LIMIT_LABEL;
-const hqLimitLabel = getRateLimitLabel("separate-hq") ?? FALLBACK_RATE_LIMIT_LABEL;
-
-/**
- * The cap validateAudioFile actually enforces.
- *
- * The FAQ used to answer "Yes, 80MB per upload" as a typed number. Same rule as
- * the rate limits above: read it, don't restate it — otherwise the day that
- * constant moves, this answer is quietly wrong and nothing fails.
- */
-const MAX_UPLOAD_LABEL = `${Math.round(FILE_SIZE_LIMITS.audio / (1024 * 1024))}MB`;
 
 export default async function VocalRemoverPage() {
   const relatedTools = getRelatedTools("vocal-remover", 5);
   const { separationHqEnabled } = await getFeatureFlags();
+  const limits = await getLimits();
+
+  /*
+    Both from /limits. Note the KEYS: this is the file-upload Vocal Remover's
+    own endpoint pair, distinct from the 4-stem Stem Splitter ("stems") and the
+    YouTube Vocal Remover. Reusing the wrong key here would silently print
+    another tool's allowance.
+
+    The HQ figure is the FREE-TIER one and is labelled as such below: the rule
+    is tiered, credits raise it substantially, and a Server Component cannot
+    know which tier a visitor is on. Unqualified, that cell was simply wrong
+    for anyone who had paid.
+  */
+  const standardLimitLabel = rateLimitLabel(
+    limits.rateLimits.separate ?? 6,
+    windowFor(limits, "separate")
+  );
+  const hqLimitLabel = rateLimitLabel(
+    limits.rateLimits.separate_hq ?? 2,
+    windowFor(limits, "separate_hq")
+  );
+
+  const maxUploadLabel = `${limits.maxUploadMb}MB`;
+
+  /*
+    The NUMBER derives; the sentence around it doesn't — see the note at the
+    top of this file. input_seconds and output_seconds are both 7200, which is
+    what lets the copy say "everything, by the same expiry" rather than
+    explaining two windows.
+  */
+  const separationRetention = limits.retention.separation;
+  const retentionWindow = durationLabel(
+    separationRetention.inputSeconds ?? separationRetention.outputSeconds
+  );
+
+  const formats = limits.allowedAudioFormats.map((f) => f.toUpperCase());
+  const formatList = formats.join(", ").replace(/, ([^,]*)$/, ", or $1");
 
   /*
     REMOVED 2026-08-28: a third header line reading "Includes 2 free Studio
@@ -155,10 +198,9 @@ export default async function VocalRemoverPage() {
         ]
       : []),
     {
-      // FIX 6: was hardcoded "three tracks per hour". rate-limits.ts raised
-      // `separate` from 3 to 6 on 2026-08-22 — this page was under-reporting
-      // the real allowance by half. Now read from the single source of truth,
-      // so a future backend change can't silently make this copy lie again.
+      // Was hardcoded "three tracks per hour". `separate` was raised from 3 to
+      // 6 on 2026-08-22 — this page was under-reporting the real allowance by
+      // half. Read from /limits now.
       question: "Is this really free?",
       answer: `Yes, completely free — no account, no email, no watermark. Because separation is processing-intensive, standard quality is limited to ${standardLimitLabel} per IP address to keep it available for everyone.`,
     },
@@ -168,30 +210,26 @@ export default async function VocalRemoverPage() {
         "once processing finishes", and carried a ⚠️ VERIFY note that never got
         acted on. It shipped, and it was wrong.
 
-        UpgradeToHqCard's own docstring states the real behaviour: "the backend
-        keeps the source file for two hours and exposes an upgrade route".
-        That TTL is what `input_expires_at` counts down, and it is why the
-        one-click Studio Quality re-run needs no second upload.
+        UpgradeToHqCard's own docstring states the real behaviour: the backend
+        keeps the source file for two hours and exposes an upgrade route. That
+        TTL is what `input_expires_at` counts down, and it is why the one-click
+        Studio Quality re-run needs no second upload.
 
         So the page claimed files were deleted immediately while a feature on
         the same page depended on them not being. On the one tool where people
         upload copyrighted music, that is the answer that gets read closely.
 
-        FINALISED 2026-08-30 against /limits.retention.separation:
-          input_seconds  7200
-          output_seconds 7200   ← one TTL sweep deletes both together
-        So "two hours" covers everything, with no split between the upload and
-        the stems — which is simpler to say and simpler to keep true.
+        THE WINDOW NOW DERIVES from /limits.retention.separation, where
+        input_seconds and output_seconds are both 7200 — one sweep takes the
+        upload and the stems together, which is why this can say "everything"
+        rather than explaining two timers.
 
-        The framing matters as much as the number. Separation is the ONLY tool
-        family that holds an upload at all: every other route deletes its input
-        in _run_tool_job's finally block, win or lose. So this is a deliberate
-        exception with a reason, not a general policy — and saying so is more
-        reassuring than staying quiet about it.
+        The PROSE stays hand-written on purpose: retentionSentences() would
+        flatten it into two generic lines and lose the reason separation is the
+        exception. Derive the figure, keep the judgement.
       */
       question: "Are my uploaded tracks kept?",
-      answer:
-        "For two hours, then everything is deleted automatically — your upload and the separated stems together, by the same expiry. That window is what lets the one-click Studio Quality re-run work without a second upload, so it applies to standard runs too, since a standard run is the one you'd upgrade from. Separation is the only tool on the site that holds an upload at all; every other one deletes it the moment processing finishes. There are no accounts, so nothing is linked to you, published, or shared.",
+      answer: `For ${retentionWindow}, then everything is deleted automatically — your upload and the separated stems together, by the same expiry. That window is what lets the one-click Studio Quality re-run work without a second upload, so it applies to standard runs too, since a standard run is the one you'd upgrade from. Separation is the only tool on the site that holds an upload at all; every other one deletes it the moment processing finishes. There are no accounts, so nothing is linked to you, published, or shared.`,
     },
     {
       question: "What can I use the instrumental for?",
@@ -204,11 +242,10 @@ export default async function VocalRemoverPage() {
         "AI source separation gets much closer than a center-channel filter, but it isn't perfect on every track — dense mixes, heavy reverb, or doubled vocals can leave faint traces behind. Simpler mixes tend to separate more cleanly.",
     },
     {
-      // FIX 5: previously claimed "Everything runs in your browser", which is
-      // false — separation runs Demucs on GPU infrastructure server-side. The
-      // page contradicted itself three sections later, and the claim was
-      // incompatible with the retention answer above. Same error class already
-      // corrected on /video-to-audio.
+      // Previously claimed "Everything runs in your browser", which is false —
+      // separation runs Demucs on GPU infrastructure server-side. The page
+      // contradicted itself three sections later, and the claim was
+      // incompatible with the retention answer above.
       question: "Do I need to download anything?",
       answer:
         "No app or plugin to install. You upload a track through your browser, separation runs on the server, and you download the two stems when it finishes. Nothing runs locally on your machine.",
@@ -230,7 +267,7 @@ export default async function VocalRemoverPage() {
       answerNode: (
         <>
           Yes — paste a YouTube link into the{" "}
-          <Link href="/youtube-vocal-remover" className="text-amber-400 hover:underline">
+          <Link href="/youtube-vocal-remover" prefetch={false} className="text-amber-400 hover:underline">
             YouTube Vocal Remover
           </Link>{" "}
           instead of downloading the audio first, as long as you have the right
@@ -246,7 +283,7 @@ export default async function VocalRemoverPage() {
         <>
           Not with this tool — it splits a track into exactly two stems, vocals
           and instrumental. The{" "}
-          <Link href="/stems" className="text-amber-400 hover:underline">
+          <Link href="/stems" prefetch={false} className="text-amber-400 hover:underline">
             Stem Splitter
           </Link>{" "}
           separates vocals, drums, bass, and other individually.
@@ -259,10 +296,8 @@ export default async function VocalRemoverPage() {
         "Yes — the separation model processes and outputs stereo audio, not a mono downmix.",
     },
     {
-      question: "Is there a maximum file size?",
-      // Read from FILE_SIZE_LIMITS — the constant validateAudioFile enforces —
-      // so this can't drift from what the form actually rejects.
-      answer: `Yes, ${MAX_UPLOAD_LABEL} per upload.`,
+      question: "What formats can I upload, and is there a size limit?",
+      answer: `${formatList}, up to ${maxUploadLabel} per upload.`,
     },
     {
       question: "Does AI separation improve the audio quality?",
@@ -294,16 +329,16 @@ export default async function VocalRemoverPage() {
           One bordered strip with hairline dividers, not three floating cards.
           Three separate boxes directly under the tool read as three more
           things to deal with; divided cells read as one row of facts about
-          the thing above them. Text unchanged — this is purely how it sits.
+          the thing above them.
         */}
         <section className="grid divide-y divide-graphite-800 overflow-hidden rounded-xl border border-graphite-800 bg-graphite-900 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
           {[
             { title: "GPU-accelerated AI", desc: "Real source separation, not a basic center-channel filter." },
-            // FIX 4: was "Runs entirely in your browser" — factually wrong,
-            // separation runs server-side on GPU. Reworded to say what's
-            // actually true and still answer the "do I need software?" worry.
+            // Was "Runs entirely in your browser" — factually wrong, separation
+            // runs server-side on GPU. Reworded to say what's actually true and
+            // still answer the "do I need software?" worry.
             { title: "No install", desc: "Nothing to download. Upload, process, download in your browser." },
-            { title: "Free", desc: "No sign-up, no watermark, free for everyone." },
+            { title: "Free", desc: `No sign-up, no watermark. Up to ${maxUploadLabel} per upload.` },
           ].map((f) => (
             <div key={f.title} className="space-y-1.5 p-5">
               <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-amber-400">
@@ -343,7 +378,7 @@ export default async function VocalRemoverPage() {
         </section>
 
         {/*
-          THE SPEC SECTION. This replaces a TODO that had sat here since the
+          THE SPEC SECTION. This replaced a TODO that had sat here since the
           page was written, blocked on the backend separation command.
 
           It is the only section on this page a competitor cannot copy without
@@ -418,17 +453,17 @@ export default async function VocalRemoverPage() {
         <section className="space-y-4">
           <h2 className="text-2xl font-bold text-text-primary">How to remove vocals from a song</h2>
           <ol className="list-decimal list-inside space-y-2 text-text-muted leading-relaxed">
-            <li>Upload an MP3, WAV, FLAC, AAC, M4A, or OGG file.</li>
+            <li>Upload an {formatList} file.</li>
             <li>AI source separation splits the track into vocal and instrumental components, usually 20 seconds to 1 minute, depending on length and server load.</li>
             <li>Download the result directly in your browser, no install needed.</li>
           </ol>
           <p className="text-text-muted leading-relaxed">
             Need a track from YouTube first? Grab it with our{" "}
-            <Link href="/youtube-to-wav" className="text-amber-400 hover:underline">
+            <Link href="/youtube-to-wav" prefetch={false} className="text-amber-400 hover:underline">
               YouTube to WAV converter
             </Link>{" "}
             and upload the result here, or skip the step entirely with the{" "}
-            <Link href="/youtube-vocal-remover" className="text-amber-400 hover:underline">
+            <Link href="/youtube-vocal-remover" prefetch={false} className="text-amber-400 hover:underline">
               YouTube Vocal Remover
             </Link>.
           </p>
@@ -438,9 +473,9 @@ export default async function VocalRemoverPage() {
           <h2 className="text-2xl font-bold text-text-primary">Remove Vocals From a Song Online</h2>
           <p className="text-text-muted leading-relaxed">
             AudioForges lets you remove vocals from a song online without
-            installing audio software. Upload an MP3, WAV, FLAC, AAC, M4A, or
-            OGG file and the AI separation model creates two tracks: an
-            isolated vocal stem and an instrumental with the vocals removed.
+            installing audio software. Upload an {formatList} file and the AI
+            separation model creates two tracks: an isolated vocal stem and an
+            instrumental with the vocals removed.
           </p>
           <p className="text-text-muted leading-relaxed">
             You can use the instrumental for karaoke or practice, or use the
@@ -539,19 +574,21 @@ export default async function VocalRemoverPage() {
                     </td>
                   </tr>
                   <tr>
+                    <td className="px-4 py-3 font-medium text-text-subtle">Model</td>
+                    <td className="px-4 py-3 font-mono">htdemucs</td>
+                    <td className="px-4 py-3 font-mono text-text-primary">htdemucs_ft</td>
+                  </tr>
+                  <tr>
                     <td className="px-4 py-3 font-medium text-text-subtle">Separation quality</td>
                     <td className="px-4 py-3">Good for most tracks</td>
                     <td className="px-4 py-3">Noticeably cleaner on both stems</td>
                   </tr>
                   <tr>
-                    {/* Pulled from lib/data/rate-limits.ts (getRateLimitLabel) —
-                        do not hardcode these two cells again.
-
-                        The Studio Quality figure is the FREE-TIER one, and it is
-                        labelled as such: that rule is tiered, credits raise it
-                        substantially, and a Server Component cannot know which
-                        tier this visitor is. Unqualified, this cell was simply
-                        wrong for anyone who had paid. */}
+                    {/* From /limits. The Studio Quality figure is the FREE-TIER
+                        one and is labelled as such: the rule is tiered, credits
+                        raise it substantially, and a Server Component cannot
+                        know which tier this visitor is. Unqualified, this cell
+                        was simply wrong for anyone who had paid. */}
                     <td className="px-4 py-3 font-medium text-text-subtle">Usage limit</td>
                     <td className="px-4 py-3 font-mono tabular-nums">{standardLimitLabel}</td>
                     <td className="px-4 py-3 font-mono tabular-nums text-text-primary">
@@ -572,8 +609,7 @@ export default async function VocalRemoverPage() {
                       exactly that reason. But "can't state a count" is not
                       "can't mention cost". The allowance being SHARED across
                       the Studio Quality tools is the part people otherwise find
-                      out by surprise, which is the same trap the transcription
-                      form documents.
+                      out by surprise.
                     */}
                     <td className="px-4 py-3 font-medium text-text-subtle">Cost</td>
                     <td className="px-4 py-3">Free, always</td>
@@ -643,7 +679,7 @@ export default async function VocalRemoverPage() {
               <strong className="text-text-primary">Remixing &amp; sampling:</strong>{" "}
               isolate an acapella or a clean instrumental bed to build on. Check the
               key first with our{" "}
-              <Link href="/key-finder" className="text-amber-400 hover:underline">
+              <Link href="/key-finder" prefetch={false} className="text-amber-400 hover:underline">
                 Key &amp; BPM Finder
               </Link>{" "}
               if you&apos;re building something new around the sample.

@@ -114,16 +114,24 @@ export const TRANSCRIPTION_LIMITS = {
   /**
    * /video-to-text — deliberately different from audioBytes.
    *
-   * ⚠️ THIS SITS EXACTLY ON CLOUDFLARE'S BODY LIMIT. The free and pro plans
-   * cap a request body at 100MB, and the two caps measure different things:
-   * this one is the FILE, Cloudflare's is the whole multipart BODY — the file
-   * plus boundaries plus the language/task/mode fields. So a 99.9MB video
-   * passes validateTranscriptionFile and is still refused at the edge with a
-   * 413 the origin never sees. See the `case 413` note in
-   * toTranscriptionError; if that error shows up in real use, lower this to
-   * leave headroom (95MB) rather than treating it as a server fault.
+   * 90MB, LOWERED FROM 100 on 2026-08-30, and the ten megabytes of headroom
+   * are the whole point. Cloudflare's free plan caps a request BODY at 100MB
+   * and the origin only accepts Cloudflare IPs, so anything past that never
+   * reaches the API — the edge returns its own 413 HTML page and nothing
+   * appears in the container log.
+   *
+   * At 100 the two caps measured different things: this one is the FILE,
+   * Cloudflare's is the whole multipart BODY — the file plus boundaries plus
+   * the language/task/mode fields. So a 99.9MB video passed
+   * validateTranscriptionFile, uploaded in full, and was refused at the edge
+   * with a status the origin never saw.
+   *
+   * That was flagged here as a theoretical risk and then observed for real on
+   * /join at 124MB: a minute of uploading, killed at the edge, surfaced to the
+   * user as "taking longer than expected" because the response was HTML rather
+   * than JSON. DON'T RAISE THIS BACK TOWARD 100.
    */
-  videoBytes: 100 * 1024 * 1024,
+  videoBytes: 90 * 1024 * 1024,
   /**
    * Applies to the audio track on all three endpoints.
    *
@@ -149,6 +157,11 @@ export const TRANSCRIPTION_LIMITS = {
    * YouTube DOWNLOAD allows 40 minutes but transcription only allows 20,
    * so a 30-minute video downloads successfully and then fails. Warn on
    * this before submitting when oEmbed gives us a duration.
+   *
+   * Also published now as durations.youtube_download_max_seconds in /limits —
+   * deliberately named without "transcribe" in it, since it governs the
+   * downloader rather than this subsystem. Pages read it from there; this
+   * copy is the client-side fallback.
    */
   youtubeDownloadDurationSeconds: 40 * 60,
   /** §4: every 3s. Faster adds load and tells the user nothing. */
@@ -339,12 +352,13 @@ async function toTranscriptionError(res: Response): Promise<ApiError> {
         NOT the app — this is Cloudflare, and it fires inside a window our own
         validation cannot close.
 
-        videoBytes is 100MB and Cloudflare's body limit on the free and pro
-        plans is also 100MB, but the two measure different things: ours is the
-        FILE, theirs is the whole multipart BODY — the file plus boundaries
-        plus the language/task/mode fields. So a 99.9MB video passes
-        validateTranscriptionFile, uploads in full, and is refused at the edge
-        with a status the origin never sees.
+        videoBytes now sits at 90MB precisely so this shouldn't fire, but the
+        case stays: ours measures the FILE, Cloudflare's the whole multipart
+        BODY — the file plus boundaries plus the language/task/mode fields. At
+        the old 100MB the two were equal, so a 99.9MB video passed
+        validateTranscriptionFile, uploaded in full, and was refused at the
+        edge with a status the origin never saw. The 10MB of headroom removes
+        that window rather than narrowing it.
 
         Without this case it fell to `default`, which says "The request failed.
         Please try again" and marks it RETRYABLE — inviting someone to spend
@@ -445,7 +459,7 @@ async function readJson<T>(res: Response): Promise<T> {
  * upload.onprogress, so the two file-upload routes go through this
  * instead.
  *
- * That matters here more than on most forms: uploads run to 100MB, and
+ * That matters here more than on most forms: uploads run to 90MB, and
  * a slow connection spends a full minute sending before the server says
  * anything at all. Without a byte counter that minute is indistinguishable
  * from a hang, and people abandon.
@@ -586,7 +600,7 @@ export interface TranscriptionSubmitResponse {
 
 /**
  * Uploads get a long deadline because the UPLOAD itself counts against
- * it — an 80MB file on a slow connection is minutes of transfer before
+ * it — a 90MB file on a slow connection is minutes of transfer before
  * the server says anything. Kept just under Cloudflare's 100s proxy
  * ceiling for the same reason as railway.ts's synchronous routes.
  */

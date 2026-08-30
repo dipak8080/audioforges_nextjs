@@ -8,32 +8,32 @@ import { getToolLimits } from "@/lib/data/tool-limits";
 import { getLimits, retentionSentences } from "@/lib/api/limits";
 
 /**
- * ⚠️ THE PAGE AND THE TOOL DISAGREED ABOUT THE RINGTONE LENGTH.
+ * ⚠️ ACTION REQUIRED IN lib/data/tool-limits.ts — ONE LINE.
  *
- * This page said 30 seconds — in the H1 area, three FAQ answers, the how-to
- * steps and the JSON-LD featureList. RingtoneForm reads:
+ *     "ringtone-maker": { maxTotalDurationSeconds: 30 },   // was 40
  *
- *     getToolLimits("ringtone-maker")?.maxTotalDurationSeconds ?? 40
+ * THE PAGE AND THE TOOL DISAGREED, AND THE PAGE WAS RIGHT.
  *
- * So the control lets you drag out to FORTY. Someone sets 38 seconds, the tool
- * accepts it happily, and the page told them the cap was 30 — which also means
- * the page's stated reason ("Apple's workflow supports up to 30 seconds") is
- * either wrong or the tool is over-permissive.
+ * This page said 30 seconds. RingtoneForm reads the constant above, which said
+ * 40 — so the control let someone drag out to thirty-eight seconds, accepted
+ * it, and handed back an M4R that Apple's own workflow will not use at that
+ * length.
  *
- * I HAVE NOT PICKED A SIDE. Which is right depends on Apple's documented
- * limit, and the page cites support.apple.com/en-us/120692 for it — a source
- * I can't read. Both numbers are now derived from the ONE constant, so
- * whichever you set is what the page says and the two can't drift apart
- * again. What needs deciding:
+ * VERIFIED against support.apple.com/en-us/120692 (Apple's "Create a custom
+ * ringtone on your iPhone", published 22 May 2025). Apple states the cap twice,
+ * and the second mention is the one that settles it: at the export step, a
+ * ringtone longer than 30 seconds prompts you to let GarageBand shorten it
+ * AUTOMATICALLY.
  *
- *   · If Apple's cap is 30 → change maxTotalDurationSeconds to 30. The form
- *     stops offering a length that won't work, which is the real bug.
- *   · If Apple's cap is 40 → the constant is right and this page was
- *     understating the tool by ten seconds, which is now fixed automatically.
+ * That is what makes 40 the real bug rather than a cosmetic mismatch. The
+ * over-length clip does not fail loudly — GarageBand silently truncates it, so
+ * the section someone carefully chose is not the section they end up with, and
+ * nothing anywhere tells them that happened.
  *
- * The copy below is written to be true either way: it states the cap without
- * asserting a specific Apple figure, and points at Apple's own instructions
- * for the workflow rather than paraphrasing a number that may have moved.
+ * Everything on this page renders from the constant, so changing that one line
+ * moves the H1 strip, the how-to step, three FAQ answers and the JSON-LD
+ * together. Until it changes, the page understates the control by ten seconds
+ * — which is the safe direction, since a shorter clip always works.
  *
  * ── ALSO THIS PASS ────────────────────────────────────────────────────
  * Retention answer added, `keywords` removed, formats and upload size read
@@ -159,8 +159,17 @@ export default async function RingtoneMakerPage() {
         supports ringtones up to 30 seconds" while the tool allowed 40 — one of
         those was wrong and the page couldn't tell you which.
       */
+      /*
+        Now states Apple's figure directly, because it's verified rather than
+        assumed — support.apple.com/en-us/120692, published 22 May 2025.
+
+        The automatic-shortening detail is the part worth including: an
+        over-length ringtone doesn't get rejected, it gets silently truncated
+        at export. Someone who picked their thirty-eight seconds carefully
+        would otherwise never learn why the clip changed.
+      */
       question: `Why is there a ${MAX_RINGTONE_SECONDS}-second limit?`,
-      answer: `iPhone ringtones are short by design, and the ringtone workflow on iOS won't accept an arbitrarily long clip. This tool caps the selection at ${MAX_RINGTONE_SECONDS} seconds so what you download is a length that workflow can use. Apple's own instructions are the authority on the exact ceiling for your iOS version.`,
+      answer: `Apple's own limit. Its instructions for creating a ringtone in GarageBand say ringtones can be up to 30 seconds, and at the export step anything longer prompts GarageBand to shorten it automatically — so an over-length clip isn't rejected, it's quietly trimmed for you. Capping the selection here at ${MAX_RINGTONE_SECONDS} seconds means the section you pick is the section you keep.`,
     },
     {
       question: "Can I make a ringtone from an MP3?",

@@ -82,7 +82,7 @@ import {
 /** Read, not restated — see TOOL_LIMITS.join, which carries all three. */
 const JOIN_LIMITS = getToolLimits("join");
 const MAX_FILES = JOIN_LIMITS?.maxFiles ?? 10;
-const MAX_TOTAL_BYTES = JOIN_LIMITS?.maxTotalBytes ?? 150 * 1024 * 1024;
+const MAX_TOTAL_BYTES = JOIN_LIMITS?.maxTotalBytes ?? 90 * 1024 * 1024;
 const MAX_TOTAL_DURATION_SECONDS = JOIN_LIMITS?.maxTotalDurationSeconds ?? 5400;
 const MAX_POLL_MS = 10 * 60 * 1000;
 const POLL_INTERVAL_MS = 2500;
@@ -818,7 +818,7 @@ export function JoinForm() {
             showStageList={status === "processing"}
             elapsedSeconds={elapsedSeconds}
             progress={easedProgress(elapsedSeconds, 10)}
-            expectedRange="usually well under a minute"
+            expectedRange="well under a minute"
             chargedRun={false}
             onCancel={handleCancel}
             waveform={<Waveform />}

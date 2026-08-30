@@ -5,60 +5,41 @@ import { StemsForm } from "@/components/converter/StemsForm";
 import { FAQSection, type FAQItem } from "@/components/faq/FAQSection";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
-import { getRateLimitLabel } from "@/lib/data/rate-limits";
-import { FILE_SIZE_LIMITS } from "@/lib/utils/validation";
 import { getFeatureFlags } from "@/lib/api/railway";
+import { getLimits, windowFor, rateLimitLabel, durationLabel } from "@/lib/api/limits";
 
 /**
- * ── THIS PASS ──────────────────────────────────────────────────────────
+ * ── THIS PASS: THE LAST PAGE ───────────────────────────────────────────
  *
- * 1. THE BROWSER CLAIM, THIRD INSTANCE — AND THIS ONE CONTRADICTS ITSELF
- *    INSIDE ONE PARAGRAPH. "How 4-stem separation works" opened with
- *    "AudioForges processes the AI separation workload on GPU-accelerated
- *    infrastructure" and closed, two sentences later, with "everything happens
- *    in your browser".
+ * Migration only — every figure here was already correct, fixed in earlier
+ * passes and verified against the backend. What changes is the SOURCE: /limits
+ * rather than the hand-maintained tables.
  *
- *    The FAQ answer and the feature strip had both already been corrected on
- *    this page; this third copy was missed because it reads like a throwaway
- *    reassurance rather than a technical claim. It is the one a reader is most
- *    likely to quote back at us, since it sits under a heading promising to
- *    explain how the thing works.
+ * The ⚠️ note this file used to carry is also resolved. It said:
  *
- * 2. THE RETENTION ANSWER WAS MISSING, and it's now answerable. The backend
- *    confirmed SEPARATION_JOB_TTL_SECONDS = 7200 and that it applies to ALL
- *    FOUR separation routes, not only Studio Quality — a standard run is
- *    precisely the one someone upgrades from, so it's the one that must keep
- *    its input. Same wording as /vocal-remover, which is the point: two pages
- *    describing one backend behaviour must not describe it differently.
+ *   "SUPPORTED_FORMATS omits AIFF, and so does the FAQ. Check what
+ *    MultiOutputToolForm passes as fileAccept before adding it, rather than
+ *    assuming the lists match."
  *
- * 3. THE STUDIO QUALITY LIMIT IS THE FREE-TIER FIGURE, UNLABELLED. Same as
- *    /vocal-remover before it was fixed: the rule is tiered, credits raise it
- *    substantially, and a Server Component can't know which tier the visitor
- *    is. Unqualified, that cell is wrong for everyone who paid.
+ * Checked: StemsForm passes no fileAccept override, so MultiOutputToolForm's
+ * default applies — and that default has always ended ".aiff". The tool
+ * accepted AIFF while three places on this page said it didn't. The list now
+ * renders from allowed_audio_formats, so the question can't come back.
  *
- * 4. THE COMPARISON TABLE NEVER MENTIONED COST. Time, quality, limit and
- *    best-for, but not price — so the visitor decides from the table and meets
- *    "1 CREDIT" on the toggle. No per-visitor number (this is a Server
- *    Component), but the allowance being SHARED across the Studio Quality
- *    tools is the part people otherwise discover by surprise.
+ * ⚠️ SAME DELIBERATE EXCEPTION AS /vocal-remover: the retention answer keeps
+ * its prose and derives only its number. retentionSentences() would flatten it
+ * into two generic lines and lose both the reason separation is the one family
+ * that holds an upload, and the fact that one TTL sweep takes the upload and
+ * the stems together. Derive the figure, keep the judgement.
  *
- * 5. 80MB WAS TYPED TWICE. Read from FILE_SIZE_LIMITS.audio, the constant
- *    validateAudioFile actually enforces.
- *
- * 6. THE MODELS ARE NAMED, matching /vocal-remover. htdemucs and htdemucs_ft
- *    are the published Demucs models; naming them is checkable, which is the
- *    entire argument this page makes against "our proprietary AI".
- *
- * ⚠️ ONE THING TO VERIFY: SUPPORTED_FORMATS omits AIFF, and so does the FAQ.
- * The shared audio validator accepts .aiff on other tools. If it accepts it
- * here too, this page is understating what it takes — check what
- * MultiOutputToolForm passes as fileAccept before adding it, rather than
- * assuming the lists match.
+ * The two pages say this identically on purpose. They describe one backend
+ * behaviour, and two descriptions of the same thing is how a privacy claim
+ * ends up half-right.
  */
 
 const PAGE_TITLE = "Free AI Stem Splitter – Split Songs Into Stems";
 const PAGE_DESCRIPTION =
-  "Split songs into vocals, drums, bass, and other stems with AI. Upload MP3, WAV, FLAC, M4A, AAC, or OGG for free. No sign-up.";
+  "Split songs into vocals, drums, bass, and other stems with AI. Upload MP3, WAV, FLAC, M4A, AAC, OGG, or AIFF for free. No sign-up.";
 
 export const metadata: Metadata = {
   title: PAGE_TITLE,
@@ -115,46 +96,8 @@ const breadcrumbJsonLd = {
     { "@type": "ListItem", position: 2, name: "Stem Splitter", item: `${SITE_URL}/stems` },
   ],
 };
-
-/*
- * AIFF ADDED 2026-08-30. StemsForm passes no fileAccept override, so
- * MultiOutputToolForm's default applies — and that default has always ended
- * ".aiff". The tool accepted AIFF; this list, the FAQ answer and the how-to
- * step all said it didn't. Understating what you accept costs uploads from
- * exactly the people most likely to have AIFF: anyone exporting from Logic.
- */
-const SUPPORTED_FORMATS = ["MP3", "WAV", "FLAC", "M4A", "AAC", "OGG", "AIFF"];
-
-// Rate-limit numbers shown in the "Standard vs. Studio Quality" table below
-// are read from lib/data/rate-limits.ts rather than hardcoded here — same
-// source StemsForm.tsx uses ("stems"/"stems-hq"). Fallback text only fires
-// if a key is ever missing/renamed in rate-limits.ts.
-const FALLBACK_RATE_LIMIT_LABEL = "rate limited";
-const standardLimitLabel = getRateLimitLabel("stems") ?? FALLBACK_RATE_LIMIT_LABEL;
-const hqLimitLabel = getRateLimitLabel("stems-hq") ?? FALLBACK_RATE_LIMIT_LABEL;
-
-/**
- * The cap validateAudioFile actually enforces. This page wrote "80MB" twice as
- * a literal — in the FAQ and under Supported Formats — so the day that
- * constant moves, both are quietly wrong and nothing fails.
- */
-const MAX_UPLOAD_LABEL = `${Math.round(FILE_SIZE_LIMITS.audio / (1024 * 1024))}MB`;
-
-/** Same style as the convert page — clean mono badges, no check icons */
-function FormatBadges() {
-  return (
-    <div className="flex flex-wrap gap-2">
-      {SUPPORTED_FORMATS.map((format) => (
-        <span
-          key={format}
-          className="rounded-lg border border-graphite-700 bg-graphite-850 px-3 py-1.5 font-mono text-sm font-semibold text-amber-400"
-        >
-          {format}
-        </span>
-      ))}
-    </div>
-  );
-}
+// NOTE: No HowTo schema — deprecated by Google (desktop since Sept 2023).
+// FAQPage schema is emitted by <FAQSection /> — do not duplicate it here.
 
 /** Only used in comparison tables */
 function CheckMark() {
@@ -164,6 +107,41 @@ function CheckMark() {
 export default async function StemsPage() {
   const relatedTools = getRelatedTools("stems", 5);
   const { separationHqEnabled } = await getFeatureFlags();
+  const limits = await getLimits();
+
+  /*
+    Note the KEYS: "stems"/"stems_hq" are the 4-stem splitter's own endpoint
+    pair, distinct from the Vocal Remover's ("separate") and the YouTube
+    variants'. Reusing the wrong key would print another tool's allowance.
+  */
+  const standardLimitLabel = rateLimitLabel(
+    limits.rateLimits.stems ?? 6,
+    windowFor(limits, "stems")
+  );
+  const hqLimitLabel = rateLimitLabel(
+    limits.rateLimits.stems_hq ?? 2,
+    windowFor(limits, "stems_hq")
+  );
+
+  const maxUploadLabel = `${limits.maxUploadMb}MB`;
+
+  // The number derives; the sentence around it doesn't — see the note at the
+  // top. input_seconds and output_seconds are both 7200, which is what lets
+  // the copy say "everything, by the same expiry".
+  const separationRetention = limits.retention.separation;
+  const retentionWindow = durationLabel(
+    separationRetention.inputSeconds ?? separationRetention.outputSeconds
+  );
+
+  /*
+    Rendered from the backend list. The old hand-written array omitted AIFF
+    while MultiOutputToolForm's default fileAccept has always ended ".aiff" —
+    the tool accepted it and three places on this page said otherwise.
+    Understating what you accept costs uploads from exactly the people most
+    likely to have AIFF: anyone exporting from Logic.
+  */
+  const formats = limits.allowedAudioFormats.map((f) => f.toUpperCase());
+  const formatList = formats.join(", ").replace(/, ([^,]*)$/, ", or $1");
 
   const faqs: FAQItem[] = [
     {
@@ -191,13 +169,13 @@ export default async function StemsPage() {
     },
     {
       /*
-        ADDED 2026-08-30, worded identically to /vocal-remover on purpose. Both
-        pages describe one backend behaviour and two descriptions of the same
-        thing are how a privacy claim ends up half-right.
+        Worded identically to /vocal-remover on purpose. Both pages describe one
+        backend behaviour, and two descriptions of the same thing are how a
+        privacy claim ends up half-right.
 
         From /limits.retention.separation: input_seconds 7200, output_seconds
-        7200 — one TTL sweep deletes the upload and the stems together, so "two
-        hours" covers everything with no split to explain.
+        7200 — one TTL sweep deletes the upload and the stems together, so the
+        single window covers everything with no split to explain.
 
         It applies to ALL FOUR separation routes, not only Studio Quality: a
         standard run is precisely the one someone upgrades from, so it is the
@@ -207,8 +185,7 @@ export default async function StemsPage() {
         with a reason rather than a general policy.
       */
       question: "Are my uploaded tracks kept?",
-      answer:
-        "For two hours, then everything is deleted automatically — your upload and the separated stems together, by the same expiry. That window is what lets the one-click Studio Quality re-run work without a second upload, so it applies to standard runs too, since a standard run is the one you'd upgrade from. Separation is the only tool on the site that holds an upload at all; every other one deletes it the moment processing finishes. There are no accounts, so nothing is linked to you, published, or shared.",
+      answer: `For ${retentionWindow}, then everything is deleted automatically — your upload and the separated stems together, by the same expiry. That window is what lets the one-click Studio Quality re-run work without a second upload, so it applies to standard runs too, since a standard run is the one you'd upgrade from. Separation is the only tool on the site that holds an upload at all; every other one deletes it the moment processing finishes. There are no accounts, so nothing is linked to you, published, or shared.`,
     },
     {
       question: "What are the four stems?",
@@ -232,16 +209,13 @@ export default async function StemsPage() {
     },
     {
       question: "What audio formats are supported, and is there a size limit?",
-      // Read from FILE_SIZE_LIMITS rather than typed, so it can't drift from
-      // what the form actually rejects.
-      answer: `MP3, WAV, FLAC, AAC, M4A, OGG, and AIFF are all supported, up to ${MAX_UPLOAD_LABEL} per upload.`,
+      answer: `${formatList} are all supported, up to ${maxUploadLabel} per upload.`,
     },
     {
+      // Claimed "Everything runs in your browser". Separation runs Demucs on
+      // GPU infrastructure server-side, which this page states plainly further
+      // down — the two contradicted each other.
       question: "Do I need to sign up or install anything?",
-      // CORRECTED: claimed "Everything runs in your browser". Separation runs
-      // Demucs on GPU infrastructure server-side, which this page states
-      // plainly further down — the two contradicted each other. Same fix
-      // already applied to the equivalent answer on /vocal-remover (FIX 5).
       answer:
         "No app, plugin, or account required. You upload a track through your browser, separation runs on the server, and you download the stems when it finishes. Nothing runs locally on your machine.",
     },
@@ -252,7 +226,7 @@ export default async function StemsPage() {
       answerNode: (
         <>
           Yes — paste a YouTube link into the{" "}
-          <Link href="/youtube-stem-splitter" className="text-amber-400 hover:underline">
+          <Link href="/youtube-stem-splitter" prefetch={false} className="text-amber-400 hover:underline">
             YouTube Stem Splitter
           </Link>{" "}
           instead of downloading the audio first, as long as you have the right to
@@ -279,8 +253,8 @@ export default async function StemsPage() {
           </h1>
           <p className="text-lg text-text-muted max-w-xl mx-auto">
             Split a song into separate vocals, drums, bass, and other stems using
-            AI source separation. Upload MP3, WAV, FLAC, AAC, M4A, OGG, or AIFF and
-            download each stem individually. No sign-up, no software install.
+            AI source separation. Upload {formatList} and download each stem
+            individually. No sign-up, no software install.
           </p>
         </header>
 
@@ -292,13 +266,11 @@ export default async function StemsPage() {
         <section className="grid divide-y divide-graphite-800 overflow-hidden rounded-xl border border-graphite-800 bg-graphite-900 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
           {[
             { title: "4 stems", desc: "Vocals, drums, bass, and other — not just a 2-way split." },
-            // CORRECTED: said "Runs entirely in your browser", which is false —
-            // separation runs server-side on GPU, and this page's own "How
-            // 4-stem separation works" section says so three screens down. The
-            // identical claim was already fixed on /vocal-remover (FIX 4); this
-            // copy of it was missed.
+            // Was "Runs entirely in your browser", which is false — separation
+            // runs server-side on GPU, and this page's own "How 4-stem
+            // separation works" section says so three screens down.
             { title: "No install", desc: "Nothing to download. Upload, process, download in your browser." },
-            { title: "Free", desc: "No sign-up, no watermark, free for everyone." },
+            { title: "Free", desc: `No sign-up, no watermark. Up to ${maxUploadLabel} per upload.` },
           ].map((f) => (
             <div key={f.title} className="space-y-1.5 p-5">
               <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-amber-400">
@@ -435,7 +407,7 @@ export default async function StemsPage() {
           </div>
           <p className="text-text-muted leading-relaxed">
             Just need vocals out of the way? The{" "}
-            <Link href="/vocal-remover" className="text-amber-400 hover:underline">
+            <Link href="/vocal-remover" prefetch={false} className="text-amber-400 hover:underline">
               Vocal Remover
             </Link>{" "}
             does the same separation and hands back one clean instrumental
@@ -449,13 +421,13 @@ export default async function StemsPage() {
         <section className="space-y-4">
           <h2 className="text-2xl font-bold text-text-primary">How to Split a Song Into Stems</h2>
           <ol className="list-decimal list-inside space-y-2 text-text-muted leading-relaxed">
-            <li>Upload an MP3, WAV, FLAC, AAC, M4A, OGG, or AIFF file.</li>
+            <li>Upload an {formatList} file.</li>
             <li>AI source separation splits the track into vocals, drums, bass, and other, usually 20 seconds to 1 minute, depending on length and server load.</li>
             <li>Preview and download each stem individually, directly in your browser.</li>
           </ol>
           <p className="text-text-muted leading-relaxed">
             Need a track from YouTube first? Use the{" "}
-            <Link href="/youtube-stem-splitter" className="text-amber-400 hover:underline">
+            <Link href="/youtube-stem-splitter" prefetch={false} className="text-amber-400 hover:underline">
               YouTube Stem Splitter
             </Link>{" "}
             to skip the manual download step entirely.
@@ -467,7 +439,7 @@ export default async function StemsPage() {
           <div className="space-y-3 text-text-muted leading-relaxed">
             <p>
               This tool uses the same AI source-separation model as our{" "}
-              <Link href="/vocal-remover" className="text-amber-400 hover:underline">
+              <Link href="/vocal-remover" prefetch={false} className="text-amber-400 hover:underline">
                 Vocal Remover
               </Link>
               , but keeps all four of the internally separated components instead
@@ -549,14 +521,10 @@ export default async function StemsPage() {
                     <td className="px-4 py-3">Noticeably cleaner across all four stems</td>
                   </tr>
                   <tr>
-                    {/* Pulled from lib/data/rate-limits.ts (getRateLimitLabel) —
-                        do not hardcode these two cells again.
-
-                        The Studio Quality figure is the FREE-TIER one, and it is
-                        labelled as such: that rule is tiered, credits raise it
-                        substantially, and a Server Component cannot know which
-                        tier this visitor is. Unqualified, this cell was simply
-                        wrong for anyone who had paid. */}
+                    {/* From /limits. The Studio Quality figure is the FREE-TIER
+                        one and is labelled as such: the rule is tiered, credits
+                        raise it substantially, and a Server Component cannot
+                        know which tier this visitor is. */}
                     <td className="px-4 py-3 font-medium text-text-subtle">Usage limit</td>
                     <td className="px-4 py-3 font-mono tabular-nums">{standardLimitLabel}</td>
                     <td className="px-4 py-3 font-mono tabular-nums text-text-primary">
@@ -570,12 +538,10 @@ export default async function StemsPage() {
                     {/*
                       A comparison table that lists time, quality, limit and
                       best-for, and NOT price, sends someone to a toggle that
-                      then says "1 CREDIT".
-
-                      No per-visitor number — this is a Server Component and
-                      cannot know a visitor's remaining allowance. But the
-                      allowance being SHARED across the Studio Quality tools is
-                      the part people otherwise find out by surprise.
+                      then says "1 CREDIT". No per-visitor number — this is a
+                      Server Component — but the allowance being SHARED across
+                      the Studio Quality tools is the part people otherwise find
+                      out by surprise.
                     */}
                     <td className="px-4 py-3 font-medium text-text-subtle">Cost</td>
                     <td className="px-4 py-3">Free, always</td>
@@ -602,14 +568,12 @@ export default async function StemsPage() {
         )}
 
         {/*
-          THE SPEC SECTION. This replaces a TODO that had sat here since the
+          THE SPEC SECTION. This replaced a TODO that had sat here since the
           page was written, blocked on the backend separation command.
 
           It is the only section on this page a competitor cannot copy without
           publishing their own numbers, and the "fixed regardless of your
-          source" row is the one that changes a producer's decision: everyone
-          else's copy implies the output follows the input, and with Demucs it
-          cannot.
+          source" row is the one that changes a producer's decision.
         */}
         <section className="space-y-4">
           <h2 className="text-2xl font-bold text-text-primary">What the output actually is</h2>
@@ -664,9 +628,20 @@ export default async function StemsPage() {
 
         <section className="space-y-4">
           <h2 className="text-2xl font-bold text-text-primary">Supported Audio Formats</h2>
-          <FormatBadges />
+          {/* Rendered from allowed_audio_formats. The hand-written array here
+              omitted AIFF while the tool accepted it. */}
+          <div className="flex flex-wrap gap-2">
+            {formats.map((format) => (
+              <span
+                key={format}
+                className="rounded-lg border border-graphite-700 bg-graphite-850 px-3 py-1.5 font-mono text-sm font-semibold text-amber-400"
+              >
+                {format}
+              </span>
+            ))}
+          </div>
           <p className="text-text-muted leading-relaxed">
-            Upload any of the formats above, up to {MAX_UPLOAD_LABEL} per file. Output
+            Upload any of the formats above, up to {maxUploadLabel} per file. Output
             stems are delivered as individually downloadable audio files.
           </p>
         </section>
@@ -724,9 +699,6 @@ export default async function StemsPage() {
                 <Link
                   key={tool.slug}
                   href={`/${tool.slug}`}
-                  // prefetch disabled on bulk tool links, matching
-                  // /vocal-remover — four edge requests per route adds up on a
-                  // grid that renders on every tool page.
                   prefetch={false}
                   className="rounded-xl border border-graphite-800 bg-graphite-900 p-4 hover:border-amber-500/40 transition-colors"
                 >

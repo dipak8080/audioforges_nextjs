@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ShieldCheck } from "lucide-react";
 import { getFeatureFlags } from "@/lib/api/railway";
 import { SectionHeading } from "@/components/ui/SectionHeading";
 import { FAQSection, type FAQItem } from "@/components/faq/FAQSection";
@@ -9,37 +8,87 @@ import { PricingTable } from "@/components/credits/PricingTable";
 import { StemCompare } from "@/components/credits/StemCompare";
 import { TOOLS } from "@/lib/data/tools";
 import { SITE_URL } from "@/lib/constants";
+import { getLimits, durationLabel } from "@/lib/api/limits";
 import EmailLink from "@/components/EmailLink";
 
 /**
  * WHY THIS PAGE 404s WHILE THE PAYWALL IS OFF
  *
- * The Ko-fi shop is a public URL that exists whether or not this site links
- * to it. An env var can't take it down. So while PAYWALL_ENABLED is false,
- * the job of the frontend is to make sure there is NO reachable path from
- * audioforges.com to a buy button — otherwise someone can pay for credits
- * that have nothing to spend on.
+ * The Ko-fi shop is a public URL that exists whether or not this site links to
+ * it. An env var can't take it down. So while PAYWALL_ENABLED is false, the
+ * job of the frontend is to make sure there is NO reachable path from
+ * audioforges.com to a buy button — otherwise someone can pay for credits that
+ * have nothing to spend on.
  *
- * notFound() is the right tool: no partial page, no flash of prices, and
- * Next serves the real 404. Flipping PAYWALL_ENABLED brings it back with no
- * deploy.
+ * notFound() is the right tool: no partial page, no flash of prices, and Next
+ * serves the real 404. Flipping PAYWALL_ENABLED brings it back with no deploy.
+ *
+ * ── THIS PASS: THE PRICE WAS NOT ON THE PRICING PAGE ───────────────────
+ *
+ * 1. THE ORDER WAS WRONG, AND IT WAS THE WHOLE PROBLEM. Above <PricingTable />
+ *    sat an eyebrow, an H1 phrased as a question, a paragraph, a seven-row
+ *    spec panel and an audio demo — roughly two screens before a number
+ *    appeared. Almost everyone landing here arrives from a paywall they just
+ *    hit, mid-task, wanting one figure. They were given an essay first.
+ *
+ *    The packs now sit directly under the H1. Everything that justifies the
+ *    price comes after it, which is the order someone actually reads in: how
+ *    much → what do I get → why should I believe you.
+ *
+ * 2. THE FREE-TOOL COUNT WAS WRONG, AND THE FRAMING UNDERSOLD THE TRUTH. It
+ *    read `liveToolCount - 1`, subtracting one paid tool, on a page whose own
+ *    spec panel names two paid things and whose own comment says "five metered
+ *    tools".
+ *
+ *    But no tool here is paid. Separation and audio-to-MIDI are free tools
+ *    that each have an optional heavier MODE. "40 free tools plus 2 paid ones"
+ *    is a weaker and less accurate claim than "every tool is free; two of them
+ *    have an optional paid mode" — so the arithmetic is gone entirely.
+ *
+ * 3. THE LENGTH CAP IS DERIVED. HQ_MAX_SECONDS was hardcoded at 600 under two
+ *    stacked comments, both claiming to mirror GET /limits, one of them stale
+ *    from the 360 → 600 change. It reads from featureDurations.separationHq
+ *    now, like every other figure on the site.
+ *
+ * 4. THE DEMO IS LIVE. Both clips are in /public/audio/, so StemCompare now
+ *    renders instead of returning null — the page's single most persuasive
+ *    element, and until today every argument here was made in prose.
+ *
+ *    ⚠️ Check StemCompare's <audio> tags carry preload="none" before shipping.
+ *    The two WAVs are ~6.9MB together; without that attribute every visitor
+ *    downloads both on page load whether or not they press play. See the note
+ *    on the constants below.
+ *
+ * INDEXING: no `robots` key, so this inherits the site default and IS
+ * indexable — deliberately, since 2026-08-29. Worth confirming it's in
+ * app/sitemap.ts too: nothing links here except a paywall, so without a
+ * sitemap entry the only discovery path is hitting a limit first.
  */
 
 /**
- * Two level-matched clips of the same bar of the same track, ~20s each,
- * dropped in /public/audio/. StemCompare renders nothing until BOTH are set,
- * so this page ships correct today and gains its best asset with no code
- * change. Pick a dense mix with a long reverb tail — the standard model's
- * bleed has to be audible on laptop speakers or the demo argues against us.
+ * Two level-matched clips of the same bar of the same track, ~20s each.
+ * StemCompare renders nothing until BOTH are set — they are now, so the demo
+ * is live.
+ *
+ * ⚠️ THESE ARE WAV, ~3.4MB EACH — about 6.9MB on a page whose job is to load
+ * fast for someone who just hit a paywall mid-task. That is roughly ten times
+ * the whole rest of the page.
+ *
+ * It is the right format to SHIP from (the argument is audio quality, and
+ * serving a lossy file to demonstrate separation quality invites the obvious
+ * retort), but it is the wrong thing to DOWNLOAD unasked. Two fixes, in order
+ * of value:
+ *
+ *   1. StemCompare's <audio> elements must carry preload="none". Without it
+ *      the browser fetches both files on page load, so every visitor pays
+ *      6.9MB whether or not they press play. Check that before shipping — it
+ *      matters more than the format does.
+ *   2. If the payload still hurts, 192kbps MP3 brings it to ~600KB. The bleed
+ *      being demonstrated sits well above the compression floor, so it stays
+ *      clearly audible.
  */
-const DEMO_STANDARD = "";
-const DEMO_STUDIO = "";
-
-/** Mirrors separation_hq_max_duration_seconds from GET /limits. */
-// RAISED 360 -> 600 on 2026-08-28: HQ now accepts the same 10 minutes as
-// the standard tier. Mirrors features.separation_hq_max_duration_seconds
-// from GET /limits.
-const HQ_MAX_SECONDS = 600;
+const DEMO_STANDARD = "/audio/demo-vocals-standard.wav";
+const DEMO_STUDIO = "/audio/demo-vocals-studio.wav";
 
 const PAGE_TITLE = "Pricing — AudioForges credits";
 const PAGE_DESCRIPTION =
@@ -111,73 +160,113 @@ export default async function PricingPage() {
   const { paywallEnabled } = await getFeatureFlags();
   if (!paywallEnabled) notFound();
 
+  const limits = await getLimits();
+
+  // Was hardcoded at 600 under two comments both claiming to mirror /limits,
+  // one of them left over from the 360 → 600 change on 2026-08-28.
+  const hqMaxLabel = durationLabel(limits.featureDurations.separationHq);
+
+  // No arithmetic. Nothing here is a paid TOOL — two free tools have an
+  // optional paid MODE, which is both the accurate statement and the stronger
+  // one. The old `liveToolCount - 1` subtracted a paid tool that doesn't exist.
   const liveToolCount = TOOLS.filter((t) => t.status === "live").length;
 
   return (
     <main id="main" className="mx-auto max-w-3xl px-4 py-12 sm:py-16">
       {/*
         Framed around CREDITS, not around vocal separation. Credits are the
-        currency for anything needing a GPU, and that set will grow — API
-        access, long transcription, whatever's next. Writing this as "the
-        Studio Quality page" would mean rewriting it, and re-earning its
-        rankings, the first time that happens.
+        currency for anything needing a GPU, and that set will grow. Writing
+        this as "the Studio Quality page" would mean rewriting it, and
+        re-earning its rankings, the first time that happens.
       */}
-      <p className="font-mono text-xs uppercase tracking-[0.16em] text-amber-500">
-        Credits
-      </p>
-      <h1 className="mt-3 text-3xl font-bold tracking-tight text-text-primary sm:text-4xl">
-        What one credit buys
-      </h1>
-      <p className="mt-4 max-w-xl leading-relaxed text-text-muted">
-        Most of AudioForges runs on cheap CPU processing and is free and
-        unlimited — that never changes. A few jobs need a GPU and cost real
-        money per run, so those use credits. Buy once, spend them whenever.
-      </p>
+      <header>
+        <p className="font-mono text-xs uppercase tracking-[0.16em] text-amber-500">
+          Credits
+        </p>
+        <h1 className="mt-3 text-3xl font-bold tracking-tight text-text-primary sm:text-4xl">
+          Pay once, per heavy job
+        </h1>
+        <p className="mt-4 max-w-xl leading-relaxed text-text-muted">
+          Most of AudioForges runs on cheap CPU processing and is free and
+          unlimited — that never changes. A few jobs need a GPU and cost real
+          money per run, so those take one credit each.
+        </p>
+
+        {/* Three facts, stated before the packs rather than after them. These
+            are the objections someone brings TO a price, so they belong beside
+            it, not three sections down. */}
+        <ul className="mt-6 flex flex-wrap gap-x-5 gap-y-2 font-mono text-[11px] uppercase tracking-[0.14em] text-text-subtle">
+          {["No subscription", "Never expires", "Refunded if a run fails"].map((fact) => (
+            <li key={fact} className="flex items-center gap-1.5">
+              <span aria-hidden className="h-1 w-1 rounded-full bg-amber-400" />
+              {fact}
+            </li>
+          ))}
+        </ul>
+      </header>
 
       {/*
-        THE SPEC PANEL. This is the whole reason the page exists.
-        The old H1 was "One credit, one heavy job" — a slogan that never said
-        what arrives. Six rows of plain fact do more work than any amount of
-        pricing copy, and they read like the file-info panel of a DAW, which
-        is the register this audience already trusts.
-      */}
-      <dl className="mt-8 overflow-hidden rounded-xl border border-graphite-800 bg-graphite-900">
-        <div className="flex items-baseline justify-between border-b border-graphite-800 bg-graphite-950/40 px-4 py-3">
-          <span className="font-mono text-sm font-semibold tabular-nums text-amber-400">
-            1 credit
-          </span>
-          <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-text-subtle">
-            Any GPU-backed job
-          </span>
-        </div>
-        {/* Was headed "Studio Quality separation" and described only that.
-            Multi-track MIDI is now metered under the same 1-credit rule, and a
-            spec panel that names one of two tools makes the other look like a
-            surprise charge. The rows stay concrete — the point of this panel is
-            that it answers "what do I actually get", which a generic
-            "GPU-backed job" alone would not. */}
-        <SpecRow label="You get">
-          Studio Quality separation — vocals and instrumental, or a full
-          four-stem split
-        </SpecRow>
-        <SpecRow label="Or">
-          Multi-track MIDI — one track per detected instrument
-        </SpecRow>
-        <SpecRow label="Source">An audio file, or a YouTube link</SpecRow>
-        <SpecRow label="Track length">
-          Up to {Math.floor(HQ_MAX_SECONDS / 60)} minutes. Longer tracks are
-          blocked before anything is charged
-        </SpecRow>
-        <SpecRow label="Files back">
-          WAV, full quality, no watermark, no length limit on playback
-        </SpecRow>
-        <SpecRow label="Turnaround">Usually one to two minutes</SpecRow>
-        <SpecRow label="If it fails">
-          The credit comes straight back, without you asking
-        </SpecRow>
-      </dl>
+        THE PACKS, DIRECTLY UNDER THE H1.
 
-      {/* Silent until the clips exist. */}
+        This used to sit below the spec panel and the demo — about two screens
+        down. Nearly everyone who reaches this page arrives from a paywall they
+        just hit, mid-task, and wants one number. Making them scroll past an
+        argument to find it is the single biggest problem this page had.
+      */}
+      <div className="mt-8">
+        <PricingTable />
+      </div>
+
+      {/*
+        THE SPEC PANEL. Now the ANSWER to the price rather than the preamble to
+        it. Six rows of plain fact do more work than any amount of pricing
+        copy, and they read like the file-info panel of a DAW, which is the
+        register this audience already trusts.
+      */}
+      <section className="mt-16">
+        <SectionHeading
+          eyebrow="What you get"
+          title="One credit, one job"
+          description="Both metered jobs cost the same, and both are optional heavier modes of tools that are otherwise free."
+        />
+        <dl className="mt-6 overflow-hidden rounded-xl border border-graphite-800 bg-graphite-900">
+          <div className="flex items-baseline justify-between border-b border-graphite-800 bg-graphite-950/40 px-4 py-3">
+            <span className="font-mono text-sm font-semibold tabular-nums text-amber-400">
+              1 credit
+            </span>
+            <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-text-subtle">
+              Any GPU-backed job
+            </span>
+          </div>
+          {/* Was headed "Studio Quality separation" and described only that.
+              Multi-track MIDI is metered under the same 1-credit rule, and a
+              spec panel that names one of two makes the other look like a
+              surprise charge. */}
+          <SpecRow label="You get">
+            Studio Quality separation — vocals and instrumental, or a full
+            four-stem split
+          </SpecRow>
+          <SpecRow label="Or">
+            Multi-track MIDI — one track per detected instrument
+          </SpecRow>
+          <SpecRow label="Source">An audio file, or a YouTube link</SpecRow>
+          <SpecRow label="Track length">
+            Up to {hqMaxLabel}. Longer tracks are blocked before anything is
+            charged
+          </SpecRow>
+          <SpecRow label="Files back">
+            WAV, full quality, no watermark, no length limit on playback
+          </SpecRow>
+          <SpecRow label="Turnaround">Usually one to two minutes</SpecRow>
+          <SpecRow label="If it fails">
+            The credit comes straight back, without you asking
+          </SpecRow>
+        </dl>
+      </section>
+
+      {/* The A/B. Sits directly after the spec panel: the rows say what you
+          get, this says what it sounds like — which is the only claim on this
+          page a reader can check for themselves rather than take on trust. */}
       <div className="mt-8">
         <StemCompare
           standardSrc={DEMO_STANDARD}
@@ -185,10 +274,6 @@ export default async function PricingPage() {
           stemLabel="Vocals"
           trackLabel="Dense mix, long reverb tail"
         />
-      </div>
-
-      <div className="mt-10">
-        <PricingTable />
       </div>
 
       {/*
@@ -209,10 +294,10 @@ export default async function PricingPage() {
                 <th className="w-1/3 px-4 py-3 text-left font-medium text-text-subtle">
                   <span className="sr-only">Comparison</span>
                 </th>
-                <th className="px-4 py-3 text-left font-medium text-text-muted">
+                <th className="px-4 py-3 text-left font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-text-subtle">
                   Typical subscription tool
                 </th>
-                <th className="px-4 py-3 text-left font-medium text-amber-400">
+                <th className="px-4 py-3 text-left font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-amber-400">
                   AudioForges
                 </th>
               </tr>
@@ -240,20 +325,31 @@ export default async function PricingPage() {
         </div>
       </section>
 
+      {/*
+        THE COUNT IS GONE. It read "The other {liveToolCount - 1}+ tools cost
+        nothing" — minus one, on a page naming two paid things.
+
+        More importantly the framing was weaker than the truth. No tool here is
+        paid: separation and audio-to-MIDI are free tools with an optional
+        heavier mode. Saying that is both accurate and a better claim than any
+        arithmetic.
+      */}
       <section className="mt-16">
         <SectionHeading
           eyebrow="Still free"
-          title={`The other ${liveToolCount - 1}+ tools cost nothing`}
-          description="Credits apply only where a GPU is involved. Everything else runs on cheap CPU processing and stays free, unlimited, and sign-up free."
+          title="Every tool is free. Two have an optional paid mode."
+          description={`All ${liveToolCount} tools run free and unlimited with no sign-up. Credits apply only to the two heavier modes above — never to a tool as a whole.`}
         />
-        <div className="mt-6 flex items-start gap-3 rounded-xl border border-graphite-800 bg-graphite-900 p-5">
-          <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-amber-400" />
+        <div className="mt-6 rounded-xl border border-graphite-800 bg-graphite-900 p-5">
           <p className="text-sm leading-relaxed text-text-muted">
             Conversion, trimming, volume, pitch, tempo, noise removal, silence
             splitting, transcription, key and BPM detection, YouTube and TikTok
-            extraction — all free, with no metering and no plans to add any.{" "}
+            extraction — all free, with no metering and no plans to add any.
+            Standard vocal removal and stem splitting are free too, with
+            full-quality downloads and no watermark.{" "}
             <Link
               href="/tools"
+              prefetch={false}
               className="text-amber-400 underline-offset-4 hover:underline"
             >
               Browse everything

@@ -6,7 +6,7 @@ import { SectionHeading } from "@/components/ui/SectionHeading";
 import { FAQSection } from "@/components/faq/FAQSection";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
-import { TRANSCRIPTION_MODEL } from "@/lib/api/transcription";
+import { TRANSCRIPTION_MODEL, getTranscriptionLanguages } from "@/lib/api/transcription";
 import {
   getLimits,
   windowFor,
@@ -230,6 +230,19 @@ export default async function VideoToTextPage() {
   const limits = await getLimits();
 
   /*
+    Fetched here so the ~99-language dropdown is populated on first paint.
+    TranscriptionForm falls back to fetching it client-side when this is
+    omitted — which works, but flashes a list containing only "Detect
+    automatically" while it lands, which is the degraded path that component
+    was written to avoid.
+
+    .catch(() => null) is load-bearing: without it a backend blip would fail
+    the whole page render, when the client-side fetch already handles that
+    case perfectly well.
+  */
+  const languages = await getTranscriptionLanguages().catch(() => null);
+
+  /*
     THE RIGHT CAP FOR THIS ROUTE — 100, not the 200 on /video-to-audio. The
     lower figure is deliberate: a 200MB video is almost certainly past the
     duration cap, so accepting the upload only to reject it wastes the whole
@@ -402,7 +415,7 @@ export default async function VideoToTextPage() {
         </div>
 
         <div className="mt-6">
-          <TranscriptionForm mode="video" />
+          <TranscriptionForm mode="video" languages={languages} />
         </div>
 
         {/* THE WEDGE ON THIS PAGE.

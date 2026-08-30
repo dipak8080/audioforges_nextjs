@@ -4,60 +4,60 @@ import { TempoForm } from "@/components/converter/TempoForm";
 import { FAQSection } from "@/components/faq/FAQSection";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
-import { getRateLimitLabel } from "@/lib/data/rate-limits";
-import { getDurationLabel } from "@/lib/data/tool-limits";
-import { FILE_SIZE_LIMITS } from "@/lib/utils/validation";
+import {
+  getLimits,
+  windowFor,
+  rateLimitLabel,
+  durationCapFor,
+  durationLabel,
+  retentionSentences,
+} from "@/lib/api/limits";
 
 /**
- * ── THIS PASS ──────────────────────────────────────────────────────────
+ * ── EARLIER PASS (kept for the record) ─────────────────────────────────
  *
  * I came here expecting the "3 requests per 5 minutes" error that was on
- * /pitch, since both limits were raised in the same commit. It isn't here.
- * The problem is the opposite one: this page states NONE of its own limits.
+ * /pitch, since both limits were raised in the same commit. It wasn't here.
+ * The problem was the opposite one: this page stated NONE of its own limits —
+ * a rate limit, a duration cap that blocks submission in the browser, and an
+ * 80MB file cap, none of them mentioned. The first time a visitor learned
+ * about any of them was when the button refused to run.
  *
- * 1. THREE CONSTRAINTS THE TOOL ENFORCES AND THE PAGE NEVER MENTIONED — a
- *    5-per-5-minutes rate limit, a duration cap that blocks submission in the
- *    browser, and an 80MB file cap. The first time a visitor learns about any
- *    of them is when the button refuses to run.
+ * That's worse here than on most tools. Speed changing is ITERATIVE — the
+ * documented reason the limit was raised from 3 to 5 — so someone planning
+ * "try 90%, then 85%, then 80%" needs the budget before they start.
  *
- *    That is worse here than on most tools. Speed changing is ITERATIVE —
- *    that's the documented reason the limit was raised from 3 to 5 — so
- *    someone planning "try 90%, then 85%, then 80%" needs to know the budget
- *    before they start, not on the sixth attempt.
+ * The HowTo schema, the `keywords` meta and an unescaped apostrophe in "a
+ * track's tempo" were all fixed in the same pass.
  *
- * 2. THE RETENTION ANSWER IS NOW WRITABLE, and verified rather than assumed.
- *    The backend checked every job route: `_run_tool_job`'s finally block
- *    deletes the input on success, on failure, and on the CancelledError a
- *    redeploy fires — all eighteen tools, no exceptions. The OUTPUT lives
- *    AUDIO_TOOL_JOB_TTL_SECONDS = 3600.
+ * ── THIS PASS ──────────────────────────────────────────────────────────
  *
- *    Two numbers meaning different things, stated separately — because
- *    conflating them is precisely what made the /vocal-remover answer wrong.
- *    Separation is the one deliberate exception on the site (it keeps the
- *    input two hours for the upgrade path); every tool on this shell behaves
- *    the way described below.
+ * ALL THREE LIMITS NOW COME FROM /limits, and so does the retention answer.
  *
- * 3. THE HowTo SCHEMA IS GONE. Google deprecated HowTo rich results on desktop
- *    in September 2023. /stems, /vocal-remover, /pitch and both YouTube
- *    separation pages already dropped theirs. Visible steps stay.
+ * The retention paragraph was written by hand from a backend description, and
+ * it was CORRECT — but it was three sentences of prose describing two numbers,
+ * which is exactly the shape that went wrong on /vocal-remover. It now renders
+ * from retentionSentences(), so if a TTL moves, this page moves with it rather
+ * than needing someone to remember it exists.
  *
- * 4. THE `keywords` META IS GONE. Ignored by Google since 2009.
- *
- * 5. An unescaped apostrophe in "a track's tempo" — every other apostrophe in
- *    these pages is `&apos;`, and react/no-unescaped-entities flags this one.
+ * The duration cap is the figure worth watching: tempo is one of only two
+ * per-tool overrides (900s), wired up on the backend the morning of
+ * 2026-08-30. Before that it silently took the 3600 default.
  */
 
+const PAGE_TITLE = "Free Audio Speed Changer | Tempo Changer";
+const PAGE_DESCRIPTION =
+  "Speed up or slow down audio free, no sign-up, from 50% to 200% speed, pitch stays the same. Works on MP3, WAV, FLAC, and more.";
+
 export const metadata: Metadata = {
-  title: "Free Audio Speed Changer | Tempo Changer",
-  description:
-    "Speed up or slow down audio free, no sign-up, from 50% to 200% speed, pitch stays the same. Works on MP3, WAV, FLAC, and more.",
+  title: PAGE_TITLE,
+  description: PAGE_DESCRIPTION,
   // `keywords` removed: ignored by Google since 2009, and no other tool page
   // on the site carries it any more.
   alternates: { canonical: `${SITE_URL}/tempo` },
   openGraph: {
-    title: "Free Audio Speed Changer | Tempo Changer",
-    description:
-      "Speed up or slow down audio free, no sign-up, from 50% to 200% speed, pitch stays the same. Works on MP3, WAV, FLAC, and more.",
+    title: PAGE_TITLE,
+    description: PAGE_DESCRIPTION,
     url: `${SITE_URL}/tempo`,
     siteName: SITE_NAME,
     type: "website",
@@ -72,9 +72,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Free Audio Speed Changer | Tempo Changer",
-    description:
-      "Speed up or slow down audio free, no sign-up, from 50% to 200% speed, pitch stays the same. Works on MP3, WAV, FLAC, and more.",
+    title: PAGE_TITLE,
+    description: PAGE_DESCRIPTION,
     images: ["/images/og-default.png"],
   },
 };
@@ -105,104 +104,107 @@ const breadcrumbJsonLd = {
 };
 
 // NOTE: No HowTo schema — deprecated by Google (desktop since Sept 2023), no
-// ranking or rich-result benefit remains. Visible how-to steps stay. This
-// matches the standard already applied on /stems, /vocal-remover and /pitch.
+// ranking or rich-result benefit remains. Visible how-to steps stay.
 // FAQPage schema is emitted by <FAQSection /> — do not duplicate it here.
 
-/** All three read from the constants the tool actually enforces. */
-const RATE_LIMIT_LABEL = getRateLimitLabel("tempo");
-const MAX_DURATION_LABEL = getDurationLabel("tempo");
-const MAX_UPLOAD_LABEL = `${Math.round(FILE_SIZE_LIMITS.audio / (1024 * 1024))}MB`;
-
-const faqs = [
-  {
-    question: "Does changing speed affect the pitch?",
-    answer:
-      "No — tempo is changed independently of pitch, so the key stays the same, only speed and duration change.",
-  },
-  {
-    question: "Does changing tempo reduce audio quality?",
-    answer:
-      "Small changes near the original speed are close to transparent. Pushing further toward half or double speed can introduce artifacts — transients like drum hits or plucks may sound slightly smeared, since the engine is reconstructing more of the waveform to hit the new duration.",
-  },
-  {
-    question: "What's the difference between tempo and playback speed?",
-    answer:
-      "They're the same thing in this context — how fast the audio plays back. A simple playback-speed change also shifts pitch; this tool changes speed while keeping pitch fixed.",
-  },
-  {
-    question: "What speed range is available?",
-    answer: "From 50% (half speed) to 200% (double speed).",
-  },
-  {
-    // ADDED: the tool blocks both of these before anything uploads, and
-    // neither number appeared anywhere on the page. Read from the same
-    // constants the form enforces.
-    question: "Is there a size or length limit?",
-    answer: MAX_DURATION_LABEL
-      ? `Yes — up to ${MAX_UPLOAD_LABEL} per file, and up to ${MAX_DURATION_LABEL} of audio. Longer files are caught in your browser before anything uploads, so you're not left waiting on a transfer that gets rejected at the end.`
-      : `Yes — up to ${MAX_UPLOAD_LABEL} per file.`,
-  },
-  {
-    /*
-      ADDED: this page had no rate-limit answer at all, on a tool people use
-      iteratively. The figure is read from RATE_LIMITS rather than typed —
-      /pitch had this same answer with the number written as a literal, and it
-      had been wrong for months after the limit was raised.
-    */
-    question: "How many files can I process?",
-    answer: RATE_LIMIT_LABEL
-      ? `Time-stretching is more CPU-intensive than a simple conversion, so it's limited to ${RATE_LIMIT_LABEL}. That's deliberately generous for a tool people use iteratively — try a speed, listen, adjust.`
-      : "Time-stretching is more CPU-intensive than a simple conversion, so it's rate-limited to keep it available for everyone.",
-  },
-  {
-    /*
-      ADDED, and verified against the backend rather than assumed — the same
-      claim was written on assumption for /vocal-remover and was wrong there
-      for weeks.
-
-      Two numbers meaning different things: `_run_tool_job`'s finally block
-      deletes the INPUT when the job ends (success, failure, or the
-      CancelledError a redeploy fires), and the OUTPUT lives
-      AUDIO_TOOL_JOB_TTL_SECONDS = 3600. Separation is the one exception on the
-      site and it is documented on its own pages.
-    */
-    question: "Are my uploaded files kept?",
-    answer:
-      "Your upload is deleted as soon as processing finishes — not on a timer, immediately, whether the job succeeded or failed. The processed file is available to download for one hour, then removed automatically. There are no accounts, so nothing is linked to you.",
-  },
-  {
-    question: "Will the output file be a different length?",
-    answer:
-      "Yes — speeding up to 200% halves the duration, slowing to 50% doubles it. That's expected, not an error.",
-  },
-  {
-    question: "Is this really free?",
-    answer: "Yes — completely free, no sign-up, no watermark on the output.",
-  },
-  {
-    question: "Does changing speed also change the BPM?",
-    answer:
-      "Yes, effectively — since this changes an already-recorded audio file rather than a MIDI tempo track, speeding it up compresses the time between beats, which raises its audible BPM proportionally. A 120 BPM track played at 200% speed sounds like roughly 240 BPM.",
-  },
-  {
-    question: "Does it work on mobile?",
-    answer: "Yes — it works in any mobile browser on iPhone or Android, no app install required.",
-  },
-  {
-    question: "Can I restore the original speed later?",
-    answer:
-      "There's no saved history — this is a stateless upload-process-download tool. Re-upload the original file if you need a different speed afterward.",
-  },
-  {
-    question: "Does this affect stereo audio?",
-    answer:
-      "No — time-stretching processes the channels without changing the stereo layout. Stereo files stay stereo.",
-  },
-];
-
-export default function TempoPage() {
+export default async function TempoPage() {
   const relatedTools = getRelatedTools("tempo", 5);
+
+  const limits = await getLimits();
+
+  const rateLimitText = rateLimitLabel(limits.rateLimits.tempo ?? 5, windowFor(limits, "tempo"));
+
+  // 900s — one of only two per-tool duration overrides, wired up on the
+  // backend the morning of 2026-08-30. Before that, tempo silently took the
+  // 3600 default.
+  const durationCap = durationCapFor(limits, "tempo");
+  const maxDurationLabel = durationCap === null ? null : durationLabel(durationCap);
+  const maxUploadLabel = `${limits.maxUploadMb}MB`;
+
+  const retention = retentionSentences(limits.retention.audio_tools);
+
+  const formats = limits.allowedAudioFormats.map((f) => f.toUpperCase());
+  const formatList = formats.join(", ").replace(/, ([^,]*)$/, ", or $1");
+
+  const faqs = [
+    {
+      question: "Does changing speed affect the pitch?",
+      answer:
+        "No — tempo is changed independently of pitch, so the key stays the same, only speed and duration change.",
+    },
+    {
+      question: "Does changing tempo reduce audio quality?",
+      answer:
+        "Small changes near the original speed are close to transparent. Pushing further toward half or double speed can introduce artifacts — transients like drum hits or plucks may sound slightly smeared, since the engine is reconstructing more of the waveform to hit the new duration.",
+    },
+    {
+      question: "What's the difference between tempo and playback speed?",
+      answer:
+        "They're the same thing in this context — how fast the audio plays back. A simple playback-speed change also shifts pitch; this tool changes speed while keeping pitch fixed.",
+    },
+    {
+      question: "What speed range is available?",
+      answer: "From 50% (half speed) to 200% (double speed).",
+    },
+    {
+      // The tool blocks both of these before anything uploads, and neither
+      // number appeared anywhere on the page.
+      question: "Is there a size or length limit?",
+      answer: maxDurationLabel
+        ? `Yes — up to ${maxUploadLabel} per file, and up to ${maxDurationLabel} of audio. Longer files are caught in your browser before anything uploads, so you're not left waiting on a transfer that gets rejected at the end.`
+        : `Yes — up to ${maxUploadLabel} per file.`,
+    },
+    {
+      /*
+        This page had no rate-limit answer at all, on a tool people use
+        iteratively. Read from /limits rather than typed — /pitch had this same
+        answer with the number written as a literal, and it had been wrong for
+        months after the limit was raised.
+      */
+      question: "How many files can I process?",
+      answer: `Time-stretching is more CPU-intensive than a simple conversion, so it's limited to ${rateLimitText}. That's deliberately generous for a tool people use iteratively — try a speed, listen, adjust.`,
+    },
+    {
+      /*
+        Was three sentences of hand-written prose. The prose was CORRECT — it
+        was written from a verified backend description — but it described two
+        numbers in a paragraph, which is exactly the shape that went wrong on
+        /vocal-remover. It renders from the backend's retention block now, so a
+        TTL change carries through rather than needing someone to remember this
+        page exists.
+      */
+      question: "Are my uploaded files kept?",
+      answer: `${retention.input} ${retention.output} There are no accounts, so nothing is linked to you.`,
+    },
+    {
+      question: "Will the output file be a different length?",
+      answer:
+        "Yes — speeding up to 200% halves the duration, slowing to 50% doubles it. That's expected, not an error.",
+    },
+    {
+      question: "Is this really free?",
+      answer: "Yes — completely free, no sign-up, no watermark on the output.",
+    },
+    {
+      question: "Does changing speed also change the BPM?",
+      answer:
+        "Yes, effectively — since this changes an already-recorded audio file rather than a MIDI tempo track, speeding it up compresses the time between beats, which raises its audible BPM proportionally. A 120 BPM track played at 200% speed sounds like roughly 240 BPM.",
+    },
+    {
+      question: "Does it work on mobile?",
+      answer: "Yes — it works in any mobile browser on iPhone or Android, no app install required.",
+    },
+    {
+      question: "Can I restore the original speed later?",
+      answer:
+        "There's no saved history — this is a stateless upload-process-download tool. Re-upload the original file if you need a different speed afterward.",
+    },
+    {
+      question: "Does this affect stereo audio?",
+      answer:
+        "No — time-stretching processes the channels without changing the stereo layout. Stereo files stay stereo.",
+    },
+  ];
 
   return (
     <>
@@ -223,13 +225,17 @@ export default function TempoPage() {
         <TempoForm />
 
         {/* One bordered strip with hairline dividers, matching /vocal-remover,
-            /stems and /pitch — three floating boxes under the tool read as
-            three more things to deal with. */}
+            /stems and /pitch. */}
         <section className="grid divide-y divide-graphite-800 overflow-hidden rounded-xl border border-graphite-800 bg-graphite-900 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
           {[
             { title: "50%–200%", desc: "Half speed to double speed." },
             { title: "Pitch unaffected", desc: "Key stays the same, only speed changes." },
-            { title: "No sign-up", desc: "No account, no email, no watermark." },
+            {
+              title: "No sign-up",
+              desc: maxDurationLabel
+                ? `No account, no watermark. Up to ${maxUploadLabel} and ${maxDurationLabel}.`
+                : `No account, no watermark. Up to ${maxUploadLabel} per file.`,
+            },
           ].map((f) => (
             <div key={f.title} className="space-y-1.5 p-5">
               <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-amber-400">
@@ -258,7 +264,7 @@ export default function TempoPage() {
         <section className="space-y-4">
           <h2 className="text-2xl font-bold text-text-primary">How to change audio speed</h2>
           <ol className="list-decimal list-inside space-y-2 text-text-muted leading-relaxed">
-            <li>Upload an MP3, WAV, FLAC, M4A, AAC, OGG, or AIFF file.</li>
+            <li>Upload an {formatList} file.</li>
             <li>Move the slider anywhere from 50% (half speed) to 200% (double speed).</li>
             <li>Apply the change.</li>
             <li>Download the result — pitch unchanged, speed and duration adjusted.</li>
@@ -341,9 +347,9 @@ export default function TempoPage() {
           <ul className="list-disc list-inside space-y-1.5 text-text-muted leading-relaxed">
             <li>Slowing a track down to learn a fast guitar solo, drum pattern, or piano passage note-by-note</li>
             <li>Speeding up a lecture, audiobook, or podcast to save time</li>
-            {/* &apos; rather than a bare apostrophe, matching every other
-                string on these pages and satisfying
-                react/no-unescaped-entities. */}
+            {/* &apos; rather than a bare apostrophe — react/no-unescaped-entities
+                errors on the raw form, and next build doesn't run ESLint, so it
+                would only surface on a lint run. */}
             <li>Nudging a track&apos;s tempo to match another for a DJ mashup or beatmatch, without shifting the key</li>
             <li>Slowing down choreography or dance reference audio for practice</li>
             <li>Slowing speech down for language-learning or transcription accuracy</li>
@@ -352,14 +358,14 @@ export default function TempoPage() {
           <p className="text-text-muted leading-relaxed">
             Want to know the key before you start matching tempos? Run the track
             through the{" "}
-            <Link href="/key-finder" className="text-amber-400 hover:underline">
+            <Link href="/key-finder" prefetch={false} className="text-amber-400 hover:underline">
               Key &amp; BPM Finder
             </Link>{" "}
             first.
           </p>
           <p className="text-text-muted leading-relaxed">
             Need to change key without affecting speed? Use the{" "}
-            <Link href="/pitch" className="text-amber-400 hover:underline">
+            <Link href="/pitch" prefetch={false} className="text-amber-400 hover:underline">
               Pitch Shifter
             </Link>{" "}
             instead — same engine, applied to pitch rather than speed.
@@ -374,9 +380,6 @@ export default function TempoPage() {
                 <Link
                   key={tool.slug}
                   href={`/${tool.slug}`}
-                  // prefetch disabled on bulk tool links, matching the other
-                  // tool pages — four edge requests per route adds up on a grid
-                  // that renders on every one of them.
                   prefetch={false}
                   className="rounded-xl border border-graphite-800 bg-graphite-900 p-4 hover:border-amber-500/40 transition-colors"
                 >

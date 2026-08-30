@@ -4,33 +4,85 @@ import { YouTubeConverterForm } from "@/components/converter/YouTubeConverterFor
 import { FAQSection } from "@/components/faq/FAQSection";
 import { SITE_URL } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
+import { getLimits, windowFor, rateLimitLabel, durationLabel } from "@/lib/api/limits";
+
+/**
+ * ── THIS PASS ──────────────────────────────────────────────────────────
+ *
+ * This is the site's strongest page in search, and it was the LAST one still
+ * carrying both of the things every other tool page dropped:
+ *
+ * 1. THE HowTo SCHEMA WAS STILL BEING EMITTED. Google deprecated HowTo rich
+ *    results on desktop in September 2023 and dropped them entirely after, so
+ *    it earns nothing — and it was a second, hand-maintained copy of the four
+ *    visible steps, free to drift from them. Every other tool page removed
+ *    theirs with a note saying why; this one kept it.
+ *
+ * 2. THE `keywords` META WAS STILL THERE — thirteen entries, ignored by Google
+ *    since 2009 and treated as a spam signal by Bing. The list is preserved
+ *    below as a comment because it records what this page targets, which is
+ *    worth knowing on the page that actually ranks.
+ *
+ * 3. TWO LIMITS WERE TYPED AS LITERALS: "18 conversions an hour" and "40
+ *    minutes", each appearing twice. BOTH ARE CORRECT TODAY — but six other
+ *    pages carried a literal limit that had gone wrong, always silently and
+ *    always in the direction that costs a user. Both now derive.
+ *
+ * 4. THE CACHE ANSWER IS WRITTEN NOW, and it's the most unusual privacy
+ *    statement on the site. The page used to say converted audio is "cached
+ *    for a short period" with no figure, because nobody had one.
+ *
+ *    The backend published it as a FOURTH retention shape, `download_cache`,
+ *    with its own fields rather than the input/output pair — because
+ *    input_deleted_when is meaningless for a route that takes no upload. Three
+ *    things shape the sentence:
+ *
+ *    · NOTHING IS UPLOADED. The user pastes a URL. What's stored is converted
+ *      audio derived from a public video, not anyone's file. That is a
+ *      materially different claim from every other tool here, and it's the
+ *      strongest one on the site.
+ *    · THE KEY IS (video_id, format), with no visitor identity in it. So one
+ *      person's conversion genuinely serves the next person's request for the
+ *      same URL — worth saying plainly rather than leaving as "cached".
+ *    · 30 DAYS IS A CEILING, NOT A PROMISE. The cache is LRU-evicted against a
+ *      size cap, so a rarely-requested entry can vanish long before it. The
+ *      backend publishes `guaranteed: false` for exactly this reason. "Up to
+ *      30 days" is honest; "for 30 days" is not. The reader in lib/api/limits
+ *      defaults that flag to false on an unreadable value, so a parse failure
+ *      can't turn into a promise.
+ *
+ * 5. THE DOWNLOAD CAP MOVED SOURCE. It was read from the frontend's
+ *    TRANSCRIPTION_LIMITS — an odd home, since it governs the downloader, not
+ *    transcription. /limits publishes it as
+ *    durations.youtube_download_max_seconds now, named without "transcribe" so
+ *    it can't drift back.
+ */
+
+const PAGE_TITLE = "Free YouTube to WAV & MP3 Converter";
+const PAGE_DESCRIPTION =
+  "Convert YouTube videos to WAV or 320kbps MP3 online for free. No sign-up, no watermark, supports YouTube Shorts, and downloads high-quality audio in seconds.";
 
 export const metadata: Metadata = {
-  title: "Free YouTube to WAV & MP3 Converter",
-  description:
-    "Convert YouTube videos to WAV or 320kbps MP3 online for free. No sign-up, no watermark, supports YouTube Shorts, and downloads high-quality audio in seconds.",
-  keywords: [
-    "youtube to wav",
-    "youtube to wav converter",
-    "free youtube to wav converter",
-    "youtube to wav downloader",
-    "youtube to mp3",
-    "yt to wav",
-    "youtube wav converter",
-    "convert youtube to wav free",
-    "youtube audio downloader",
-    "youtube to wav online",
-    "youtube shorts to wav",
-    "youtube video to wav",
-    "download youtube audio",
-  ],
+  title: PAGE_TITLE,
+  description: PAGE_DESCRIPTION,
+  /*
+    `keywords` removed — ignored by Google since 2009, treated as a spam signal
+    by Bing. Target terms kept for reference, since this is the page that
+    actually ranks:
+
+      youtube to wav / youtube to wav converter
+      free youtube to wav converter / youtube to wav downloader
+      youtube to mp3 / yt to wav / youtube wav converter
+      convert youtube to wav free / youtube audio downloader
+      youtube to wav online / youtube shorts to wav
+      youtube video to wav / download youtube audio
+  */
   alternates: {
     canonical: `${SITE_URL}/youtube-to-wav`,
   },
   openGraph: {
-    title: "Free YouTube to WAV & MP3 Converter",
-    description:
-      "Convert YouTube videos to WAV or 320kbps MP3 online for free. No sign-up, no watermark, supports YouTube Shorts, and downloads high-quality audio in seconds.",
+    title: PAGE_TITLE,
+    description: PAGE_DESCRIPTION,
     url: `${SITE_URL}/youtube-to-wav`,
     siteName: "AudioForges",
     type: "website",
@@ -45,9 +97,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Free YouTube to WAV & MP3 Converter",
-    description:
-      "Convert YouTube videos to WAV or 320kbps MP3 online for free. No sign-up, no watermark, supports YouTube Shorts, and downloads high-quality audio in seconds.",
+    title: PAGE_TITLE,
+    description: PAGE_DESCRIPTION,
     images: ["/images/og-default.png"],
   },
 };
@@ -92,92 +143,113 @@ const breadcrumbJsonLd = {
   ],
 };
 
-const howToJsonLd = {
-  "@context": "https://schema.org",
-  "@type": "HowTo",
-  name: "How to Convert YouTube to WAV or MP3",
-  step: [
-    { "@type": "HowToStep", name: "Copy the link", text: "Copy a YouTube video, Shorts, or youtu.be URL." },
-    { "@type": "HowToStep", name: "Paste it", text: "Paste the link into the converter." },
-    { "@type": "HowToStep", name: "Choose a format", text: "Select WAV for lossless audio or MP3 for a smaller file." },
-    { "@type": "HowToStep", name: "Convert and download", text: "Click Convert and download your audio file, usually within 8-20 seconds." },
-  ],
-};
+// NOTE: No HowTo schema. Google deprecated HowTo rich results (desktop since
+// Sept 2023) and dropped them after, so it earned nothing — and it was a
+// second, hand-maintained copy of the four visible steps below, free to drift
+// from them. This page was the last one on the site still emitting it.
+// FAQPage schema is emitted by <FAQSection /> — do not duplicate it here.
 
-// Same 11 questions and answers as before, word-for-word - only the
-// structure changed. This single array now feeds BOTH the FAQPage schema
-// and the visible accordion, via <FAQSection>, instead of duplicating the
-// content by hand in two places.
-const faqs = [
-  {
-    question: "Is this really free?",
-    answer:
-      "Yes — every conversion is free, with no sign-up, no watermark, and nothing to install. Fair-use limit is 18 conversions an hour, which is well past what a normal session needs.",
-  },
-  {
-    question: "What's the difference between WAV and MP3 here?",
-    answer:
-      "WAV is lossless 44.1kHz audio — larger files, no compression artifacts. Use it for DJing, sampling, or editing. MP3 is 320kbps CBR — smaller files, transparent enough for casual listening.",
-  },
-  {
-    question: "Does this work with YouTube Shorts?",
-    answer:
-      "Yes. Standard youtube.com/watch links, short youtu.be links, and /shorts URLs are all supported.",
-  },
-  {
-    question: "How long does conversion take?",
-    answer:
-      "Most videos convert to WAV or MP3 in 8–20 seconds. Longer videos take proportionally longer, and the limit is 40 minutes.",
-  },
-  {
-    question: "Does it work on mobile?",
-    answer:
-      "Yes — the converter works in any mobile browser on iPhone or Android, no app install required.",
-  },
-  {
-    question: "Is downloading YouTube audio legal?",
-    answer:
-      "It depends on whether you own the content, it's Creative Commons or public domain, or you have permission from the rights holder. You are responsible for how you use the tool.",
-  },
-  {
-    question: "Can I convert very long YouTube videos?",
-    answer:
-      "Up to 40 minutes. Past that the video is rejected before conversion starts, so you find out immediately rather than after a long wait. Music videos, podcast clips and Shorts are all comfortably inside it.",
-  },
-  {
-    question: "Does it support YouTube playlists?",
-    answer:
-      "Not currently — the converter processes one video URL at a time rather than an entire playlist.",
-  },
-  {
-    question: "Why did my conversion fail?",
-    answer:
-      "The most common reasons are: the video is private, deleted, or removed for copyright; it's geo-restricted and unavailable from our server's location; or YouTube is temporarily requiring extra verification. Trying a different video, or trying again in a few minutes, usually resolves it.",
-  },
-  {
-    question: "Can I use the downloaded audio commercially?",
-    answer:
-      "Only if you own the content, it's royalty-free or Creative Commons licensed for that use, or you have explicit permission from the rights holder. AudioForges doesn't grant any rights to the content you convert.",
-  },
-  {
-    question: "Can I get FLAC or AIFF instead of WAV or MP3?",
-    answer:
-      "Not directly from YouTube, but you can convert the WAV output afterward using our free Audio Converter, which supports FLAC, AIFF, and several other formats.",
-    answerNode: (
-      <>
-        Not directly from YouTube, but you can convert the WAV output
-        afterward using our free{" "}
-        <Link href="/convert" className="text-amber-400 hover:underline">
-          Audio Converter
-        </Link>
-        , which supports FLAC, AIFF, and several other formats.
-      </>
-    ),
-  },
-];
-
-export default function YouTubeToWavPage() {
+export default async function YouTubeToWavPage() {
   const relatedTools = getRelatedTools("youtube-to-wav", 5);
+
+  const limits = await getLimits();
+
+  /*
+    Both were typed as literals, twice each, and both were correct — which is
+    exactly what the six wrong literals found elsewhere looked like the day
+    before they went wrong.
+  */
+  const rateLimitText = rateLimitLabel(
+    limits.rateLimits.download ?? 18,
+    windowFor(limits, "download")
+  );
+  const maxVideoLabel = durationLabel(limits.durations.youtubeDownloadMaxSeconds);
+
+  /*
+    "Up to", never "for" — see the note at the top. `guaranteed` is false
+    because the cache is LRU-evicted against a size cap, so the age is a
+    ceiling a given entry may never reach.
+  */
+  const cache = limits.downloadCache;
+  const cacheDays = Math.round(cache.maxAgeSeconds / 86400);
+  const cacheWindow = cache.guaranteed ? `${cacheDays} days` : `up to ${cacheDays} days`;
+
+  const faqs = [
+    {
+      question: "Is this really free?",
+      answer: `Yes — every conversion is free, with no sign-up, no watermark, and nothing to install. The fair-use limit is ${rateLimitText}, which is well past what a normal session needs.`,
+    },
+    {
+      question: "What's the difference between WAV and MP3 here?",
+      answer:
+        "WAV is lossless 44.1kHz audio — larger files, no compression artifacts. Use it for DJing, sampling, or editing. MP3 is 320kbps CBR — smaller files, transparent enough for casual listening.",
+    },
+    {
+      question: "Does this work with YouTube Shorts?",
+      answer:
+        "Yes. Standard youtube.com/watch links, short youtu.be links, and /shorts URLs are all supported.",
+    },
+    {
+      question: "How long does conversion take?",
+      answer: `Most videos convert to WAV or MP3 in 8–20 seconds. Longer videos take proportionally longer, and the limit is ${maxVideoLabel}.`,
+    },
+    {
+      question: "Does it work on mobile?",
+      answer:
+        "Yes — the converter works in any mobile browser on iPhone or Android, no app install required.",
+    },
+    {
+      question: "Is downloading YouTube audio legal?",
+      answer:
+        "It depends on whether you own the content, it's Creative Commons or public domain, or you have permission from the rights holder. You are responsible for how you use the tool.",
+    },
+    {
+      question: "Can I convert very long YouTube videos?",
+      answer: `Up to ${maxVideoLabel}. Past that the video is rejected before conversion starts, so you find out immediately rather than after a long wait. Music videos, podcast clips and Shorts are all comfortably inside it.`,
+    },
+    {
+      question: "Does it support YouTube playlists?",
+      answer:
+        "Not currently — the converter processes one video URL at a time rather than an entire playlist.",
+    },
+    {
+      question: "Why did my conversion fail?",
+      answer:
+        "The most common reasons are: the video is private, deleted, or removed for copyright; it's geo-restricted and unavailable from our server's location; or YouTube is temporarily requiring extra verification. Trying a different video, or trying again in a few minutes, usually resolves it.",
+    },
+    {
+      question: "Can I use the downloaded audio commercially?",
+      answer:
+        "Only if you own the content, it's royalty-free or Creative Commons licensed for that use, or you have explicit permission from the rights holder. AudioForges doesn't grant any rights to the content you convert.",
+    },
+    {
+      /*
+        ADDED. The page said "cached for a short period" and named no figure.
+
+        The order of these sentences is deliberate: the fact that nothing is
+        uploaded comes first, because it is the thing that makes this page's
+        privacy answer different in KIND from every other tool's rather than
+        different in duration.
+      */
+      question: "Is my converted file stored?",
+      answer: `Nothing is uploaded from your device — you paste a link, and what gets stored is the converted audio, derived from a public video rather than from a file of yours. It's cached ${cacheWindow} so that a repeat request for the same video and format is served instantly, and the cache is keyed on the video and format alone, with nothing identifying you in it. That means someone else converting the same link gets the same cached file. Entries are also evicted early when the cache fills, so ${cacheDays} days is a ceiling rather than a guarantee. There are no accounts, and no record of who converted what.`,
+    },
+    {
+      question: "Can I get FLAC or AIFF instead of WAV or MP3?",
+      answer:
+        "Not directly from YouTube, but you can convert the WAV output afterward using our free Audio Converter, which supports FLAC, AIFF, and several other formats.",
+      answerNode: (
+        <>
+          Not directly from YouTube, but you can convert the WAV output
+          afterward using our free{" "}
+          <Link href="/convert" prefetch={false} className="text-amber-400 hover:underline">
+            Audio Converter
+          </Link>
+          , which supports FLAC, AIFF, and several other formats.
+        </>
+      ),
+    },
+  ];
 
   return (
     <>
@@ -188,10 +260,6 @@ export default function YouTubeToWavPage() {
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
-      />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(howToJsonLd) }}
       />
 
       <main className="mx-auto max-w-3xl px-4 py-12 sm:py-16 space-y-12">
@@ -208,7 +276,10 @@ export default function YouTubeToWavPage() {
 
         <YouTubeConverterForm />
 
-        <section className="grid gap-4 sm:grid-cols-3">
+        {/* One bordered strip with hairline dividers, matching every other tool
+            page. The third cell now carries the limits, which appeared only in
+            the FAQ before. */}
+        <section className="grid divide-y divide-graphite-800 overflow-hidden rounded-xl border border-graphite-800 bg-graphite-900 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
           {[
             {
               title: "Fast",
@@ -220,15 +291,14 @@ export default function YouTubeToWavPage() {
             },
             {
               title: "No sign-up",
-              desc: "No account, no email, no watermark on your files.",
+              desc: `No account, no email, no watermark. Videos up to ${maxVideoLabel}.`,
             },
           ].map((f) => (
-            <div
-              key={f.title}
-              className="rounded-xl border border-graphite-800 bg-graphite-900 p-5 space-y-2"
-            >
-              <p className="font-semibold text-text-primary">{f.title}</p>
-              <p className="text-sm text-text-muted">{f.desc}</p>
+            <div key={f.title} className="space-y-1.5 p-5">
+              <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-amber-400">
+                {f.title}
+              </p>
+              <p className="text-sm leading-relaxed text-text-muted">{f.desc}</p>
             </div>
           ))}
         </section>
@@ -313,7 +383,7 @@ export default function YouTubeToWavPage() {
               uncompressed) or <strong className="text-text-primary">MP3</strong>{" "}
               (320kbps CBR) file. It supports standard youtube.com/watch, short
               youtu.be, and /shorts links — one video at a time, rather than
-              full playlists.
+              full playlists, up to {maxVideoLabel} long.
             </p>
             <p>
               <strong className="text-text-primary">Common legitimate uses:</strong>{" "}
@@ -381,7 +451,7 @@ export default function YouTubeToWavPage() {
             <Link href="/guides/wav-vs-mp3-for-sampling" className="text-amber-400 hover:underline">
               Read WAV vs MP3 for Sampling: What Actually Changes
             </Link>. Need FLAC or AIFF instead? Convert the WAV output using our{" "}
-            <Link href="/convert" className="text-amber-400 hover:underline">
+            <Link href="/convert" prefetch={false} className="text-amber-400 hover:underline">
               Audio Converter
             </Link>.
           </p>
@@ -395,6 +465,7 @@ export default function YouTubeToWavPage() {
                 <Link
                   key={tool.slug}
                   href={`/${tool.slug}`}
+                  prefetch={false}
                   className="rounded-xl border border-graphite-800 bg-graphite-900 p-4 hover:border-amber-500/40 transition-colors"
                 >
                   <h3 className="font-semibold text-text-primary">{tool.name}</h3>

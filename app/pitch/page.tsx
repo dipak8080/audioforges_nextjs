@@ -4,12 +4,17 @@ import { PitchForm } from "@/components/converter/PitchForm";
 import { FAQSection } from "@/components/faq/FAQSection";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
-import { getRateLimitLabel } from "@/lib/data/rate-limits";
-import { getDurationLabel } from "@/lib/data/tool-limits";
-import { FILE_SIZE_LIMITS } from "@/lib/utils/validation";
+import {
+  getLimits,
+  windowFor,
+  rateLimitLabel,
+  durationCapFor,
+  durationLabel,
+  retentionSentences,
+} from "@/lib/api/limits";
 
 /**
- * ── THIS PASS ──────────────────────────────────────────────────────────
+ * ── EARLIER PASS (kept for the record) ─────────────────────────────────
  *
  * 1. THE FAQ UNDERSTATED THE LIMIT BY 40%. It said "3 requests per 5 minutes",
  *    typed as a literal. rate-limits.ts raised `pitch` from 3 to 5 on
@@ -18,44 +23,50 @@ import { FILE_SIZE_LIMITS } from "@/lib/utils/validation";
  *    site — the real workflow is +2, listen, +3, listen — so someone reading
  *    "3" plans a smaller experiment than they're actually allowed.
  *
- *    Read from RATE_LIMITS now, like every other limit figure on the site.
- *
  * 2. THE HowTo SCHEMA IS GONE. Google deprecated HowTo rich results on desktop
- *    in September 2023 and dropped them entirely after; there is no ranking or
- *    rich-result benefit left. /vocal-remover, /stems and both YouTube
- *    separation pages already removed theirs and carry a note saying why —
- *    this page kept emitting it. The VISIBLE how-to steps stay; only the
- *    JSON-LD block goes.
+ *    in September 2023; no ranking or rich-result benefit remains.
  *
- * 3. THE `keywords` META IS GONE. Google has ignored it since 2009.
- *    /vocal-remover removed its copy as dead weight; fifteen entries here made
- *    this the last page still carrying one.
+ * 3. THE `keywords` META IS GONE. Ignored by Google since 2009.
  *
  * 4. THE PAGE NEVER STATED ITS OWN LIMITS. PitchForm blocks submission over
  *    the duration cap and validateAudioFile rejects over the size cap — but
  *    neither number appeared anywhere a visitor could read BEFORE choosing a
- *    file. The whole positioning of these pages is "we state the real limit up
- *    front"; this one stated none. Both now come from the same constants the
- *    form enforces.
+ *    file.
  *
- * NOT ADDED: a retention answer. /vocal-remover has one because the two-hour
- * source TTL was confirmed against the backend. Nobody has told me what
- * happens to a pitch job's file, and the lesson from that page is that a
- * retention claim written on an assumption is worse than none — it shipped
- * wrong there and sat wrong for weeks. Ask, then write it.
+ * ── THIS PASS ──────────────────────────────────────────────────────────
+ *
+ * 5. THE RETENTION ANSWER IS NOW WRITTEN, and the note this file used to carry
+ *    is exactly why it wasn't before:
+ *
+ *      "NOT ADDED: a retention answer. Nobody has told me what happens to a
+ *       pitch job's file, and the lesson from /vocal-remover is that a
+ *       retention claim written on an assumption is worse than none — it
+ *       shipped wrong there and sat wrong for weeks. Ask, then write it."
+ *
+ *    That was the right call, and the asking is done. The backend published a
+ *    retention block on 2026-08-30: pitch is an `audio_tools` job, so the
+ *    input is deleted when the job ends and the output is held an hour. The
+ *    sentences come from retentionSentences() rather than from prose, so this
+ *    one can't drift the way /vocal-remover's did.
+ *
+ * 6. ALL THREE LIMITS NOW READ FROM /limits rather than the hand tables. The
+ *    figures don't change — they were corrected in the earlier pass — but the
+ *    source does, which is what stops a literal creeping back in.
  */
 
+const PAGE_TITLE = "Free Pitch Shifter — Change Key Without Changing Speed";
+const PAGE_DESCRIPTION =
+  "Change audio pitch or transpose music online for free. Shift MP3, WAV, FLAC, AAC, M4A, OGG, and AIFF up or down by up to 12 semitones without changing tempo.";
+
 export const metadata: Metadata = {
-  title: "Free Pitch Shifter — Change Key Without Changing Speed",
-  description:
-    "Change audio pitch or transpose music online for free. Shift MP3, WAV, FLAC, AAC, M4A, OGG, and AIFF up or down by up to 12 semitones without changing tempo.",
+  title: PAGE_TITLE,
+  description: PAGE_DESCRIPTION,
   // `keywords` removed: ignored by Google since 2009, and no other tool page
   // on the site carries it.
   alternates: { canonical: `${SITE_URL}/pitch` },
   openGraph: {
-    title: "Free Pitch Shifter — Change Key Without Changing Speed",
-    description:
-      "Change audio pitch or transpose music online for free. Shift MP3, WAV, FLAC, AAC, M4A, OGG, and AIFF up or down by up to 12 semitones without changing tempo.",
+    title: PAGE_TITLE,
+    description: PAGE_DESCRIPTION,
     url: `${SITE_URL}/pitch`,
     siteName: SITE_NAME,
     type: "website",
@@ -70,9 +81,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Free Pitch Shifter — Change Key Without Changing Speed",
-    description:
-      "Change audio pitch or transpose music online for free. Shift MP3, WAV, FLAC, AAC, M4A, OGG, and AIFF up or down by up to 12 semitones without changing tempo.",
+    title: PAGE_TITLE,
+    description: PAGE_DESCRIPTION,
     images: ["/images/og-default.png"],
   },
 };
@@ -103,74 +113,93 @@ const breadcrumbJsonLd = {
 };
 
 // NOTE: No HowTo schema — deprecated by Google (desktop since Sept 2023), no
-// ranking or rich-result benefit remains. Visible how-to steps stay. This
-// matches the standard already applied on /stems, /vocal-remover and both
-// YouTube separation pages.
+// ranking or rich-result benefit remains. Visible how-to steps stay.
 // FAQPage schema is emitted by <FAQSection /> — do not duplicate it here.
 
-/**
- * All three read from the same constants the tool enforces.
- *
- * The rate limit is the one that was wrong: it said 3, typed as a literal,
- * while config.py has allowed 5 since 2026-08-22.
- */
-const RATE_LIMIT_LABEL = getRateLimitLabel("pitch");
-const MAX_DURATION_LABEL = getDurationLabel("pitch");
-const MAX_UPLOAD_LABEL = `${Math.round(FILE_SIZE_LIMITS.audio / (1024 * 1024))}MB`;
-
-const faqs = [
-  {
-    question: "Does pitch shifting change the tempo?",
-    answer:
-      "No — pitch is shifted independently of tempo, so the duration and speed of the track stay exactly the same, only the pitch moves.",
-  },
-  {
-    question: "How much can I shift the pitch?",
-    answer: "Up to 12 semitones in either direction — a full octave up or down.",
-  },
-  {
-    question: "Will shifting pitch affect audio quality?",
-    answer:
-      "Small shifts of a semitone or two are close to transparent. Larger shifts toward a full octave start to noticeably affect timbre, since formants — the resonances that give a voice or instrument its characteristic tone — shift along with the pitch.",
-  },
-  {
-    question: "What's the difference between pitch and key?",
-    answer:
-      "Pitch is the raw frequency of a sound; key is the overall tonal center a piece of music is built around. Shifting a track's pitch by a fixed number of semitones effectively transposes it into a new key.",
-  },
-  {
-    // The tool blocks both of these before anything uploads, and neither
-    // number appeared anywhere on the page — so the first time a visitor
-    // learned the limit was when the button refused to run. Both read from the
-    // constants the form actually enforces.
-    question: "Is there a size or length limit?",
-    answer: MAX_DURATION_LABEL
-      ? `Yes — up to ${MAX_UPLOAD_LABEL} per file, and up to ${MAX_DURATION_LABEL} of audio. Longer files are caught in your browser before anything uploads, so you're not left waiting on a transfer that gets rejected at the end.`
-      : `Yes — up to ${MAX_UPLOAD_LABEL} per file.`,
-  },
-  {
-    // CORRECTED: said "3 requests per 5 minutes", typed as a literal, while
-    // rate-limits.ts has said 5 since 2026-08-22 — raised deliberately BECAUSE
-    // this tool is iterative and three locked people out mid-decision. Reading
-    // it from the table means the copy can't drift from the config again.
-    question: "Why is there a stricter limit on this tool?",
-    answer: RATE_LIMIT_LABEL
-      ? `Pitch shifting is more CPU-intensive than a simple conversion, so it's limited to ${RATE_LIMIT_LABEL} to keep it available for everyone. That's deliberately higher than the older limit, because transposing is usually iterative — shift, listen, adjust.`
-      : "Pitch shifting is more CPU-intensive than a simple conversion, so it's rate-limited to keep it available for everyone.",
-  },
-  {
-    question: "Is this really free?",
-    answer: "Yes — completely free, no sign-up, no watermark on the output.",
-  },
-  {
-    question: "Can I change the key of a song without changing its speed?",
-    answer:
-      "Yes. This tool shifts pitch independently of tempo, so you can transpose a song into a different key while keeping its original duration.",
-  },
-];
-
-export default function PitchPage() {
+export default async function PitchPage() {
   const relatedTools = getRelatedTools("pitch", 5);
+
+  const limits = await getLimits();
+
+  /*
+    The rate limit is the figure that was wrong here: the FAQ typed "3 per 5
+    minutes" while the config had allowed 5 since 2026-08-22 — a 40%
+    understatement on the one tool where the workflow is genuinely iterative.
+  */
+  const rateLimitText = rateLimitLabel(limits.rateLimits.pitch ?? 5, windowFor(limits, "pitch"));
+
+  /*
+    900s — one of only two per-tool duration overrides, and both were wired up
+    on the backend the morning of 2026-08-30. Before that, pitch silently took
+    the 3600 default, so a page saying "an hour" was right the day before and
+    rejects real uploads now.
+  */
+  const durationCap = durationCapFor(limits, "pitch");
+  const maxDurationLabel = durationCap === null ? null : durationLabel(durationCap);
+  const maxUploadLabel = `${limits.maxUploadMb}MB`;
+
+  const retention = retentionSentences(limits.retention.audio_tools);
+
+  const formats = limits.allowedAudioFormats.map((f) => f.toUpperCase());
+  const formatList = formats.join(", ").replace(/, ([^,]*)$/, ", or $1");
+
+  const faqs = [
+    {
+      question: "Does pitch shifting change the tempo?",
+      answer:
+        "No — pitch is shifted independently of tempo, so the duration and speed of the track stay exactly the same, only the pitch moves.",
+    },
+    {
+      question: "How much can I shift the pitch?",
+      answer: "Up to 12 semitones in either direction — a full octave up or down.",
+    },
+    {
+      question: "Will shifting pitch affect audio quality?",
+      answer:
+        "Small shifts of a semitone or two are close to transparent. Larger shifts toward a full octave start to noticeably affect timbre, since formants — the resonances that give a voice or instrument its characteristic tone — shift along with the pitch.",
+    },
+    {
+      question: "What's the difference between pitch and key?",
+      answer:
+        "Pitch is the raw frequency of a sound; key is the overall tonal center a piece of music is built around. Shifting a track's pitch by a fixed number of semitones effectively transposes it into a new key.",
+    },
+    {
+      // The tool blocks both of these before anything uploads, and neither
+      // number appeared anywhere on the page — so the first time a visitor
+      // learned the limit was when the button refused to run.
+      question: "Is there a size or length limit?",
+      answer: maxDurationLabel
+        ? `Yes — up to ${maxUploadLabel} per file, and up to ${maxDurationLabel} of audio. Longer files are caught in your browser before anything uploads, so you're not left waiting on a transfer that gets rejected at the end.`
+        : `Yes — up to ${maxUploadLabel} per file.`,
+    },
+    {
+      // Was "3 requests per 5 minutes", typed as a literal, while the config
+      // has said 5 since 2026-08-22 — raised deliberately BECAUSE this tool is
+      // iterative and three locked people out mid-decision.
+      question: "Why is there a stricter limit on this tool?",
+      answer: `Pitch shifting is more CPU-intensive than a simple conversion, so it's limited to ${rateLimitText} to keep it available for everyone. That's deliberately higher than the older limit, because transposing is usually iterative — shift, listen, adjust.`,
+    },
+    {
+      /*
+        ADDED. This page deliberately carried no retention answer, with a note
+        saying to ask the backend first rather than assume — because the
+        assumed version on /vocal-remover shipped wrong and sat wrong for
+        weeks. The backend answered on 2026-08-30, so it can be written now,
+        from its block rather than from a guess.
+      */
+      question: "Are my uploaded files kept?",
+      answer: `${retention.input} ${retention.output} There are no accounts, so nothing is linked to you.`,
+    },
+    {
+      question: "Is this really free?",
+      answer: "Yes — completely free, no sign-up, no watermark on the output.",
+    },
+    {
+      question: "Can I change the key of a song without changing its speed?",
+      answer:
+        "Yes. This tool shifts pitch independently of tempo, so you can transpose a song into a different key while keeping its original duration.",
+    },
+  ];
 
   return (
     <>
@@ -191,14 +220,19 @@ export default function PitchPage() {
         <PitchForm />
 
         {/* One bordered strip with hairline dividers rather than three floating
-            cards — the same treatment /vocal-remover uses. Three separate boxes
-            directly under the tool read as three more things to deal with;
-            divided cells read as one row of facts about the thing above them. */}
+            cards. Three separate boxes directly under the tool read as three
+            more things to deal with; divided cells read as one row of facts
+            about the thing above them. */}
         <section className="grid divide-y divide-graphite-800 overflow-hidden rounded-xl border border-graphite-800 bg-graphite-900 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
           {[
             { title: "±1 octave", desc: "Shift up to 12 semitones either way." },
             { title: "Tempo unaffected", desc: "Duration and speed stay identical." },
-            { title: "No sign-up", desc: "No account, no email, no watermark." },
+            {
+              title: "No sign-up",
+              desc: maxDurationLabel
+                ? `No account, no watermark. Up to ${maxUploadLabel} and ${maxDurationLabel}.`
+                : `No account, no watermark. Up to ${maxUploadLabel} per file.`,
+            },
           ].map((f) => (
             <div key={f.title} className="space-y-1.5 p-5">
               <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-amber-400">
@@ -212,7 +246,7 @@ export default function PitchPage() {
         <section className="space-y-4">
           <h2 className="text-2xl font-bold text-text-primary">How to shift pitch</h2>
           <ol className="list-decimal list-inside space-y-2 text-text-muted leading-relaxed">
-            <li>Upload an MP3, WAV, FLAC, M4A, AAC, OGG, or AIFF file.</li>
+            <li>Upload an {formatList} file.</li>
             <li>Move the slider to your target shift — a semitone or two for subtle retuning, up to a full octave for a dramatic change.</li>
             <li>Apply the shift.</li>
             <li>Download the result — same tempo, new pitch.</li>
@@ -306,21 +340,21 @@ export default function PitchPage() {
             </p>
             <p>
               Not sure what key your source track is already in? Run it through the{" "}
-              <Link href="/key-finder" className="text-amber-400 hover:underline">
+              <Link href="/key-finder" prefetch={false} className="text-amber-400 hover:underline">
                 Key &amp; BPM Finder
               </Link>{" "}
               first, then transpose it here to the key you need.
             </p>
             <p>
               Need to trim the audio before transposing it? Use the{" "}
-              <Link href="/trim" className="text-amber-400 hover:underline">
+              <Link href="/trim" prefetch={false} className="text-amber-400 hover:underline">
                 Audio Trimmer
               </Link>{" "}
               first, then apply the pitch shift to only the section you need.
             </p>
             <p>
               Need to change speed without affecting pitch? Use the{" "}
-              <Link href="/tempo" className="text-amber-400 hover:underline">
+              <Link href="/tempo" prefetch={false} className="text-amber-400 hover:underline">
                 Tempo Changer
               </Link>{" "}
               instead — it&apos;s the same underlying approach, applied to speed
@@ -337,9 +371,8 @@ export default function PitchPage() {
                 <Link
                   key={tool.slug}
                   href={`/${tool.slug}`}
-                  // prefetch disabled on bulk tool links, matching
-                  // /vocal-remover — four edge requests per route adds up on a
-                  // grid that renders on every tool page.
+                  // prefetch disabled on bulk tool links — four edge requests
+                  // per route adds up on a grid that renders on every tool page.
                   prefetch={false}
                   className="rounded-xl border border-graphite-800 bg-graphite-900 p-4 hover:border-amber-500/40 transition-colors"
                 >

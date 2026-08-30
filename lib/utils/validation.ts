@@ -2,9 +2,51 @@
 import { z } from "zod";
 import type { YouTubeValidationResult, RateLimitResult, FileValidationResult } from "@/lib/types/converter";
 
-// ============ AUDIO FILE VALIDATION (Key Finder) ============
+// ============ AUDIO FILE VALIDATION ============
 
-export const AUDIO_EXTENSIONS = [".mp3", ".wav", ".m4a", ".aac", ".ogg", ".flac"] as const;
+/**
+ * ⚠️ .aiff ADDED 2026-08-30. It was missing, and this list is the one that
+ * actually decides.
+ *
+ * validateAudioFile is what JoinForm (and every other upload form) calls on a
+ * dropped file, while their `accept` strings have always ended ".aiff". The
+ * mismatch survived because the check is `isValidMime || isValidExtension` and
+ * most browsers report `audio/aiff` — so it passed by MIME and nobody noticed.
+ *
+ * It fails wherever the browser reports an empty type, which Windows commonly
+ * does for AIFF. So AIFF worked SOMETIMES, and when it didn't, the error
+ * listed six formats as if AIFF were genuinely unsupported.
+ *
+ * Third place this same gap turned up, after /stems and /key-finder both
+ * understating their format lists. The backend's allowed_audio_formats has
+ * seven; anything on the frontend claiming six is wrong.
+ *
+ * KEEP THIS IN SYNC with /limits.allowed_audio_formats. It can't read the
+ * endpoint — this runs client-side and getLimits() is server-only — so it is
+ * one of the few remaining hand-maintained lists.
+ */
+export const AUDIO_EXTENSIONS = [
+  ".mp3",
+  ".wav",
+  ".m4a",
+  ".aac",
+  ".ogg",
+  ".flac",
+  ".aiff",
+] as const;
+
+/**
+ * 80MB, matching MAX_UPLOAD_BYTES on the backend.
+ *
+ * Worth knowing where the real ceiling is: Cloudflare's free plan caps request
+ * bodies at 100MB and the origin only accepts Cloudflare IPs, so anything past
+ * ~100MB never reaches the API at all — the edge returns its own 413 HTML page
+ * and nothing appears in the container log. 80 sits comfortably under that.
+ *
+ * The caps that DIDN'T were join (150) and video-to-audio (200); both were
+ * lowered to 90 on 2026-08-30 after a 124MB join spent a minute uploading and
+ * was killed at the edge.
+ */
 export const FILE_SIZE_LIMITS = {
   audio: 80 * 1024 * 1024,
   audioMin: 1024,
@@ -28,9 +70,13 @@ export function validateAudioFile(file: File | null): FileValidationResult {
   const isValidExtension = AUDIO_EXTENSIONS.some((ext) => fileName.endsWith(ext));
 
   if (!isValidMime && !isValidExtension) {
+    // Built from the list rather than typed, so the message can't name a
+    // different set of formats from the one actually being checked — which is
+    // exactly how AIFF ended up absent here and present in every accept string.
+    const formats = AUDIO_EXTENSIONS.map((ext) => ext.slice(1).toUpperCase()).join(", ");
     return {
       isValid: false,
-      error: "Invalid file type. Please upload an audio file (MP3, WAV, M4A, AAC, OGG, FLAC)",
+      error: `Invalid file type. Please upload an audio file (${formats})`,
     };
   }
   if (fileName.endsWith(".ogg") || fileName.endsWith(".flac")) {

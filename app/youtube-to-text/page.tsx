@@ -6,7 +6,7 @@ import { SectionHeading } from "@/components/ui/SectionHeading";
 import { FAQSection } from "@/components/faq/FAQSection";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
-import { TRANSCRIPTION_MODEL } from "@/lib/api/transcription";
+import { TRANSCRIPTION_MODEL, getTranscriptionLanguages } from "@/lib/api/transcription";
 import {
   getLimits,
   windowFor,
@@ -187,6 +187,19 @@ export default async function YouTubeToTextPage() {
 
   const limits = await getLimits();
 
+  /*
+    Fetched here so the ~99-language dropdown is populated on first paint.
+    TranscriptionForm falls back to fetching it client-side when this is
+    omitted — which works, but flashes a list containing only "Detect
+    automatically" while it lands, which is the degraded path that component
+    was written to avoid.
+
+    .catch(() => null) is load-bearing: without it a backend blip would fail
+    the whole page render, when the client-side fetch already handles that
+    case perfectly well.
+  */
+  const languages = await getTranscriptionLanguages().catch(() => null);
+
   const maxMinutesLabel = durationLabel(limits.featureDurations.transcription);
 
   // Derived end-to-end. The old fallback read "2 per 5 minutes".
@@ -338,7 +351,7 @@ export default async function YouTubeToTextPage() {
         </div>
 
         <div className="mt-6">
-          <TranscriptionForm mode="youtube" />
+          <TranscriptionForm mode="youtube" languages={languages} />
         </div>
 
         {/* THE SECTION THIS PAGE LIVES OR DIES ON.

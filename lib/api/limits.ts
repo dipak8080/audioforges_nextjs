@@ -75,6 +75,32 @@ const RAILWAY_API_BASE =
  */
 export type RetentionShape = "separation" | "audio_tools" | "transcription";
 
+/**
+ * THE DOWNLOAD CACHE — a fourth retention shape, and the only one that isn't
+ * about a user's file.
+ *
+ * It gets its own type rather than joining Retention because the input/output
+ * pair is meaningless here: /download takes a URL, not an upload, so
+ * `inputDeletedWhen` would describe something that never happened. What's
+ * stored is converted audio derived from a public video — nobody's file.
+ *
+ * `guaranteed` is the field that decides the sentence. The cache is
+ * LRU-evicted against a size cap, so maxAgeSeconds is a CEILING, not a
+ * promise: a rarely-requested entry can vanish long before it. "Up to 30 days"
+ * is honest; "for 30 days" is not. Read this flag before writing either.
+ */
+export interface DownloadCache {
+  /** "per_video" means one person's conversion serves the next person's
+   *  request for the same URL and format. No visitor identity in the key. */
+  scope: string;
+  keyedOn: string[];
+  maxAgeSeconds: number;
+  eviction: string;
+  /** FALSE when entries can be evicted early — say "up to", never "for". */
+  guaranteed: boolean;
+  stores: string;
+}
+
 export interface Retention {
   /**
    * "job_end" means the upload is gone the moment the job finishes — win,
@@ -114,6 +140,18 @@ export interface Durations {
    */
   exemptTools: string[];
   videoExtractMaxSeconds: number;
+  /**
+   * The DOWNLOADER's cap, governing /download and every /youtube/* chained
+   * tool. Named without "transcribe" on purpose: it lived in the frontend's
+   * TRANSCRIPTION_LIMITS for months, which is a different subsystem, and the
+   * name is what stops it drifting back there.
+   *
+   * Not the binding cap on most /youtube/* pages — separation caps at 600 and
+   * transcription at 1200, and the SMALLER of a stacked pair is the one a user
+   * actually hits. It IS binding on /youtube-to-wav and /youtube-to-mp3, where
+   * nothing downstream refuses on length.
+   */
+  youtubeDownloadMaxSeconds: number;
   /** TOTAL across every file in one /join request, not per file. */
   joinMaxTotalSeconds: number;
   /** Lower bounds — the only ones on the site. Below this there isn't enough
@@ -134,9 +172,23 @@ export interface Limits {
    * and nowhere else.
    */
   maxVideoTranscribeMb: number;
-  /** /join: total across up to 10 files. The per-file maxUploadMb still
-   *  applies to each — both limits are real and both need stating. */
-  maxJoinTotalMb: number;
+  /**
+   * /join's four caps, published together under `join` because they are facets
+   * of one request shape rather than four unrelated numbers.
+   *
+   * BOTH "total" FIGURES REJECT INDEPENDENTLY, and neither is implied by the
+   * other or by the per-file cap: ten 20MB files pass maxPerFileMb and fail
+   * maxTotalMb; ten four-minute tracks pass any per-file duration intuition
+   * and fail durations.joinMaxTotalSeconds at forty minutes combined. A page
+   * that states only one of them is wrong about the other.
+   */
+  join: {
+    maxFiles: number;
+    maxTotalMb: number;
+    /** Applies to each file separately. NOT derivable from maxTotalMb, which
+     *  is why the backend publishes it rather than leaving it implied. */
+    maxPerFileMb: number;
+  };
   /**
    * Kill switch for the multi-track MIDI tool. FALSE means the route returns
    * 503 — hide the option entirely.
@@ -177,6 +229,8 @@ export interface Limits {
   windowSeconds: number;
   /** How long uploads and results are kept, by shape. */
   retention: Record<RetentionShape, Retention>;
+  /** The /download cache. Not a Retention — see DownloadCache. */
+  downloadCache: DownloadCache;
 }
 
 /**
@@ -194,7 +248,7 @@ function fallback(): Limits {
     maxUploadMb: 80,
     maxVideoUploadMb: 200,
     maxVideoTranscribeMb: 100,
-    maxJoinTotalMb: 150,
+    join: { maxFiles: 10, maxTotalMb: 150, maxPerFileMb: 80 },
     // Fails closed: an unreachable backend hides the paid tool rather than
     // offering something that would 503.
     midiHqEnabled: false,
@@ -214,6 +268,7 @@ function fallback(): Limits {
       // /convert alone. Inventing a cap here rejects uploads the server takes.
       exemptTools: ["convert"],
       videoExtractMaxSeconds: 3600,
+      youtubeDownloadMaxSeconds: 2400,
       joinMaxTotalSeconds: 5400,
       midiMinSeconds: 1,
       midiHqMinSeconds: 1,
@@ -257,6 +312,14 @@ function fallback(): Limits {
         outputSeconds: 3600,
         outputKind: "text",
       },
+    },
+    downloadCache: {
+      scope: "per_video",
+      keyedOn: ["video_id", "format"],
+      maxAgeSeconds: 2592000,
+      eviction: "lru",
+      guaranteed: false,
+      stores: "converted_audio",
     },
   };
 }
@@ -310,6 +373,33 @@ function readRetention(raw: unknown, base: Retention): Retention {
   };
 }
 
+function readDownloadCache(raw: unknown, base: DownloadCache): DownloadCache {
+  if (!raw || typeof raw !== "object") return base;
+  const block = (raw as Record<string, unknown>).download_cache;
+  if (!block || typeof block !== "object") return base;
+  const d = block as Record<string, unknown>;
+  return {
+    scope: typeof d.scope === "string" ? d.scope : base.scope,
+    keyedOn: asStringList(d.keyed_on, base.keyedOn),
+    maxAgeSeconds: asNumber(d.max_age_seconds, base.maxAgeSeconds),
+    eviction: typeof d.eviction === "string" ? d.eviction : base.eviction,
+    // Defaults to FALSE, not to `base`: an unreadable value must not let a
+    // page promise a retention window the cache doesn't guarantee.
+    guaranteed: d.guaranteed === true,
+    stores: typeof d.stores === "string" ? d.stores : base.stores,
+  };
+}
+
+function readJoin(raw: unknown, base: Limits["join"]): Limits["join"] {
+  if (!raw || typeof raw !== "object") return base;
+  const d = raw as Record<string, unknown>;
+  return {
+    maxFiles: asNumber(d.max_files, base.maxFiles),
+    maxTotalMb: asNumber(d.max_total_mb, base.maxTotalMb),
+    maxPerFileMb: asNumber(d.max_per_file_mb, base.maxPerFileMb),
+  };
+}
+
 function readDurations(raw: unknown, base: Durations): Durations {
   if (!raw || typeof raw !== "object") return base;
   const d = raw as Record<string, unknown>;
@@ -327,6 +417,10 @@ function readDurations(raw: unknown, base: Durations): Durations {
       : base.audioToolsPerToolSeconds,
     exemptTools: asStringList(d.exempt_tools, base.exemptTools),
     videoExtractMaxSeconds: asNumber(d.video_extract_max_seconds, base.videoExtractMaxSeconds),
+    youtubeDownloadMaxSeconds: asNumber(
+      d.youtube_download_max_seconds,
+      base.youtubeDownloadMaxSeconds
+    ),
     joinMaxTotalSeconds: asNumber(d.join_max_total_seconds, base.joinMaxTotalSeconds),
     midiMinSeconds: asNumber(d.midi_min_seconds, base.midiMinSeconds),
     midiHqMinSeconds: asNumber(d.midi_hq_min_seconds, base.midiHqMinSeconds),
@@ -353,7 +447,10 @@ export async function getLimits(): Promise<Limits> {
       maxUploadMb: asNumber(d.max_upload_mb, base.maxUploadMb),
       maxVideoUploadMb: asNumber(d.max_video_upload_mb, base.maxVideoUploadMb),
       maxVideoTranscribeMb: asNumber(d.max_video_transcribe_mb, base.maxVideoTranscribeMb),
-      maxJoinTotalMb: asNumber(d.max_join_total_mb, base.maxJoinTotalMb),
+      // NESTED under `join`, not top-level. It has been published this way all
+      // along; a grep for "max_join_files" finds nothing because the key is
+      // `join.max_files`.
+      join: readJoin(d.join, base.join),
       midiHqEnabled: Boolean(f.midi_hq_enabled),
       featureDurations: {
         midi: asNumber(f.midi_max_duration_seconds, base.featureDurations.midi),
@@ -386,6 +483,7 @@ export async function getLimits(): Promise<Limits> {
       },
       windows: { ...base.windows, ...asNumberMap(r.windows) },
       windowSeconds: asNumber(r.window_seconds, base.windowSeconds),
+      downloadCache: readDownloadCache(d.retention, base.downloadCache),
       retention: {
         separation: readRetention(ret.separation, base.retention.separation),
         audio_tools: readRetention(ret.audio_tools, base.retention.audio_tools),

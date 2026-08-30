@@ -38,7 +38,7 @@ import type { FileValidationResult } from "@/lib/types/converter";
  */
 
 const VIDEO_LIMITS = getToolLimits("video-to-audio");
-const MAX_VIDEO_BYTES = VIDEO_LIMITS?.maxFileBytes ?? 200 * 1024 * 1024;
+const MAX_VIDEO_BYTES = VIDEO_LIMITS?.maxFileBytes ?? 90 * 1024 * 1024;
 const MAX_VIDEO_DURATION_SECONDS = VIDEO_LIMITS?.maxTotalDurationSeconds ?? 3600;
 const MAX_BYTES_LABEL = formatBytes(MAX_VIDEO_BYTES);
 const MAX_DURATION_LABEL = formatDuration(MAX_VIDEO_DURATION_SECONDS);
