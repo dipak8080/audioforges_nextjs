@@ -155,7 +155,7 @@ interface PianoKeyboardProps {
 }
 
 function PianoKeyboard({ value, disabled, onChange }: PianoKeyboardProps) {
-  const geometry = useMemo(buildKeyboardGeometry, []);
+  const geometry = useMemo(() => buildKeyboardGeometry(), []);
   const whiteKeys = geometry.filter((k) => k.isWhite);
   const blackKeys = geometry.filter((k) => !k.isWhite);
   const buttonRefs = useRef<Map<number, HTMLButtonElement>>(new Map());

@@ -2,12 +2,20 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { BpmTapperForm } from "@/components/browser/BpmTapperForm";
 import { FAQSection } from "@/components/faq/FAQSection";
+import { ToolPageShell } from "@/components/layout/ToolPageShell";
+import { Breadcrumb } from "@/components/layout/Breadcrumb";
+import { ToolSection } from "@/components/ui/ToolSection";
+import { FeatureStrip } from "@/components/ui/FeatureStrip";
+import { RelatedToolsGrid } from "@/components/tools/RelatedToolsGrid";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
+import { ogForTool } from "@/lib/og";
 
 const PAGE_TITLE = "Free BPM Tapper – Tap to Find BPM & Tempo";
 const PAGE_DESCRIPTION =
   "Tap along to a beat to find its BPM and tempo instantly. Free online BPM tapper with keyboard support, no sign-up, and no download.";
+
+const OG_IMAGE = ogForTool("bpm-tapper", "Free BPM Tapper");
 
 export const metadata: Metadata = {
   title: PAGE_TITLE,
@@ -19,18 +27,18 @@ export const metadata: Metadata = {
     url: `${SITE_URL}/bpm-tapper`,
     siteName: SITE_NAME,
     type: "website",
-    images: [{ url: "/images/og-default.png", width: 1200, height: 630, alt: "AudioForges BPM Tapper" }],
+    images: [OG_IMAGE],
   },
   twitter: {
     card: "summary_large_image",
     title: PAGE_TITLE,
     description: PAGE_DESCRIPTION,
-    images: ["/images/og-default.png"],
+    images: [OG_IMAGE.url],
   },
 };
 
-// WebApplication schema — every claim below matches the actual
-// BpmTapperForm implementation (rolling 8-tap window, 2-second reset).
+// Every claim below matches the actual BpmTapperForm implementation
+// (rolling 8-tap window, 2-second reset).
 const webAppJsonLd = {
   "@context": "https://schema.org",
   "@type": "WebApplication",
@@ -47,14 +55,7 @@ const webAppJsonLd = {
   ],
 };
 
-const breadcrumbJsonLd = {
-  "@context": "https://schema.org",
-  "@type": "BreadcrumbList",
-  itemListElement: [
-    { "@type": "ListItem", position: 1, name: "Home", item: SITE_URL },
-    { "@type": "ListItem", position: 2, name: "BPM Tapper", item: `${SITE_URL}/bpm-tapper` },
-  ],
-};
+// BreadcrumbList comes from <Breadcrumb />; FAQPage from <FAQSection />.
 
 const faqs = [
   {
@@ -108,132 +109,92 @@ export default function BpmTapperPage() {
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(webAppJsonLd) }} />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
 
-      <main className="mx-auto max-w-3xl px-4 py-12 sm:py-16 space-y-12">
-        <header className="text-center space-y-4">
-          <h1 className="text-4xl font-bold tracking-tight sm:text-5xl text-text-primary">
-            Free BPM Tapper
-          </h1>
-          <p className="text-lg text-text-muted max-w-xl mx-auto">
-            Tap along to a beat and find its BPM and tempo in seconds, free,
-            no sign-up, right in your browser.
-          </p>
-        </header>
-
-        {/* Tool stays first — SEO content supports it, doesn't bury it */}
-        <BpmTapperForm />
-
-        <section className="grid gap-4 sm:grid-cols-3">
-          {[
+      <ToolPageShell
+        breadcrumb={
+          <Breadcrumb items={[{ name: "Tools", href: "/tools" }, { name: "BPM Tapper" }]} />
+        }
+        title="Free BPM Tapper"
+        lede="Tap along to a beat and find its BPM and tempo in seconds, free, no sign-up, right in your browser."
+        tool={<BpmTapperForm />}
+      >
+        <FeatureStrip
+          features={[
             { title: "Live estimate", desc: "See your BPM update as you tap." },
             { title: "Keyboard support", desc: "Tap with a click, Space, or Enter." },
             { title: "No sign-up", desc: "No account, no ads, no limits." },
-          ].map((f) => (
-            <div key={f.title} className="rounded-xl border border-graphite-800 bg-graphite-900 p-5 space-y-2">
-              <p className="font-semibold text-text-primary">{f.title}</p>
-              <p className="text-sm text-text-muted">{f.desc}</p>
-            </div>
-          ))}
-        </section>
+          ]}
+        />
 
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">How to find a tempo by tapping</h2>
-          <ol className="list-decimal list-inside space-y-2 text-text-muted leading-relaxed">
+        <ToolSection id="how-to" title="How to find a tempo by tapping">
+          <ol>
             <li>Tap the button in time with a beat — from a song, a metronome, or your own count.</li>
             <li>Keep tapping for 6-8 beats for a stable, accurate result.</li>
             <li>Send the result straight to the Metronome, or note it down.</li>
           </ol>
-        </section>
+        </ToolSection>
 
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">What is a BPM tapper?</h2>
-          <p className="text-text-muted leading-relaxed">
-            A BPM tapper is an online tool that calculates the tempo of
-            music by measuring the time between your taps. BPM stands for
-            beats per minute, which is the standard way of describing
-            musical tempo. Tap along with a song, beat, or metronome and
-            this tool estimates its BPM from your tapping pattern.
+        <ToolSection id="what-is-it" title="What is a BPM tapper?">
+          <p>
+            A BPM tapper is an online tool that calculates the tempo of music by
+            measuring the time between your taps. BPM stands for beats per
+            minute, which is the standard way of describing musical tempo. Tap
+            along with a song, beat, or metronome and this tool estimates its
+            BPM from your tapping pattern.
           </p>
-        </section>
+        </ToolSection>
 
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">How accurate is a BPM tapper?</h2>
-          <p className="text-text-muted leading-relaxed">
-            The result depends on how consistently you tap. Two taps
-            provide a basic estimate, while tapping along for 6 to 8 beats
-            gives the tool more intervals to average. This BPM tapper uses
-            only your most recent taps to keep the estimate responsive if
-            the tempo changes partway through. If you pause for more than
-            two seconds, a new tapping session starts automatically rather
-            than treating the gap as one very slow beat.
+        <ToolSection id="accuracy" title="How accurate is a BPM tapper?">
+          <p>
+            The result depends on how consistently you tap. Two taps provide a
+            basic estimate, while tapping along for 6 to 8 beats gives the tool
+            more intervals to average. This BPM tapper uses only your most
+            recent taps to keep the estimate responsive if the tempo changes
+            partway through. If you pause for more than two seconds, a new
+            tapping session starts automatically rather than treating the gap as
+            one very slow beat.
           </p>
-          <p className="text-text-muted leading-relaxed">
-            Want the fuller breakdown of why only recent taps count and how
-            the pause-reset threshold actually works?{" "}
-            <Link href="/guides/how-tap-tempo-detection-works" className="text-amber-400 hover:underline">
+          <p>
+            Want the fuller breakdown of why only recent taps count and how the
+            pause-reset threshold actually works?{" "}
+            <Link href="/guides/how-tap-tempo-detection-works">
               Read How Tap Tempo Detection Actually Works
-            </Link>.
+            </Link>
+            .
           </p>
-        </section>
+        </ToolSection>
 
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">What is the difference between BPM and tempo?</h2>
-          <p className="text-text-muted leading-relaxed">
+        <ToolSection id="bpm-vs-tempo" title="What is the difference between BPM and tempo?">
+          <p>
             BPM means beats per minute and gives a numerical measurement of
-            tempo. For example, 60 BPM means 60 beats occur in one minute,
-            while 120 BPM means 120 beats occur in one minute. Tempo
-            describes how fast or slow the music feels, while BPM provides
-            a precise number for that tempo.
-          </p>
-        </section>
-
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">Common uses</h2>
-          <p className="text-text-muted leading-relaxed">
-            Finding the tempo of a song you&apos;re learning to play along
-            with, setting a metronome to match a track without looking up
-            its BPM online, and quickly checking your own natural tapping
+            tempo. For example, 60 BPM means 60 beats occur in one minute, while
+            120 BPM means 120 beats occur in one minute. Tempo describes how fast
+            or slow the music feels, while BPM provides a precise number for that
             tempo.
           </p>
-        </section>
+        </ToolSection>
 
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">More tools for working with tempo</h2>
-          <p className="text-text-muted leading-relaxed">
-            Once you know the BPM, use the{" "}
-            <Link href="/metronome" className="text-amber-400 hover:underline">
-              Online Metronome
-            </Link>{" "}
-            to practice at that tempo. If you want to change the speed of
-            an existing recording instead, the{" "}
-            <Link href="/tempo" className="text-amber-400 hover:underline">
-              Tempo Changer
-            </Link>{" "}
-            handles that.
+        <ToolSection id="common-uses" title="Common uses">
+          <p>
+            Finding the tempo of a song you&apos;re learning to play along with,
+            setting a metronome to match a track without looking up its BPM
+            online, and quickly checking your own natural tapping tempo.
           </p>
-        </section>
+        </ToolSection>
 
-        {relatedTools.length > 0 && (
-          <section className="space-y-4">
-            <h2 className="text-2xl font-bold text-text-primary">More free tools</h2>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {relatedTools.map((tool) => (
-                <Link
-                  key={tool.slug}
-                  href={`/${tool.slug}`}
-                  className="rounded-xl border border-graphite-800 bg-graphite-900 p-4 hover:border-amber-500/40 transition-colors"
-                >
-                  <h3 className="font-semibold text-text-primary">{tool.name}</h3>
-                  <p className="text-sm text-text-muted mt-1">{tool.shortDescription}</p>
-                </Link>
-              ))}
-            </div>
-          </section>
-        )}
+        <ToolSection id="more-tempo-tools" title="More tools for working with tempo">
+          <p>
+            Once you know the BPM, use the{" "}
+            <Link href="/metronome">Online Metronome</Link> to practice at that
+            tempo. If you want to change the speed of an existing recording
+            instead, the <Link href="/tempo">Tempo Changer</Link> handles that.
+          </p>
+        </ToolSection>
+
+        <RelatedToolsGrid tools={relatedTools} />
 
         <FAQSection faqs={faqs} />
-      </main>
+      </ToolPageShell>
     </>
   );
 }

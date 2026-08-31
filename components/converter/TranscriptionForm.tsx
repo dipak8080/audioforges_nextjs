@@ -317,7 +317,12 @@ export function TranscriptionForm({ mode, languages: initialLanguages }: Transcr
   const isBusy = status === "uploading" || status === "processing";
   const [elapsedSeconds, setElapsedSeconds] = useElapsedSeconds(isBusy);
   const [cooldownSeconds, setCooldownSeconds] = useCooldownSeconds();
-  const cooldownCeilingRef = useRef(getRetryAfterFallback(config.endpoint));
+  /**
+   * STATE, NOT A REF, because CooldownBar renders it. As a ref it only showed
+   * the right ceiling because the setCooldownSeconds call on the next line
+   * happened to trigger the render that read it.
+   */
+  const [cooldownCeiling, setCooldownCeiling] = useState(getRetryAfterFallback(config.endpoint));
 
   /**
    * CREDITS.
@@ -422,6 +427,15 @@ export function TranscriptionForm({ mode, languages: initialLanguages }: Transcr
   );
 
   /* --- polling ---------------------------------------------------- */
+  /**
+   * The poll loop reschedules itself, which it can't do by naming itself: a
+   * value referenced inside its own initializer is something the React
+   * Compiler can't reason about. One indirection through a ref — declared
+   * BEFORE the callback, assigned in an effect rather than during render —
+   * removes the self-reference without changing the polling behaviour.
+   */
+  const pollFnRef = useRef<(jobId: string) => void>(() => {});
+
   const poll = useCallback(
     async (jobId: string) => {
       if (cancelledRef.current) return;
@@ -501,10 +515,14 @@ export function TranscriptionForm({ mode, languages: initialLanguages }: Transcr
         // Transient network blips fall through to the next tick.
       }
 
-      pollRef.current = setTimeout(() => poll(jobId), TRANSCRIPTION_LIMITS.pollIntervalMs);
+      pollRef.current = setTimeout(() => pollFnRef.current(jobId), TRANSCRIPTION_LIMITS.pollIntervalMs);
     },
     [config.endpoint, stopPolling]
   );
+
+  useEffect(() => {
+    pollFnRef.current = poll;
+  }, [poll]);
 
   /* --- handlers --------------------------------------------------- */
   const handleFileSelect = async (selected: File) => {
@@ -692,7 +710,7 @@ export function TranscriptionForm({ mode, languages: initialLanguages }: Transcr
         // window, which is the correct worst case.
         if (err.isRateLimit) {
           const wait = err.retryAfterSeconds ?? getRetryAfterFallback(config.endpoint);
-          cooldownCeilingRef.current = Math.max(1, wait);
+          setCooldownCeiling(Math.max(1, wait));
           setCooldownSeconds(wait);
         }
       } else {
@@ -807,7 +825,7 @@ export function TranscriptionForm({ mode, languages: initialLanguages }: Transcr
             : config.submitLabel}
       </Button>
 
-      <CooldownBar seconds={cooldownSeconds} ceiling={cooldownCeilingRef.current} />
+      <CooldownBar seconds={cooldownSeconds} ceiling={cooldownCeiling} />
 
       {/* One line, not three centred ones. Limits on the left where they're
           read as terms; the sample on the right where it's read as an action. */}

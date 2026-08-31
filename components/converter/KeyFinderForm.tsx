@@ -98,7 +98,12 @@ export function KeyFinderForm() {
 
   const [elapsedSeconds, setElapsedSeconds] = useElapsedSeconds(isProcessing);
   const [cooldownSeconds, setCooldownSeconds] = useCooldownSeconds();
-  const cooldownCeilingRef = useRef(getRetryAfterFallback("analyze"));
+  /**
+   * STATE, NOT A REF, because CooldownBar renders it. As a ref it only showed
+   * the right ceiling because the setCooldownSeconds call on the next line
+   * happened to trigger the render that read it.
+   */
+  const [cooldownCeiling, setCooldownCeiling] = useState(getRetryAfterFallback("analyze"));
 
   /** /analyze can run for ninety seconds. Without this there is no way to stop
    *  waiting, and no way to stop the response arriving after unmount. */
@@ -168,7 +173,7 @@ export function KeyFinderForm() {
         // rather than a number invented to look plausible. Retry-After wins
         // whenever the server sends one.
         const wait = err.retryAfterSeconds ?? getRetryAfterFallback("analyze");
-        cooldownCeilingRef.current = Math.max(1, wait);
+        setCooldownCeiling(Math.max(1, wait));
         setCooldownSeconds(wait);
       } else {
         setError(humanizeError(err instanceof ApiError ? err.message : "Something went wrong."));
@@ -230,7 +235,7 @@ export function KeyFinderForm() {
                 ? `Try again in ${formatCooldown(cooldownSeconds)}`
                 : "Analyze audio"}
         </Button>
-        <CooldownBar seconds={cooldownSeconds} ceiling={cooldownCeilingRef.current} />
+        <CooldownBar seconds={cooldownSeconds} ceiling={cooldownCeiling} />
       </div>
     ) : undefined;
 

@@ -136,7 +136,6 @@ function formatBytes(bytes: number): string {
 function safeFilename(raw: string, fallback = "youtube-audio"): string {
   const cleaned = raw
     .replace(/\.[a-z0-9]+$/i, "")
-    // eslint-disable-next-line no-control-regex
     .replace(/[<>:"/\\|?*\u0000-\u001f]/g, "")
     .replace(/\s+/g, "_")
     .replace(/_{2,}/g, "_")
@@ -284,7 +283,12 @@ export function YouTubeConverterForm({ defaultFormat = "wav" }: YouTubeConverter
 
   const [elapsedSeconds, setElapsedSeconds] = useElapsedSeconds(isProcessing);
   const [cooldownSeconds, setCooldownSeconds] = useCooldownSeconds();
-  const cooldownCeilingRef = useRef(1);
+  /**
+   * STATE, NOT A REF, because CooldownBar renders it. As a ref it only showed
+   * the right ceiling because the setCooldownSeconds call on the next line
+   * happened to trigger the render that read it.
+   */
+  const [cooldownCeiling, setCooldownCeiling] = useState(1);
 
   const abortRef = useRef<AbortController | null>(null);
   const cancelledRef = useRef(false);
@@ -499,7 +503,7 @@ export function YouTubeConverterForm({ defaultFormat = "wav" }: YouTubeConverter
         // Was 10 seconds against an hour-long window: the button re-enabled
         // almost immediately, straight into another 429.
         const seconds = err.retryAfterSeconds ?? getRetryAfterFallback("download");
-        cooldownCeilingRef.current = Math.max(1, seconds);
+        setCooldownCeiling(Math.max(1, seconds));
         setCooldownSeconds(seconds);
       }
     } finally {
@@ -652,7 +656,7 @@ export function YouTubeConverterForm({ defaultFormat = "wav" }: YouTubeConverter
         )}
       </div>
 
-      <CooldownBar seconds={cooldownSeconds} ceiling={cooldownCeilingRef.current} />
+      <CooldownBar seconds={cooldownSeconds} ceiling={cooldownCeiling} />
     </div>
   );
 

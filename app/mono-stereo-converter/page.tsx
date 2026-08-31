@@ -1,9 +1,17 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Fragment } from "react";
 import { ChannelsForm } from "@/components/converter/ChannelsForm";
 import { FAQSection } from "@/components/faq/FAQSection";
+import { ToolPageShell } from "@/components/layout/ToolPageShell";
+import { Breadcrumb } from "@/components/layout/Breadcrumb";
+import { ToolSection } from "@/components/ui/ToolSection";
+import { FeatureStrip } from "@/components/ui/FeatureStrip";
+import { Prose } from "@/components/ui/Prose";
+import { RelatedToolsGrid } from "@/components/tools/RelatedToolsGrid";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
+import { ogForTool } from "@/lib/og";
 import {
   getLimits,
   durationCapFor,
@@ -11,27 +19,11 @@ import {
   retentionSentences,
 } from "@/lib/api/limits";
 
-/**
- * ── THIS PASS ──────────────────────────────────────────────────────────
- *
- * FACTUALLY CLEAN, and clean on escaping too — the fourth page out of
- * twenty-one with nothing wrong in it. 80MB is right, both conversion
- * directions are described accurately, and the page is unusually careful about
- * the thing most competitors get wrong (mono-to-stereo doesn't create width).
- *
- * Standard treatment only:
- *
- * 1. THE LENGTH LIMIT IS NOW STATED (one hour, the audio_tools default). The
- *    page named "80MB per upload" twice and the length not at all.
- *
- * 2. Retention answer added; formats read from allowed_audio_formats rather
- *    than the hand-written SUPPORTED_FORMATS array; prefetch disabled on the
- *    tool grid; feature strip matched to the other pages.
- */
-
 const PAGE_TITLE = "Free Audio to Stereo & Mono Converter";
 const PAGE_DESCRIPTION =
   "Convert audio to stereo or mono, free. Downmix stereo to mono, or duplicate mono to stereo. No sign-up, no watermark.";
+
+const OG_IMAGE = ogForTool("mono-stereo-converter", "Free mono & stereo converter");
 
 export const metadata: Metadata = {
   title: PAGE_TITLE,
@@ -43,19 +35,19 @@ export const metadata: Metadata = {
     url: `${SITE_URL}/mono-stereo-converter`,
     siteName: SITE_NAME,
     type: "website",
-    images: [{ url: "/images/og-default.png", width: 1200, height: 630, alt: "AudioForges" }],
+    images: [OG_IMAGE],
   },
   twitter: {
     card: "summary_large_image",
     title: PAGE_TITLE,
     description: PAGE_DESCRIPTION,
-    images: ["/images/og-default.png"],
+    images: [OG_IMAGE.url],
   },
 };
 
-// WebApplication schema — every claim below is checked against the actual
-// ChannelsForm/backend behavior. No accuracy, performance, or file-size
-// reduction claims, since encoding settings and format affect size.
+// Every claim below is checked against actual ChannelsForm/backend behaviour.
+// No accuracy, performance or file-size-reduction claims — encoding settings
+// and format affect size.
 const webAppJsonLd = {
   "@context": "https://schema.org",
   "@type": "WebApplication",
@@ -72,17 +64,35 @@ const webAppJsonLd = {
   ],
 };
 
-const breadcrumbJsonLd = {
-  "@context": "https://schema.org",
-  "@type": "BreadcrumbList",
-  itemListElement: [
-    { "@type": "ListItem", position: 1, name: "Home", item: SITE_URL },
-    { "@type": "ListItem", position: 2, name: "Mono/Stereo Converter", item: `${SITE_URL}/mono-stereo-converter` },
-  ],
-};
-// NOTE: No HowTo schema — deprecated by Google (desktop since Sept 2023),
-// no ranking or rich-result benefit remains.
-// FAQPage schema is emitted by <FAQSection /> — do not duplicate it here.
+// Don't add HowTo schema — deprecated by Google, no benefit. FAQPage comes
+// from <FAQSection />, BreadcrumbList from <Breadcrumb />; don't duplicate.
+
+const USE_CASES = [
+  {
+    name: "Podcasts & voice content",
+    desc: "Converting spoken-word recordings to mono for hosts and pipelines that expect single-channel audio.",
+  },
+  {
+    name: "IVR & telephone systems",
+    desc: "Phone-based audio commonly requires mono input, regardless of how the source was originally recorded.",
+  },
+  {
+    name: "Voice-over work",
+    desc: "Preparing narration for whichever channel format a project or delivery spec requires.",
+  },
+  {
+    name: "Video editing",
+    desc: "Matching a voice track's channel format to the rest of a project's audio before syncing it to picture.",
+  },
+  {
+    name: "Music production",
+    desc: "Checking how a mix collapses to mono to catch phase or balance issues that only show up once stereo separation is removed.",
+  },
+  {
+    name: "Upload compatibility",
+    desc: "Satisfying a platform's channel-count requirement when it rejects or mishandles the format you started with.",
+  },
+];
 
 export default async function ChannelsPage() {
   const relatedTools = getRelatedTools("mono-stereo-converter", 5);
@@ -140,7 +150,6 @@ export default async function ChannelsPage() {
       answer: `${formatList}.`,
     },
     {
-      // Was "80MB per upload" with no length figure. Both from /limits now.
       question: "Is there a size or length limit?",
       answer:
         durationCap === null
@@ -148,7 +157,6 @@ export default async function ChannelsPage() {
           : `${limits.maxUploadMb}MB per upload, and up to ${durationLabel(durationCap)} of audio.`,
     },
     {
-      // ADDED: no retention answer existed.
       question: "Are my uploaded files kept?",
       answer: `${retention.input} ${retention.output} There are no accounts, so nothing is linked to you.`,
     },
@@ -161,26 +169,19 @@ export default async function ChannelsPage() {
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(webAppJsonLd) }} />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
 
-      <main className="mx-auto max-w-3xl px-4 py-12 sm:py-16 space-y-12">
-        <header className="text-center space-y-4">
-          <h1 className="text-4xl font-bold tracking-tight sm:text-5xl text-text-primary">
-            Free Audio to Stereo &amp; Mono Converter
-          </h1>
-          <p className="text-lg text-text-muted max-w-xl mx-auto">
-            Convert audio to stereo or mono, free. No sign-up, no watermark.
-            Downmix stereo to mono, or duplicate mono to stereo, in seconds.
-          </p>
-        </header>
-
-        {/* Tool stays first — SEO content supports it, doesn't bury it */}
-        <ChannelsForm />
-
-        {/* One bordered strip with hairline dividers, matching the other tool
-            pages. */}
-        <section className="grid divide-y divide-graphite-800 overflow-hidden rounded-xl border border-graphite-800 bg-graphite-900 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
-          {[
+      <ToolPageShell
+        breadcrumb={
+          <Breadcrumb
+            items={[{ name: "Tools", href: "/tools" }, { name: "Mono/Stereo Converter" }]}
+          />
+        }
+        title="Free Audio to Stereo & Mono Converter"
+        lede="Downmix stereo to mono, or duplicate mono to stereo, in seconds. No sign-up, no watermark."
+        tool={<ChannelsForm />}
+      >
+        <FeatureStrip
+          features={[
             { title: "Both directions", desc: "Mono to stereo, or stereo to mono." },
             { title: "Any format", desc: `${formats.join(", ")}.` },
             {
@@ -190,40 +191,30 @@ export default async function ChannelsPage() {
                   ? `No account, no email, no watermark. Up to ${limits.maxUploadMb}MB per file.`
                   : `No account, no email, no watermark. Up to ${limits.maxUploadMb}MB and ${durationLabel(durationCap)}.`,
             },
-          ].map((f) => (
-            <div key={f.title} className="space-y-1.5 p-5">
-              <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-amber-400">
-                {f.title}
-              </p>
-              <p className="text-sm leading-relaxed text-text-muted">{f.desc}</p>
-            </div>
-          ))}
-        </section>
+          ]}
+        />
 
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">What is mono audio?</h2>
-          <p className="text-text-muted leading-relaxed">
+        <ToolSection id="what-is-mono" title="What is mono audio?">
+          <p>
             Mono (monaural) audio is a single audio channel. The same signal
             plays from every speaker or earbud — there&apos;s no left/right
             distinction, because there&apos;s only one channel to begin with.
           </p>
-        </section>
+        </ToolSection>
 
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">What is stereo audio?</h2>
-          <p className="text-text-muted leading-relaxed">
-            Stereo audio uses two independent channels, left and right, which
-            can carry different content. That difference between the two
-            channels is what creates a sense of width and positioning — an
-            instrument panned left, another panned right, or a wide stereo
-            effect spread across the field.
+        <ToolSection id="what-is-stereo" title="What is stereo audio?">
+          <p>
+            Stereo audio uses two independent channels, left and right, which can
+            carry different content. That difference between the two channels is
+            what creates a sense of width and positioning — an instrument panned
+            left, another panned right, or a wide stereo effect spread across the
+            field.
           </p>
-        </section>
+        </ToolSection>
 
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">Mono vs. stereo: what&apos;s the difference?</h2>
+        <ToolSection id="comparison" title="Mono vs. stereo: what's the difference?" bleed>
           <div className="overflow-x-auto rounded-xl border border-graphite-800">
-            <table className="w-full text-sm text-left text-text-muted">
+            <table className="w-full text-left text-sm text-text-muted">
               <thead className="bg-graphite-900 text-text-primary">
                 <tr>
                   <th className="px-4 py-3 font-semibold">
@@ -240,7 +231,9 @@ export default async function ChannelsPage() {
                   <td className="px-4 py-3">2 (left + right)</td>
                 </tr>
                 <tr>
-                  <td className="px-4 py-3 font-medium text-text-primary">Left/right information</td>
+                  <td className="px-4 py-3 font-medium text-text-primary">
+                    Left/right information
+                  </td>
                   <td className="px-4 py-3">None — same signal everywhere</td>
                   <td className="px-4 py-3">Can differ between channels</td>
                 </tr>
@@ -255,100 +248,95 @@ export default async function ChannelsPage() {
                   <td className="px-4 py-3">Music, sound design, most media</td>
                 </tr>
                 <tr>
-                  <td className="px-4 py-3 font-medium text-text-primary">Reason to convert here</td>
+                  <td className="px-4 py-3 font-medium text-text-primary">
+                    Reason to convert here
+                  </td>
                   <td className="px-4 py-3">A target expects/prefers single-channel audio</td>
                   <td className="px-4 py-3">A target requires two channels present</td>
                 </tr>
               </tbody>
             </table>
           </div>
-        </section>
+        </ToolSection>
 
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">Mono to stereo: what happens?</h2>
-          <p className="text-text-muted leading-relaxed">
-            The single mono channel is duplicated onto both the left and
-            right channels. The result is technically two-channel audio, but
-            it plays back exactly as centered as the mono original — nothing
-            new is separated between the channels, because there was only one
-            signal to begin with.
+        <ToolSection id="mono-to-stereo" title="Mono to stereo: what happens?">
+          <p>
+            The single mono channel is duplicated onto both the left and right
+            channels. The result is technically two-channel audio, but it plays
+            back exactly as centered as the mono original — nothing new is
+            separated between the channels, because there was only one signal to
+            begin with.
           </p>
-        </section>
+        </ToolSection>
 
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">Stereo to mono: what happens?</h2>
-          <p className="text-text-muted leading-relaxed">
+        <ToolSection id="stereo-to-mono" title="Stereo to mono: what happens?">
+          <p>
             The left and right channels are combined into a single centered
             channel. Whatever separation existed between them — instruments
-            panned to one side, a wide stereo effect — collapses into one
-            signal. This is a genuine change to how the audio sounds, not just
-            a format formality.
+            panned to one side, a wide stereo effect — collapses into one signal.
+            This is a genuine change to how the audio sounds, not just a format
+            formality.
           </p>
-        </section>
+        </ToolSection>
 
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">When should you convert stereo to mono?</h2>
-          <p className="text-text-muted leading-relaxed">
-            When a target platform expects single-channel audio — phone
-            systems, IVR prompts, and some podcast hosts commonly do — or when
-            the content itself, like a single spoken voice, was never relying
-            on stereo separation in the first place.
+        <ToolSection id="when-mono" title="When should you convert stereo to mono?">
+          <p>
+            When a target platform expects single-channel audio — phone systems,
+            IVR prompts, and some podcast hosts commonly do — or when the content
+            itself, like a single spoken voice, was never relying on stereo
+            separation in the first place.
           </p>
-        </section>
+        </ToolSection>
 
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">When should you convert mono to stereo?</h2>
-          <p className="text-text-muted leading-relaxed">
+        <ToolSection id="when-stereo" title="When should you convert mono to stereo?">
+          <p>
             When an upload target rejects or mishandles mono files and simply
-            requires two channels to be present, regardless of whether they
-            carry different content. This satisfies that requirement without
-            changing how the audio actually sounds.
+            requires two channels to be present, regardless of whether they carry
+            different content. This satisfies that requirement without changing
+            how the audio actually sounds.
           </p>
-        </section>
+        </ToolSection>
 
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">Does mono to stereo create real stereo?</h2>
-          <p className="text-text-muted leading-relaxed">
-            No. Real stereo width comes from having two channels that
-            genuinely carry different content — different mic positions,
-            panned instruments, a stereo effect. Duplicating a mono signal
-            across two channels satisfies a channel-count requirement, but it
-            doesn&apos;t create anything to separate, so no width is added.
+        <ToolSection id="real-stereo" title="Does mono to stereo create real stereo?">
+          <p>
+            No. Real stereo width comes from having two channels that genuinely
+            carry different content — different mic positions, panned
+            instruments, a stereo effect. Duplicating a mono signal across two
+            channels satisfies a channel-count requirement, but it doesn&apos;t
+            create anything to separate, so no width is added.
           </p>
-          <p className="text-text-muted leading-relaxed">
-            Want the fuller breakdown of why this distinction matters and
-            what each direction is actually doing under the hood?{" "}
-            <Link href="/guides/mono-vs-stereo-what-changes" className="text-amber-400 hover:underline">
+          <p>
+            Want the fuller breakdown of why this distinction matters and what
+            each direction is actually doing under the hood?{" "}
+            <Link href="/guides/mono-vs-stereo-what-changes">
               Read Mono vs. Stereo: What Actually Changes When You Convert
-            </Link>.
+            </Link>
+            .
           </p>
-        </section>
+        </ToolSection>
 
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">Does converting stereo to mono affect audio quality?</h2>
-          <p className="text-text-muted leading-relaxed">
-            Converting stereo to mono changes the channel configuration and
-            can remove left/right separation that was present in the
-            original. The result isn&apos;t necessarily lower-quality audio,
-            but it can sound different, because stereo information is being
-            combined into one channel. Whether that matters depends on the
-            source: a mono voice recording loses nothing meaningful, while a
-            stereo music mix with real left/right content will sound
-            different once collapsed to one channel.
+        <ToolSection id="quality" title="Does converting stereo to mono affect audio quality?">
+          <p>
+            Converting stereo to mono changes the channel configuration and can
+            remove left/right separation that was present in the original. The
+            result isn&apos;t necessarily lower-quality audio, but it can sound
+            different, because stereo information is being combined into one
+            channel. Whether that matters depends on the source: a mono voice
+            recording loses nothing meaningful, while a stereo music mix with
+            real left/right content will sound different once collapsed to one
+            channel.
           </p>
-        </section>
+        </ToolSection>
 
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">How to convert between mono and stereo</h2>
-          <ol className="list-decimal list-inside space-y-2 text-text-muted leading-relaxed">
+        <ToolSection id="how-to" title="How to convert between mono and stereo">
+          <ol>
             <li>Upload an {formatList} file.</li>
             <li>Choose mono or stereo as the target.</li>
             <li>Download the converted file.</li>
           </ol>
-        </section>
+        </ToolSection>
 
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">Supported formats</h2>
+        <ToolSection id="formats" title="Supported formats" bleed>
           {/* Rendered from the backend's allowed_audio_formats rather than a
               hand-written array — the mechanism that left AIFF off /stems and
               /key-finder. */}
@@ -362,69 +350,32 @@ export default async function ChannelsPage() {
               </span>
             ))}
           </div>
-          <p className="text-text-muted leading-relaxed">
-            Upload any of the formats above, up to {limits.maxUploadMb}MB per file
-            {durationCap !== null ? ` and ${durationLabel(durationCap)} long` : ""}.
-          </p>
-        </section>
+          <Prose className="mt-5">
+            <p>
+              Upload any of the formats above, up to {limits.maxUploadMb}MB per
+              file
+              {durationCap !== null ? ` and ${durationLabel(durationCap)} long` : ""}.
+            </p>
+          </Prose>
+        </ToolSection>
 
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">Common uses</h2>
-          <div className="space-y-3 text-text-muted leading-relaxed">
-            <p>
-              <strong className="text-text-primary">Podcasts &amp; voice content:</strong>{" "}
-              converting spoken-word recordings to mono for hosts and
-              pipelines that expect single-channel audio.
-            </p>
-            <p>
-              <strong className="text-text-primary">IVR &amp; telephone systems:</strong>{" "}
-              phone-based audio commonly requires mono input, regardless of
-              how the source was originally recorded.
-            </p>
-            <p>
-              <strong className="text-text-primary">Voice-over work:</strong>{" "}
-              preparing narration for whichever channel format a project
-              or delivery spec requires.
-            </p>
-            <p>
-              <strong className="text-text-primary">Video editing:</strong>{" "}
-              matching a voice track&apos;s channel format to the rest of a
-              project&apos;s audio before syncing it to picture.
-            </p>
-            <p>
-              <strong className="text-text-primary">Music production:</strong>{" "}
-              checking how a mix collapses to mono to catch phase or balance
-              issues that only show up once stereo separation is removed.
-            </p>
-            <p>
-              <strong className="text-text-primary">Upload compatibility:</strong>{" "}
-              satisfying a platform&apos;s channel-count requirement when it
-              rejects or mishandles the format you started with.
-            </p>
-          </div>
-        </section>
+        {/* Was six paragraphs each opening with a bolded category — term and
+            definition pairs. */}
+        <ToolSection id="common-uses" title="Common uses">
+          <dl>
+            {USE_CASES.map((u) => (
+              <Fragment key={u.name}>
+                <dt>{u.name}</dt>
+                <dd>{u.desc}</dd>
+              </Fragment>
+            ))}
+          </dl>
+        </ToolSection>
 
-        {relatedTools.length > 0 && (
-          <section className="space-y-4">
-            <h2 className="text-2xl font-bold text-text-primary">More free tools</h2>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {relatedTools.map((tool) => (
-                <Link
-                  key={tool.slug}
-                  href={`/${tool.slug}`}
-                  prefetch={false}
-                  className="rounded-xl border border-graphite-800 bg-graphite-900 p-4 hover:border-amber-500/40 transition-colors"
-                >
-                  <h3 className="font-semibold text-text-primary">{tool.name}</h3>
-                  <p className="text-sm text-text-muted mt-1">{tool.shortDescription}</p>
-                </Link>
-              ))}
-            </div>
-          </section>
-        )}
+        <RelatedToolsGrid tools={relatedTools} />
 
         <FAQSection faqs={faqs} />
-      </main>
+      </ToolPageShell>
     </>
   );
 }

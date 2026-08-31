@@ -162,10 +162,15 @@ export function TunerForm() {
     setState("idle");
   }, []);
 
-  useEffect(() => {
-    return () => stop();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  /**
+   * The rAF loop reschedules itself, which it can't do by naming itself: a
+   * value referenced inside its own initializer is something the React
+   * Compiler can't reason about, and it responded by skipping optimisation of
+   * this entire component. One indirection through a ref — declared BEFORE the
+   * callback, assigned in an effect rather than during render — removes the
+   * self-reference without changing the detection rate.
+   */
+  const detectLoopRef = useRef<() => void>(() => {});
 
   const detectLoop = useCallback(() => {
     const analyser = analyserRef.current;
@@ -179,8 +184,17 @@ export function TunerForm() {
     latestPitchRef.current =
       frequency > 0 ? { frequency, ...frequencyToPitch(frequency, referencePitchRef.current) } : null;
 
-    rafRef.current = requestAnimationFrame(detectLoop);
+    rafRef.current = requestAnimationFrame(() => detectLoopRef.current());
   }, []);
+
+  useEffect(() => {
+    detectLoopRef.current = detectLoop;
+  }, [detectLoop]);
+
+  // Declared after `stop` so it isn't reaching a value from further up with a
+  // suppressed dependency. `stop` is useCallback([]) and therefore stable, so
+  // this still runs its cleanup only on unmount.
+  useEffect(() => () => stop(), [stop]);
 
   // Render tick: pulls the latest detection, smooths the needle position
   // (raw per-frame cents are jittery even when the actual note is

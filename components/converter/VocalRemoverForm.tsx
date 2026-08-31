@@ -233,7 +233,12 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
 
   const [elapsedSeconds, setElapsedSeconds] = useElapsedSeconds(isBusy);
   const [cooldownSeconds, setCooldownSeconds] = useCooldownSeconds();
-  const cooldownCeilingRef = useRef(1);
+  /**
+   * STATE, NOT A REF, because CooldownBar renders it. As a ref it only showed
+   * the right ceiling because the setCooldownSeconds call on the next line
+   * happened to trigger the render that read it.
+   */
+  const [cooldownCeiling, setCooldownCeiling] = useState(1);
 
   // The entire per-form cost of the paywall — the same lines go in each of the
   // other three metered forms.
@@ -334,6 +339,15 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
     setNotifyEnabled((v) => !v);
   };
 
+  /**
+   * The poll loop reschedules itself, which it can't do by naming itself: a
+   * value referenced inside its own initializer is something the React
+   * Compiler can't reason about. One indirection through a ref — declared
+   * BEFORE the callback, assigned in an effect rather than during render —
+   * removes the self-reference without changing the polling behaviour.
+   */
+  const pollFnRef = useRef<(id: string, forQuality: SeparationQuality) => void>(() => {});
+
   const poll = useCallback(
     (id: string, forQuality: SeparationQuality) => {
       if (cancelledRef.current) return;
@@ -376,7 +390,7 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
             notifyOnDone("Separation failed", humanized.title);
             return;
           }
-          pollRef.current = setTimeout(() => poll(id, forQuality), intervalMs);
+          pollRef.current = setTimeout(() => pollFnRef.current(id, forQuality), intervalMs);
         })
         .catch((err) => {
           if (cancelledRef.current) return;
@@ -393,11 +407,15 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
             notifyOnDone("Separation failed", terminal.title);
             return;
           }
-          pollRef.current = setTimeout(() => poll(id, forQuality), intervalMs);
+          pollRef.current = setTimeout(() => pollFnRef.current(id, forQuality), intervalMs);
         });
     },
     [stopPolling, notifyOnDone]
   );
+
+  useEffect(() => {
+    pollFnRef.current = poll;
+  }, [poll]);
 
   const startPolling = useCallback(
     (id: string, forQuality: SeparationQuality) => {
@@ -482,7 +500,7 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
         });
         const seconds =
           err.retryAfterSeconds ?? getRetryAfterFallback(SPEC_FOR[effectiveQuality].rateLimitKey);
-        cooldownCeilingRef.current = Math.max(1, seconds);
+        setCooldownCeiling(Math.max(1, seconds));
         setCooldownSeconds(seconds);
       } else {
         setError(humanizeError(err instanceof ApiError ? err.message : "Something went wrong."));
@@ -608,7 +626,7 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
                 ? "Remove vocals (Studio Quality)"
                 : "Remove vocals"}
       </Button>
-      <CooldownBar seconds={cooldownSeconds} ceiling={cooldownCeilingRef.current} />
+      <CooldownBar seconds={cooldownSeconds} ceiling={cooldownCeiling} />
     </div>
   ) : null;
 

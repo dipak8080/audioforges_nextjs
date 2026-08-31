@@ -8,7 +8,7 @@ import { ToolSection } from "@/components/ui/ToolSection";
 import { FeatureStrip } from "@/components/ui/FeatureStrip";
 import { RelatedToolsGrid } from "@/components/tools/RelatedToolsGrid";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
-import { ogImage } from "@/lib/og";
+import { ogForTool } from "@/lib/og";
 import { getRelatedTools } from "@/lib/data/tools";
 import {
   getLimits,
@@ -25,7 +25,7 @@ const PAGE_TITLE = "Free Audio Reverser — Play a Track Backwards";
 const PAGE_DESCRIPTION =
   "Reverse MP3, WAV, FLAC, AAC, M4A, OGG, and AIFF files online for free. Create backwards audio instantly with no sign-up, no watermark, and no software required.";
 
-const OG_IMAGE = ogImage("Free Audio Reverser", "Flip any track backwards, sample for sample.");
+const OG_IMAGE = ogForTool("reverse", "Free Audio Reverser");
 
 export const metadata: Metadata = {
   title: PAGE_TITLE,

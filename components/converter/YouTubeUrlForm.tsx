@@ -150,7 +150,12 @@ export function YouTubeUrlForm({
   const isBusy = status === "uploading" || status === "processing";
   const [elapsedSeconds, setElapsedSeconds] = useElapsedSeconds(isBusy);
   const [cooldownSeconds, setCooldownSeconds] = useCooldownSeconds();
-  const cooldownCeilingRef = useRef(getRetryAfterFallback(endpoint));
+  /**
+   * STATE, NOT A REF, because CooldownBar renders it. As a ref it only showed
+   * the right ceiling because the setCooldownSeconds call on the next line
+   * happened to trigger the render that read it.
+   */
+  const [cooldownCeiling, setCooldownCeiling] = useState(getRetryAfterFallback(endpoint));
 
   const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pollStartedAtRef = useRef(0);
@@ -231,6 +236,15 @@ export function YouTubeUrlForm({
     };
   }, [url]);
 
+  /**
+   * The poll loop reschedules itself, which it can't do by naming itself: a
+   * value referenced inside its own initializer is something the React
+   * Compiler can't reason about. One indirection through a ref — declared
+   * BEFORE the callback, assigned in an effect rather than during render —
+   * removes the self-reference without changing the polling behaviour.
+   */
+  const pollFnRef = useRef<(id: string, timing: PollTiming) => void>(() => {});
+
   const poll = useCallback(
     async (id: string, timing: PollTiming) => {
       if (cancelledRef.current) return;
@@ -278,10 +292,14 @@ export function YouTubeUrlForm({
         }
       }
 
-      pollRef.current = setTimeout(() => poll(id, timing), timing.intervalMs);
+      pollRef.current = setTimeout(() => pollFnRef.current(id, timing), timing.intervalMs);
     },
     [endpoint, stopPolling]
   );
+
+  useEffect(() => {
+    pollFnRef.current = poll;
+  }, [poll]);
 
   const startPolling = useCallback(
     (id: string, timing: PollTiming) => {
@@ -416,7 +434,7 @@ export function YouTubeUrlForm({
             offerCredits: freeTierOnMetered,
           });
           const wait = err.retryAfterSeconds ?? getRetryAfterFallback(endpoint);
-          cooldownCeilingRef.current = Math.max(1, wait);
+          setCooldownCeiling(Math.max(1, wait));
           setCooldownSeconds(wait);
         } else {
           setError(humanizeError(err instanceof ApiError ? err.message : "Something went wrong."));
@@ -480,7 +498,7 @@ export function YouTubeUrlForm({
                       ? "Try again"
                       : submitLabel}
               </Button>
-              <CooldownBar seconds={cooldownSeconds} ceiling={cooldownCeilingRef.current} />
+              <CooldownBar seconds={cooldownSeconds} ceiling={cooldownCeiling} />
             </>
           ) : undefined
         }
@@ -514,17 +532,36 @@ export function YouTubeUrlForm({
                   maxLength={500}
                   aria-invalid={Boolean(validationError)}
                   aria-describedby={validationError ? errorId : hintId}
-                  className="w-full rounded-xl border bg-graphite-850 py-3.5 pl-11 pr-24"
+                  className={cn(
+                    "w-full rounded-xl border bg-graphite-850 py-3.5 pl-11 pr-24 text-text-primary",
+                    "placeholder:text-text-subtle transition-colors",
+                    "focus:outline-none focus:ring-2 disabled:opacity-50",
+                    validationError
+                      ? "border-red-500/60 focus:ring-red-500/25"
+                      : videoId
+                        ? "border-amber-500/40 focus:ring-amber-500/20"
+                        : "border-graphite-700 focus:border-amber-500/50 focus:ring-amber-500/20"
+                  )}
                 />
 
                 <div className="absolute right-2.5 flex items-center gap-1">
                   {url && !isBusy && (
-                    <button type="button" onClick={handleReset} aria-label="Clear link" className="rounded-md p-1.5">
+                    <button
+                      type="button"
+                      onClick={handleReset}
+                      aria-label="Clear link"
+                      className="rounded-md p-1.5 text-text-subtle outline-none transition-colors hover:bg-graphite-800 hover:text-text-primary focus-visible:ring-2 focus-visible:ring-amber-500/40"
+                    >
                       <X className="h-4 w-4" />
                     </button>
                   )}
                   {!url && (
-                    <button type="button" onClick={handlePaste} disabled={isBusy} className="rounded-md px-2.5 py-1.5">
+                    <button
+                      type="button"
+                      onClick={handlePaste}
+                      disabled={isBusy}
+                      className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-text-muted outline-none transition-colors hover:bg-graphite-800 hover:text-text-primary focus-visible:ring-2 focus-visible:ring-amber-500/40 disabled:pointer-events-none disabled:opacity-60"
+                    >
                       <ClipboardPaste className="h-3.5 w-3.5" aria-hidden />
                       Paste
                     </button>

@@ -2,8 +2,15 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { VoiceCleanForm } from "@/components/converter/VoiceCleanForm";
 import { FAQSection } from "@/components/faq/FAQSection";
+import { ToolPageShell } from "@/components/layout/ToolPageShell";
+import { Breadcrumb } from "@/components/layout/Breadcrumb";
+import { ToolSection } from "@/components/ui/ToolSection";
+import { FeatureStrip } from "@/components/ui/FeatureStrip";
+import { Prose } from "@/components/ui/Prose";
+import { RelatedToolsGrid } from "@/components/tools/RelatedToolsGrid";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
+import { ogForTool } from "@/lib/og";
 import {
   getLimits,
   durationCapFor,
@@ -11,41 +18,15 @@ import {
   retentionSentences,
 } from "@/lib/api/limits";
 
-/**
- * ── THIS PASS ──────────────────────────────────────────────────────────
- *
- * THE LENGTH LIMIT WAS UNDERSTATED BY FORTY MINUTES — the third live instance
- * of the same sentence, alongside /echo-remove and /noise-remove:
- *
- *   "MP3, WAV, FLAC, M4A, AAC, OGG, and AIFF, up to 80MB and 20 minutes long."
- *
- * It matters most here. This page's whole audience is podcasts, interviews and
- * lecture recordings — the files most likely to run past twenty minutes — so
- * it's the page where the understatement turned away the most people. Real cap
- * is one hour; both figures now come from /limits.
- *
- * Also: HowTo schema and `keywords` removed, retention answer added, formats
- * read from allowed_audio_formats, prefetch disabled on the tool grid.
- */
-
 const PAGE_TITLE = "Free Voice Cleaner — Clean Up Podcasts & Voice Memos";
 const PAGE_DESCRIPTION =
   "Clean voice recordings online free. Remove background noise, hiss, hum, and low-frequency rumble from podcasts, interviews, and voice memos. No sign-up.";
 
+const OG_IMAGE = ogForTool("voice-clean", "Free Voice Cleaner");
+
 export const metadata: Metadata = {
   title: PAGE_TITLE,
   description: PAGE_DESCRIPTION,
-  /*
-    `keywords` removed — ignored by Google since 2009. Target terms kept for
-    reference:
-      voice cleaner / clean voice recording / clean podcast audio
-      remove background noise from voice / voice memo cleanup
-      podcast audio cleanup free / speech enhancement online / voice enhancer
-      podcast audio cleaner / voice recording cleaner / improve voice recording
-      speech cleaner / voice recording noise removal
-      remove hiss from voice recording / remove hum from voice recording
-      speech noise reduction
-  */
   alternates: { canonical: `${SITE_URL}/voice-clean` },
   openGraph: {
     title: PAGE_TITLE,
@@ -53,20 +34,13 @@ export const metadata: Metadata = {
     url: `${SITE_URL}/voice-clean`,
     siteName: SITE_NAME,
     type: "website",
-    images: [
-      {
-        url: "/images/og-default.png",
-        width: 1200,
-        height: 630,
-        alt: "AudioForges",
-      },
-    ],
+    images: [OG_IMAGE],
   },
   twitter: {
     card: "summary_large_image",
     title: PAGE_TITLE,
     description: PAGE_DESCRIPTION,
-    images: ["/images/og-default.png"],
+    images: [OG_IMAGE.url],
   },
 };
 
@@ -87,18 +61,15 @@ const webAppJsonLd = {
   ],
 };
 
-const breadcrumbJsonLd = {
-  "@context": "https://schema.org",
-  "@type": "BreadcrumbList",
-  itemListElement: [
-    { "@type": "ListItem", position: 1, name: "Home", item: SITE_URL },
-    { "@type": "ListItem", position: 2, name: "Voice Cleaner", item: `${SITE_URL}/voice-clean` },
-  ],
-};
-// NOTE: No HowTo schema — deprecated by Google (desktop since Sept 2023), no
-// ranking or rich-result benefit remains. Visible how-to steps stay.
-// FAQPage schema is emitted by <FAQSection /> — do not duplicate it here.
+// Don't add HowTo schema — deprecated by Google, no benefit. FAQPage comes
+// from <FAQSection />, BreadcrumbList from <Breadcrumb />; don't duplicate.
 
+/**
+ * Every figure comes from /limits. The hand-written sentence here said "up to
+ * 80MB and 20 minutes" — the real cap is an hour, and this is the page where
+ * the understatement cost most: the audience is podcasts, interviews and
+ * lectures, which is exactly the material that runs past twenty minutes.
+ */
 export default async function VoiceCleanPage() {
   const relatedTools = getRelatedTools("voice-clean", 5);
 
@@ -109,8 +80,8 @@ export default async function VoiceCleanPage() {
   const formats = limits.allowedAudioFormats.map((f) => f.toUpperCase());
   const formatList = formats.join(", ").replace(/, ([^,]*)$/, ", or $1");
 
-  // Includes "Will it reduce audio quality?", which used to exist in the
-  // schema but was missing from the visible accordion — a real schema/content
+  // Includes "Will it reduce audio quality?", which used to exist in the schema
+  // but was missing from the visible accordion — a real schema/content
   // mismatch. Both are fed from this one array now.
   const faqs = [
     {
@@ -129,8 +100,8 @@ export default async function VoiceCleanPage() {
         "No — echo and reverb are a different problem from noise, and this chain doesn't address them. Use the Echo Remover for mild room echo or slap-back.",
       answerNode: (
         <>
-          No — echo and reverb are a different problem from noise, and this
-          chain doesn&apos;t address them. Use the{" "}
+          No — echo and reverb are a different problem from noise, and this chain
+          doesn&apos;t address them. Use the{" "}
           <Link href="/echo-remove" className="text-amber-400 hover:underline">
             Echo Remover
           </Link>{" "}
@@ -148,12 +119,6 @@ export default async function VoiceCleanPage() {
       answer: "Yes — completely free, no sign-up, no watermark on the output.",
     },
     {
-      /*
-        CORRECTED. Said "up to 80MB and 20 minutes long". The real cap is one
-        hour, and this is the page where the understatement cost most: the
-        audience is podcasts, interviews and lectures, which is exactly the
-        material that runs past twenty minutes.
-      */
       question: "What formats are supported, and is there a size limit?",
       answer:
         durationCap === null
@@ -161,7 +126,6 @@ export default async function VoiceCleanPage() {
           : `${formatList}, up to ${limits.maxUploadMb}MB and ${durationLabel(durationCap)} long — enough for a full podcast episode or lecture recording in one pass.`,
     },
     {
-      // ADDED: no retention answer existed.
       question: "Are my uploaded files kept?",
       answer: `${retention.input} ${retention.output} There are no accounts, so nothing is linked to you.`,
     },
@@ -194,26 +158,19 @@ export default async function VoiceCleanPage() {
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(webAppJsonLd) }} />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
 
-      <main className="mx-auto max-w-3xl px-4 py-12 sm:py-16 space-y-12">
-        <header className="text-center space-y-4">
-          <h1 className="text-4xl font-bold tracking-tight sm:text-5xl text-text-primary">
-            Free Voice Cleaner
-          </h1>
-          <p className="text-lg text-text-muted max-w-xl mx-auto">
-            One click to clean up a podcast, interview, or voice memo: rumble cut,
-            speech-tuned denoise, and loudness normalization, all in one pass.
-          </p>
-        </header>
-
-        <VoiceCleanForm />
-
-        {/* One bordered strip with hairline dividers, matching the other tool
-            pages. The limits sit here because this page's audience — podcasts
+      <ToolPageShell
+        breadcrumb={
+          <Breadcrumb items={[{ name: "Tools", href: "/tools" }, { name: "Voice Cleaner" }]} />
+        }
+        title="Free Voice Cleaner"
+        lede="One click to clean up a podcast, interview, or voice memo: rumble cut, speech-tuned denoise, and loudness normalization in one pass."
+        tool={<VoiceCleanForm />}
+      >
+        {/* The limits sit in the strip because this page's audience — podcasts
             and lectures — is the one most likely to be near them. */}
-        <section className="grid divide-y divide-graphite-800 overflow-hidden rounded-xl border border-graphite-800 bg-graphite-900 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
-          {[
+        <FeatureStrip
+          features={[
             { title: "One click", desc: "No settings to tune — just upload and clean." },
             { title: "Speech-tuned", desc: "Built specifically for voice, not music." },
             {
@@ -223,89 +180,69 @@ export default async function VoiceCleanPage() {
                   ? `No account, no email, no watermark. Up to ${limits.maxUploadMb}MB per file.`
                   : `No account, no email, no watermark. Up to ${limits.maxUploadMb}MB and ${durationLabel(durationCap)}.`,
             },
-          ].map((f) => (
-            <div key={f.title} className="space-y-1.5 p-5">
-              <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-amber-400">
-                {f.title}
-              </p>
-              <p className="text-sm leading-relaxed text-text-muted">{f.desc}</p>
-            </div>
-          ))}
-        </section>
+          ]}
+        />
 
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">Why clean up a voice recording?</h2>
-          <p className="text-text-muted leading-relaxed">
-            A clean voice recording is easier to understand and sounds
-            noticeably more professional than one buried under hiss, hum, or
-            rumble — the difference shows up immediately to a listener, even
-            if they couldn&apos;t name what was wrong with the noisy version.
-            Cleaning up background noise and evening out loudness helps
-            podcasts, interviews, meeting recordings, narration, and voice
-            memos all sound like they came from the same consistent setup,
-            without touching how the speaker actually sounds.
+        <ToolSection id="why" title="Why clean up a voice recording?">
+          <p>
+            A clean voice recording is easier to understand and sounds noticeably
+            more professional than one buried under hiss, hum, or rumble — the
+            difference shows up immediately to a listener, even if they
+            couldn&apos;t name what was wrong with the noisy version. Cleaning up
+            background noise and evening out loudness helps podcasts, interviews,
+            meeting recordings, narration, and voice memos all sound like they came
+            from the same consistent setup, without touching how the speaker
+            actually sounds.
           </p>
-        </section>
+        </ToolSection>
 
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">How to clean up a voice recording</h2>
-          <ol className="list-decimal list-inside space-y-2 text-text-muted leading-relaxed">
+        <ToolSection id="how-to" title="How to clean up a voice recording">
+          <ol>
             <li>Upload an {formatList} speech recording.</li>
             <li>The chain runs automatically — rumble cut, denoise, then normalize.</li>
             <li>Download the cleaned result.</li>
           </ol>
-        </section>
+        </ToolSection>
 
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">What it fixes</h2>
-          <div className="space-y-3 text-text-muted leading-relaxed">
-            <p>
-              Most rough voice recordings share the same problems: low-frequency
-              rumble from handling noise or AC hum, a hiss or hum sitting under the
-              voice, and inconsistent loudness between takes. This tool runs a fixed
-              chain built to fix exactly those issues — cut the rumble, denoise the
-              rest, then normalize levels — with nothing to configure. Steady
-              background sources like a computer fan, an air conditioner, or a
-              microphone&apos;s own self-noise generally fall into that same
-              hiss/hum/rumble category the chain is built to handle.
-            </p>
-            <p>
-              <strong className="text-text-primary">Best for:</strong> podcasts, phone
-              recordings, interviews, Zoom recordings, voice memos, narration,
-              audiobooks, online courses, dictation, lectures, and any other
-              speech-only audio. For music or general noise reduction with adjustable
-              strength, use the{" "}
-              <Link href="/noise-remove" className="text-amber-400 hover:underline">
-                Noise Remover
-              </Link>{" "}
-              instead.
-            </p>
-          </div>
-        </section>
+        <ToolSection id="what-it-fixes" title="What it fixes">
+          <p>
+            Most rough voice recordings share the same problems: low-frequency
+            rumble from handling noise or AC hum, a hiss or hum sitting under the
+            voice, and inconsistent loudness between takes. This tool runs a fixed
+            chain built to fix exactly those issues — cut the rumble, denoise the
+            rest, then normalize levels — with nothing to configure. Steady
+            background sources like a computer fan, an air conditioner, or a
+            microphone&apos;s own self-noise generally fall into that same
+            hiss/hum/rumble category the chain is built to handle.
+          </p>
+          <p>
+            <strong>Best for:</strong> podcasts, phone recordings, interviews, Zoom
+            recordings, voice memos, narration, audiobooks, online courses,
+            dictation, lectures, and any other speech-only audio. For music or
+            general noise reduction with adjustable strength, use the{" "}
+            <Link href="/noise-remove">Noise Remover</Link> instead.
+          </p>
+        </ToolSection>
 
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">What this doesn&apos;t fix</h2>
-          <p className="text-text-muted leading-relaxed">
+        <ToolSection id="what-it-doesnt-fix" title="What this doesn't fix">
+          <p>
             This chain targets rumble, hiss/hum, and loudness — it doesn&apos;t
             address echo or reverb, since that&apos;s a different kind of problem
             entirely (repeated or trailing reflections, rather than steady
             background noise). It also can&apos;t recover audio that&apos;s
-            severely clipped or distorted at the source, separate two people talking
-            over each other, or remove background music sitting under a voice —
-            cleanup can improve a noisy recording, but it can&apos;t reconstruct
-            data that was never captured or isolate speech from another full audio
-            source layered underneath it. If echo is the issue, the{" "}
-            <Link href="/echo-remove" className="text-amber-400 hover:underline">
-              Echo Remover
-            </Link>{" "}
-            handles mild room echo and slap-back separately.
+            severely clipped or distorted at the source, separate two people
+            talking over each other, or remove background music sitting under a
+            voice — cleanup can improve a noisy recording, but it can&apos;t
+            reconstruct data that was never captured or isolate speech from another
+            full audio source layered underneath it. If echo is the issue, the{" "}
+            <Link href="/echo-remove">Echo Remover</Link> handles mild room echo
+            and slap-back separately.
           </p>
-        </section>
+        </ToolSection>
 
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">Voice Cleaner vs. Noise Remover</h2>
+        <ToolSection id="vs-noise-remover" title="Voice Cleaner vs. Noise Remover" bleed>
           <div className="overflow-x-auto rounded-xl border border-graphite-800">
-            <table className="w-full text-sm text-left text-text-muted">
+            <table className="w-full text-left text-sm text-text-muted">
               <thead className="bg-graphite-900 text-text-primary">
                 <tr>
                   <th className="px-4 py-3 font-semibold">
@@ -339,36 +276,22 @@ export default async function VoiceCleanPage() {
               </tbody>
             </table>
           </div>
-          <p className="text-text-muted leading-relaxed">
-            Want the full breakdown of why cleanup order matters and what each stage
-            actually does?{" "}
-            <Link href="/guides/podcast-audio-cleanup-checklist" className="text-amber-400 hover:underline">
-              Read Podcast Audio Cleanup: A Practical Checklist
-            </Link>.
-          </p>
-        </section>
+          <Prose className="mt-5">
+            <p>
+              Want the full breakdown of why cleanup order matters and what each
+              stage actually does?{" "}
+              <Link href="/guides/podcast-audio-cleanup-checklist">
+                Read Podcast Audio Cleanup: A Practical Checklist
+              </Link>
+              .
+            </p>
+          </Prose>
+        </ToolSection>
 
-        {relatedTools.length > 0 && (
-          <section className="space-y-4">
-            <h2 className="text-2xl font-bold text-text-primary">More free tools</h2>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {relatedTools.map((tool) => (
-                <Link
-                  key={tool.slug}
-                  href={`/${tool.slug}`}
-                  prefetch={false}
-                  className="rounded-xl border border-graphite-800 bg-graphite-900 p-4 hover:border-amber-500/40 transition-colors"
-                >
-                  <h3 className="font-semibold text-text-primary">{tool.name}</h3>
-                  <p className="text-sm text-text-muted mt-1">{tool.shortDescription}</p>
-                </Link>
-              ))}
-            </div>
-          </section>
-        )}
+        <RelatedToolsGrid tools={relatedTools} />
 
         <FAQSection faqs={faqs} />
-      </main>
+      </ToolPageShell>
     </>
   );
 }

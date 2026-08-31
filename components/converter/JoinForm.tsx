@@ -338,7 +338,12 @@ export function JoinForm() {
   const isBusy = status === "uploading" || status === "processing";
   const [elapsedSeconds, setElapsedSeconds] = useElapsedSeconds(isBusy);
   const [cooldownSeconds, setCooldownSeconds] = useCooldownSeconds();
-  const cooldownCeilingRef = useRef(1);
+  /**
+   * STATE, NOT A REF, because CooldownBar renders it. As a ref it only showed
+   * the right ceiling because the setCooldownSeconds call on the next line
+   * happened to trigger the render that read it.
+   */
+  const [cooldownCeiling, setCooldownCeiling] = useState(1);
 
   const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pollStartedAtRef = useRef(0);
@@ -382,6 +387,15 @@ export function JoinForm() {
   }, []);
 
   /* --- polling: recursive timeout, capped duration ------------------ */
+  /**
+   * The poll loop reschedules itself, which it can't do by naming itself: a
+   * value referenced inside its own initializer is something the React
+   * Compiler can't reason about. One indirection through a ref — declared
+   * BEFORE the callback, assigned in an effect rather than during render —
+   * removes the self-reference without changing the polling behaviour.
+   */
+  const pollFnRef = useRef<(id: string) => void>(() => {});
+
   const poll = useCallback(
     (id: string) => {
       if (cancelledRef.current) return;
@@ -417,7 +431,7 @@ export function JoinForm() {
             setStatus("failed");
             return;
           }
-          pollRef.current = setTimeout(() => poll(id), POLL_INTERVAL_MS);
+          pollRef.current = setTimeout(() => pollFnRef.current(id), POLL_INTERVAL_MS);
         })
         .catch((err) => {
           if (cancelledRef.current) return;
@@ -432,11 +446,15 @@ export function JoinForm() {
             setStatus("failed");
             return;
           }
-          pollRef.current = setTimeout(() => poll(id), POLL_INTERVAL_MS);
+          pollRef.current = setTimeout(() => pollFnRef.current(id), POLL_INTERVAL_MS);
         });
     },
     [stopPolling]
   );
+
+  useEffect(() => {
+    pollFnRef.current = poll;
+  }, [poll]);
 
   const startPolling = useCallback(
     (id: string) => {
@@ -598,7 +616,7 @@ export function JoinForm() {
         // Was a flat 60. /join is 5 per 5 minutes, so the button used to
         // re-enable four minutes early and walk straight into another 429.
         const seconds = err.retryAfterSeconds ?? getRetryAfterFallback("join");
-        cooldownCeilingRef.current = Math.max(1, seconds);
+        setCooldownCeiling(Math.max(1, seconds));
         setCooldownSeconds(seconds);
       } else {
         setError(humanizeError(err instanceof ApiError ? err.message : "Something went wrong."));
@@ -636,7 +654,7 @@ export function JoinForm() {
               : "Join files"}
       </Button>
 
-      <CooldownBar seconds={cooldownSeconds} ceiling={cooldownCeilingRef.current} />
+      <CooldownBar seconds={cooldownSeconds} ceiling={cooldownCeiling} />
 
       {entries.length === 1 && !isBusy && <ValidationNote message="Add one more file to join." />}
     </div>

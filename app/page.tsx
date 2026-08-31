@@ -5,9 +5,22 @@ import { SITE_URL } from "@/lib/constants";
 import { getLiveTools, type Tool } from "@/lib/data/tools";
 import { HeroConverter } from "@/components/home/HeroConverter";
 import { FAQSection, type FAQItem } from "@/components/faq/FAQSection";
+import { SectionHeading } from "@/components/ui/SectionHeading";
+import { Prose } from "@/components/ui/Prose";
+import { ogImage } from "@/lib/og";
+
+const TOOL_COUNT = getLiveTools().length;
 
 const PAGE_TITLE = "Free Audio Tools for Music Producers, DJs & Musicians";
-const PAGE_DESCRIPTION ="Free online audio tools for producers and DJs. Convert, edit, analyze, transcribe, find BPM and tune your instrument. No sign-up required."
+const PAGE_DESCRIPTION =
+  "Free online audio tools for producers and DJs. Convert, edit, analyze, transcribe, find BPM and tune your instrument. No sign-up required.";
+
+const OG_IMAGE = ogImage(
+  "Free audio tools for producers",
+  "Convert, analyse, clean up and take apart audio in the browser.",
+  `${TOOL_COUNT} tools · No sign-up`
+);
+
 export const metadata: Metadata = {
   title: PAGE_TITLE,
   description: PAGE_DESCRIPTION,
@@ -18,33 +31,26 @@ export const metadata: Metadata = {
     url: SITE_URL,
     siteName: "AudioForges",
     type: "website",
-    images: [{ url: "/images/og-default.png", width: 1200, height: 630, alt: "AudioForges" }],
+    images: [OG_IMAGE],
   },
   twitter: {
     card: "summary_large_image",
     title: PAGE_TITLE,
     description: PAGE_DESCRIPTION,
-    images: ["/images/og-default.png"],
+    images: [OG_IMAGE.url],
   },
 };
 
 /**
- * PREFETCH IS SELECTIVE HERE (2026-08-16), not blanket-disabled.
- *
- * Highest-traffic page, so a needless prefetch costs the most - four App
- * Router segments per route, every visit - and a useful one earns the
- * most. The hero converter routes to /youtube-to-wav on submit, which is
- * the one route worth having ready. Everything below is a menu of options
- * for someone still deciding, and stays off: ~20 routes, ~80 requests,
- * not spent. Navigation is unaffected either way.
+ * PREFETCH IS SELECTIVE HERE, not blanket-disabled. The hero routes to
+ * /youtube-to-wav on submit — the one route worth having ready. Everything
+ * below is a menu for someone still deciding, and stays off: ~20 routes,
+ * ~80 requests, not spent.
  */
 
-/**
- * EDIT THIS from Analytics every month or two. Unresolvable slugs are
- * dropped and the list is topped up from the live catalogue, so the grid
- * can never render with a hole in it — which is also why a slug that
- * doesn't exist yet is safe to leave here through a rename.
- */
+/** EDIT FROM ANALYTICS every month or two. Unresolvable slugs are dropped
+ *  and the list is topped up from the live catalogue, so the grid can never
+ *  render with a hole in it. */
 const POPULAR_SLUGS = [
   "youtube-to-wav",
   "vocal-remover",
@@ -54,26 +60,9 @@ const POPULAR_SLUGS = [
   "audio-to-text",
 ];
 
-/**
- * Deterministic bar heights - NOT Math.random(). This renders on the
- * server, so a random array would produce different markup on the client
- * and throw a hydration mismatch.
- */
-const WAVE = [
-  8, 14, 22, 36, 52, 40, 28, 44, 64, 48, 30, 20, 34, 56, 72, 54, 38, 26, 18, 30, 46, 62, 44, 32,
-  22, 14, 26, 42, 58, 40, 28, 18, 12, 20, 34, 24, 16, 10, 14, 8,
-];
-
-/**
- * The producer workflow, in the order the steps happen. Every internal
- * link that used to live in the eleven-link prose paragraph is here
- * instead - same link equity and keywords, scannable rather than buried.
- *
- * Step 04 carries three links rather than two: the transcription tools
- * are new, and the homepage is the strongest internal signal a new page
- * can get. POPULAR_SLUGS below is analytics-driven and stays honest -
- * this is the place to seed a page that hasn't earned traffic yet.
- */
+/** The producer workflow, in the order the steps happen. Step 04 carries
+ *  three links: the transcription tools are new, and the homepage is the
+ *  strongest internal signal a new page can get. */
 const WORKFLOW = [
   {
     step: "01",
@@ -144,9 +133,6 @@ export default function HomePage() {
     description: "Free, fast audio tools built for producers and DJs — no sign-up required.",
   };
 
-  // FAQSection emits the FAQPage schema from this same array, so there is
-  // no hand-written faqJsonLd on this page - the visible answers and the
-  // schema can't drift apart.
   const faqs: FAQItem[] = [
     {
       question: "What tools does AudioForges offer?",
@@ -175,19 +161,6 @@ export default function HomePage() {
     },
     {
       question: "Are the tools actually free?",
-      /*
-        REWRITTEN 2026-08-28. This said "no paywall, and no hidden tier — the
-        free tools are the only tools", which stopped being true the day
-        Studio Quality separation started charging credits. It is the direct
-        answer to the one question a sceptical visitor asks, it ships in the
-        page's JSON-LD, and being caught overstating it costs more trust than
-        the paid tier could ever earn back.
-        It also claimed transcription allows "two files every five minutes" —
-        stale since the limit moved to per hour.
-        The claim is now scoped rather than dropped: everything people
-        actually arrive for IS free and unlimited, and the one exception is
-        named plainly instead of hidden behind an absolute.
-      */
       answer:
         "Almost entirely. Every tool works free with no watermark, no sign-up and full-quality downloads — including vocal removal and stem splitting. The one exception is Studio Quality separation, a heavier model that costs real money per run on a GPU; everyone gets free runs of it each month, and after that it's a credit. Nothing recurring, and credits never expire. Fair-use limits apply so one person can't tie up the servers.",
       answerNode: (
@@ -219,12 +192,8 @@ export default function HomePage() {
     },
     {
       question: "What happens to the files I upload?",
-      // DRAFT - CHECK THIS AGAINST THE CACHE BEFORE DEPLOY. It is written
-      // to be true of an LRU result cache rather than claiming nothing is
-      // ever stored, which the old footer copy did and which isn't
-      // accurate. Add the real eviction window in place of "a short
-      // period", and make the footer line agree with whatever you settle
-      // on here.
+      // DRAFT — CHECK AGAINST THE CACHE BEFORE DEPLOY. Replace "a short
+      // period" with the real eviction window, and make the footer line agree.
       answer:
         "Uploads are processed and not kept as personal files. Converted results are held in a temporary cache for a short period so repeat requests for the same source don't have to be processed twice, then evicted automatically. No account is attached to anything you convert.",
     },
@@ -246,21 +215,24 @@ export default function HomePage() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd) }}
       />
 
-      {/* max-w-6xl matches the nav and footer; the page was max-w-5xl, so
-          every section sat 64px inside the header above it. */}
+      {/* max-w-6xl matches the nav and footer. */}
       <main id="main" className="mx-auto max-w-6xl px-4">
+        {/* The hero stays CENTRED while tool pages are left-aligned. It's the
+            one page with a single primary action and no breadcrumb, so
+            centring puts the input where the eye already is. The type scale
+            is shared with ToolPageShell so the system still reads as one. */}
         <section className="pt-16 text-center sm:pt-24">
           <p className="font-mono text-xs uppercase tracking-[0.16em] text-amber-500">
             {toolCount} tools · no sign-up
           </p>
-          <h1 className="mx-auto mt-4 max-w-3xl text-4xl font-bold tracking-tight text-text-primary sm:text-5xl">
+          <h1 className="mx-auto mt-5 max-w-4xl text-5xl font-bold leading-[1.02] tracking-[-0.03em] text-text-primary sm:text-6xl">
             Free audio tools for producers, DJs and musicians
           </h1>
-          <p className="mx-auto mt-4 max-w-xl text-lg text-text-muted">
+          <p className="mx-auto mt-5 max-w-xl text-lg leading-relaxed text-text-muted sm:text-xl">
             Convert, analyse, clean up and take apart audio in the browser. Start by pasting a link.
           </p>
 
-          <div className="mt-8">
+          <div className="mt-9">
             <HeroConverter />
           </div>
 
@@ -275,31 +247,9 @@ export default function HomePage() {
             </Link>{" "}
             — every one takes an uploaded file too.
           </p>
-
-          {/* The one piece of decoration on the page, and it's the site's
-              own subject matter. Static: an animated waveform on a page
-              where nothing is playing is a lie about what's happening.
-              mt-10 keeps it tied to the hero - at mt-14 it floated closer
-              to the divider below than to the block it belongs to. */}
-          <div
-            aria-hidden="true"
-            className="mt-10 flex h-20 items-center justify-center gap-[3px] [mask-image:linear-gradient(to_right,transparent,black_25%,black_75%,transparent)]"
-          >
-            {WAVE.map((height, i) => (
-              <span
-                key={i}
-                className="w-[3px] rounded-full bg-amber-500/25"
-                style={{ height: `${height}px` }}
-              />
-            ))}
-          </div>
         </section>
 
-        {/* WORKFLOW - replaces the three feature cards ("Fast", "High
-            quality", "No sign-up"): claims every tool site makes, none a
-            visitor can check before trying something. This says what the
-            site is FOR instead. */}
-        <section className="border-t border-graphite-800 py-12 sm:py-14">
+        <section className="mt-20 border-t border-graphite-800 py-14">
           <SectionHeading
             eyebrow="How it fits together"
             title="Built around how the work actually goes"
@@ -307,8 +257,7 @@ export default function HomePage() {
           />
 
           {/* items-start, or a column with three links stretches the two-link
-              columns beside it to match and leaves them with dead space
-              under the last link. */}
+              columns beside it and leaves dead space under the last one. */}
           <ol className="mt-10 grid items-start gap-x-8 gap-y-10 sm:grid-cols-2 lg:grid-cols-4">
             {WORKFLOW.map((stage) => (
               <li key={stage.step} className="border-t border-graphite-800 pt-4">
@@ -333,17 +282,16 @@ export default function HomePage() {
           </ol>
         </section>
 
-        {/* MOST USED - card treatment matches /tools so the two pages read
-            as one system rather than two designs. */}
-        <section className="border-t border-graphite-800 py-12 sm:py-14">
+        <section className="border-t border-graphite-800 py-14">
           <div className="flex items-end justify-between gap-4">
             <SectionHeading eyebrow="Start here" title="Most used" />
             <Link
               href="/tools"
               prefetch={false}
-              className="shrink-0 pb-1 text-sm text-amber-400 transition-colors hover:text-amber-300"
+              className="group flex shrink-0 items-center gap-1 pb-1 text-sm text-amber-400 transition-colors hover:text-amber-300"
             >
-              All {toolCount} tools →
+              All {toolCount} tools
+              <ArrowRight className="h-3 w-3 -translate-x-1 opacity-0 transition-all duration-150 group-hover:translate-x-0 group-hover:opacity-100" />
             </Link>
           </div>
 
@@ -370,14 +318,10 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* WHY - the old page ran three near-identical prose sections
-            ("Why AudioForges", "Audio tools for...", "Why trust...") at
-            ~600 words of grey text under identical headings. Same
-            substance and keywords, a third of the length. */}
-        <section className="grid gap-10 border-t border-graphite-800 py-12 sm:py-14 lg:grid-cols-12">
+        <section className="grid gap-10 border-t border-graphite-800 py-14 lg:grid-cols-12">
           <div className="lg:col-span-7">
             <SectionHeading eyebrow="Background" title="Why AudioForges" />
-            <div className="mt-5 space-y-3 leading-relaxed text-text-muted">
+            <Prose className="mt-5">
               <p>
                 AudioForges started as a set of tools built for one producer&apos;s own workflow —
                 pulling reference audio, checking key and tempo before a session, getting clean
@@ -390,21 +334,18 @@ export default function HomePage() {
                 then get out of the way. If one stops meeting that bar it gets fixed or rebuilt
                 rather than left to quietly degrade.
               </p>
-            </div>
+            </Prose>
           </div>
 
-          {/* self-start, or the grid stretches this to match the prose
-              column and leaves the closing border floating ~110px below
-              the last item. */}
+          {/* self-start, or the grid stretches this to match the prose column
+              and leaves the closing border floating below the last item. */}
           <dl className="divide-y divide-graphite-800 border-y border-graphite-800 lg:col-span-5 lg:self-start">
             {[
               ["No account", "No sign-up, no email, nothing to install."],
               ["No paywall", "No watermark, no premium tier, no artificial limits."],
-              // Was "No queue / Most tools finish in seconds". Transcription
-              // runs on a GPU worker that spins down when idle, so the first
-              // run of the day genuinely waits ~a minute - and it's the tool
-              // this claim is most likely to be tested against. Naming the
-              // exception costs nothing and keeps the other two credible.
+              // "No queue" was wrong: transcription runs on a GPU worker that
+              // spins down when idle, so the first run of the day waits ~a
+              // minute — and it's the tool this claim gets tested against.
               ["No waiting around", "Most tools finish in seconds; transcription can take a minute."],
             ].map(([term, description]) => (
               <div key={term} className="py-4">
@@ -415,36 +356,10 @@ export default function HomePage() {
           </dl>
         </section>
 
-        <div className="border-t border-graphite-800 py-12 sm:py-14">
+        <div className="border-t border-graphite-800 py-14">
           <FAQSection eyebrow="Questions" faqs={faqs} />
         </div>
       </main>
     </>
-  );
-}
-
-/**
- * One heading treatment for every section: mono eyebrow, then the h2.
- * The old page gave five sections the identical bare `text-2xl font-bold`
- * with nothing to separate or rank them, which is most of why it scanned
- * as an undifferentiated column of text.
- */
-function SectionHeading({
-  eyebrow,
-  title,
-  description,
-}: {
-  eyebrow: string;
-  title: string;
-  description?: string;
-}) {
-  return (
-    <div className="max-w-2xl">
-      <p className="font-mono text-xs uppercase tracking-[0.16em] text-amber-500">{eyebrow}</p>
-      <h2 className="mt-3 text-2xl font-bold tracking-tight text-text-primary sm:text-3xl">
-        {title}
-      </h2>
-      {description && <p className="mt-3 leading-relaxed text-text-muted">{description}</p>}
-    </div>
   );
 }

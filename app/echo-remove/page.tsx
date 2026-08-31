@@ -2,8 +2,14 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { EchoRemoveForm } from "@/components/converter/EchoRemoveForm";
 import { FAQSection } from "@/components/faq/FAQSection";
+import { ToolPageShell } from "@/components/layout/ToolPageShell";
+import { Breadcrumb } from "@/components/layout/Breadcrumb";
+import { ToolSection } from "@/components/ui/ToolSection";
+import { FeatureStrip } from "@/components/ui/FeatureStrip";
+import { RelatedToolsGrid } from "@/components/tools/RelatedToolsGrid";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
+import { ogForTool } from "@/lib/og";
 import {
   getLimits,
   durationCapFor,
@@ -11,63 +17,30 @@ import {
   retentionSentences,
 } from "@/lib/api/limits";
 
-/**
- * ── THIS PASS ──────────────────────────────────────────────────────────
- *
- * THE LENGTH LIMIT WAS UNDERSTATED BY FORTY MINUTES — one of six pages
- * carrying this sentence character for character:
- *
- *   "MP3, WAV, FLAC, M4A, AAC, OGG, and AIFF, up to 80MB and 20 minutes long."
- *
- * /echo-remove isn't in exempt_tools and has no per-tool override, so it takes
- * audio_tools_default_seconds: one hour. 80MB was right.
- *
- * All six traced back to /guides/transcribing-audio-accurately, where 20
- * minutes IS correct (transcription_max_duration_seconds = 1200). One true
- * sentence copied into six places where it wasn't. Both figures now come from
- * /limits, so this one can't be copied wrong again.
- *
- * Also: HowTo schema and `keywords` removed, retention answer added, formats
- * read from allowed_audio_formats, prefetch disabled on the tool grid.
- */
-
 const PAGE_TITLE = "Free Echo Remover";
+const SOCIAL_TITLE = "Free Echo Remover — Reduce Echo & Slap-Back in Recordings";
 const PAGE_DESCRIPTION =
   "Reduce or remove echo from audio recordings online free. Improve voice recordings, podcasts, and interviews by cutting room echo and slap-back. No sign-up.";
+
+const OG_IMAGE = ogForTool("echo-remove", "Free Echo Remover");
 
 export const metadata: Metadata = {
   title: PAGE_TITLE,
   description: PAGE_DESCRIPTION,
-  /*
-    `keywords` removed — ignored by Google since 2009. Target terms kept for
-    reference:
-      remove echo from audio / echo remover / echo remover online
-      remove echo from recording / remove echo from voice recording
-      reduce echo audio / remove room echo / fix echo in audio free
-      slap echo remover / audio echo remover / remove echo from microphone
-      remove echo from voice / remove echo from podcast / clean echo from recording
-  */
   alternates: { canonical: `${SITE_URL}/echo-remove` },
   openGraph: {
-    title: "Free Echo Remover — Reduce Echo & Slap-Back in Recordings",
+    title: SOCIAL_TITLE,
     description: PAGE_DESCRIPTION,
     url: `${SITE_URL}/echo-remove`,
     siteName: SITE_NAME,
     type: "website",
-    images: [
-      {
-        url: "/images/og-default.png",
-        width: 1200,
-        height: 630,
-        alt: "AudioForges",
-      },
-    ],
+    images: [OG_IMAGE],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Free Echo Remover — Reduce Echo & Slap-Back in Recordings",
+    title: SOCIAL_TITLE,
     description: PAGE_DESCRIPTION,
-    images: ["/images/og-default.png"],
+    images: [OG_IMAGE.url],
   },
 };
 
@@ -87,18 +60,13 @@ const webAppJsonLd = {
   ],
 };
 
-const breadcrumbJsonLd = {
-  "@context": "https://schema.org",
-  "@type": "BreadcrumbList",
-  itemListElement: [
-    { "@type": "ListItem", position: 1, name: "Home", item: SITE_URL },
-    { "@type": "ListItem", position: 2, name: "Echo Remover", item: `${SITE_URL}/echo-remove` },
-  ],
-};
-// NOTE: No HowTo schema — deprecated by Google (desktop since Sept 2023), no
-// ranking or rich-result benefit remains. Visible how-to steps stay.
-// FAQPage schema is emitted by <FAQSection /> — do not duplicate it here.
+// Don't add HowTo schema — deprecated by Google, no benefit. FAQPage comes
+// from <FAQSection />, BreadcrumbList from <Breadcrumb />; don't duplicate.
 
+// Every figure comes from /limits. The old hand-written sentence here said
+// "up to 80MB and 20 minutes" — the size was right, the length wrong by forty
+// minutes. It was one true sentence from the transcription guide copied into
+// six pages where it wasn't true.
 export default async function EchoRemovePage() {
   const relatedTools = getRelatedTools("echo-remove", 5);
 
@@ -135,10 +103,6 @@ export default async function EchoRemovePage() {
       answer: "Yes — completely free, no sign-up, no watermark on the output.",
     },
     {
-      /*
-        CORRECTED. Said "up to 80MB and 20 minutes long" — the size was right,
-        the length wrong by forty minutes. Both from /limits now.
-      */
       question: "What formats are supported, and is there a size limit?",
       answer:
         durationCap === null
@@ -146,7 +110,6 @@ export default async function EchoRemovePage() {
           : `${formatList}, up to ${limits.maxUploadMb}MB and ${durationLabel(durationCap)} long.`,
     },
     {
-      // ADDED: no retention answer existed.
       question: "Are my uploaded files kept?",
       answer: `${retention.input} ${retention.output} There are no accounts, so nothing is linked to you.`,
     },
@@ -155,36 +118,33 @@ export default async function EchoRemovePage() {
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(webAppJsonLd) }} />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
 
-      <main className="mx-auto max-w-3xl px-4 py-12 sm:py-16 space-y-12">
-        <header className="text-center space-y-4">
-          <h1 className="text-4xl font-bold tracking-tight sm:text-5xl text-text-primary">
-            Free Echo Remover
-          </h1>
-          <p className="text-lg text-text-muted max-w-xl mx-auto">
-            Reduce mild room echo and slap-back in a recording, free, no sign-up, no
-            watermark.
+      <ToolPageShell
+        breadcrumb={
+          <Breadcrumb items={[{ name: "Tools", href: "/tools" }, { name: "Echo Remover" }]} />
+        }
+        title="Free Echo Remover"
+        lede="Reduce mild room echo and slap-back in a recording, free, no sign-up, no watermark."
+        tool={<EchoRemoveForm />}
+      >
+        {/* Expectation-setting, so it sits directly under the tool rather than
+            in a section further down. Mono label rather than a heading: this
+            says the same thing as the echo-vs-reverb section and one FAQ
+            answer, and a third h2 repeating it would clutter the outline. */}
+        <section className="rounded-xl border border-graphite-800 bg-graphite-900 p-5">
+          <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-amber-400">
+            What this does, and doesn&apos;t, fix
           </p>
-        </header>
-
-        <EchoRemoveForm />
-
-        <section className="rounded-xl border border-graphite-800 bg-graphite-900 p-5 space-y-2">
-          <h2 className="font-semibold text-text-primary">What this does (and doesn&apos;t) fix</h2>
-          <p className="text-sm text-text-muted leading-relaxed">
-            This tool reduces mild room echo and repeated/slap-back echo well. It does
-            not perform full acoustic dereverberation — heavy reverb from a large or
-            empty room won&apos;t be fully eliminated. Think &quot;reduce,&quot; not
-            &quot;remove completely.&quot;
+          <p className="mt-2 text-sm leading-relaxed text-text-muted">
+            This tool reduces mild room echo and repeated slap-back echo well. It
+            does not perform full acoustic dereverberation — heavy reverb from a
+            large or empty room won&apos;t be fully eliminated. Think
+            &quot;reduce,&quot; not &quot;remove completely.&quot;
           </p>
         </section>
 
-        {/* One bordered strip with hairline dividers, matching the other tool
-            pages. The limits are in the third cell — this page stated them
-            only in the FAQ, and stated one of them wrongly. */}
-        <section className="grid divide-y divide-graphite-800 overflow-hidden rounded-xl border border-graphite-800 bg-graphite-900 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
-          {[
+        <FeatureStrip
+          features={[
             { title: "One click", desc: "No settings to tune — just upload." },
             { title: "Fast", desc: "Most files process in a few seconds." },
             {
@@ -194,117 +154,83 @@ export default async function EchoRemovePage() {
                   ? `No account, no email, no watermark. Up to ${limits.maxUploadMb}MB per file.`
                   : `No account, no email, no watermark. Up to ${limits.maxUploadMb}MB and ${durationLabel(durationCap)}.`,
             },
-          ].map((f) => (
-            <div key={f.title} className="space-y-1.5 p-5">
-              <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-amber-400">
-                {f.title}
-              </p>
-              <p className="text-sm leading-relaxed text-text-muted">{f.desc}</p>
-            </div>
-          ))}
-        </section>
+          ]}
+        />
 
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">How to reduce echo in a recording</h2>
-          <ol className="list-decimal list-inside space-y-2 text-text-muted leading-relaxed">
+        <ToolSection id="how-to" title="How to reduce echo in a recording">
+          <ol>
             <li>Upload an {formatList} file.</li>
             <li>The tool gates out the quiet trailing reflections that create the echo.</li>
             <li>Download the cleaned-up result.</li>
           </ol>
-        </section>
+        </ToolSection>
 
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">Why recordings get echo</h2>
-          <p className="text-text-muted leading-relaxed">
-            Echo happens when sound reflects off hard surfaces — walls,
-            ceilings, glass, tile — before reaching the microphone. Instead
-            of picking up only the direct sound, the mic also captures those
-            delayed reflections, which is what makes speech sound distant or
-            hollow. Rooms with little furniture, carpet, or soft surfaces to
-            absorb sound tend to produce the strongest echo, since there&apos;s
-            nothing to dampen the reflections bouncing around.
+        <ToolSection id="why-echo" title="Why recordings get echo">
+          <p>
+            Echo happens when sound reflects off hard surfaces — walls, ceilings,
+            glass, tile — before reaching the microphone. Instead of picking up
+            only the direct sound, the mic also captures those delayed
+            reflections, which is what makes speech sound distant or hollow.
+            Rooms with little furniture, carpet, or soft surfaces to absorb sound
+            tend to produce the strongest echo, since there&apos;s nothing to
+            dampen the reflections bouncing around.
           </p>
-          <p className="text-text-muted leading-relaxed">
-            Recording closer to the microphone, adding soft furnishings, or
-            using acoustic panels all reduce echo before it&apos;s ever
-            captured. This tool works on the other end of that problem —
-            reducing echo that&apos;s already baked into a recording after
-            the fact.
+          <p>
+            Recording closer to the microphone, adding soft furnishings, or using
+            acoustic panels all reduce echo before it&apos;s ever captured. This
+            tool works on the other end of that problem — reducing echo
+            that&apos;s already baked into a recording after the fact.
           </p>
-        </section>
+        </ToolSection>
 
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">Echo vs. reverb vs. slap-back</h2>
-          <p className="text-text-muted leading-relaxed">
+        <ToolSection id="echo-vs-reverb" title="Echo vs. reverb vs. slap-back">
+          <p>
             These terms get used interchangeably, but they&apos;re different
-            problems. <strong className="text-text-primary">Slap-back echo</strong>{" "}
-            is a single, distinct repeat off a hard surface — a tiled bathroom, a
-            hallway, an empty room with bare walls. <strong className="text-text-primary">Reverb</strong>{" "}
-            is the accumulated wash of countless overlapping reflections in a
-            larger space, without one clean repeat to point to — a concert hall or
-            an empty gymnasium produces reverb, not slap-back. This tool works by
-            gating out quiet trailing reflections, which handles slap-back and
-            mild room echo well. Heavy reverb doesn&apos;t offer that same clean
-            separation between direct sound and reflection, which is why it&apos;s
-            outside what this tool can fully fix.
+            problems. <strong>Slap-back echo</strong> is a single, distinct repeat
+            off a hard surface — a tiled bathroom, a hallway, an empty room with
+            bare walls. <strong>Reverb</strong> is the accumulated wash of
+            countless overlapping reflections in a larger space, without one clean
+            repeat to point to — a concert hall or an empty gymnasium produces
+            reverb, not slap-back. This tool works by gating out quiet trailing
+            reflections, which handles slap-back and mild room echo well. Heavy
+            reverb doesn&apos;t offer that same clean separation between direct
+            sound and reflection, which is why it&apos;s outside what this tool
+            can fully fix.
           </p>
-          <p className="text-text-muted leading-relaxed">
+          <p>
             Want the full explanation of why one gates out cleanly and the other
             doesn&apos;t?{" "}
-            <Link href="/guides/fixing-echo-in-home-recordings" className="text-amber-400 hover:underline">
+            <Link href="/guides/fixing-echo-in-home-recordings">
               Read How to Fix Echo in Home Recordings
-            </Link>.
+            </Link>
+            .
           </p>
-        </section>
+        </ToolSection>
 
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">When to use this</h2>
-          <div className="space-y-3 text-text-muted leading-relaxed">
-            <p>
-              Good fits: a phone recording made in a tiled bathroom or hallway, a voice
-              memo with a faint repeat, a Zoom call recorded in an untreated room, or an
-              interview recorded in a slightly echoey space. This works on audio from
-              any source — phone, laptop, camera, Zoom, Discord, Teams, OBS, whatever
-              recorded it — as long as it&apos;s a supported file format with mild room
-              echo rather than heavy reverb.
-            </p>
-            <p>
-              For speech recordings that also have background noise or inconsistent
-              loudness alongside the echo, try the{" "}
-              <Link href="/voice-clean" className="text-amber-400 hover:underline">
-                Voice Cleaner
-              </Link>{" "}
-              first — it handles denoising and normalization in the same pass. If
-              you want direct control over noise reduction strength instead, the{" "}
-              <Link href="/noise-remove" className="text-amber-400 hover:underline">
-                Noise Remover
-              </Link>{" "}
-              is the more adjustable option.
-            </p>
-          </div>
-        </section>
+        <ToolSection id="when-to-use" title="When to use this">
+          <p>
+            Good fits: a phone recording made in a tiled bathroom or hallway, a
+            voice memo with a faint repeat, a Zoom call recorded in an untreated
+            room, or an interview recorded in a slightly echoey space. This works
+            on audio from any source — phone, laptop, camera, Zoom, Discord,
+            Teams, OBS, whatever recorded it — as long as it&apos;s a supported
+            file format with mild room echo rather than heavy reverb.
+          </p>
+          <p>
+            For speech recordings that also have background noise or inconsistent
+            loudness alongside the echo, try the{" "}
+            <Link href="/voice-clean">Voice Cleaner</Link> first — it handles
+            denoising and normalization in the same pass. If you want direct
+            control over noise reduction strength instead, the{" "}
+            <Link href="/noise-remove">Noise Remover</Link> is the more adjustable
+            option.
+          </p>
+        </ToolSection>
 
-        {relatedTools.length > 0 && (
-          <section className="space-y-4">
-            <h2 className="text-2xl font-bold text-text-primary">More free tools</h2>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {relatedTools.map((tool) => (
-                <Link
-                  key={tool.slug}
-                  href={`/${tool.slug}`}
-                  prefetch={false}
-                  className="rounded-xl border border-graphite-800 bg-graphite-900 p-4 hover:border-amber-500/40 transition-colors"
-                >
-                  <h3 className="font-semibold text-text-primary">{tool.name}</h3>
-                  <p className="text-sm text-text-muted mt-1">{tool.shortDescription}</p>
-                </Link>
-              ))}
-            </div>
-          </section>
-        )}
+        <RelatedToolsGrid tools={relatedTools} />
 
         <FAQSection faqs={faqs} />
-      </main>
+      </ToolPageShell>
     </>
   );
 }

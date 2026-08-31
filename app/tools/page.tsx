@@ -1,25 +1,26 @@
-// → app/tools/page.tsx
-
 import type { Metadata } from "next";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { TOOLS } from "@/lib/data/tools";
 import { ToolsExplorer } from "@/components/tools/ToolsExplorer";
+import { Breadcrumb } from "@/components/layout/Breadcrumb";
+import { ogImage } from "@/lib/og";
 
 const liveTools = TOOLS.filter((t) => t.status === "live");
 
-// No "| AudioForges" here: the root layout's title template already
-// appends it, so hardcoding it produced "All Free Audio Tools |
-// AudioForges | AudioForges" in the SERP.
+// No "| AudioForges" — the root layout's title template appends it, and
+// hardcoding it produced "... | AudioForges | AudioForges" in the SERP.
 const PAGE_TITLE = "All Free Audio Tools";
 
-// "AI-powered" removed: it describes how a few tools are built, not what
-// any of them do for the person reading the result, and it's the exact
-// marketing register the rest of the site avoids. Naming the actual jobs
-// also matches more of what people search for.
-// Kept under ~155 characters so Google doesn't truncate it mid-sentence.
-// The previous version ran to 172 and lost "No sign-up, no watermark" -
-// the part most likely to earn the click.
+// Kept under ~155 characters so Google doesn't truncate mid-sentence. The
+// previous version ran to 172 and lost "No sign-up, no watermark" — the
+// part most likely to earn the click.
 const PAGE_DESCRIPTION = `All ${liveTools.length} free audio tools: conversion, key and BPM detection, vocal removal, stem splitting, cleanup, pitch and tempo. No sign-up, no watermark.`;
+
+const OG_IMAGE = ogImage(
+  "All free audio tools",
+  "Conversion, key and BPM, stems, cleanup, pitch and tempo — in the browser.",
+  `${liveTools.length} tools · No sign-up`
+);
 
 export const metadata: Metadata = {
   title: PAGE_TITLE,
@@ -31,13 +32,13 @@ export const metadata: Metadata = {
     url: `${SITE_URL}/tools`,
     siteName: SITE_NAME,
     type: "website",
-    images: [{ url: "/images/og-default.png", width: 1200, height: 630, alt: "AudioForges" }],
+    images: [OG_IMAGE],
   },
   twitter: {
     card: "summary_large_image",
     title: PAGE_TITLE,
     description: PAGE_DESCRIPTION,
-    images: ["/images/og-default.png"],
+    images: [OG_IMAGE.url],
   },
 };
 
@@ -49,22 +50,11 @@ const collectionJsonLd = {
   url: `${SITE_URL}/tools`,
 };
 
-const breadcrumbJsonLd = {
-  "@context": "https://schema.org",
-  "@type": "BreadcrumbList",
-  itemListElement: [
-    { "@type": "ListItem", position: 1, name: "Home", item: SITE_URL },
-    { "@type": "ListItem", position: 2, name: "Tools", item: `${SITE_URL}/tools` },
-  ],
-};
-
 /**
- * The CollectionPage above says a collection exists; this says what is in
- * it. Every live tool, with its name, description and URL - the single
- * best structured-data addition available on this page, and it's free
- * because the data is already in TOOLS.
+ * CollectionPage says a collection exists; this says what's in it. Every
+ * live tool with name, description and URL.
  *
- * LIVE TOOLS ONLY. Coming-soon entries have no page behind them, and
+ * LIVE TOOLS ONLY — coming-soon entries have no page behind them, and
  * listing URLs that 404 in structured data is worse than omitting them.
  */
 const itemListJsonLd = {
@@ -81,6 +71,8 @@ const itemListJsonLd = {
   })),
 };
 
+// BreadcrumbList comes from <Breadcrumb /> — don't hand-write one here.
+
 export default function ToolsPage() {
   return (
     <>
@@ -90,33 +82,31 @@ export default function ToolsPage() {
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
-      />
-      <script
-        type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListJsonLd) }}
       />
 
-      {/* max-w-6xl matches the nav, footer and homepage. At max-w-5xl this
-          page sat 64px inside the header above it, and the explorer's
-          xl:grid-cols-3 never had the room to trigger. */}
-      <main id="main" className="mx-auto max-w-6xl px-4 py-12 sm:py-16">
-        <header className="text-center">
+      {/* max-w-6xl matches the nav, footer and homepage, and gives the
+          explorer's xl:grid-cols-3 the room to trigger. */}
+      <main id="main" className="mx-auto max-w-6xl px-4 py-10 sm:py-14">
+        <Breadcrumb items={[{ name: "Tools" }]} className="mb-8" />
+
+        <header>
           <p className="font-mono text-xs uppercase tracking-[0.16em] text-amber-500">
             {liveTools.length} tools · no sign-up
           </p>
-          {/* Sentence case, matching the homepage h1. Title Case was the
-              only heading on the site styled that way. */}
-          <h1 className="mx-auto mt-4 max-w-3xl text-4xl font-bold tracking-tight text-text-primary sm:text-5xl">
+          <h1 className="measure-wide mt-5 text-5xl font-bold leading-[1.02] tracking-[-0.03em] text-text-primary sm:text-6xl">
             All free audio tools
           </h1>
-          <p className="mx-auto mt-4 max-w-xl text-lg text-text-muted">
+          <p className="measure-wide mt-5 text-lg leading-relaxed text-text-muted sm:text-xl">
             Search by name or by what you want to do, or filter by category. Every tool takes an
             uploaded file — no account, no watermark.
           </p>
         </header>
 
-        <div className="mt-12">
+        {/* mt-8, not mt-12: with the header left-aligned, a larger gap made
+            the search box read as the start of a new section rather than as
+            part of this page. */}
+        <div className="mt-8">
           <ToolsExplorer tools={TOOLS} />
         </div>
       </main>

@@ -70,15 +70,17 @@ export function useMediaDuration(file: File | null): number | null {
     let settled = false;
     const el = document.createElement("audio");
     const url = URL.createObjectURL(file);
-    let timer: ReturnType<typeof setTimeout>;
 
-    const done = (value: number | null) => {
+    // A function declaration, not a const arrow: it's referenced by `timer`
+    // below, which is now declared where it's assigned rather than reassigned
+    // after the fact.
+    function done(value: number | null) {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
       URL.revokeObjectURL(url);
       setDuration(value);
-    };
+    }
 
     el.preload = "metadata";
     el.onloadedmetadata = () =>
@@ -86,7 +88,7 @@ export function useMediaDuration(file: File | null): number | null {
     el.onerror = () => done(null);
     // Some containers fire neither event. This gate is an optimisation, not a
     // requirement — it must never leave the submit button waiting forever.
-    timer = setTimeout(() => done(null), 8_000);
+    const timer = setTimeout(() => done(null), 8_000);
     el.src = url;
 
     return () => {

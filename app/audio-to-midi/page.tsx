@@ -1,14 +1,24 @@
 import type { Metadata } from "next";
+import { Fragment } from "react";
 import Link from "next/link";
 import { AudioToMidiForm } from "@/components/converter/AudioToMidiForm";
 import { FAQSection, type FAQItem } from "@/components/faq/FAQSection";
+import { ToolPageShell } from "@/components/layout/ToolPageShell";
+import { Breadcrumb } from "@/components/layout/Breadcrumb";
+import { ToolSection } from "@/components/ui/ToolSection";
+import { Prose } from "@/components/ui/Prose";
+import { FeatureStrip } from "@/components/ui/FeatureStrip";
+import { RelatedToolsGrid } from "@/components/tools/RelatedToolsGrid";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
 import { getFeatureFlags } from "@/lib/api/railway";
+import { ogForTool } from "@/lib/og";
 
 const PAGE_TITLE = "Audio to MIDI Converter – MP3 & WAV to MIDI";
 const PAGE_DESCRIPTION =
   "Free online audio to MIDI converter. Convert MP3, WAV, FLAC & more into editable MIDI notes — presets for vocals, piano, bass & guitar. No sign-up.";
+
+const OG_IMAGE = ogForTool("audio-to-midi", "Audio to MIDI Converter");
 
 export const metadata: Metadata = {
   title: PAGE_TITLE,
@@ -20,20 +30,13 @@ export const metadata: Metadata = {
     url: `${SITE_URL}/audio-to-midi`,
     siteName: SITE_NAME,
     type: "website",
-    images: [
-      {
-        url: "/images/og-default.png",
-        width: 1200,
-        height: 630,
-        alt: "AudioForges",
-      },
-    ],
+    images: [OG_IMAGE],
   },
   twitter: {
     card: "summary_large_image",
     title: PAGE_TITLE,
     description: PAGE_DESCRIPTION,
-    images: ["/images/og-default.png"],
+    images: [OG_IMAGE.url],
   },
 };
 
@@ -59,34 +62,12 @@ const webAppJsonLd = {
   ],
 };
 
-const breadcrumbJsonLd = {
-  "@context": "https://schema.org",
-  "@type": "BreadcrumbList",
-  itemListElement: [
-    { "@type": "ListItem", position: 1, name: "Home", item: SITE_URL },
-    { "@type": "ListItem", position: 2, name: "Audio to MIDI Converter", item: `${SITE_URL}/audio-to-midi` },
-  ],
-};
+// BreadcrumbList comes from <Breadcrumb />; FAQPage from <FAQSection />.
 
 const SUPPORTED_FORMATS = ["MP3", "WAV", "FLAC", "M4A", "AAC", "OGG", "AIFF", "OPUS", "WEBM"];
 
-function FormatBadges() {
-  return (
-    <div className="flex flex-wrap gap-2">
-      {SUPPORTED_FORMATS.map((format) => (
-        <span
-          key={format}
-          className="rounded-lg border border-graphite-700 bg-graphite-850 px-3 py-1.5 font-mono text-sm font-semibold text-amber-400"
-        >
-          {format}
-        </span>
-      ))}
-    </div>
-  );
-}
-
-// NOTE: verify these preset blurbs against the actual copy in AudioToMidiForm.tsx
-// so the marketing page and the in-app UI don't drift apart over time.
+// NOTE: verify these preset blurbs against the actual copy in
+// AudioToMidiForm.tsx so the page and the in-app UI don't drift apart.
 const PRESETS = [
   {
     name: "Balanced",
@@ -148,6 +129,19 @@ const ADVANCED_SETTINGS = [
   },
 ];
 
+const SOURCE_TYPES = [
+  { name: "Vocal to MIDI", desc: "A sung or hummed melody, using the Vocal & lead preset." },
+  {
+    name: "Piano to MIDI",
+    desc: "Keyboard recordings — single lines transcribe more reliably than dense chords.",
+  },
+  {
+    name: "Guitar to MIDI",
+    desc: "Clean single-note lines are a simpler target than heavily processed or chord-heavy parts.",
+  },
+  { name: "Bass to MIDI", desc: "The Bass preset focuses detection on the lower register." },
+];
+
 const DAWS = ["Ableton Live", "FL Studio", "Logic Pro", "GarageBand", "Cubase", "Studio One", "Reaper"];
 
 export default async function AudioToMidiPage() {
@@ -155,22 +149,19 @@ export default async function AudioToMidiPage() {
   /**
    * Read server-side and cached, never from the browser — one client request
    * across ~90 static pages is the shape of problem that already caused a
-   * Vercel Edge Request incident here. While this is false, the page is
-   * byte-identical to before: no engine picker, no mention of credits.
+   * Vercel Edge Request incident here.
    */
   const { midiHqEnabled } = await getFeatureFlags();
   /**
    * TWO SEPARATE QUESTIONS, and this used to conflate them.
    *
-   * `midiHqEnabled` answers CAN this tool run — it's the kill switch, and false
-   * means a 503. `paywall_tools["audio-to-midi-hq"]` answers DOES IT COST a
-   * credit. Gating visibility on the paywall flag meant turning off charging
-   * hid the tool rather than making it free, so the free-flow test in the spec
-   * could not be run at all.
+   * `midiHqEnabled` answers CAN this tool run — the kill switch; false means
+   * a 503. `paywall_tools["audio-to-midi-hq"]` answers DOES IT COST a credit.
+   * Gating visibility on the paywall flag meant turning off charging hid the
+   * tool rather than making it free, so the free-flow test couldn't be run.
    *
-   * Visibility comes from here. The "1 credit" badge and the 402 gate come from
-   * the paywall flag, resolved per visitor inside the form by FreeTierBadge and
-   * useCreditGate — neither of which this page needs to know about.
+   * Visibility comes from here. The "1 credit" badge and the 402 gate come
+   * from the paywall flag, resolved per visitor inside the form.
    */
   const midiHqAvailable = midiHqEnabled;
 
@@ -257,184 +248,156 @@ export default async function AudioToMidiPage() {
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(webAppJsonLd) }} />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
 
-      <main className="mx-auto max-w-3xl px-4 py-12 sm:py-16 space-y-12">
-        <header className="text-center space-y-4">
-          <h1 className="text-4xl font-bold tracking-tight sm:text-5xl text-text-primary">
-            Audio to MIDI Converter
-          </h1>
-          <p className="text-lg text-text-muted max-w-xl mx-auto">
-            Convert MP3, WAV, FLAC, M4A and more to MIDI, free. Automatic
-            note, pitch, and timing detection — with presets for vocals,
-            piano, bass, and guitar.
-          </p>
-        </header>
-
-        <AudioToMidiForm hqAvailable={midiHqAvailable} />
-
-        <section className="grid gap-4 sm:grid-cols-3">
-          {[
+      <ToolPageShell
+        breadcrumb={
+          <Breadcrumb
+            items={[{ name: "Tools", href: "/tools" }, { name: "Audio to MIDI Converter" }]}
+          />
+        }
+        title="Audio to MIDI Converter"
+        lede="Convert MP3, WAV, FLAC, M4A and more to MIDI, free. Automatic note, pitch, and timing detection — with presets for vocals, piano, bass, and guitar."
+        tool={<AudioToMidiForm hqAvailable={midiHqAvailable} />}
+      >
+        {/* Was three separate bordered cards; every other tool page uses the
+            one-strip treatment. */}
+        <FeatureStrip
+          features={[
             { title: "MP3 & WAV support", desc: "Plus FLAC, M4A, AAC, OGG, AIFF, Opus, and WebM." },
-            { title: "No install", desc: "Process audio online — upload, transcribe, download. Nothing to install." },
+            { title: "No install", desc: "Upload, transcribe, download. Nothing to install." },
             { title: "Free", desc: "No sign-up, no watermark, free for everyone." },
-          ].map((f) => (
-            <div key={f.title} className="rounded-xl border border-graphite-800 bg-graphite-900 p-5 space-y-2">
-              <p className="font-semibold text-text-primary">{f.title}</p>
-              <p className="text-sm text-text-muted">{f.desc}</p>
-            </div>
-          ))}
-        </section>
+          ]}
+        />
 
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">Choose a transcription preset</h2>
-          <p className="text-text-muted leading-relaxed">
+        {/* The six presets were six bordered cards. They're name/description
+            pairs — the dl renders them as a spec table with no boxes. */}
+        <ToolSection id="presets" title="Choose a transcription preset">
+          <p>
             Different instruments and sources behave differently, so the
-            converter includes presets tuned for common cases. Pick the
-            closest match to your source, or switch to Custom and adjust the
-            detection yourself.
+            converter includes presets tuned for common cases. Pick the closest
+            match to your source, or switch to Custom and adjust the detection
+            yourself.
           </p>
-          <div className="grid gap-3 sm:grid-cols-2">
+          <dl>
             {PRESETS.map((p) => (
-              <div key={p.name} className="rounded-xl border border-graphite-800 bg-graphite-900 p-4 space-y-1">
-                <p className="font-semibold text-text-primary">{p.name}</p>
-                <p className="text-sm text-text-muted leading-relaxed">{p.desc}</p>
-              </div>
+              <Fragment key={p.name}>
+                <dt>{p.name}</dt>
+                <dd>{p.desc}</dd>
+              </Fragment>
             ))}
-          </div>
-        </section>
+          </dl>
+        </ToolSection>
 
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">How to convert audio to MIDI</h2>
-          <ol className="space-y-3 text-text-muted leading-relaxed list-decimal list-inside">
+        <ToolSection id="how-to" title="How to convert audio to MIDI">
+          <ol>
             <li>
-              <span className="text-text-primary font-medium">Upload an audio file.</span> MP3, WAV, FLAC, M4A,
-              AAC, OGG, AIFF, Opus, or WebM, from 1 second up to 10 minutes.
+              <strong>Upload an audio file.</strong> MP3, WAV, FLAC, M4A, AAC,
+              OGG, AIFF, Opus, or WebM, from 1 second up to 10 minutes.
             </li>
             <li>
-              <span className="text-text-primary font-medium">Choose a preset.</span> Match it to your source, or
+              <strong>Choose a preset.</strong> Match it to your source, or
               adjust the detection manually.
             </li>
             <li>
-              <span className="text-text-primary font-medium">Generate the MIDI.</span> The converter analyzes the
-              recording for note onsets and pitch and builds MIDI note data
-              from it.
+              <strong>Generate the MIDI.</strong> The converter analyzes the
+              recording for note onsets and pitch and builds MIDI note data from
+              it.
             </li>
             <li>
-              <span className="text-text-primary font-medium">Download and edit.</span> Open the .mid file in your
-              DAW to edit, reassign, or quantize the transcribed notes.
+              <strong>Download and edit.</strong> Open the .mid file in your DAW
+              to edit, reassign, or quantize the transcribed notes.
             </li>
           </ol>
-        </section>
+        </ToolSection>
 
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">What is an audio to MIDI converter?</h2>
-          <p className="text-text-muted leading-relaxed">
+        <ToolSection id="what-is-it" title="What is an audio to MIDI converter?">
+          <p>
             An audio to MIDI converter analyzes a finished recording and
             reconstructs the note-and-timing information behind it — which
-            pitches were played, when they started, and how long they lasted
-            — as a standard MIDI file. Unlike converting between two audio
+            pitches were played, when they started, and how long they lasted —
+            as a standard MIDI file. Unlike converting between two audio
             formats, this isn&apos;t a straightforward re-encode: it has to
             detect musical notes from a waveform that never had that
             information attached to begin with.
           </p>
-          <p className="text-text-muted leading-relaxed">
+          <p>
             AudioForges analyzes the uploaded recording for note onsets and
             pitch and builds a standard .mid file you can edit, rearrange, or
             reassign to a different instrument in a DAW. If you want to
             understand exactly how note detection, onset detection, and
             frequency filtering work, see our guide to{" "}
-            <Link href="/guides/how-audio-to-midi-transcription-works" className="text-amber-400 hover:underline">
+            <Link href="/guides/how-audio-to-midi-transcription-works">
               How Audio to MIDI Transcription Works
             </Link>
             .
           </p>
-        </section>
+        </ToolSection>
 
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">Convert MP3 to MIDI</h2>
-          <p className="text-text-muted leading-relaxed">
+        <ToolSection id="mp3" title="Convert MP3 to MIDI">
+          <p>
             Upload an MP3 directly — there&apos;s no need to convert it to
-            another format first. Because MP3 is a lossy format, very
-            heavily compressed files can lose some of the detail the
-            detector relies on for accurate pitch detection, so a
-            cleaner-source MP3 will generally transcribe more reliably than a
-            heavily compressed one.
+            another format first. Because MP3 is a lossy format, very heavily
+            compressed files can lose some of the detail the detector relies on
+            for accurate pitch detection, so a cleaner-source MP3 will generally
+            transcribe more reliably than a heavily compressed one.
           </p>
-        </section>
+        </ToolSection>
 
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">Convert WAV to MIDI</h2>
-          <p className="text-text-muted leading-relaxed">
+        <ToolSection id="wav" title="Convert WAV to MIDI">
+          <p>
             WAV files upload the same way, with no extra step. Since WAV is
-            uncompressed, a WAV export straight from a DAW or a sample
-            library generally gives the detector the cleanest possible
-            signal to work from — useful if you&apos;re transcribing your own
-            recordings rather than a finished, already-compressed track.
+            uncompressed, a WAV export straight from a DAW or a sample library
+            generally gives the detector the cleanest possible signal to work
+            from — useful if you&apos;re transcribing your own recordings rather
+            than a finished, already-compressed track.
           </p>
-        </section>
+        </ToolSection>
 
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">What can you convert to MIDI?</h2>
-          <p className="text-text-muted leading-relaxed">
+        <ToolSection id="sources" title="What can you convert to MIDI?">
+          <p>
             Producers use this to pull a melody or bassline from a reference
-            track and rebuild it with a different instrument; songwriters
-            turn a hummed or sung idea into editable note data; students use
-            a rough transcription as a head start on sheet music. A few
-            common cases:
+            track and rebuild it with a different instrument; songwriters turn a
+            hummed or sung idea into editable note data; students use a rough
+            transcription as a head start on sheet music. A few common cases:
           </p>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="rounded-xl border border-graphite-800 bg-graphite-900 p-4 space-y-1">
-              <p className="font-semibold text-text-primary">Vocal to MIDI</p>
-              <p className="text-sm text-text-muted">
-                A sung or hummed melody, using the Vocal &amp; lead preset.
-              </p>
-            </div>
-            <div className="rounded-xl border border-graphite-800 bg-graphite-900 p-4 space-y-1">
-              <p className="font-semibold text-text-primary">Piano to MIDI</p>
-              <p className="text-sm text-text-muted">
-                Keyboard recordings — single lines transcribe more reliably
-                than dense chords.
-              </p>
-            </div>
-            <div className="rounded-xl border border-graphite-800 bg-graphite-900 p-4 space-y-1">
-              <p className="font-semibold text-text-primary">Guitar to MIDI</p>
-              <p className="text-sm text-text-muted">
-                Clean single-note lines are a simpler target than heavily
-                processed or chord-heavy parts.
-              </p>
-            </div>
-            <div className="rounded-xl border border-graphite-800 bg-graphite-900 p-4 space-y-1">
-              <p className="font-semibold text-text-primary">Bass to MIDI</p>
-              <p className="text-sm text-text-muted">
-                The Bass preset focuses detection on the lower register.
-              </p>
-            </div>
-          </div>
-        </section>
+          <dl>
+            {SOURCE_TYPES.map((s) => (
+              <Fragment key={s.name}>
+                <dt>{s.name}</dt>
+                <dd>{s.desc}</dd>
+              </Fragment>
+            ))}
+          </dl>
+        </ToolSection>
 
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">How accurate is audio to MIDI conversion?</h2>
-          <p className="text-text-muted leading-relaxed">
-            Audio-to-MIDI conversion is an estimation process, not a direct
-            extraction of MIDI data, and the quality of the result depends
-            heavily on the recording. A clean, isolated melody or vocal line
-            is generally easier to transcribe than a dense full-band
-            recording with several overlapping instruments. Background
-            noise, reverb, distortion, and other instruments sharing the
-            same frequency range can all cause missing or extra notes. For a
-            deeper look at why isolated melodies transcribe more reliably
-            than dense mixes, see{" "}
-            <Link href="/guides/how-audio-to-midi-transcription-works" className="text-amber-400 hover:underline">
-              How Audio to MIDI Transcription Works
-            </Link>
-            .
-          </p>
-          <div className="grid gap-3 sm:grid-cols-3">
+        <ToolSection id="accuracy" title="How accurate is audio to MIDI conversion?" bleed>
+          <Prose>
+            <p>
+              Audio-to-MIDI conversion is an estimation process, not a direct
+              extraction of MIDI data, and the quality of the result depends
+              heavily on the recording. A clean, isolated melody or vocal line is
+              generally easier to transcribe than a dense full-band recording
+              with several overlapping instruments. Background noise, reverb,
+              distortion, and other instruments sharing the same frequency range
+              can all cause missing or extra notes. For a deeper look at why
+              isolated melodies transcribe more reliably than dense mixes, see{" "}
+              <Link href="/guides/how-audio-to-midi-transcription-works">
+                How Audio to MIDI Transcription Works
+              </Link>
+              .
+            </p>
+          </Prose>
+
+          {/* Genuinely three parallel columns rather than term/description
+              pairs, so this keeps a grid — but as one bordered strip with
+              hairline dividers, matching the feature strip above. */}
+          <div className="mt-6 grid divide-y divide-graphite-800 overflow-hidden rounded-xl border border-graphite-800 bg-graphite-900 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
             {DIFFICULTY_TIERS.map((tier) => (
-              <div key={tier.title} className="rounded-xl border border-graphite-800 bg-graphite-900 p-4">
-                <p className="font-semibold text-text-primary mb-2">{tier.title}</p>
-                <ul className="text-sm text-text-muted space-y-1 list-disc list-inside">
+              <div key={tier.title} className="p-5">
+                <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-amber-400">
+                  {tier.title}
+                </p>
+                <ul className="mt-2.5 space-y-1.5 text-sm leading-relaxed text-text-muted">
                   {tier.items.map((item) => (
                     <li key={item}>{item}</li>
                   ))}
@@ -442,26 +405,20 @@ export default async function AudioToMidiPage() {
               </div>
             ))}
           </div>
-        </section>
+        </ToolSection>
 
         {midiHqAvailable && (
           /*
-            ADDED LAST, DELIBERATELY LOW ON THE PAGE.
-            This page ranks #1 on Bing for its head terms, so nothing above
-            this point moves — no title change, no description change, no
-            reordering of existing sections. This is additive only, and it
-            targets a distinct query set ("multitrack midi", "separate
-            instruments to midi") that the free tool cannot honestly claim,
-            rather than competing with the terms already won.
+            ADDED LAST, DELIBERATELY LOW ON THE PAGE. This page ranks #1 on
+            Bing for its head terms, so nothing above it moves. Additive only,
+            targeting a distinct query set ("multitrack midi", "separate
+            instruments to midi") the free tool can't honestly claim.
 
-            Renders nothing while the tool is off, so the page cannot advertise
-            something a visitor can't buy.
+            Renders nothing while the tool is off, so the page can't advertise
+            something a visitor cannot buy.
           */
-          <section className="space-y-4">
-            <h2 className="text-2xl font-bold text-text-primary">
-              Multi-track MIDI: one track per instrument
-            </h2>
-            <p className="text-text-muted leading-relaxed">
+          <ToolSection id="multi-track" title="Multi-track MIDI: one track per instrument">
+            <p>
               The free converter returns a single MIDI track containing every
               note it detected, whatever played them. Multi-track mode runs a
               different model that separates the performance by instrument
@@ -470,7 +427,7 @@ export default async function AudioToMidiPage() {
               so they land on the right instruments the moment you open the file
               in a DAW.
             </p>
-            <p className="text-text-muted leading-relaxed">
+            <p>
               It is worth being straight about when this helps. On a solo guitar
               recording, a hummed melody, or a short clip, the model often
               returns a single track — there is only one instrument to find. The
@@ -479,21 +436,17 @@ export default async function AudioToMidiPage() {
               together. If your source is one instrument, the free converter is
               the right tool and costs nothing.
             </p>
-            <p className="text-text-muted leading-relaxed">
+            <p>
               Multi-track runs on GPU time that costs real money per job, so it
               uses a credit — with free runs every month and nothing recurring.
               Single-track transcription stays free and unlimited.{" "}
-              <Link href="/pricing" className="text-amber-400 hover:underline">
-                See what credits cost
-              </Link>
-              .
+              <Link href="/pricing">See what credits cost</Link>.
             </p>
-          </section>
+          </ToolSection>
         )}
 
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">Tips for better results</h2>
-          <ul className="text-text-muted leading-relaxed space-y-2 list-disc list-inside">
+        <ToolSection id="tips" title="Tips for better results">
+          <ul>
             <li>Use a clean, isolated recording where possible.</li>
             <li>Prefer WAV over MP3 if you have the original file.</li>
             <li>For a full song, isolate the part you want first.</li>
@@ -501,73 +454,65 @@ export default async function AudioToMidiPage() {
             <li>Narrow the frequency range to cut out unrelated instruments.</li>
             <li>Raise minimum note length if you&apos;re getting lots of tiny false notes.</li>
           </ul>
-        </section>
+        </ToolSection>
 
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">Advanced transcription settings</h2>
-          <p className="text-text-muted leading-relaxed">
-            Presets are a starting point — the underlying controls are
-            available directly if you want to fine-tune the transcription
-            yourself.
+        <ToolSection id="advanced" title="Advanced transcription settings">
+          <p>
+            Presets are a starting point — the underlying controls are available
+            directly if you want to fine-tune the transcription yourself.
           </p>
-          <div className="space-y-3">
+          <dl>
             {ADVANCED_SETTINGS.map((s) => (
-              <div key={s.label} className="rounded-xl border border-graphite-800 bg-graphite-900 p-4">
-                <p className="font-semibold text-text-primary">{s.label}</p>
-                <p className="text-sm text-text-muted mt-1 leading-relaxed">{s.desc}</p>
-              </div>
+              <Fragment key={s.label}>
+                <dt>{s.label}</dt>
+                <dd>{s.desc}</dd>
+              </Fragment>
+            ))}
+          </dl>
+        </ToolSection>
+
+        <ToolSection id="daws" title="Use your MIDI in any DAW">
+          <p>
+            The downloaded .mid file imports into any MIDI-compatible music
+            software. Open it to edit the notes, change the instrument, adjust
+            timing, quantize the performance, or use the transcription as a
+            starting point for a new arrangement — including {DAWS.join(", ")}.
+          </p>
+        </ToolSection>
+
+        <ToolSection id="formats" title="Supported audio formats" bleed>
+          <div className="flex flex-wrap gap-2">
+            {SUPPORTED_FORMATS.map((format) => (
+              <span
+                key={format}
+                className="rounded-lg border border-graphite-700 bg-graphite-850 px-3 py-1.5 font-mono text-sm font-semibold text-amber-400"
+              >
+                {format}
+              </span>
             ))}
           </div>
-        </section>
+          <Prose className="mt-5">
+            <p>
+              Upload any of the formats above, from 1 second up to 10 minutes
+              long. The output is a standard .mid file, downloaded with the same
+              filename as your original upload.
+            </p>
+          </Prose>
+        </ToolSection>
 
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">Use your MIDI in any DAW</h2>
-          <p className="text-text-muted leading-relaxed">
-            The downloaded .mid file imports into any MIDI-compatible music
-            software. Open it to edit the notes, change the instrument,
-            adjust timing, quantize the performance, or use the transcription
-            as a starting point for a new arrangement — including{" "}
-            {DAWS.join(", ")}.
-          </p>
-        </section>
+        <RelatedToolsGrid tools={relatedTools} />
 
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">Supported audio formats</h2>
-          <FormatBadges />
-          <p className="text-text-muted leading-relaxed">
-            Upload any of the formats above, from 1 second up to 10 minutes
-            long. The output is a standard .mid file, downloaded with the
-            same filename as your original upload.
-          </p>
-        </section>
-
-        {relatedTools.length > 0 && (
-          <section className="space-y-4">
-            <h2 className="text-2xl font-bold text-text-primary">More free tools</h2>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {relatedTools.map((tool) => (
-                <Link
-                  key={tool.slug}
-                  href={`/${tool.slug}`}
-                  className="rounded-xl border border-graphite-800 bg-graphite-900 p-4 hover:border-amber-500/40 transition-colors"
-                >
-                  <h3 className="font-semibold text-text-primary">{tool.name}</h3>
-                  <p className="text-sm text-text-muted mt-1">{tool.shortDescription}</p>
-                </Link>
-              ))}
-            </div>
-          </section>
-        )}
-
-        <section className="rounded-xl border border-graphite-800 bg-graphite-900 p-5 space-y-2">
-          <h2 className="font-semibold text-text-primary">Copyright &amp; fair use</h2>
-          <p className="text-sm text-text-muted leading-relaxed">
+        {/* h3, not h2: this is a footnote under the page's content, and as an
+            h2 it sat in the outline alongside the real sections. */}
+        <section className="rounded-xl border border-graphite-800 bg-graphite-900 p-5">
+          <h3 className="font-semibold text-text-primary">Copyright &amp; fair use</h3>
+          <p className="mt-2 text-sm leading-relaxed text-text-muted">
             You are responsible for ensuring you have the right to process any track
             you upload — for personal practice, content you own, or material you have
             permission to use. AudioForges does not host or distribute the tracks
             processed through this tool.
           </p>
-          <p className="text-sm text-text-muted leading-relaxed">
+          <p className="mt-2 text-sm leading-relaxed text-text-muted">
             See our{" "}
             <Link href="/about" className="text-amber-400 hover:underline">
               About
@@ -585,7 +530,7 @@ export default async function AudioToMidiPage() {
         </section>
 
         <FAQSection faqs={faqs} />
-      </main>
+      </ToolPageShell>
     </>
   );
 }

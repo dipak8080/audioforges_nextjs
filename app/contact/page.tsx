@@ -1,39 +1,40 @@
-import { buttonStyles } from "@/components/ui/Button";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Mail } from "lucide-react";
+import { buttonStyles } from "@/components/ui/Button";
 import { SITE_URL } from "@/lib/constants";
 import EmailLink from "@/components/EmailLink";
+import { Breadcrumb } from "@/components/layout/Breadcrumb";
+import { Prose } from "@/components/ui/Prose";
+import { ogImage } from "@/lib/og";
+
+const PAGE_TITLE = "Contact Us";
+const PAGE_DESCRIPTION =
+  "Contact the AudioForges team for support, bug reports, feature requests, copyright inquiries, or general questions about our free audio tools.";
+
+const OG_IMAGE = ogImage(
+  "Contact AudioForges",
+  "Support, bug reports, feature requests and copyright inquiries.",
+  "Contact"
+);
 
 export const metadata: Metadata = {
-  title: "Contact Us",
-  description:
-    "Contact the AudioForges team for support, bug reports, feature requests, copyright inquiries, or general questions about our free audio tools.",
-  alternates: {
-    canonical: `${SITE_URL}/contact`,
-  },
+  title: PAGE_TITLE,
+  description: PAGE_DESCRIPTION,
+  alternates: { canonical: `${SITE_URL}/contact` },
   openGraph: {
-    title: "Contact Us",
-    description:
-      "Contact the AudioForges team for support, bug reports, feature requests, copyright inquiries, or general questions about our free audio tools.",
+    title: PAGE_TITLE,
+    description: PAGE_DESCRIPTION,
     url: `${SITE_URL}/contact`,
     siteName: "AudioForges",
     type: "website",
-    images: [
-      {
-        url: "/images/og-default.png",
-        width: 1200,
-        height: 630,
-        alt: "AudioForges",
-      },
-    ],
+    images: [OG_IMAGE],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Contact Us",
-    description:
-      "Contact the AudioForges team for support, bug reports, feature requests, copyright inquiries, or general questions about our free audio tools.",
-    images: ["/images/og-default.png"],
+    title: PAGE_TITLE,
+    description: PAGE_DESCRIPTION,
+    images: [OG_IMAGE.url],
   },
 };
 
@@ -52,17 +53,20 @@ export default function ContactPage() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(contactJsonLd) }}
       />
 
-      <main className="mx-auto max-w-2xl px-4 py-12 sm:py-16 text-center space-y-8">
-        <div className="space-y-6">
-          <h1 className="text-3xl font-bold text-text-primary">
-            Contact Us
+      <main id="main" className="mx-auto max-w-3xl px-4 py-10 sm:py-14">
+        <Breadcrumb items={[{ name: "Contact" }]} className="mb-8" />
+
+        <header>
+          <h1 className="measure-wide text-4xl font-bold leading-[1.06] tracking-[-0.02em] text-text-primary sm:text-5xl">
+            Contact us
           </h1>
-
-          <p className="text-text-muted">
-            Need help with an AudioForges tool, want to report a bug, request a
-            feature, or contact us about copyright? We&apos;d be happy to help.
+          <p className="measure mt-5 text-lg leading-relaxed text-text-muted sm:text-xl">
+            Need help with a tool, want to report a bug, request a feature, or
+            get in touch about copyright? We&apos;d be happy to help.
           </p>
+        </header>
 
+        <div className="mt-8">
           <EmailLink
             user="contact"
             domain="audioforges.com"
@@ -70,38 +74,30 @@ export default function ContactPage() {
           >
             <Mail className="h-4 w-4" aria-hidden="true" />
           </EmailLink>
-
-          <p className="text-sm text-text-subtle">
-            We typically respond within 2–3 business days. Response times may
-            be longer during busy periods.
+          <p className="mt-3 text-sm text-text-subtle">
+            We typically respond within 2–3 business days. Response times may be
+            longer during busy periods.
           </p>
         </div>
 
-        <section className="space-y-3 text-left max-w-xl mx-auto">
-          <h2 className="text-xl font-semibold text-text-primary">
+        <section className="mt-14 space-y-4">
+          <h2 className="measure text-2xl font-bold tracking-tight text-text-primary">
             What you can contact us about
           </h2>
-          <ul className="list-disc list-inside text-text-muted space-y-2">
-            <li>Technical issues or bugs</li>
-            <li>Feature requests and suggestions</li>
-            <li>Copyright or DMCA inquiries</li>
-            <li>Questions about our audio tools</li>
-            <li>General feedback</li>
-          </ul>
-        </section>
-
-        <section className="text-sm text-text-subtle">
-          <p>
-            Need to report a copyright issue? See our{" "}
-            <Link href="/dmca" className="text-amber-400 hover:underline">
-              DMCA Policy
-            </Link>
-            . Have questions about how we handle data? See our{" "}
-            <Link href="/privacy" className="text-amber-400 hover:underline">
-              Privacy Policy
-            </Link>
-            .
-          </p>
+          <Prose>
+            <ul>
+              <li>Technical issues or bugs</li>
+              <li>Feature requests and suggestions</li>
+              <li>Copyright or DMCA inquiries</li>
+              <li>Questions about our audio tools</li>
+              <li>General feedback</li>
+            </ul>
+            <p>
+              Need to report a copyright issue? See our{" "}
+              <Link href="/dmca">DMCA Policy</Link>. Have questions about how we
+              handle data? See our <Link href="/privacy">Privacy Policy</Link>.
+            </p>
+          </Prose>
         </section>
       </main>
     </>

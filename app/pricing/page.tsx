@@ -3,12 +3,14 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getFeatureFlags } from "@/lib/api/railway";
 import { SectionHeading } from "@/components/ui/SectionHeading";
+import { Breadcrumb } from "@/components/layout/Breadcrumb";
 import { FAQSection, type FAQItem } from "@/components/faq/FAQSection";
 import { PricingTable } from "@/components/credits/PricingTable";
 import { StemCompare } from "@/components/credits/StemCompare";
 import { TOOLS } from "@/lib/data/tools";
 import { SITE_URL } from "@/lib/constants";
 import { getLimits, durationLabel } from "@/lib/api/limits";
+import { ogImage } from "@/lib/og";
 import EmailLink from "@/components/EmailLink";
 
 /**
@@ -16,77 +18,24 @@ import EmailLink from "@/components/EmailLink";
  *
  * The Ko-fi shop is a public URL that exists whether or not this site links to
  * it. An env var can't take it down. So while PAYWALL_ENABLED is false, the
- * job of the frontend is to make sure there is NO reachable path from
+ * frontend's job is to make sure there is NO reachable path from
  * audioforges.com to a buy button — otherwise someone can pay for credits that
  * have nothing to spend on.
  *
  * notFound() is the right tool: no partial page, no flash of prices, and Next
  * serves the real 404. Flipping PAYWALL_ENABLED brings it back with no deploy.
  *
- * ── THIS PASS: THE PRICE WAS NOT ON THE PRICING PAGE ───────────────────
- *
- * 1. THE ORDER WAS WRONG, AND IT WAS THE WHOLE PROBLEM. Above <PricingTable />
- *    sat an eyebrow, an H1 phrased as a question, a paragraph, a seven-row
- *    spec panel and an audio demo — roughly two screens before a number
- *    appeared. Almost everyone landing here arrives from a paywall they just
- *    hit, mid-task, wanting one figure. They were given an essay first.
- *
- *    The packs now sit directly under the H1. Everything that justifies the
- *    price comes after it, which is the order someone actually reads in: how
- *    much → what do I get → why should I believe you.
- *
- * 2. THE FREE-TOOL COUNT WAS WRONG, AND THE FRAMING UNDERSOLD THE TRUTH. It
- *    read `liveToolCount - 1`, subtracting one paid tool, on a page whose own
- *    spec panel names two paid things and whose own comment says "five metered
- *    tools".
- *
- *    But no tool here is paid. Separation and audio-to-MIDI are free tools
- *    that each have an optional heavier MODE. "40 free tools plus 2 paid ones"
- *    is a weaker and less accurate claim than "every tool is free; two of them
- *    have an optional paid mode" — so the arithmetic is gone entirely.
- *
- * 3. THE LENGTH CAP IS DERIVED. HQ_MAX_SECONDS was hardcoded at 600 under two
- *    stacked comments, both claiming to mirror GET /limits, one of them stale
- *    from the 360 → 600 change. It reads from featureDurations.separationHq
- *    now, like every other figure on the site.
- *
- * 4. THE DEMO IS LIVE. Both clips are in /public/audio/, so StemCompare now
- *    renders instead of returning null — the page's single most persuasive
- *    element, and until today every argument here was made in prose.
- *
- *    ⚠️ Check StemCompare's <audio> tags carry preload="none" before shipping.
- *    The two WAVs are ~6.9MB together; without that attribute every visitor
- *    downloads both on page load whether or not they press play. See the note
- *    on the constants below.
- *
- * INDEXING: no `robots` key, so this inherits the site default and IS
- * indexable — deliberately, since 2026-08-29. Worth confirming it's in
- * app/sitemap.ts too: nothing links here except a paywall, so without a
- * sitemap entry the only discovery path is hitting a limit first.
+ * ORDER MATTERS ON THIS PAGE. Nearly everyone here arrives from a paywall they
+ * just hit, mid-task, wanting one number. The packs sit directly under the H1;
+ * everything justifying the price comes after it. That's the order people
+ * actually read in: how much → what do I get → why should I believe you.
  */
 
-/**
- * Two level-matched clips of the same bar of the same track, ~20s each.
- * StemCompare renders nothing until BOTH are set — they are now, so the demo
- * is live.
- *
- * ⚠️ THESE ARE WAV, ~3.4MB EACH — about 6.9MB on a page whose job is to load
- * fast for someone who just hit a paywall mid-task. That is roughly ten times
- * the whole rest of the page.
- *
- * It is the right format to SHIP from (the argument is audio quality, and
- * serving a lossy file to demonstrate separation quality invites the obvious
- * retort), but it is the wrong thing to DOWNLOAD unasked. Two fixes, in order
- * of value:
- *
- *   1. StemCompare's <audio> elements must carry preload="none". Without it
- *      the browser fetches both files on page load, so every visitor pays
- *      6.9MB whether or not they press play. Check that before shipping — it
- *      matters more than the format does.
- *   2. If the payload still hurts, 192kbps MP3 brings it to ~600KB. The bleed
- *      being demonstrated sits well above the compression floor, so it stays
- *      clearly audible.
- */
+/** Two level-matched clips of the same bar of the same track, ~20s each.
+ *  StemCompare renders nothing until both are set. WAV on purpose — the claim
+ *  is separation quality, and demonstrating it with a lossy file invites the
+ *  obvious retort. StemCompare keeps them at preload="metadata" until first
+ *  play, so the ~6.9MB isn't fetched for visitors who never press it. */
 const DEMO_STANDARD = "/audio/demo-vocals-standard.wav";
 const DEMO_STUDIO = "/audio/demo-vocals-studio.wav";
 
@@ -94,32 +43,40 @@ const PAGE_TITLE = "Pricing — AudioForges credits";
 const PAGE_DESCRIPTION =
   "One credit runs one GPU-heavy job. No subscription, credits never expire, and every other tool on AudioForges stays free.";
 
+const OG_IMAGE = ogImage(
+  "Pay once, per heavy job",
+  "One credit runs one GPU job. No subscription, and credits never expire.",
+  "Pricing"
+);
+
 export const metadata: Metadata = {
   title: PAGE_TITLE,
   description: PAGE_DESCRIPTION,
   alternates: { canonical: `${SITE_URL}/pricing` },
   /*
-    INDEXED as of 2026-08-29. This was noindex while the paywall was still
-    provisional, for two reasons that no longer hold:
-
-      - "a 404 Google has crawled as a live page is worse than one it never
-        saw" — true while PAYWALL_ENABLED might be flipped back off, which
-        makes this route call notFound(). It is now load-bearing for five
-        metered tools and is not going off.
-      - "it competes with the 'free X' queries the tool pages rank on" — the
-        tool pages own those terms and this page targets a different intent
-        entirely: someone who has already met a limit and is looking for a
-        price. Those are not the same searcher.
-
-    The cost of leaving it hidden was concrete: the only route to the page
-    that sells anything was to hit a paywall first, so it earned no organic
-    traffic at all.
+    INDEXED as of 2026-08-29 — no `robots` key, so this inherits the site
+    default. It was noindex while the paywall was provisional, for two reasons
+    that no longer hold: a 404 Google has crawled as a live page is worse than
+    one it never saw (only true while PAYWALL_ENABLED might flip back off, and
+    it won't — five metered tools depend on it), and it competes with the
+    "free X" queries the tool pages rank on (it doesn't; those pages own those
+    terms, and this one targets someone who has already met a limit and wants
+    a price). The cost of hiding it was concrete: the only route to the page
+    that sells anything was to hit a paywall first.
   */
   openGraph: {
     title: PAGE_TITLE,
     description: PAGE_DESCRIPTION,
     url: `${SITE_URL}/pricing`,
+    siteName: "AudioForges",
     type: "website",
+    images: [OG_IMAGE],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: PAGE_TITLE,
+    description: PAGE_DESCRIPTION,
+    images: [OG_IMAGE.url],
   },
 };
 
@@ -163,16 +120,18 @@ export default async function PricingPage() {
   const limits = await getLimits();
 
   // Was hardcoded at 600 under two comments both claiming to mirror /limits,
-  // one of them left over from the 360 → 600 change on 2026-08-28.
+  // one left over from the 360 → 600 change on 2026-08-28.
   const hqMaxLabel = durationLabel(limits.featureDurations.separationHq);
 
   // No arithmetic. Nothing here is a paid TOOL — two free tools have an
-  // optional paid MODE, which is both the accurate statement and the stronger
-  // one. The old `liveToolCount - 1` subtracted a paid tool that doesn't exist.
+  // optional paid MODE, which is both accurate and the stronger claim. The old
+  // `liveToolCount - 1` subtracted a paid tool that doesn't exist.
   const liveToolCount = TOOLS.filter((t) => t.status === "live").length;
 
   return (
-    <main id="main" className="mx-auto max-w-3xl px-4 py-12 sm:py-16">
+    <main id="main" className="mx-auto max-w-3xl px-4 py-10 sm:py-14">
+      <Breadcrumb items={[{ name: "Pricing" }]} className="mb-8" />
+
       {/*
         Framed around CREDITS, not around vocal separation. Credits are the
         currency for anything needing a GPU, and that set will grow. Writing
@@ -180,13 +139,11 @@ export default async function PricingPage() {
         re-earning its rankings, the first time that happens.
       */}
       <header>
-        <p className="font-mono text-xs uppercase tracking-[0.16em] text-amber-500">
-          Credits
-        </p>
-        <h1 className="mt-3 text-3xl font-bold tracking-tight text-text-primary sm:text-4xl">
+        <p className="font-mono text-xs uppercase tracking-[0.16em] text-amber-500">Credits</p>
+        <h1 className="measure-wide mt-5 text-4xl font-bold leading-[1.04] tracking-[-0.025em] text-text-primary sm:text-5xl">
           Pay once, per heavy job
         </h1>
-        <p className="mt-4 max-w-xl leading-relaxed text-text-muted">
+        <p className="measure mt-5 text-lg leading-relaxed text-text-muted">
           Most of AudioForges runs on cheap CPU processing and is free and
           unlimited — that never changes. A few jobs need a GPU and cost real
           money per run, so those take one credit each.
@@ -205,23 +162,16 @@ export default async function PricingPage() {
         </ul>
       </header>
 
-      {/*
-        THE PACKS, DIRECTLY UNDER THE H1.
-
-        This used to sit below the spec panel and the demo — about two screens
-        down. Nearly everyone who reaches this page arrives from a paywall they
-        just hit, mid-task, and wants one number. Making them scroll past an
-        argument to find it is the single biggest problem this page had.
-      */}
+      {/* THE PACKS, DIRECTLY UNDER THE H1 — see the note at the top. */}
       <div className="mt-8">
         <PricingTable />
       </div>
 
       {/*
-        THE SPEC PANEL. Now the ANSWER to the price rather than the preamble to
-        it. Six rows of plain fact do more work than any amount of pricing
-        copy, and they read like the file-info panel of a DAW, which is the
-        register this audience already trusts.
+        THE SPEC PANEL — the ANSWER to the price rather than the preamble to
+        it. Rows of plain fact do more work than pricing copy, and they read
+        like a DAW's file-info panel, which is the register this audience
+        already trusts.
       */}
       <section className="mt-16">
         <SectionHeading
@@ -238,35 +188,28 @@ export default async function PricingPage() {
               Any GPU-backed job
             </span>
           </div>
-          {/* Was headed "Studio Quality separation" and described only that.
-              Multi-track MIDI is metered under the same 1-credit rule, and a
-              spec panel that names one of two makes the other look like a
-              surprise charge. */}
+          {/* Names BOTH metered jobs. A spec panel listing one of two makes the
+              other look like a surprise charge. */}
           <SpecRow label="You get">
             Studio Quality separation — vocals and instrumental, or a full
             four-stem split
           </SpecRow>
-          <SpecRow label="Or">
-            Multi-track MIDI — one track per detected instrument
-          </SpecRow>
+          <SpecRow label="Or">Multi-track MIDI — one track per detected instrument</SpecRow>
           <SpecRow label="Source">An audio file, or a YouTube link</SpecRow>
           <SpecRow label="Track length">
-            Up to {hqMaxLabel}. Longer tracks are blocked before anything is
-            charged
+            Up to {hqMaxLabel}. Longer tracks are blocked before anything is charged
           </SpecRow>
           <SpecRow label="Files back">
             WAV, full quality, no watermark, no length limit on playback
           </SpecRow>
           <SpecRow label="Turnaround">Usually one to two minutes</SpecRow>
-          <SpecRow label="If it fails">
-            The credit comes straight back, without you asking
-          </SpecRow>
+          <SpecRow label="If it fails">The credit comes straight back, without you asking</SpecRow>
         </dl>
       </section>
 
-      {/* The A/B. Sits directly after the spec panel: the rows say what you
-          get, this says what it sounds like — which is the only claim on this
-          page a reader can check for themselves rather than take on trust. */}
+      {/* The A/B. Directly after the spec panel: the rows say what you get,
+          this says what it sounds like — the only claim on this page a reader
+          can check for themselves rather than take on trust. */}
       <div className="mt-8">
         <StemCompare
           standardSrc={DEMO_STANDARD}
@@ -304,11 +247,7 @@ export default async function PricingPage() {
             </thead>
             <tbody className="divide-y divide-graphite-800">
               <CompareRow label="Billing" them="Monthly, recurring" us="One payment" />
-              <CompareRow
-                label="Unused capacity"
-                them="Expires each month"
-                us="Never expires"
-              />
+              <CompareRow label="Unused capacity" them="Expires each month" us="Never expires" />
               <CompareRow
                 label="Free tier"
                 them="Preview only, no download"
@@ -326,13 +265,10 @@ export default async function PricingPage() {
       </section>
 
       {/*
-        THE COUNT IS GONE. It read "The other {liveToolCount - 1}+ tools cost
-        nothing" — minus one, on a page naming two paid things.
-
-        More importantly the framing was weaker than the truth. No tool here is
-        paid: separation and audio-to-MIDI are free tools with an optional
-        heavier mode. Saying that is both accurate and a better claim than any
-        arithmetic.
+        NO ARITHMETIC. This read "The other {liveToolCount - 1}+ tools cost
+        nothing" — minus one, on a page naming two paid things. And the framing
+        was weaker than the truth: no tool here is paid, two free tools have an
+        optional heavier mode.
       */}
       <section className="mt-16">
         <SectionHeading
@@ -363,10 +299,12 @@ export default async function PricingPage() {
         <FAQSection faqs={faqs} eyebrow="Questions" />
       </section>
 
+      {/* h3, not h2 — a footnote under the page's content rather than a
+          section sitting in the outline beside the real ones. */}
       <section className="mt-12 rounded-xl border border-graphite-800 bg-graphite-900 p-5">
-        <h2 className="text-sm font-medium text-text-primary">
+        <h3 className="text-sm font-medium text-text-primary">
           Paid and something went wrong?
-        </h2>
+        </h3>
         <p className="mt-1.5 text-sm leading-relaxed text-text-muted">
           Email us and we&apos;ll sort it out manually — include the email you
           paid with.{" "}
@@ -381,13 +319,7 @@ export default async function PricingPage() {
   );
 }
 
-function SpecRow({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
+function SpecRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-0.5 border-b border-graphite-800 px-4 py-3 last:border-b-0 sm:flex-row sm:gap-4">
       <dt className="shrink-0 font-mono text-[11px] uppercase tracking-[0.14em] text-text-subtle sm:w-36 sm:pt-0.5">
@@ -398,15 +330,7 @@ function SpecRow({
   );
 }
 
-function CompareRow({
-  label,
-  them,
-  us,
-}: {
-  label: string;
-  them: string;
-  us: string;
-}) {
+function CompareRow({ label, them, us }: { label: string; them: string; us: string }) {
   return (
     <tr>
       <td className="px-4 py-3 font-medium text-text-subtle">{label}</td>

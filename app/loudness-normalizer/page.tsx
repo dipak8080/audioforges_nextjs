@@ -1,9 +1,16 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Fragment } from "react";
 import { LoudnormForm } from "@/components/converter/LoudnormForm";
 import { FAQSection } from "@/components/faq/FAQSection";
+import { ToolPageShell } from "@/components/layout/ToolPageShell";
+import { Breadcrumb } from "@/components/layout/Breadcrumb";
+import { ToolSection } from "@/components/ui/ToolSection";
+import { FeatureStrip } from "@/components/ui/FeatureStrip";
+import { RelatedToolsGrid } from "@/components/tools/RelatedToolsGrid";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
+import { ogForTool } from "@/lib/og";
 import {
   getLimits,
   durationCapFor,
@@ -11,31 +18,11 @@ import {
   retentionSentences,
 } from "@/lib/api/limits";
 
-/**
- * ── THIS PASS ──────────────────────────────────────────────────────────
- *
- * FACTUALLY CLEAN. 80MB is right, the three presets match LoudnormForm, and
- * the two-pass description matches what the backend actually does. Third page
- * out of nineteen with nothing wrong in the copy.
- *
- * 1. FOUR UNESCAPED APOSTROPHES WOULD FAIL LINT. Raw ' inside JSX text —
- *    "Spotify's and YouTube's own", "since it's close to" — trips
- *    react/no-unescaped-entities under Next's default config, which fails the
- *    build rather than warning. Every other apostrophe on the page is
- *    correctly &apos;, so these were added in a later edit and missed. Same
- *    class as the one already fixed on /tempo.
- *
- * 2. The length limit is now stated (one hour, the audio_tools default). This
- *    page needs it more than most: a mastered track is often the longest file
- *    someone uploads anywhere on the site, and a DJ set can run well past it.
- *
- * 3. Retention answer added, formats read from allowed_audio_formats, prefetch
- *    disabled on the tool grid, feature strip matched to the other pages.
- */
-
 const PAGE_TITLE = "Free LUFS Loudness Normalizer – Normalize Audio Online";
 const PAGE_DESCRIPTION =
   "Normalize a track to streaming, club, or broadcast loudness (LUFS) online, free. Two-pass accurate normalization. No sign-up, no watermark.";
+
+const OG_IMAGE = ogForTool("loudness-normalizer", "Free LUFS Loudness Normalizer");
 
 export const metadata: Metadata = {
   title: PAGE_TITLE,
@@ -47,19 +34,19 @@ export const metadata: Metadata = {
     url: `${SITE_URL}/loudness-normalizer`,
     siteName: SITE_NAME,
     type: "website",
-    images: [{ url: "/images/og-default.png", width: 1200, height: 630, alt: "AudioForges" }],
+    images: [OG_IMAGE],
   },
   twitter: {
     card: "summary_large_image",
     title: PAGE_TITLE,
     description: PAGE_DESCRIPTION,
-    images: ["/images/og-default.png"],
+    images: [OG_IMAGE.url],
   },
 };
 
-// WebApplication schema — every claim below is checked against the actual
-// LoudnormForm/backend behavior. Preset labels only, not asserted as
-// universal cross-platform standards (see visible copy for the caveat).
+// Every claim below is checked against actual LoudnormForm/backend behaviour.
+// Preset labels only — NOT asserted as universal cross-platform standards; see
+// the visible copy for the caveat.
 const webAppJsonLd = {
   "@context": "https://schema.org",
   "@type": "WebApplication",
@@ -77,17 +64,27 @@ const webAppJsonLd = {
   ],
 };
 
-const breadcrumbJsonLd = {
-  "@context": "https://schema.org",
-  "@type": "BreadcrumbList",
-  itemListElement: [
-    { "@type": "ListItem", position: 1, name: "Home", item: SITE_URL },
-    { "@type": "ListItem", position: 2, name: "Loudness Normalizer", item: `${SITE_URL}/loudness-normalizer` },
-  ],
-};
-// NOTE: No HowTo schema — deprecated by Google (desktop since Sept 2023),
-// no ranking or rich-result benefit remains. Visible how-to steps stay.
-// FAQPage schema is emitted by <FAQSection /> — do not duplicate it here.
+// Don't add HowTo schema — deprecated by Google, no benefit. FAQPage comes
+// from <FAQSection />, BreadcrumbList from <Breadcrumb />; don't duplicate.
+
+const TARGETS = [
+  {
+    label: "-14 LUFS — Streaming",
+    desc: "A reasonable single target for releasing to multiple streaming platforms at once — close to Spotify's and YouTube's own normalization level.",
+  },
+  {
+    label: "-9 LUFS — Club",
+    desc: "Louder, matching common club and DJ mastering conventions where the material is played through a system built for a loud room rather than normalized playback.",
+  },
+  {
+    label: "-23 LUFS — Broadcast",
+    desc: "The EBU R128 / ATSC A/85 standard used in TV and radio delivery — considerably quieter than either streaming or club targets.",
+  },
+  {
+    label: "Custom",
+    desc: "Useful when a specific platform, client, or delivery spec gives you an exact LUFS target that doesn't match any of the presets above.",
+  },
+];
 
 export default async function LoudnessNormalizerPage() {
   const relatedTools = getRelatedTools("loudness-normalizer", 5);
@@ -132,9 +129,9 @@ export default async function LoudnessNormalizerPage() {
     },
     {
       /*
-        The length half was never stated. It matters here: a finished master is
-        often the longest file someone uploads anywhere on the site, and a DJ
-        set can run well past the cap.
+        The length half matters more here than on most tools: a finished master
+        is often the longest file someone uploads anywhere on the site, and a
+        DJ set can run well past the cap.
       */
       question: "Is there a size or length limit?",
       answer:
@@ -143,7 +140,6 @@ export default async function LoudnessNormalizerPage() {
           : `Yes — ${limits.maxUploadMb}MB per upload, and up to ${durationLabel(durationCap)} of audio. A long DJ set can run past that; splitting it first is the workaround.`,
     },
     {
-      // ADDED: no retention answer existed.
       question: "Are my uploaded files kept?",
       answer: `${retention.input} ${retention.output} There are no accounts, so nothing is linked to you.`,
     },
@@ -156,28 +152,27 @@ export default async function LoudnessNormalizerPage() {
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(webAppJsonLd) }} />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
 
-      <main className="mx-auto max-w-3xl px-4 py-12 sm:py-16 space-y-12">
-        <header className="text-center space-y-4">
-          <h1 className="text-4xl font-bold tracking-tight sm:text-5xl text-text-primary">
-            Free LUFS Loudness Normalizer
-          </h1>
-          <p className="text-lg text-text-muted max-w-xl mx-auto">
-            Normalize a track to streaming, club, or broadcast loudness (LUFS),
-            free, no sign-up, no watermark.
-          </p>
-        </header>
-
-        {/* Tool stays first — SEO content supports it, doesn't bury it */}
-        <LoudnormForm />
-
-        {/* One bordered strip with hairline dividers, matching the other tool
-            pages. */}
-        <section className="grid divide-y divide-graphite-800 overflow-hidden rounded-xl border border-graphite-800 bg-graphite-900 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
-          {[
-            { title: "Two-pass accurate", desc: "Measures actual loudness first, then corrects precisely." },
-            { title: "3 presets + custom", desc: "Streaming, club, broadcast, or your own LUFS target." },
+      <ToolPageShell
+        breadcrumb={
+          <Breadcrumb
+            items={[{ name: "Tools", href: "/tools" }, { name: "Loudness Normalizer" }]}
+          />
+        }
+        title="Free LUFS Loudness Normalizer"
+        lede="Normalize a track to streaming, club, or broadcast loudness, free, no sign-up, no watermark."
+        tool={<LoudnormForm />}
+      >
+        <FeatureStrip
+          features={[
+            {
+              title: "Two-pass accurate",
+              desc: "Measures actual loudness first, then corrects precisely.",
+            },
+            {
+              title: "3 presets + custom",
+              desc: "Streaming, club, broadcast, or your own LUFS target.",
+            },
             {
               title: "No sign-up",
               desc:
@@ -185,148 +180,98 @@ export default async function LoudnessNormalizerPage() {
                   ? `No account, no email, no watermark. Up to ${limits.maxUploadMb}MB per file.`
                   : `No account, no email, no watermark. Up to ${limits.maxUploadMb}MB and ${durationLabel(durationCap)}.`,
             },
-          ].map((f) => (
-            <div key={f.title} className="space-y-1.5 p-5">
-              <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-amber-400">
-                {f.title}
-              </p>
-              <p className="text-sm leading-relaxed text-text-muted">{f.desc}</p>
-            </div>
-          ))}
-        </section>
+          ]}
+        />
 
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">How to normalize loudness</h2>
-          <ol className="list-decimal list-inside space-y-2 text-text-muted leading-relaxed">
+        <ToolSection id="how-to" title="How to normalize loudness">
+          <ol>
             <li>Upload an {formatList} file.</li>
             <li>Choose Streaming, Club, Broadcast, or set a custom LUFS target.</li>
             <li>Download the result — measured and corrected in two passes for accuracy.</li>
           </ol>
-        </section>
+        </ToolSection>
 
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">Why loudness matching matters for streaming</h2>
-          <div className="space-y-3 text-text-muted leading-relaxed">
-            <p>
-              Streaming platforms don&apos;t play tracks at whatever level
-              they were mastered — each one normalizes playback to its own
-              target, turning louder tracks down to match it. The exact
-              target isn&apos;t identical everywhere, though: Spotify&apos;s
-              default normalization level is -14 LUFS integrated, and YouTube
-              sits in the same neighborhood, while Apple Music normalizes
-              closer to -16 LUFS — a bit quieter than the other two. A track
-              mastered significantly louder than a platform&apos;s target gets
-              turned down on playback and can end up sounding flatter or less
-              punchy relative to a track that was already close to it.
-            </p>
-            <p>
-              Mastering with a platform&apos;s target in mind ahead of time
-              means the platform has less (or no) correction to apply,
-              preserving more of the intended dynamics and impact. -14 LUFS is
-              a reasonable single target if you&apos;re releasing to more than
-              one platform at once, since it&apos;s close to what Spotify and
-              YouTube both normalize toward.
-            </p>
-          </div>
-        </section>
+        <ToolSection id="why-it-matters" title="Why loudness matching matters for streaming">
+          <p>
+            Streaming platforms don&apos;t play tracks at whatever level they
+            were mastered — each one normalizes playback to its own target,
+            turning louder tracks down to match it. The exact target isn&apos;t
+            identical everywhere, though: Spotify&apos;s default normalization
+            level is -14 LUFS integrated, and YouTube sits in the same
+            neighborhood, while Apple Music normalizes closer to -16 LUFS — a bit
+            quieter than the other two. A track mastered significantly louder
+            than a platform&apos;s target gets turned down on playback and can
+            end up sounding flatter or less punchy relative to a track that was
+            already close to it.
+          </p>
+          <p>
+            Mastering with a platform&apos;s target in mind ahead of time means
+            the platform has less (or no) correction to apply, preserving more of
+            the intended dynamics and impact. -14 LUFS is a reasonable single
+            target if you&apos;re releasing to more than one platform at once,
+            since it&apos;s close to what Spotify and YouTube both normalize
+            toward.
+          </p>
+        </ToolSection>
 
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">What LUFS level should you use?</h2>
-          <div className="space-y-3 text-text-muted leading-relaxed">
-            <p>
-              <strong className="text-text-primary">-14 LUFS (Streaming):</strong>{" "}
-              a reasonable single target for releasing to multiple streaming
-              platforms at once — close to Spotify&apos;s and YouTube&apos;s own
-              normalization level.
-            </p>
-            <p>
-              <strong className="text-text-primary">-9 LUFS (Club):</strong>{" "}
-              louder, matching common club and DJ mastering conventions where
-              the material is played through a system built for a loud room
-              rather than normalized playback.
-            </p>
-            <p>
-              <strong className="text-text-primary">-23 LUFS (Broadcast):</strong>{" "}
-              the EBU R128 / ATSC A/85 standard used in TV and radio delivery —
-              considerably quieter than either streaming or club targets.
-            </p>
-            <p>
-              <strong className="text-text-primary">Custom:</strong> useful
-              when a specific platform, client, or delivery spec gives you an
-              exact LUFS target that doesn&apos;t match any of the presets
-              above.
-            </p>
-          </div>
-        </section>
+        {/* Was four paragraphs each opening with a bolded target — term and
+            definition pairs, so the dl renders them as a spec table. */}
+        <ToolSection id="which-target" title="What LUFS level should you use?">
+          <dl className="codes">
+            {TARGETS.map((t) => (
+              <Fragment key={t.label}>
+                <dt>{t.label}</dt>
+                <dd>{t.desc}</dd>
+              </Fragment>
+            ))}
+          </dl>
+        </ToolSection>
 
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">Why two passes instead of one</h2>
-          <p className="text-text-muted leading-relaxed">
-            A single-pass loudness correction estimates the needed adjustment
-            in real time as it streams through the file — a reasonable
+        <ToolSection id="two-pass" title="Why two passes instead of one">
+          <p>
+            A single-pass loudness correction estimates the needed adjustment in
+            real time as it streams through the file — a reasonable
             approximation, but one that can miss the actual target by a
             noticeable margin on tracks with uneven loudness throughout. This
-            tool always runs two passes: the first measures the track&apos;s
-            true integrated loudness, peak, and dynamic range with the whole
-            file already analyzed; the second applies the exact correction
-            those measurements call for. The cost is one extra decode pass;
-            the benefit is a result that actually lands on the target you
-            asked for.
+            tool always runs two passes: the first measures the track&apos;s true
+            integrated loudness, peak, and dynamic range with the whole file
+            already analyzed; the second applies the exact correction those
+            measurements call for. The cost is one extra decode pass; the benefit
+            is a result that actually lands on the target you asked for.
           </p>
-          <p className="text-text-muted leading-relaxed">
-            Want the fuller breakdown of LUFS vs. peak level, and why
-            different platforms genuinely target different loudness levels?{" "}
-            <Link href="/guides/what-is-lufs-loudness-explained" className="text-amber-400 hover:underline">
+          <p>
+            Want the fuller breakdown of LUFS vs. peak level, and why different
+            platforms genuinely target different loudness levels?{" "}
+            <Link href="/guides/what-is-lufs-loudness-explained">
               Read What Is LUFS, and Why Does Streaming Loudness Matter?
             </Link>
           </p>
-        </section>
+        </ToolSection>
 
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">Common uses</h2>
-          <div className="space-y-3 text-text-muted leading-relaxed">
-            <p>
-              Preparing a track for upload to Spotify, YouTube, or Apple
-              Music at a competitive loudness level; mastering a DJ set or
-              club track to a louder, dancefloor-appropriate level;
-              delivering audio to broadcast at the EBU R128 standard; and
-              matching loudness across a batch of tracks so a playlist
-              doesn&apos;t have jarring volume jumps between songs.
-            </p>
-            <p>
-              Working from a raw mix that&apos;s too quiet or too loud
-              overall before normalizing? The{" "}
-              <Link href="/volume" prefetch={false} className="text-amber-400 hover:underline">
-                Volume Booster
-              </Link>{" "}
-              adjusts gain by a fixed decibel amount instead of a
-              loudness-standard target, which is a simpler tool if you just
-              need a quick gain change rather than accurate LUFS matching.
-            </p>
-          </div>
-        </section>
+        <ToolSection id="common-uses" title="Common uses">
+          <p>
+            Preparing a track for upload to Spotify, YouTube, or Apple Music at a
+            competitive loudness level; mastering a DJ set or club track to a
+            louder, dancefloor-appropriate level; delivering audio to broadcast at
+            the EBU R128 standard; and matching loudness across a batch of tracks
+            so a playlist doesn&apos;t have jarring volume jumps between songs.
+          </p>
+          <p>
+            Working from a raw mix that&apos;s too quiet or too loud overall
+            before normalizing? The{" "}
+            <Link href="/volume" prefetch={false}>
+              Volume Booster
+            </Link>{" "}
+            adjusts gain by a fixed decibel amount instead of a loudness-standard
+            target, which is a simpler tool if you just need a quick gain change
+            rather than accurate LUFS matching.
+          </p>
+        </ToolSection>
 
-        {relatedTools.length > 0 && (
-          <section className="space-y-4">
-            <h2 className="text-2xl font-bold text-text-primary">More free tools</h2>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {relatedTools.map((tool) => (
-                <Link
-                  key={tool.slug}
-                  href={`/${tool.slug}`}
-                  prefetch={false}
-                  className="rounded-xl border border-graphite-800 bg-graphite-900 p-4 hover:border-amber-500/40 transition-colors"
-                >
-                  <h3 className="font-semibold text-text-primary">{tool.name}</h3>
-                  <p className="text-sm text-text-muted mt-1">{tool.shortDescription}</p>
-                </Link>
-              ))}
-            </div>
-          </section>
-        )}
+        <RelatedToolsGrid tools={relatedTools} />
 
         <FAQSection faqs={faqs} />
-      </main>
+      </ToolPageShell>
     </>
   );
 }

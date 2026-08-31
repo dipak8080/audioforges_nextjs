@@ -201,13 +201,6 @@ export function MetronomeForm({ initialBpm }: MetronomeFormProps) {
     accentEnabledRef.current = accentEnabled;
   }, [accentEnabled]);
 
-  useEffect(() => {
-    return () => {
-      stop();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   // Generates a click programmatically (a short sine burst with a fast
   // decay envelope) rather than loading an audio file - the accented
   // downbeat gets a higher pitch and slightly louder volume, matching
@@ -246,6 +239,16 @@ export function MetronomeForm({ initialBpm }: MetronomeFormProps) {
     }
   }, [playClick]);
 
+  /**
+   * The rAF loop reschedules itself, which it can't do by naming itself: a
+   * value referenced inside its own initializer is something the React
+   * Compiler can't reason about, and it responded by skipping optimisation of
+   * this entire component. One indirection through a ref — declared BEFORE the
+   * callback, assigned in an effect rather than during render — removes the
+   * self-reference without changing the timing.
+   */
+  const visualLoopRef = useRef<() => void>(() => {});
+
   // Drives the visual beat indicator off the SAME scheduled times used
   // for audio, rather than a separate timer - keeps the flash visually
   // locked to what's actually audible instead of drifting from it.
@@ -259,8 +262,12 @@ export function MetronomeForm({ initialBpm }: MetronomeFormProps) {
       if (beat) setActiveBeat(beat.beatIndex);
     }
 
-    rafRef.current = requestAnimationFrame(visualLoop);
+    rafRef.current = requestAnimationFrame(() => visualLoopRef.current());
   }, []);
+
+  useEffect(() => {
+    visualLoopRef.current = visualLoop;
+  }, [visualLoop]);
 
   const start = useCallback(() => {
     const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
@@ -291,6 +298,11 @@ export function MetronomeForm({ initialBpm }: MetronomeFormProps) {
     setIsPlaying(false);
     setActiveBeat(null);
   }, []);
+
+  // Declared after `stop` so it isn't reaching a value from further down the
+  // file. `stop` is useCallback([]) and therefore stable, so this still runs
+  // its cleanup only on unmount.
+  useEffect(() => () => stop(), [stop]);
 
   const toggle = useCallback(() => {
     if (isPlaying) stop();

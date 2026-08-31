@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Mic, Square, Play, Pause, Download, RotateCcw, AlertTriangle } from "lucide-react";
 import { Button, buttonStyles } from "@/components/ui/Button";
 
@@ -41,7 +41,6 @@ export function VoiceRecorderForm() {
   const [state, setState] = useState<RecorderState>("idle");
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
-  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [mimeType, setMimeType] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [levels, setLevels] = useState<number[]>(new Array(32).fill(0.05));
@@ -61,17 +60,6 @@ export function VoiceRecorderForm() {
     }
   }, []);
 
-  useEffect(() => {
-    return () => {
-      stopTimer();
-      stopLevelMeter();
-      streamRef.current?.getTracks().forEach((t) => t.stop());
-      if (audioUrl) URL.revokeObjectURL(audioUrl);
-      audioCtxRef.current?.close();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   const stopTimer = () => {
     if (timerRef.current) {
       clearInterval(timerRef.current);
@@ -85,6 +73,29 @@ export function VoiceRecorderForm() {
       rafRef.current = null;
     }
   };
+
+  /**
+   * Declared after stopTimer/stopLevelMeter so it isn't reaching values from
+   * further down the file.
+   *
+   * `audioUrl` is read through a ref rather than listed as a dependency: the
+   * cleanup must run ONCE, on unmount, and depending on the URL would tear the
+   * recorder down every time a new one was created.
+   */
+  const audioUrlRef = useRef<string | null>(null);
+  useEffect(() => {
+    audioUrlRef.current = audioUrl;
+  }, [audioUrl]);
+
+  useEffect(() => {
+    return () => {
+      stopTimer();
+      stopLevelMeter();
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+      if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
+      audioCtxRef.current?.close();
+    };
+  }, []);
 
   // Live input-level bars while recording - purely visual feedback so the
   // person can see the mic is actually picking up sound, not a waveform
@@ -139,7 +150,6 @@ export function VoiceRecorderForm() {
       recorder.onstop = () => {
         const blob = new Blob(chunksRef.current, { type: actualType });
         const url = URL.createObjectURL(blob);
-        setAudioBlob(blob);
         setAudioUrl(url);
         setState("stopped");
         stopTimer();
@@ -167,7 +177,6 @@ export function VoiceRecorderForm() {
   const handleReset = () => {
     if (audioUrl) URL.revokeObjectURL(audioUrl);
     setAudioUrl(null);
-    setAudioBlob(null);
     setMimeType(null);
     setElapsedSeconds(0);
     setIsPlaying(false);

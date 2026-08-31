@@ -8,7 +8,7 @@ import { ToolSection } from "@/components/ui/ToolSection";
 import { FeatureStrip } from "@/components/ui/FeatureStrip";
 import { RelatedToolsGrid } from "@/components/tools/RelatedToolsGrid";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
-import { ogImage } from "@/lib/og";
+import { ogForTool } from "@/lib/og";
 import { getRelatedTools } from "@/lib/data/tools";
 import {
   getLimits,
@@ -21,7 +21,7 @@ const PAGE_TITLE = "Free Audio Trimmer — Cut Any Track Online";
 const PAGE_DESCRIPTION =
   "Trim or cut audio files online free. Cut MP3, WAV, FLAC, AAC, M4A, OGG, and AIFF with a precise start and end point. No sign-up, no watermark.";
 
-const OG_IMAGE = ogImage("Free Audio Trimmer", "Cut any track to an exact start and end point.");
+const OG_IMAGE = ogForTool("trim", "Free Audio Trimmer");
 
 export const metadata: Metadata = {
   title: PAGE_TITLE,

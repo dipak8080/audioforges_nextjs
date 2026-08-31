@@ -3,10 +3,14 @@ import Link from "next/link";
 import { TranscriptionForm } from "@/components/converter/TranscriptionForm";
 import { TranscriptionModeTabs } from "@/components/converter/TranscriptionModeTabs";
 import { SectionHeading } from "@/components/ui/SectionHeading";
+import { Prose } from "@/components/ui/Prose";
 import { FAQSection } from "@/components/faq/FAQSection";
+import { Breadcrumb } from "@/components/layout/Breadcrumb";
+import { RelatedToolsGrid } from "@/components/tools/RelatedToolsGrid";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
 import { TRANSCRIPTION_MODEL, getTranscriptionLanguages } from "@/lib/api/transcription";
+import { ogForTool } from "@/lib/og";
 import {
   getLimits,
   windowFor,
@@ -16,119 +20,61 @@ import {
 } from "@/lib/api/limits";
 
 /**
- * ── THIS PASS ──────────────────────────────────────────────────────────
- *
- * The most disciplined page on the site — every limit already derived, nothing
- * written as text. Which is exactly why its two problems are easy to miss.
- *
- * 1. THE FALLBACK WAS STALE, AND STALE IN THE GENEROUS DIRECTION.
- *
- *      getRateLimitLabel("video-to-text") ?? "2 per 5 minutes"
- *
- *    rate-limits.ts records the change: "CHANGED 2026-08-26: 2 per 5 minutes
- *    -> 2 per hour, across all three routes." The table value was updated; the
- *    hand-written fallback beside it wasn't. So the one situation it exists
- *    for — key missing or renamed — printed a figure twelve times too
- *    generous.
- *
- *    A fallback is the branch nobody tests, which is what makes a wrong one
- *    worse than none. This now derives from /limits with the static table
- *    behind it, so there is no third hand-written number in the chain.
- *
- * 2. THE PAGE PUBLISHED A VERIFICATION DATE THAT HAD GONE FALSE. The footer
- *    said "limits, model and import paths re-checked 21 August 2026" — five
- *    days before the transcription rate limit moved. That line is the reason a
- *    reader trusts the rest of the page, so it going stale costs more than the
- *    number it vouches for. Re-verified against the backend today and dated
- *    accordingly.
- *
- * 3. NO RETENTION ANSWER, and this page needs the one nothing else has used.
- *    Transcription's result is inline text in the job record, not a file on
- *    disk — so "your file is available for an hour" is the wrong sentence
- *    entirely. retentionSentences() handles that from output_kind.
- *
- * 4. `keywords` MOVED OUT OF metadata. Google has ignored the tag since 2009
- *    and Bing treats it as a spam signal, so emitting it does nothing and may
- *    cost something. The list itself is genuinely useful as a record of what
- *    this page targets, so it stays as a constant with the gap-run note — just
- *    not in the document head. Revert if you disagree; the list is unchanged.
- *
  * NOTE ON THE CAP THIS PAGE USES: max_video_transcribe_mb (100), NOT
  * max_video_upload_mb (200) which /video-to-audio uses. Two video routes, two
- * caps, and showing one figure on both pages is wrong by double on one of
- * them.
+ * caps, and showing one figure on both pages is wrong by double on one.
  */
 
+// `: string` is load-bearing — without it TS narrows both to literal types and
+// flags the LAST_VERIFIED !== PUBLISHED check below as impossible.
 const PUBLISHED: string = "2026-08-20";
 /**
- * Bump this ONLY after actually re-checking the limits, the model name and the
- * import paths in SUBTITLE_TARGETS. The footer publishes it as a promise, and
- * a date that outruns the check is worse than no date — it was five days stale
- * when the rate limit moved beneath it.
+ * Bump ONLY after actually re-checking the limits, the model name and the
+ * import paths in SUBTITLE_TARGETS. The footer publishes this as a promise,
+ * and a date that outruns the check is worse than no date — it was five days
+ * stale when the rate limit moved beneath it.
  */
 const LAST_VERIFIED: string = "2026-08-30";
 
 const formatDate = (iso: string) =>
   new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
 
-/**
- * TARGET TERMS — reference only, deliberately NOT emitted as a meta tag.
- *
- * A comment rather than an unused const, so noUnusedLocals doesn't flag it and
- * nobody "fixes" it by wiring it back into metadata.
- *
- * Google has ignored `<meta name="keywords">` since 2009 and Bing has said it
- * treats it as a spam signal, so shipping it is at best inert. Keeping the
- * list is still worth it: it records what this page is written to rank for,
- * which is the thing a future edit needs to know.
- *
- * The last two came from a gap run against youtubetotranscript.com, tactiq.io,
- * notegpt.io, downsub.com and kome.ai — bare-noun-phrase and reversed
- * word-order variants that weren't covered.
- */
 /*
-    transcribe video to text free
-    video to text
-    video to text converter
-    mp4 to text
-    convert video to text free
-    video transcription free
-    mp4 to srt
-    generate subtitles from video free
-    free subtitle generator no watermark
-    video to subtitles
-    transcribe video free no sign up
-    mov to text
-    video transcription              ← from the gap run
-    transcription video to text      ← from the gap run
+  TARGET TERMS — reference only, deliberately NOT emitted as a meta tag.
+  Google has ignored <meta name="keywords"> since 2009 and Bing treats it as a
+  spam signal. The list records what this page is written to rank for.
+
+    transcribe video to text free · video to text · video to text converter
+    mp4 to text · convert video to text free · video transcription free
+    mp4 to srt · generate subtitles from video free
+    free subtitle generator no watermark · video to subtitles
+    transcribe video free no sign up · mov to text
+    video transcription           ← from the gap run
+    transcription video to text   ← from the gap run
+
+  Gap run against youtubetotranscript.com, tactiq.io, notegpt.io, downsub.com
+  and kome.ai.
 */
 
-/* ------------------------------------------------------------------ */
-/* Targeting                                                           */
-/* ------------------------------------------------------------------ */
 /**
  * THE TARGET IS "transcribe video to text free", NOT "video to text".
  *
- * Both carry >1000 volume. The bare head term is Hard and the SERP is
- * DR 70+ SaaS; a page with no referring domains does not take it, and
- * writing the title for it means writing for a query we lose. The
- * "transcribe ... free" variant is the one cell in that keyword table
- * marked Easy, and it's also closer to the intent this page actually
- * serves — someone who wants the file, free, now.
+ * Both carry >1000 volume. The bare head term is Hard and the SERP is DR 70+
+ * SaaS; a page with no referring domains does not take it, and writing the
+ * title for it means writing for a query we lose. The "transcribe ... free"
+ * variant is the one cell in that keyword table marked Easy, and it's closer
+ * to the intent this page serves — someone who wants the file, free, now.
  *
- * Caveat worth holding: Ahrefs derives KD from the backlink profiles of
- * the current top 10, and when those are subpages of large domains the
- * individual pages carry few links — so KD reads Easy while domain
- * authority still decides the result. Easy means winnable, not free.
+ * Caveat worth holding: Ahrefs derives KD from the backlink profiles of the
+ * current top 10, and when those are subpages of large domains the individual
+ * pages carry few links — so KD reads Easy while domain authority still
+ * decides the result. Easy means winnable, not free.
  *
  * "video to text converter" survives as the JSON-LD name, in the opening
- * paragraph, and in an H2. Losing an exact-match H1 for a term we can't
- * win costs nothing; Google matches the entity regardless.
- *
- * "video transcription" (bare noun phrase, KD 27, DR 70+ SaaS on the
- * SERP) is the same story: not a title target for a new domain, but the
- * entity gets matched without spending title real estate by carrying it
- * in the opening paragraph — see below.
+ * paragraph, and in an H2. Losing an exact-match H1 for a term we can't win
+ * costs nothing; Google matches the entity regardless. Same story for "video
+ * transcription" (bare noun phrase, KD 27) — carried in the opening paragraph
+ * rather than spending title real estate.
  */
 const PAGE_TITLE = "Transcribe Video to Text Free, MP4 to SRT";
 
@@ -136,17 +82,18 @@ const PAGE_TITLE = "Transcribe Video to Text Free, MP4 to SRT";
  * The description needs the limits, and `metadata` is evaluated at module
  * scope where getLimits() can't be awaited. It reads the same constants the
  * fallback in lib/api/limits.ts uses, so head copy and body copy can only
- * disagree if the backend has moved AND the fallback hasn't been updated —
- * the same window every other page has.
+ * disagree if the backend moved AND the fallback wasn't updated.
  */
 const DESCRIPTION_MINUTES = 20;
 const DESCRIPTION_MB = 100;
 const PAGE_DESCRIPTION = `Transcribe MP4, MOV, MKV or WEBM to text free — no account, no watermark. Export SRT or VTT subtitles. Videos up to ${DESCRIPTION_MINUTES} minutes and ${DESCRIPTION_MB}MB.`;
 
+const OG_IMAGE = ogForTool("video-to-text", "Transcribe video to text free");
+
 export const metadata: Metadata = {
   title: PAGE_TITLE,
   description: PAGE_DESCRIPTION,
-  // `keywords` intentionally absent — see TARGET_TERMS above.
+  // `keywords` intentionally absent — see the term list above.
   alternates: { canonical: `${SITE_URL}/video-to-text` },
   openGraph: {
     title: PAGE_TITLE,
@@ -154,36 +101,28 @@ export const metadata: Metadata = {
     url: `${SITE_URL}/video-to-text`,
     siteName: SITE_NAME,
     type: "website",
-    images: [{ url: "/images/og-default.png", width: 1200, height: 630, alt: "AudioForges" }],
+    images: [OG_IMAGE],
   },
   twitter: {
     card: "summary_large_image",
     title: PAGE_TITLE,
     description: PAGE_DESCRIPTION,
-    images: ["/images/og-default.png"],
+    images: [OG_IMAGE.url],
   },
 };
 
-const breadcrumbJsonLd = {
-  "@context": "https://schema.org",
-  "@type": "BreadcrumbList",
-  itemListElement: [
-    { "@type": "ListItem", position: 1, name: "Home", item: SITE_URL },
-    { "@type": "ListItem", position: 2, name: "Video to Text", item: `${SITE_URL}/video-to-text` },
-  ],
-};
+// BreadcrumbList comes from <Breadcrumb />; FAQPage from <FAQSection />.
 
 /**
  * THE LINKABLE ASSET.
  *
- * Where the SRT actually goes afterwards is the half of the job every
- * subtitle page skips, and the half people get stuck on. It's also the
- * only thing on this site someone would link to without being asked, so
- * it's worth being the most complete version of this table on the web
- * rather than a five-row gesture at one.
+ * Where the SRT actually goes afterwards is the half of the job every subtitle
+ * page skips, and the half people get stuck on. It's also the only thing here
+ * someone would link to without being asked, so it's worth being the most
+ * complete version of this table on the web rather than a five-row gesture.
  *
- * Verify these paths when you touch LAST_VERIFIED — menu labels move,
- * and a wrong path here is worse than no table.
+ * Verify these paths when you touch LAST_VERIFIED — menu labels move, and a
+ * wrong path here is worse than no table.
  */
 const SUBTITLE_TARGETS = [
   { app: "YouTube", how: "Studio → Subtitles → Add → Upload file → With timing", format: "SRT" },
@@ -193,19 +132,27 @@ const SUBTITLE_TARGETS = [
   { app: "CapCut", how: "Captions → Import captions", format: "SRT" },
   { app: "Kdenlive", how: "Project → Subtitles → Import Subtitle File", format: "SRT" },
   { app: "Vimeo", how: "Video settings → Distribution → Subtitles → Upload", format: "SRT or VTT" },
-  { app: "Zoom recordings", how: "Upload alongside the cloud recording in your account's recording settings", format: "VTT" },
+  {
+    app: "Zoom recordings",
+    how: "Upload alongside the cloud recording in your account's recording settings",
+    format: "VTT",
+  },
   { app: "VLC", how: "Keep the .srt next to the video with the same filename", format: "SRT" },
-  { app: "Website video", how: '<track kind="captions" src="..."> inside your <video> element', format: "VTT" },
+  {
+    app: "Website video",
+    how: '<track kind="captions" src="..."> inside your <video> element',
+    format: "VTT",
+  },
 ];
 
 /**
  * FFMPEG, WHICH NO COMPETITOR WILL EVER PUBLISH.
  *
- * Every tool on this SERP sells the burned-in captioned video as its
- * paid feature, so none of them will tell you it's two lines of ffmpeg.
- * That asymmetry is the whole reason this section is worth having: it's
- * genuinely useful, it's the kind of thing developers cite and link, and
- * it costs nothing here because burned-in video was never the product.
+ * Every tool on this SERP sells the burned-in captioned video as its paid
+ * feature, so none of them will tell you it's two lines of ffmpeg. That
+ * asymmetry is the whole reason this section is worth having: genuinely
+ * useful, the kind of thing developers cite and link, and it costs nothing
+ * here because burned-in video was never the product.
  *
  * Both commands verified against ffmpeg 6.x.
  */
@@ -231,14 +178,11 @@ export default async function VideoToTextPage() {
 
   /*
     Fetched here so the ~99-language dropdown is populated on first paint.
-    TranscriptionForm falls back to fetching it client-side when this is
-    omitted — which works, but flashes a list containing only "Detect
-    automatically" while it lands, which is the degraded path that component
-    was written to avoid.
+    TranscriptionForm falls back to fetching it client-side when omitted —
+    which works, but flashes a list containing only "Detect automatically".
 
     .catch(() => null) is load-bearing: without it a backend blip would fail
-    the whole page render, when the client-side fetch already handles that
-    case perfectly well.
+    the whole page render, when the client-side fetch already handles that.
   */
   const languages = await getTranscriptionLanguages().catch(() => null);
 
@@ -253,9 +197,10 @@ export default async function VideoToTextPage() {
 
   /*
     Derived end to end, with no hand-written third number in the chain. The
-    fallback here used to read "2 per 5 minutes" — the figure this route
-    carried before 2026-08-26 — so the branch that only fires when something is
-    already wrong printed a limit twelve times too generous.
+    fallback used to read "2 per 5 minutes" — the figure this route carried
+    before 2026-08-26 — so the branch that only fires when something is already
+    wrong printed a limit twelve times too generous. A fallback is the branch
+    nobody tests, which is what makes a wrong one worse than none.
   */
   const rateLimit = rateLimitLabel(
     limits.rateLimits.video_to_text ?? 2,
@@ -272,9 +217,9 @@ export default async function VideoToTextPage() {
   */
   const retention = retentionSentences(limits.retention.transcription);
 
-  // No aggregateRating. Every competitor on this SERP carries one and a
-  // good share are invented; the argument this page makes about export
-  // paywalls doesn't survive faking a review count.
+  // No aggregateRating. Every competitor on this SERP carries one and a good
+  // share are invented; the argument this page makes about export paywalls
+  // doesn't survive faking a review count.
   const webAppJsonLd = {
     "@context": "https://schema.org",
     "@type": "WebApplication",
@@ -305,10 +250,10 @@ export default async function VideoToTextPage() {
   };
 
   /**
-   * Every answer opens with the answer — extractive summarisers take the
-   * first clause, and AI panels are where a page with no backlinks gets
-   * its first impressions. The first three are phrased against real
-   * question queries rather than invented ones.
+   * Every answer opens with the answer — extractive summarisers take the first
+   * clause, and AI panels are where a page with no backlinks gets its first
+   * impressions. The first three are phrased against real question queries
+   * rather than invented ones.
    */
   const faqs = [
     {
@@ -351,10 +296,10 @@ export default async function VideoToTextPage() {
     },
     {
       /*
-        ADDED, and it's the one retention shape nothing else on the site uses.
-        The transcript lives in the job record as text rather than as a file on
-        disk, so the usual "your file is available for an hour" sentence would
-        describe something that doesn't exist.
+        The one retention shape nothing else on the site uses. The transcript
+        lives in the job record as text rather than as a file on disk, so the
+        usual "your file is available for an hour" sentence would describe
+        something that doesn't exist.
       */
       question: "Are my uploaded videos kept?",
       answer: `${retention.input} ${retention.output} There are no accounts, so nothing is linked to you.`,
@@ -386,44 +331,42 @@ export default async function VideoToTextPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(webAppJsonLd) }}
       />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
-      />
 
-      <main className="mx-auto max-w-3xl px-4 pb-16">
-        {/* Opening paragraph carries the bare entity "video transcription"
+      <main id="main" className="mx-auto max-w-3xl px-4 pb-16 pt-10 sm:pt-14">
+        <Breadcrumb
+          items={[{ name: "Tools", href: "/tools" }, { name: "Video to Text" }]}
+          className="mb-8"
+        />
+
+        {/* The opening paragraph carries the bare entity "video transcription"
             (KD 27, DR 70+ SaaS on the SERP — not a title target for a new
-            domain, per the targeting comment above) so it's matched without
-            spending title or H1 real estate. */}
-        <section className="pt-14 text-center sm:pt-20">
+            domain) so it's matched without spending title or H1 real estate. */}
+        <header>
           <p className="font-mono text-xs uppercase tracking-[0.16em] text-amber-500">
             No account · No watermark · Free SRT
           </p>
-          <h1 className="mx-auto mt-4 max-w-2xl text-4xl font-bold tracking-tight text-text-primary sm:text-5xl">
+          <h1 className="measure-wide mt-5 text-4xl font-bold leading-[1.04] tracking-[-0.025em] text-text-primary sm:text-5xl">
             Transcribe video to text free
           </h1>
-          <p className="mx-auto mt-4 max-w-xl text-lg text-text-muted">
+          <p className="measure-wide mt-4 text-lg leading-relaxed text-text-muted sm:text-xl">
             A video to text converter that gives you the file — free video
-            transcription with nothing held behind a sign-up. Upload an MP4 or
-            MOV, get the transcript back, and download SRT or VTT subtitles.
+            transcription with nothing held behind a sign-up.
           </p>
-        </section>
+        </header>
 
-        <div className="mt-8 flex justify-center">
+        <div className="mt-7">
           <TranscriptionModeTabs active="/video-to-text" />
         </div>
 
-        <div className="mt-6">
+        <div className="mt-5">
           <TranscriptionForm mode="video" languages={languages} />
         </div>
 
-        {/* THE WEDGE ON THIS PAGE.
-            Most traffic here wants subtitles, and export is precisely what
-            the freemium incumbents hold back — you can generate captions
-            on several well-known sites and then find the download behind a
-            plan. Leading with that, plainly, is the differentiator. */}
-        <section className="border-t border-graphite-800 py-12 sm:py-14">
+        {/* THE WEDGE ON THIS PAGE. Most traffic here wants subtitles, and
+            export is precisely what the freemium incumbents hold back — you
+            can generate captions on several well-known sites and then find the
+            download behind a plan. */}
+        <section className="mt-16 border-t border-graphite-800 py-14">
           <SectionHeading
             eyebrow="The catch elsewhere"
             title="Generating captions is free almost everywhere. Downloading them isn't."
@@ -473,34 +416,30 @@ export default async function VideoToTextPage() {
             </table>
           </div>
 
-          <p className="mt-4 leading-relaxed text-text-muted">
-            The trade is honest in the other direction too: those tools give
-            you an editor and a captioned video file. This gives you the
-            transcript and the subtitle file, and stops there. If you want
-            styled captions burned into the frame, an editor is the right tool
-            — but you can still generate the SRT here and import it, which is
-            free either way.
-          </p>
-
-          <p className="mt-4 leading-relaxed text-text-muted">
-            The export paywall is one of six patterns worth recognising before
-            you upload anywhere —{" "}
-            <Link
-              href="/free-transcription-no-sign-up"
-              prefetch={false}
-              className="text-amber-400 hover:underline"
-            >
-              free transcription without signing up
-            </Link>
-            .
-          </p>
+          <Prose className="mt-6">
+            <p>
+              The trade is honest in the other direction too: those tools give you
+              an editor and a captioned video file. This gives you the transcript
+              and the subtitle file, and stops there. If you want styled captions
+              burned into the frame, an editor is the right tool — but you can
+              still generate the SRT here and import it, which is free either way.
+            </p>
+            <p>
+              The export paywall is one of six patterns worth recognising before
+              you upload anywhere —{" "}
+              <Link href="/free-transcription-no-sign-up" prefetch={false}>
+                free transcription without signing up
+              </Link>
+              .
+            </p>
+          </Prose>
         </section>
 
         {/* Where the file actually goes. Most subtitle pages end at the
-            download and leave people stuck on the half of the job that
-            isn't obvious. This is the strongest candidate on the site for
-            earning a link without asking for one. */}
-        <section className="border-t border-graphite-800 py-12 sm:py-14">
+            download and leave people stuck on the half of the job that isn't
+            obvious. Strongest candidate on the site for earning a link without
+            asking for one. */}
+        <section className="border-t border-graphite-800 py-14">
           <SectionHeading
             eyebrow="After the download"
             title="Where the subtitle file goes"
@@ -530,17 +469,19 @@ export default async function VideoToTextPage() {
             </table>
           </div>
 
-          <p className="mt-4 leading-relaxed text-text-muted">
-            Uploading captions to YouTube rather than relying on its
-            auto-captions is worth the extra minute: the uploaded file is what
-            gets indexed, and it doesn&apos;t inherit auto-caption mistakes on
-            names, jargon or accented speech.
-          </p>
+          <Prose className="mt-6">
+            <p>
+              Uploading captions to YouTube rather than relying on its
+              auto-captions is worth the extra minute: the uploaded file is what
+              gets indexed, and it doesn&apos;t inherit auto-caption mistakes on
+              names, jargon or accented speech.
+            </p>
+          </Prose>
         </section>
 
-        {/* The section a competitor structurally cannot write, because
-            burning captions into video is what they charge for. */}
-        <section className="border-t border-graphite-800 py-12 sm:py-14">
+        {/* The section a competitor structurally cannot write, because burning
+            captions into video is what they charge for. */}
+        <section className="border-t border-graphite-800 py-14">
           <SectionHeading
             eyebrow="If you do need it in the video"
             title="Two lines of ffmpeg"
@@ -549,7 +490,7 @@ export default async function VideoToTextPage() {
 
           <div className="mt-8 space-y-6">
             {FFMPEG_RECIPES.map((recipe) => (
-              <div key={recipe.goal} className="border-t border-graphite-800 pt-4">
+              <div key={recipe.goal} className="measure border-t border-graphite-800 pt-4">
                 <h3 className="font-semibold text-text-primary">{recipe.goal}</h3>
                 <p className="mt-1.5 text-sm leading-relaxed text-text-muted">{recipe.when}</p>
                 <pre className="scrollbar-thin mt-3 overflow-x-auto rounded-lg border border-graphite-700 bg-graphite-850 p-3">
@@ -560,17 +501,19 @@ export default async function VideoToTextPage() {
             ))}
           </div>
 
-          <p className="mt-6 leading-relaxed text-text-muted">
-            Attach the track rather than burning it whenever the platform
-            allows: it finishes in seconds instead of minutes, costs no
-            quality, stays editable, and viewers can switch it off. Burn it in
-            only where captions can&apos;t be a separate file — which in
-            practice means social video, where autoplay is muted and the
-            captions are the point.
-          </p>
+          <Prose className="mt-6">
+            <p>
+              Attach the track rather than burning it whenever the platform
+              allows: it finishes in seconds instead of minutes, costs no quality,
+              stays editable, and viewers can switch it off. Burn it in only where
+              captions can&apos;t be a separate file — which in practice means
+              social video, where autoplay is muted and the captions are the
+              point.
+            </p>
+          </Prose>
         </section>
 
-        <section className="border-t border-graphite-800 py-12 sm:py-14">
+        <section className="border-t border-graphite-800 py-14">
           <SectionHeading eyebrow="How it works" title="Upload, wait, export" />
 
           <ol className="mt-8 grid gap-x-8 gap-y-8 sm:grid-cols-3">
@@ -600,85 +543,61 @@ export default async function VideoToTextPage() {
           </ol>
         </section>
 
-        <section className="border-t border-graphite-800 py-12 sm:py-14">
+        <section className="border-t border-graphite-800 py-14">
           <SectionHeading
             eyebrow="Honest limits"
             title="What this won't do"
             description="Worth knowing before you upload rather than after."
           />
 
-          <ul className="mt-8 space-y-3 leading-relaxed text-text-muted">
-            <li className="border-t border-graphite-800 pt-3">
-              <strong className="text-text-primary">
-                No captioned video comes back.
-              </strong>{" "}
-              You get text and a subtitle file. Burning captions into the frame
-              needs a video editor, or the ffmpeg command above.
-            </li>
-            <li className="border-t border-graphite-800 pt-3">
-              <strong className="text-text-primary">No subtitle editor.</strong>{" "}
-              No styling, no repositioning, no line-break control. SRT is plain
-              text, so small fixes are easy in any text editor.
-            </li>
-            <li className="border-t border-graphite-800 pt-3">
-              <strong className="text-text-primary">No speaker labels.</strong> A
-              two-person interview comes back as continuous captions.
-            </li>
-            <li className="border-t border-graphite-800 pt-3">
-              <strong className="text-text-primary">
-                {videoMb}MB and {maxMinutesLabel}.
-              </strong>{" "}
-              Over either, extract the audio first with{" "}
-              <Link href="/video-to-audio" prefetch={false} className="text-amber-400 hover:underline">
-                Video to Audio
-              </Link>{" "}
-              — audio-only is far smaller, and it&apos;s all that gets
-              transcribed anyway.
-            </li>
-          </ul>
+          {/* Was a <ul> of bold lead-ins with hand-drawn top borders —
+              term/explanation pairs, so the dl renders them properly. */}
+          <Prose className="mt-8">
+            <dl>
+              <dt>No captioned video comes back</dt>
+              <dd>
+                You get text and a subtitle file. Burning captions into the frame
+                needs a video editor, or the ffmpeg command above.
+              </dd>
 
-          <p className="mt-6 leading-relaxed text-text-muted">
-            For what actually degrades a transcript, and the full SRT-versus-VTT
-            breakdown,{" "}
-            <Link
-              href="/guides/transcribing-audio-accurately"
-              prefetch={false}
-              className="text-amber-400 hover:underline"
-            >
-              read the transcription accuracy guide
-            </Link>
-            .
-          </p>
+              <dt>No subtitle editor</dt>
+              <dd>
+                No styling, no repositioning, no line-break control. SRT is plain
+                text, so small fixes are easy in any text editor.
+              </dd>
+
+              <dt>No speaker labels</dt>
+              <dd>A two-person interview comes back as continuous captions.</dd>
+
+              <dt>
+                {videoMb}MB and {maxMinutesLabel}
+              </dt>
+              <dd>
+                Over either, extract the audio first with{" "}
+                <Link href="/video-to-audio" prefetch={false}>
+                  Video to Audio
+                </Link>{" "}
+                — audio-only is far smaller, and it&apos;s all that gets
+                transcribed anyway.
+              </dd>
+            </dl>
+
+            <p>
+              For what actually degrades a transcript, and the full
+              SRT-versus-VTT breakdown,{" "}
+              <Link href="/guides/transcribing-audio-accurately" prefetch={false}>
+                read the transcription accuracy guide
+              </Link>
+              .
+            </p>
+          </Prose>
         </section>
 
-        {relatedTools.length > 0 && (
-          <section className="border-t border-graphite-800 py-12 sm:py-14">
-            <SectionHeading eyebrow="Next" title="More free tools" />
-            <div className="mt-8 grid gap-4 sm:grid-cols-2">
-              {relatedTools.map((tool) => (
-                <Link
-                  key={tool.slug}
-                  href={`/${tool.slug}`}
-                  prefetch={false}
-                  className="group relative block overflow-hidden rounded-xl border border-graphite-800 bg-graphite-900 p-5 transition-colors duration-200 hover:border-amber-500/40 hover:bg-graphite-850 focus:outline-none focus-visible:border-amber-500/50 focus-visible:ring-2 focus-visible:ring-amber-500/30"
-                >
-                  <span
-                    aria-hidden="true"
-                    className="absolute inset-y-5 left-0 w-[2px] origin-center scale-y-0 rounded-full bg-amber-500 transition-transform duration-200 group-hover:scale-y-100 group-focus-visible:scale-y-100 motion-reduce:transition-none"
-                  />
-                  <h3 className="font-semibold text-text-primary transition-colors group-hover:text-amber-400">
-                    {tool.name}
-                  </h3>
-                  <p className="mt-1 text-sm leading-relaxed text-text-muted">
-                    {tool.shortDescription}
-                  </p>
-                </Link>
-              ))}
-            </div>
-          </section>
-        )}
+        <div className="border-t border-graphite-800 py-14">
+          <RelatedToolsGrid tools={relatedTools} />
+        </div>
 
-        <div className="border-t border-graphite-800 py-12 sm:py-14">
+        <div className="border-t border-graphite-800 py-14">
           <FAQSection eyebrow="Questions" faqs={faqs} />
         </div>
 

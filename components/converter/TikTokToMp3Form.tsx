@@ -134,7 +134,12 @@ export function TikTokToMp3Form() {
 
   const [elapsedSeconds, setElapsedSeconds] = useElapsedSeconds(isWorking);
   const [cooldownSeconds, setCooldownSeconds] = useCooldownSeconds();
-  const cooldownCeilingRef = useRef(getRetryAfterFallback("tiktok-to-mp3"));
+  /**
+   * STATE, NOT A REF, because CooldownBar renders it. As a ref it only showed
+   * the right ceiling because the setCooldownSeconds call on the next line
+   * happened to trigger the render that read it.
+   */
+  const [cooldownCeiling, setCooldownCeiling] = useState(getRetryAfterFallback("tiktok-to-mp3"));
 
   const inputRef = useRef<HTMLInputElement>(null);
   const objectUrlRef = useRef<string | null>(null);
@@ -291,7 +296,7 @@ export function TikTokToMp3Form() {
         if (err.isRateLimit) {
           // 30 per HOUR, not the flat 60 seconds this used to guess.
           const wait = err.retryAfterSeconds ?? getRetryAfterFallback("tiktok-to-mp3");
-          cooldownCeilingRef.current = Math.max(1, wait);
+          setCooldownCeiling(Math.max(1, wait));
           setCooldownSeconds(wait);
         }
       } else {
@@ -352,7 +357,7 @@ export function TikTokToMp3Form() {
                 ? "Try again"
                 : "Convert to MP3"}
       </Button>
-      <CooldownBar seconds={cooldownSeconds} ceiling={cooldownCeilingRef.current} />
+      <CooldownBar seconds={cooldownSeconds} ceiling={cooldownCeiling} />
     </div>
   );
 

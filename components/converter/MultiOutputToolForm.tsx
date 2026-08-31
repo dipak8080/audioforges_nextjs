@@ -317,8 +317,12 @@ export function MultiOutputToolForm({
    * /stems-hq both arrive as endpoint="stems", so an HQ 429 seeds from the
    * FREE tier's window; the server's Retry-After overrides it whenever present,
    * which on a tiered route it should be.
+   *
+   * STATE, NOT A REF, because CooldownBar renders it. As a ref it only showed
+   * the right ceiling because the setCooldownSeconds call on the next line
+   * happened to trigger the render that read it.
    */
-  const cooldownCeilingRef = useRef(getRetryAfterFallback(endpoint));
+  const [cooldownCeiling, setCooldownCeiling] = useState(getRetryAfterFallback(endpoint));
 
   const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pollStartedAtRef = useRef(0);
@@ -372,6 +376,15 @@ export function MultiOutputToolForm({
   useEffect(() => stopPolling, [stopPolling]);
 
   /* --- polling: recursive timeout, so slow responses never stack --- */
+  /**
+   * The poll loop reschedules itself, which it can't do by naming itself: a
+   * value referenced inside its own initializer is something the React
+   * Compiler can't reason about. One indirection through a ref — declared
+   * BEFORE the callback, assigned in an effect rather than during render —
+   * removes the self-reference without changing the polling behaviour.
+   */
+  const pollFnRef = useRef<(id: string, timing: PollTiming) => void>(() => {});
+
   const poll = useCallback(
     async (id: string, timing: PollTiming) => {
       if (cancelledRef.current) return;
@@ -434,10 +447,14 @@ export function MultiOutputToolForm({
         // Transient network blips fall through to the next tick.
       }
 
-      pollRef.current = setTimeout(() => poll(id, timing), timing.intervalMs);
+      pollRef.current = setTimeout(() => pollFnRef.current(id, timing), timing.intervalMs);
     },
     [endpoint, stopPolling]
   );
+
+  useEffect(() => {
+    pollFnRef.current = poll;
+  }, [poll]);
 
   const startPolling = useCallback(
     (id: string, timing: PollTiming) => {
@@ -604,7 +621,7 @@ export function MultiOutputToolForm({
           // on a five-minute window, so re-enabling at sixty seconds just buys
           // another 429.
           const wait = err.retryAfterSeconds ?? getRetryAfterFallback(endpoint);
-          cooldownCeilingRef.current = Math.max(1, wait);
+          setCooldownCeiling(Math.max(1, wait));
           setCooldownSeconds(wait);
         } else {
           setError(humanizeError(err instanceof ApiError ? err.message : "Something went wrong."));
@@ -674,7 +691,7 @@ export function MultiOutputToolForm({
                     ? "Try again"
                     : submitLabel}
             </Button>
-            <CooldownBar seconds={cooldownSeconds} ceiling={cooldownCeilingRef.current} />
+            <CooldownBar seconds={cooldownSeconds} ceiling={cooldownCeiling} />
           </>
         ) : undefined
       }

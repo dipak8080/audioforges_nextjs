@@ -28,6 +28,9 @@
   /* Text. --text-subtle was #6b6862 (3.45:1, fails AA); this is the
      darkest value still clearing 4.5:1 on --graphite-800. */
   --text-primary: #f2f1ee;
+  /* Long-form body. Between primary and muted: ~12:1, so an article reads
+     without the grey haze --text-muted gives at article length. */
+  --text-body: #cdc9c1;
   --text-muted: #9a968d;
   --text-subtle: #8f8a80;
 
@@ -61,6 +64,7 @@
   --color-red-500: var(--red-500);
   --color-red-400: var(--red-400);
   --color-text-primary: var(--text-primary);
+  --color-text-body: var(--text-body);
   --color-text-muted: var(--text-muted);
   --color-text-subtle: var(--text-subtle);
   --font-sans: var(--font-geist-sans);
@@ -113,11 +117,33 @@ body {
     max-width: var(--measure);
     font-size: var(--reading-size);
     line-height: var(--reading-leading);
-    color: var(--text-muted);
+    color: var(--text-body);
   }
 
   .prose-af > * + * {
     margin-top: 1.15em;
+  }
+
+  /* Articles wrap their whole body in one .prose-af, so headings are
+     styled here rather than per-section. First-child reset stops the top
+     margin firing on a heading that opens the block. */
+  .prose-af h2 {
+    /* rem, not em: em here resolves against this element's own 1.5rem,
+       so 2.5em was 60px rather than the intended ~2.5x body. */
+    margin-top: 2.6rem;
+    font-size: 1.5rem;
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+    color: var(--text-primary);
+  }
+
+  .prose-af h2 + * {
+    margin-top: 0.75em;
+  }
+
+  .prose-af > :first-child {
+    margin-top: 0;
   }
 
   .prose-af h3 {
@@ -131,6 +157,12 @@ body {
   .prose-af strong {
     font-weight: 600;
     color: var(--text-primary);
+  }
+
+  /* A <strong> inside a link would otherwise take text-primary and cancel
+     the link colour, so bold link text stopped looking like a link. */
+  .prose-af a strong {
+    color: inherit;
   }
 
   .prose-af a {
@@ -161,6 +193,60 @@ body {
   }
   .prose-af li::marker {
     color: var(--amber-500);
+  }
+
+  /* Term/definition pairs. Reads as a spec table rather than a bulleted
+     list that happens to start bold.
+
+     column-gap is ZERO and the space comes from padding-right on the dt.
+     With a real gap, each cell's border stops at its own column edge and
+     the row rule arrives in two pieces with a hole between them; a
+     negative margin only bridges the gap itself, not the dd's width.
+     Grid stretches both cells to the row height, so with no gap the two
+     borders meet and read as one line. */
+  .prose-af dl {
+    display: grid;
+    gap: 0;
+    margin-top: 1.6em;
+    border-top: 1px solid var(--graphite-800);
+  }
+  .prose-af dt {
+    padding: 0.8em 0 0;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+  .prose-af dd {
+    margin: 0;
+    padding: 0.2em 0 0.9em;
+    border-bottom: 1px solid var(--graphite-800);
+  }
+
+  /* Camelot codes, file extensions, flags — mono only where the terms are
+     actually codes rather than English phrases. */
+  .prose-af dl.codes dt {
+    font-family: var(--font-mono), ui-monospace, monospace;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+  }
+
+  @media (min-width: 640px) {
+    .prose-af dl {
+      grid-template-columns: minmax(0, 14rem) 1fr;
+      column-gap: 0;
+    }
+    .prose-af dt {
+      padding: 0.8em 1.5rem 0.8em 0;
+      border-bottom: 1px solid var(--graphite-800);
+    }
+    .prose-af dd {
+      padding: 0.8em 0;
+    }
+    /* Mono at 0.8125rem has a lower cap height than the 17px body beside
+       it, so a hair more top padding levels the two baselines. */
+    .prose-af dl.codes dt {
+      padding-top: 0.95em;
+    }
   }
 
   .prose-af code {

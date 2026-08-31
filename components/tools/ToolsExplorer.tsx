@@ -104,7 +104,7 @@ export function ToolsExplorer({ tools }: ToolsExplorerProps) {
   return (
     <div className="space-y-8">
       <div role="search" className="space-y-4">
-        <div className="relative mx-auto max-w-md">
+        <div className="relative max-w-md">
           <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-text-subtle" />
           <input
             ref={inputRef}
@@ -135,7 +135,7 @@ export function ToolsExplorer({ tools }: ToolsExplorerProps) {
         {/* Chips scroll sideways on narrow screens rather than wrapping into
             four ragged rows above the fold. */}
         <div className="-mx-4 overflow-x-auto px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <div className="mx-auto flex w-max max-w-full items-center gap-2 pb-1">
+          <div className="flex w-max max-w-full items-center gap-2 pb-1">
             <FilterChip
               label="All"
               count={counts.get("all") ?? 0}
@@ -154,7 +154,7 @@ export function ToolsExplorer({ tools }: ToolsExplorerProps) {
           </div>
         </div>
 
-        <p aria-live="polite" className="text-center text-xs text-text-subtle">
+        <p aria-live="polite" className="-mt-1 font-mono text-xs text-text-subtle">
           {visible.length === tools.length
             ? `${tools.length} tools`
             : `${visible.length} of ${tools.length} tools`}
@@ -162,7 +162,7 @@ export function ToolsExplorer({ tools }: ToolsExplorerProps) {
       </div>
 
       {visible.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-graphite-800 px-6 py-16 text-center">
+        <div className="rounded-xl border border-dashed border-graphite-800 px-6 py-14">
           <p className="text-text-primary">Nothing matches that search.</p>
           <p className="mt-1 text-sm text-text-muted">
             Try a file format, or what you want to do — “wav”, “vocal”, “bpm”.
@@ -233,7 +233,7 @@ function FilterChip({
         isActive
           ? "border-amber-500/50 bg-amber-500/10 text-amber-400"
           : "border-graphite-800 text-text-muted hover:border-graphite-700 hover:text-text-primary",
-        isEmpty && !isActive && "opacity-40"
+        isEmpty && !isActive && "opacity-65"
       )}
     >
       {label}

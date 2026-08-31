@@ -346,8 +346,13 @@ export function JobToolForm({
    * ~17 tools whose windows run from 60 seconds (/convert, /trim) to an hour
    * (/audio-to-midi-hq) — a fixed 60 re-enabled the button fifty-nine minutes
    * early on the slowest of them, straight into another 429.
+   *
+   * STATE, NOT A REF, because CooldownBar renders it. As a ref it only showed
+   * the right ceiling because the setCooldownSeconds call on the next line
+   * happened to trigger the render that read it — reorder those two lines or
+   * return early between them and the bar draws against a stale ceiling.
    */
-  const cooldownCeilingRef = useRef(getRetryAfterFallback(endpoint));
+  const [cooldownCeiling, setCooldownCeiling] = useState(getRetryAfterFallback(endpoint));
 
   // Re-runs the submit after a purchase closes the gate, so someone who hits the
   // 402 and buys isn't returned to an idle form holding their file with no sign
@@ -374,6 +379,15 @@ export function JobToolForm({
   }, []);
 
   useEffect(() => stopPolling, [stopPolling]);
+
+  /**
+   * The poll loop reschedules itself, which it can't do by naming itself: a
+   * value referenced inside its own initializer is something the React
+   * Compiler can't reason about. One indirection through a ref — declared
+   * BEFORE the callback, assigned in an effect rather than during render —
+   * removes the self-reference without changing the polling behaviour.
+   */
+  const pollFnRef = useRef<(id: string) => void>(() => {});
 
   /* --- polling: recursive timeout, so slow responses never stack --- */
   const poll = useCallback(
@@ -438,12 +452,16 @@ export function JobToolForm({
         // Transient network blips fall through to the next tick.
       }
 
-      pollRef.current = setTimeout(() => poll(id), pollIntervalMs);
+      pollRef.current = setTimeout(() => pollFnRef.current(id), pollIntervalMs);
     },
     // `metered` belongs here: it's read above, and a tool that flips it after
     // mount would otherwise keep polling with the value from first render.
     [endpoint, maxPollMs, pollIntervalMs, stopPolling, metered]
   );
+
+  useEffect(() => {
+    pollFnRef.current = poll;
+  }, [poll]);
 
   const startPolling = useCallback(
     (id: string) => {
@@ -569,7 +587,7 @@ export function JobToolForm({
             hint: rateLimitMessage || "Wait for the timer, then run it again.",
           });
           const wait = err.retryAfterSeconds ?? getRetryAfterFallback(endpoint);
-          cooldownCeilingRef.current = Math.max(1, wait);
+          setCooldownCeiling(Math.max(1, wait));
           setCooldownSeconds(wait);
         } else {
           setError(humanizeError(err instanceof ApiError ? err.message : "Something went wrong."));
@@ -649,7 +667,7 @@ export function JobToolForm({
                       ? "Try again"
                       : submitLabel}
               </Button>
-              <CooldownBar seconds={cooldownSeconds} ceiling={cooldownCeilingRef.current} />
+              <CooldownBar seconds={cooldownSeconds} ceiling={cooldownCeiling} />
             </>
           ) : undefined
         }

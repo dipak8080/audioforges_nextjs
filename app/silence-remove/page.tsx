@@ -2,8 +2,15 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { SilenceRemoveForm } from "@/components/converter/SilenceRemoveForm";
 import { FAQSection } from "@/components/faq/FAQSection";
+import { ToolPageShell } from "@/components/layout/ToolPageShell";
+import { Breadcrumb } from "@/components/layout/Breadcrumb";
+import { ToolSection } from "@/components/ui/ToolSection";
+import { FeatureStrip } from "@/components/ui/FeatureStrip";
+import { Prose } from "@/components/ui/Prose";
+import { RelatedToolsGrid } from "@/components/tools/RelatedToolsGrid";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
+import { ogForTool } from "@/lib/og";
 import {
   getLimits,
   durationCapFor,
@@ -11,52 +18,18 @@ import {
   retentionSentences,
 } from "@/lib/api/limits";
 
-/**
- * ── THIS PASS ──────────────────────────────────────────────────────────
- *
- * 1. THE PAGE STATED NO LIMIT, AND HEDGED ABOUT IT. "Fair-use limits apply on
- *    file size so one person can't tie up the servers" names no figure at all.
- *    On a page whose readers upload hour-long podcast recordings, that's the
- *    sentence that makes someone close the tab rather than test it — and the
- *    real numbers are perfectly reasonable, so the vagueness bought nothing.
- *
- *    80MB and one hour, both from /limits.
- *
- * 2. NO RETENTION ANSWER. Added from the backend's own retention block.
- *
- * 3. Formats read from allowed_audio_formats rather than a hand-written array
- *    — the mechanism that left AIFF off /stems while the tool accepted it.
- *
- * 4. `keywords` removed (ignored by Google since 2009), prefetch disabled on
- *    the tool grid, feature strip matched to the other pages.
- */
-
-// Title kept to 35 chars so it survives the " | AudioForges" suffix
-// inside the ~60-char SERP budget. The previous one ran to 53 and got
-// truncated mid-phrase, losing the differentiator entirely.
+// Kept to 35 chars so it survives the " | AudioForges" suffix inside the
+// ~60-char SERP budget. The previous title ran to 53 and got truncated
+// mid-phrase, losing the differentiator entirely.
 const PAGE_TITLE = "Free Silence Remover — Cut Dead Air";
 const PAGE_DESCRIPTION =
   "Strip silent gaps from a podcast, audiobook, or recording free. Cuts dead air throughout, not just the ends. No sign-up, no watermark, no account.";
 
+const OG_IMAGE = ogForTool("silence-remove", "Free Silence Remover");
+
 export const metadata: Metadata = {
   title: PAGE_TITLE,
   description: PAGE_DESCRIPTION,
-  /*
-    `keywords` removed — ignored by Google since 2009, treated as a spam signal
-    by Bing. Target terms kept for reference:
-
-      silence remover online
-      remove silence from audio
-      remove dead air podcast
-      cut silence from audio free
-      strip silence mp3
-      podcast silence cutter
-      audio silence detector
-      remove pauses from recording
-      silence remover vs splitter
-      remove silence audacity alternative
-      automatically cut silence
-  */
   alternates: { canonical: `${SITE_URL}/silence-remove` },
   openGraph: {
     title: PAGE_TITLE,
@@ -64,20 +37,13 @@ export const metadata: Metadata = {
     url: `${SITE_URL}/silence-remove`,
     siteName: SITE_NAME,
     type: "website",
-    images: [
-      {
-        url: "/images/og-default.png",
-        width: 1200,
-        height: 630,
-        alt: "AudioForges",
-      },
-    ],
+    images: [OG_IMAGE],
   },
   twitter: {
     card: "summary_large_image",
     title: PAGE_TITLE,
     description: PAGE_DESCRIPTION,
-    images: ["/images/og-default.png"],
+    images: [OG_IMAGE.url],
   },
 };
 
@@ -97,18 +63,10 @@ const webAppJsonLd = {
   ],
 };
 
-const breadcrumbJsonLd = {
-  "@context": "https://schema.org",
-  "@type": "BreadcrumbList",
-  itemListElement: [
-    { "@type": "ListItem", position: 1, name: "Home", item: SITE_URL },
-    { "@type": "ListItem", position: 2, name: "Silence Remover", item: `${SITE_URL}/silence-remove` },
-  ],
-};
-
-// HowTo JSON-LD removed. Google retired HowTo rich results for web
-// search, so it earned nothing while adding a second copy of the steps
-// that could drift out of sync with the visible ones below.
+// Don't add HowTo schema — Google retired HowTo rich results for web search,
+// so it earns nothing while adding a second copy of the steps that can drift
+// from the visible ones. FAQPage comes from <FAQSection />, BreadcrumbList
+// from <Breadcrumb />.
 
 export default async function SilenceRemovePage() {
   const relatedTools = getRelatedTools("silence-remove", 5);
@@ -138,9 +96,11 @@ export default async function SilenceRemovePage() {
     },
     {
       /*
-        ADDED. The page named no limit anywhere and hedged with "fair-use
-        limits apply on file size" — no figure, on a tool whose readers are
-        uploading hour-long podcast recordings. Both numbers come from /limits.
+        The page previously named no limit anywhere and hedged with "fair-use
+        limits apply on file size" — no figure, on a tool whose readers upload
+        hour-long podcast recordings. That vagueness is what makes someone
+        close the tab rather than test it, and the real numbers are perfectly
+        reasonable.
       */
       question: "Is there a size or length limit?",
       answer:
@@ -164,7 +124,6 @@ export default async function SilenceRemovePage() {
         "Both find the same silent gaps. The Silence Remover deletes them and gives you one shorter file. The Silence Splitter uses them as cut points and gives you separate files — one per section. Use the remover to tighten a recording, the splitter to break one long recording into tracks.",
     },
     {
-      // ADDED: no retention answer existed.
       question: "Are my uploaded files kept?",
       answer: `${retention.input} ${retention.output} There are no accounts, so nothing is linked to you.`,
     },
@@ -178,26 +137,17 @@ export default async function SilenceRemovePage() {
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(webAppJsonLd) }} />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
 
-      <main className="mx-auto max-w-3xl px-4 py-12 sm:py-16 space-y-12">
-        <header className="text-center space-y-4">
-          <h1 className="text-4xl font-bold tracking-tight sm:text-5xl text-text-primary">
-            Free Silence Remover
-          </h1>
-          <p className="text-lg text-text-muted max-w-xl mx-auto">
-            Cut dead air throughout a recording, not just the start and end,
-            free, no sign-up, no watermark.
-          </p>
-        </header>
-
-        <SilenceRemoveForm />
-
-        {/* One bordered strip with hairline dividers, matching the other tool
-            pages. The third cell now carries the limits, which the page
-            previously never stated anywhere. */}
-        <section className="grid divide-y divide-graphite-800 overflow-hidden rounded-xl border border-graphite-800 bg-graphite-900 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
-          {[
+      <ToolPageShell
+        breadcrumb={
+          <Breadcrumb items={[{ name: "Tools", href: "/tools" }, { name: "Silence Remover" }]} />
+        }
+        title="Free Silence Remover"
+        lede="Cut dead air throughout a recording, not just the start and end, free, no sign-up, no watermark."
+        tool={<SilenceRemoveForm />}
+      >
+        <FeatureStrip
+          features={[
             { title: "Whole-file cleanup", desc: "Cuts gaps everywhere, not just the ends." },
             { title: "One-click ready", desc: "Sensible defaults, no tuning required." },
             {
@@ -207,72 +157,68 @@ export default async function SilenceRemovePage() {
                   ? `No account, no email, no watermark. Up to ${limits.maxUploadMb}MB per file.`
                   : `No account, no email, no watermark. Up to ${limits.maxUploadMb}MB and ${durationLabel(durationCap)}.`,
             },
-          ].map((f) => (
-            <div key={f.title} className="space-y-1.5 p-5">
-              <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-amber-400">
-                {f.title}
-              </p>
-              <p className="text-sm leading-relaxed text-text-muted">{f.desc}</p>
-            </div>
-          ))}
-        </section>
+          ]}
+        />
 
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">How to remove silence from audio</h2>
-          <ol className="list-decimal list-inside space-y-2 text-text-muted leading-relaxed">
-            <li>Upload an {formatList} file.</li>
-            <li>Leave threshold and minimum gap length at their defaults, or adjust them.</li>
-            <li>Download the result — shorter than the original, with dead air cut throughout.</li>
-          </ol>
+        <ToolSection id="how-to" title="How to remove silence from audio" bleed>
+          <Prose>
+            <ol>
+              <li>Upload an {formatList} file.</li>
+              <li>Leave threshold and minimum gap length at their defaults, or adjust them.</li>
+              <li>
+                Download the result — shorter than the original, with dead air cut
+                throughout.
+              </li>
+            </ol>
+          </Prose>
           {/* Rendered from allowed_audio_formats rather than a hand-written
-              array. */}
-          <div className="flex flex-wrap gap-2 pt-1">
+              array — the mechanism that left AIFF off /stems. */}
+          <div className="mt-5 flex flex-wrap gap-2">
             {formats.map((fmt) => (
               <span
                 key={fmt}
                 className="inline-flex items-center gap-1 rounded-full border border-graphite-800 bg-graphite-900 px-3 py-1 text-xs text-text-muted"
               >
-                <span className="text-teal-400" aria-hidden>✓</span>
+                <span className="text-teal-400" aria-hidden>
+                  ✓
+                </span>
                 {fmt}
               </span>
             ))}
           </div>
-        </section>
+        </ToolSection>
 
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">How silence detection works</h2>
-          <p className="text-text-muted leading-relaxed">
-            The tool scans the recording for stretches that fall below your
-            chosen loudness threshold. Once a quiet stretch lasts longer than
-            the minimum gap length you&apos;ve set, it&apos;s cut out
-            entirely and the audio on either side is joined back together.
-            Anything quieter than the threshold but shorter than the minimum
-            gap — a brief pause between words, for instance — is left alone,
-            since it doesn&apos;t meet both conditions at once.
+        <ToolSection id="how-it-works" title="How silence detection works">
+          <p>
+            The tool scans the recording for stretches that fall below your chosen
+            loudness threshold. Once a quiet stretch lasts longer than the minimum
+            gap length you&apos;ve set, it&apos;s cut out entirely and the audio
+            on either side is joined back together. Anything quieter than the
+            threshold but shorter than the minimum gap — a brief pause between
+            words, for instance — is left alone, since it doesn&apos;t meet both
+            conditions at once.
           </p>
-          <p className="text-text-muted leading-relaxed">
-            That &quot;both conditions&quot; part is what makes the two
-            settings work as a pair rather than independently, and it&apos;s
-            why changing one often has no effect until you change the other
-            too.
+          <p>
+            That &quot;both conditions&quot; part is what makes the two settings
+            work as a pair rather than independently, and it&apos;s why changing
+            one often has no effect until you change the other too.
           </p>
-        </section>
+        </ToolSection>
 
-        {/* Three-way, not two-way. The tool people actually confuse this
-            with is the Splitter, not the Trimmer — they detect identical
-            gaps and differ only in what they do with them. */}
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">
-            Silence Remover vs. Splitter vs. Trimmer
-          </h2>
-          <p className="text-text-muted leading-relaxed">
-            Three tools that all cut audio, easy to pick the wrong one. The
-            short version: the remover shortens one file, the splitter turns
-            one file into several, and the trimmer keeps a section you choose
-            yourself.
-          </p>
-          <div className="overflow-x-auto rounded-xl border border-graphite-800">
-            <table className="w-full text-sm text-left text-text-muted">
+        {/* Three-way, not two-way. The tool people actually confuse this with
+            is the Splitter, not the Trimmer — they detect identical gaps and
+            differ only in what they do with them. */}
+        <ToolSection id="vs-splitter-vs-trimmer" title="Silence Remover vs. Splitter vs. Trimmer" bleed>
+          <Prose>
+            <p>
+              Three tools that all cut audio, easy to pick the wrong one. The
+              short version: the remover shortens one file, the splitter turns one
+              file into several, and the trimmer keeps a section you choose
+              yourself.
+            </p>
+          </Prose>
+          <div className="mt-5 overflow-x-auto rounded-xl border border-graphite-800">
+            <table className="w-full text-left text-sm text-text-muted">
               <thead className="bg-graphite-900 text-text-primary">
                 <tr>
                   <th className="px-4 py-3 font-semibold">
@@ -311,29 +257,26 @@ export default async function SilenceRemovePage() {
               </tbody>
             </table>
           </div>
-          <p className="text-text-muted leading-relaxed">
-            Splitting one long recording into separate tracks instead?{" "}
-            <Link href="/silence-split" className="text-amber-400 hover:underline">
-              Silence Splitter
-            </Link>{" "}
-            uses the same detection to cut rather than delete. Keeping just one
-            section?{" "}
-            <Link href="/trim" className="text-amber-400 hover:underline">
-              Audio Trimmer
-            </Link>{" "}
-            is the better fit.
-          </p>
-        </section>
+          <Prose className="mt-5">
+            <p>
+              Splitting one long recording into separate tracks instead?{" "}
+              <Link href="/silence-split">Silence Splitter</Link> uses the same
+              detection to cut rather than delete. Keeping just one section?{" "}
+              <Link href="/trim">Audio Trimmer</Link> is the better fit.
+            </p>
+          </Prose>
+        </ToolSection>
 
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">Choosing a threshold</h2>
-          <p className="text-text-muted leading-relaxed">
-            The defaults — -30dB threshold, 0.5 second minimum gap — handle most
-            podcast and voice-memo cleanup without adjustment. When they
-            don&apos;t, the symptom tells you which way to move:
-          </p>
-          <div className="overflow-x-auto rounded-xl border border-graphite-800">
-            <table className="w-full text-sm text-left text-text-muted">
+        <ToolSection id="threshold" title="Choosing a threshold" bleed>
+          <Prose>
+            <p>
+              The defaults — -30dB threshold, 0.5 second minimum gap — handle most
+              podcast and voice-memo cleanup without adjustment. When they
+              don&apos;t, the symptom tells you which way to move:
+            </p>
+          </Prose>
+          <div className="mt-5 overflow-x-auto rounded-xl border border-graphite-800">
+            <table className="w-full text-left text-sm text-text-muted">
               <thead className="bg-graphite-900 text-text-primary">
                 <tr>
                   <th className="px-4 py-3 font-semibold">What you&apos;re seeing</th>
@@ -344,15 +287,13 @@ export default async function SilenceRemovePage() {
                 <tr>
                   <td className="px-4 py-3">Gaps left behind, barely shorter</td>
                   <td className="px-4 py-3">
-                    Raise the threshold toward -20dB — your room tone is louder
-                    than the current setting
+                    Raise the threshold toward -20dB — your room tone is louder than
+                    the current setting
                   </td>
                 </tr>
                 <tr>
                   <td className="px-4 py-3">Natural pauses cut, speech sounds rushed</td>
-                  <td className="px-4 py-3">
-                    Lower toward -40dB, or lengthen the minimum gap
-                  </td>
+                  <td className="px-4 py-3">Lower toward -40dB, or lengthen the minimum gap</td>
                 </tr>
                 <tr>
                   <td className="px-4 py-3">Long gaps handled, short ones remain</td>
@@ -365,114 +306,88 @@ export default async function SilenceRemovePage() {
               </tbody>
             </table>
           </div>
-          <p className="text-text-muted leading-relaxed">
-            There&apos;s no correct preset for a given content type — it depends
-            on how quiet your room tone is and how tightly you want the result
-            edited. Preview and adjust rather than assuming one setting fits
-            every recording.
-          </p>
-        </section>
+          <Prose className="mt-5">
+            <p>
+              There&apos;s no correct preset for a given content type — it depends
+              on how quiet your room tone is and how tightly you want the result
+              edited. Preview and adjust rather than assuming one setting fits
+              every recording.
+            </p>
+          </Prose>
+        </ToolSection>
 
-        {/* Captures "how to remove silence in audacity" — high-volume, and
-            a good share of those searchers would rather click one button
-            than learn Truncate Silence. Saying plainly when Audacity is
-            the better answer is what makes the rest of the page credible. */}
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">
-            Doing this in Audacity instead
-          </h2>
-          <p className="text-text-muted leading-relaxed">
+        {/* Captures "how to remove silence in audacity" — high volume, and a
+            good share of those searchers would rather click one button than
+            learn Truncate Silence. Saying plainly when Audacity is the better
+            answer is what makes the rest of the page credible. */}
+        <ToolSection id="audacity" title="Doing this in Audacity instead">
+          <p>
             Audacity has a Truncate Silence effect that does the same job, with
-            more control: it can shorten gaps to a set length rather than
-            removing them outright, and you can undo, audition and re-run it on
-            a selection while watching the waveform. If you&apos;re already
-            editing in Audacity, or you need gaps shortened rather than
-            deleted, that&apos;s the better tool.
+            more control: it can shorten gaps to a set length rather than removing
+            them outright, and you can undo, audition and re-run it on a selection
+            while watching the waveform. If you&apos;re already editing in
+            Audacity, or you need gaps shortened rather than deleted, that&apos;s
+            the better tool.
           </p>
           {durationCap !== null && (
-            <p className="text-text-muted leading-relaxed">
+            <p>
               It also has no length limit, which makes it the right answer for a
               recording longer than {durationLabel(durationCap)}.
             </p>
           )}
-          <p className="text-text-muted leading-relaxed">
+          <p>
             This page exists for the other case: you have one file, you want the
             dead air gone, and installing a desktop editor to do it once
             isn&apos;t worth it. Upload, download, done — nothing to learn and
             nothing to install.
           </p>
-        </section>
+        </ToolSection>
 
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-text-primary">When this is worth doing</h2>
-          <p className="text-text-muted leading-relaxed">
+        <ToolSection id="when-worth-it" title="When this is worth doing">
+          <p>
             Anywhere a recording has more quiet in it than a listener will sit
             through. In practice that&apos;s three situations:
           </p>
-          <ul className="list-disc list-inside space-y-1.5 text-text-muted leading-relaxed">
-            <li>
-              <strong className="text-text-primary">Spoken-word editing</strong>{" "}
-              — podcasts, interviews and voice-overs, where scattered pauses
-              add up to minutes across an episode and scrubbing for them by
-              hand is the slowest part of the edit.
-            </li>
-            <li>
-              <strong className="text-text-primary">Long-form recordings</strong>{" "}
-              — lectures, audiobook chapters and meeting recordings with long
-              quiet stretches between sections.
-            </li>
-            <li>
-              <strong className="text-text-primary">Before further processing</strong>{" "}
-              — less audio means less to transcribe, upload or store.
-            </li>
-          </ul>
-          <p className="text-text-muted leading-relaxed">
+          <dl>
+            <dt>Spoken-word editing</dt>
+            <dd>
+              Podcasts, interviews and voice-overs, where scattered pauses add up
+              to minutes across an episode and scrubbing for them by hand is the
+              slowest part of the edit.
+            </dd>
+
+            <dt>Long-form recordings</dt>
+            <dd>
+              Lectures, audiobook chapters and meeting recordings with long quiet
+              stretches between sections.
+            </dd>
+
+            <dt>Before further processing</dt>
+            <dd>Less audio means less to transcribe, upload or store.</dd>
+          </dl>
+          <p>
             On that last point: cutting dead air first means less audio for{" "}
-            <Link href="/audio-to-text" className="text-amber-400 hover:underline">
-              Audio to Text
-            </Link>{" "}
-            to work through. If background noise rather than silence is the
-            problem, the{" "}
-            <Link href="/noise-remove" className="text-amber-400 hover:underline">
-              Noise Remover
-            </Link>{" "}
-            or, for speech specifically, the{" "}
-            <Link href="/voice-clean" className="text-amber-400 hover:underline">
-              Voice Cleaner
-            </Link>{" "}
-            handle that instead — silence detection won&apos;t touch a
-            continuous hiss, because it never falls below the threshold.
+            <Link href="/audio-to-text">Audio to Text</Link> to work through. If
+            background noise rather than silence is the problem, the{" "}
+            <Link href="/noise-remove">Noise Remover</Link> or, for speech
+            specifically, the <Link href="/voice-clean">Voice Cleaner</Link> handle
+            that instead — silence detection won&apos;t touch a continuous hiss,
+            because it never falls below the threshold.
           </p>
-          <p className="text-text-muted leading-relaxed">
+          <p>
             Want the full breakdown of how these two settings interact, and why
             cutting too aggressively can clip natural pauses?{" "}
-            <Link href="/guides/editing-out-dead-air-podcasts" className="text-amber-400 hover:underline">
+            <Link href="/guides/editing-out-dead-air-podcasts">
               Read Cutting Dead Air from Podcasts &amp; Recordings
-            </Link>.
+            </Link>
+            .
           </p>
-        </section>
+        </ToolSection>
 
-        {relatedTools.length > 0 && (
-          <section className="space-y-4">
-            <h2 className="text-2xl font-bold text-text-primary">More free tools</h2>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {relatedTools.map((tool) => (
-                <Link
-                  key={tool.slug}
-                  href={`/${tool.slug}`}
-                  prefetch={false}
-                  className="rounded-xl border border-graphite-800 bg-graphite-900 p-4 hover:border-amber-500/40 transition-colors"
-                >
-                  <h3 className="font-semibold text-text-primary">{tool.name}</h3>
-                  <p className="text-sm text-text-muted mt-1">{tool.shortDescription}</p>
-                </Link>
-              ))}
-            </div>
-          </section>
-        )}
+        <RelatedToolsGrid tools={relatedTools} />
 
         <FAQSection faqs={faqs} />
-      </main>
+      </ToolPageShell>
     </>
   );
 }
