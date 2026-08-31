@@ -25,13 +25,21 @@
   --red-500: #e5484d;
   --red-400: #f2686c;
 
-  /* Text */
+  /* Text. --text-subtle was #6b6862 (3.45:1, fails AA); this is the
+     darkest value still clearing 4.5:1 on --graphite-800. */
   --text-primary: #f2f1ee;
   --text-muted: #9a968d;
-  --text-subtle: #6b6862;
+  --text-subtle: #8f8a80;
 
   --background: var(--graphite-950);
   --foreground: var(--text-primary);
+
+  /* Reading rhythm. --measure caps the text column independently of the
+     page container, so forms and tables keep the full 768px. */
+  --measure: 68ch;
+  --measure-wide: 78ch;
+  --reading-size: 1.0625rem; /* 17px — 16px is undersized at this leading */
+  --reading-leading: 1.7;
 }
 
 @theme inline {
@@ -64,6 +72,113 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans), system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
+}
+
+@layer base {
+  /* Zero-specificity so component-level focus utilities still win. */
+  :where(:focus-visible) {
+    outline: 2px solid var(--amber-400);
+    outline-offset: 2px;
+    border-radius: 3px;
+  }
+
+  ::selection {
+    background: color-mix(in srgb, var(--amber-500) 32%, transparent);
+    color: var(--text-primary);
+  }
+
+  :where(h1, h2, h3, h4) {
+    text-wrap: balance;
+  }
+  :where(p, li) {
+    text-wrap: pretty;
+  }
+
+  /* Anchor targets clear the sticky navbar. */
+  :where([id]) {
+    scroll-margin-top: 5.5rem;
+  }
+
+  /* iOS Safari otherwise inflates text in landscape. */
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+}
+
+/* Prose. In the components layer on purpose: Tailwind utilities sit in a
+   later layer, so a className on a child still wins — which is what lets
+   pages migrate to .prose-af one at a time. */
+@layer components {
+  .prose-af {
+    max-width: var(--measure);
+    font-size: var(--reading-size);
+    line-height: var(--reading-leading);
+    color: var(--text-muted);
+  }
+
+  .prose-af > * + * {
+    margin-top: 1.15em;
+  }
+
+  .prose-af h3 {
+    margin-top: 2em;
+    font-size: 1.125rem;
+    font-weight: 600;
+    line-height: 1.4;
+    color: var(--text-primary);
+  }
+
+  .prose-af strong {
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  .prose-af a {
+    color: var(--amber-400);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    text-decoration-thickness: 1px;
+    text-decoration-color: color-mix(in srgb, var(--amber-400) 38%, transparent);
+    transition: text-decoration-color 0.15s ease;
+  }
+  .prose-af a:hover {
+    text-decoration-color: var(--amber-400);
+  }
+
+  /* list-outside — wrapped items shouldn't hang back under the marker. */
+  .prose-af ul,
+  .prose-af ol {
+    padding-left: 1.4em;
+  }
+  .prose-af ul {
+    list-style: disc;
+  }
+  .prose-af ol {
+    list-style: decimal;
+  }
+  .prose-af li + li {
+    margin-top: 0.5em;
+  }
+  .prose-af li::marker {
+    color: var(--amber-500);
+  }
+
+  .prose-af code {
+    padding: 0.15em 0.4em;
+    border-radius: 4px;
+    background: var(--graphite-800);
+    font-family: var(--font-mono), ui-monospace, monospace;
+    font-size: 0.875em;
+    color: var(--text-primary);
+  }
+}
+
+@utility measure {
+  max-width: var(--measure);
+}
+
+@utility measure-wide {
+  max-width: var(--measure-wide);
 }
 
 @keyframes waveform {

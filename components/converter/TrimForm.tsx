@@ -112,7 +112,10 @@ export function TrimForm() {
       endpoint="trim"
       pollIntervalMs={2500}
       toolLabel="Audio trimmer"
-      toolMeta={end > start ? `${formatTime(start)} → ${formatTime(end)}` : "cut to an exact range"}
+      /* Clip LENGTH, not the range — the Clip range readout below already
+         shows start and end, and printing both twice invites the reader to
+         look for a difference that isn't there. */
+      toolMeta={end > start ? `${formatPrecise(end - start)} clip` : "cut to an exact range"}
       submitLabel="Trim"
       processingLabel="Trimming"
       expectedRange="a few seconds"

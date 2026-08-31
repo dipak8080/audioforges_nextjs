@@ -249,10 +249,16 @@ function StepRail({
               )}
               aria-hidden
             />
+            {/* Active step is the brightest label. text-subtle/50 was
+                ~2.3:1 against the surface, under the WCAG floor. */}
             <span
               className={cn(
                 "text-[10px] uppercase tracking-[0.16em] transition-colors duration-300",
-                current ? "text-text-muted" : done ? "text-text-subtle" : "text-text-subtle/50"
+                current
+                  ? "font-medium text-text-primary"
+                  : done
+                    ? "text-text-muted"
+                    : "text-text-subtle"
               )}
             >
               {label}
