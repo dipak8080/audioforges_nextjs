@@ -111,7 +111,19 @@ export function CreditAccountPanel({
    * this is a statement of what they have rather than a menu.
    */
   if (!me?.authenticated) {
-    if (freeRemaining <= 0) return null;
+    /*
+      SPENT IS NOT NOTHING, AND THIS USED TO RETURN NULL FOR IT.
+
+      An anonymous visitor at zero got no block at all, so the mobile sheet ran
+      straight from the logo into the tool list — no balance, no explanation,
+      no route to /pricing. That visitor has just used the good mode and wanted
+      more of it, which is the most qualified state anyone reaches here.
+
+      The block renders either way now. Zero is stated in muted type rather
+      than amber: an empty state dressed as a balance is a badge for nothing,
+      and the reset date is the fact that makes zero bearable.
+    */
+    const spent = freeRemaining <= 0;
     return (
       <div
         className={cn(
@@ -119,20 +131,31 @@ export function CreditAccountPanel({
         )}
       >
         <div className="flex items-center gap-2">
-          <Sparkles className="h-3.5 w-3.5 text-amber-400" aria-hidden />
+          <Sparkles
+            className={cn("h-3.5 w-3.5", spent ? "text-text-subtle" : "text-amber-400")}
+            aria-hidden
+          />
           <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-text-subtle">
             Free this month
           </p>
         </div>
-        <p className="mt-1.5 font-mono text-2xl font-semibold tabular-nums text-amber-400">
+        <p
+          className={cn(
+            "mt-1.5 font-mono text-2xl font-semibold tabular-nums",
+            spent ? "text-text-muted" : "text-amber-400"
+          )}
+        >
           {freeRemaining}
         </p>
         {/* Says "runs", not "Studio Quality runs". The counter is per subject,
             not per tool: these are spendable on HQ separation, transcription or
             multi-track MIDI, whichever comes first. */}
         <p className="mt-0.5 text-xs text-text-muted">
-          {freeRemaining === 1 ? "run" : "runs"} left on any paid tool
-          {resetsOn ? `, resets ${resetsOn}` : ""}
+          {spent
+            ? `runs left${resetsOn ? ` \u2014 resets ${resetsOn}` : " this month"}`
+            : `${freeRemaining === 1 ? "run" : "runs"} left on any paid tool${
+                resetsOn ? `, resets ${resetsOn}` : ""
+              }`}
         </p>
         <Link
           href="/pricing"
@@ -143,7 +166,7 @@ export function CreditAccountPanel({
             className: "mt-3 w-full text-text-muted hover:border-amber-500/40 hover:text-amber-400",
           })}
         >
-          See what credits cost
+          {spent ? "Get credits to keep going" : "See what credits cost"}
         </Link>
       </div>
     );
