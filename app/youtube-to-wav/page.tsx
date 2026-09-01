@@ -250,7 +250,11 @@ export default async function YouTubeToWavPage() {
           <ol>
             <li>Copy a YouTube video, Shorts, or youtu.be URL.</li>
             <li>Paste it into the converter above.</li>
-            <li>Choose WAV for lossless audio or MP3 for a smaller file.</li>
+            <li>
+              Choose WAV for lossless audio, or MP3 for a smaller file — the{" "}
+              <Link href="/youtube-to-mp3">YouTube to MP3 converter</Link> has the
+              bitrate and file-size detail if that&apos;s the one you want.
+            </li>
             <li>Click Convert and download — usually ready in 8-20 seconds.</li>
           </ol>
           <p>
@@ -272,7 +276,9 @@ export default async function YouTubeToWavPage() {
             further benefits from starting with every bit of the original
             recording intact. If you&apos;re only planning to listen back or share
             the file as-is, MP3&apos;s much smaller size is usually the more
-            practical choice instead.
+            practical choice instead — the{" "}
+            <Link href="/youtube-to-mp3">YouTube to MP3 converter</Link> is set up
+            for that, at 320kbps by default.
           </p>
         </ToolSection>
 
@@ -308,7 +314,10 @@ export default async function YouTubeToWavPage() {
             <strong>WAV</strong> (44.1kHz, uncompressed) or <strong>MP3</strong>{" "}
             (320kbps CBR) file. It supports standard youtube.com/watch, short
             youtu.be, and /shorts links — one video at a time, rather than full
-            playlists, up to {maxVideoLabel} long.
+            playlists, up to {maxVideoLabel} long. Both formats run on the same
+            endpoint; the{" "}
+            <Link href="/youtube-to-mp3">YouTube to MP3 converter</Link> is the
+            same tool with MP3 selected and the MP3-specific detail written out.
           </p>
           <p>
             <strong>Common legitimate uses:</strong> downloading your own uploaded
@@ -351,8 +360,12 @@ export default async function YouTubeToWavPage() {
           </div>
           <Prose className="mt-5">
             <p>
-              Want the full technical breakdown of why this matters for sampling
-              and production specifically?{" "}
+              If MP3 is what you actually want, the{" "}
+              <Link href="/youtube-to-mp3">YouTube to MP3 converter</Link> is the
+              page for it — same converter, MP3 preselected, with file sizes and
+              an honest account of what 320kbps does and doesn&apos;t recover from
+              a YouTube source. Want the full technical breakdown of why the
+              choice matters for sampling and production specifically?{" "}
               <Link href="/guides/wav-vs-mp3-for-sampling">
                 Read WAV vs MP3 for Sampling: What Actually Changes
               </Link>
