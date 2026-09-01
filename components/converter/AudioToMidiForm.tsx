@@ -1,7 +1,16 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ChevronDown, Music4, RotateCcw, Layers } from "lucide-react";
+import {
+  ChevronDown,
+  Music4,
+  RotateCcw,
+  Layers,
+  Sparkles,
+  Piano,
+  Disc3,
+  Guitar,
+} from "lucide-react";
 import { JobToolForm } from "@/components/converter/JobToolForm";
 import { OptionCards, type CardOption } from "@/components/converter/ToolControls";
 import { getRateLimitLabel } from "@/lib/data/rate-limits";
@@ -28,6 +37,14 @@ import { getAudioToMidiHqResult, type MidiHqResult } from "@/lib/api/railway";
  * The other trap: HQ pitch bounds are MIDI NOTE NUMBERS, not Hz. The free tool
  * converts note→Hz at submit because basic-pitch's API takes Hz; that
  * conversion must NOT happen here.
+ *
+ * ── INSTRUMENT ROUTING (2026-09-01) ────────────────────────────────────
+ *
+ * HQ now takes an `instrument` field. auto/piano/mix go to YourMT3 as before.
+ * guitar goes to a basic-pitch guitar mode on the backend (preset + harmonic
+ * cleanup), optionally after an htdemucs_6s guitar-stem isolation pass
+ * (`isolate=true`). Same route, same credit. The result carries `engine` so
+ * the summary can say which one ran.
  *
  * ── THIS PASS ──────────────────────────────────────────────────────────
  *
@@ -276,6 +293,49 @@ function formatRateLimit(max: number, windowSeconds: number): string {
         : `${windowSeconds} sec`;
   return `${max} per ${unit}`;
 }
+
+/* ------------------------------------------------------------------ *
+ * HQ instrument routing
+ * ------------------------------------------------------------------ */
+
+type Instrument = "auto" | "piano" | "mix" | "guitar";
+
+const INSTRUMENTS: { id: Instrument; label: string; blurb: string }[] = [
+  {
+    id: "auto",
+    label: "Let it decide",
+    blurb: "Good default for keys, vocals and most melodies.",
+  },
+  {
+    id: "piano",
+    label: "Piano & keys",
+    blurb: "Solo piano, synths, electric piano.",
+  },
+  {
+    id: "mix",
+    label: "Full mix",
+    blurb: "Several instruments at once, split onto separate tracks.",
+  },
+  {
+    id: "guitar",
+    label: "Guitar",
+    blurb: "Riffs, chords and arpeggios. Uses a guitar-specific engine.",
+  },
+];
+
+const INSTRUMENT_ICONS: Record<Instrument, typeof Sparkles> = {
+  auto: Sparkles,
+  piano: Piano,
+  mix: Disc3,
+  guitar: Guitar,
+};
+
+/** Fields the backend added for guitar mode; railway.ts may not type them yet. */
+type MidiHqResultExtra = MidiHqResult & {
+  engine?: string;
+  isolated?: boolean;
+  notes_dropped_by_cleanup?: number;
+};
 
 /* ------------------------------------------------------------------ *
  * Shared slider styling
@@ -573,7 +633,7 @@ function Toggle({ checked, disabled, label, onChange }: ToggleProps) {
  * must not make a successful run look failed.
  */
 function MidiHqResultSummary({ jobId }: { jobId: string }) {
-  const [result, setResult] = useState<MidiHqResult | null>(null);
+  const [result, setResult] = useState<MidiHqResultExtra | null>(null);
 
   // No `setResult(null)` here: the caller keys this component on jobId, so a
   // new job mounts a fresh one with empty state. Resetting inside the effect
@@ -583,7 +643,7 @@ function MidiHqResultSummary({ jobId }: { jobId: string }) {
     let cancelled = false;
     (async () => {
       try {
-        const next = await getAudioToMidiHqResult(jobId);
+        const next = (await getAudioToMidiHqResult(jobId)) as MidiHqResultExtra;
         if (!cancelled) setResult(next);
       } catch {
         /* silent — see above */
@@ -596,11 +656,19 @@ function MidiHqResultSummary({ jobId }: { jobId: string }) {
 
   if (!result || result.tracks.length === 0) return null;
 
+  const isGuitarEngine = result.engine === "basic-pitch-guitar";
+  const cleaned = result.notes_dropped_by_cleanup ?? 0;
+
   return (
     <div className="overflow-hidden rounded-xl border border-graphite-800 bg-graphite-950/40">
       <div className="flex items-baseline justify-between gap-3 border-b border-graphite-800 px-4 py-2.5">
         <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-text-subtle">
           Detected
+          {isGuitarEngine && (
+            <span className="ml-2 normal-case tracking-normal text-amber-400/80">
+              guitar engine{result.isolated ? " · isolated from mix" : ""}
+            </span>
+          )}
         </span>
         <span className="font-mono text-[11px] tabular-nums text-amber-400">
           {result.track_count} {result.track_count === 1 ? "track" : "tracks"} ·{" "}
@@ -628,6 +696,13 @@ function MidiHqResultSummary({ jobId }: { jobId: string }) {
           </li>
         ))}
       </ul>
+
+      {isGuitarEngine && cleaned > 0 && (
+        <p className="border-t border-graphite-800 px-4 py-2.5 text-[11px] leading-relaxed text-text-subtle">
+          {cleaned.toLocaleString()} {cleaned === 1 ? "ghost note" : "ghost notes"}{" "}
+          (string harmonics and doubled attacks) removed automatically.
+        </p>
+      )}
 
       {result.notes_dropped_by_filter > 0 && (
         /*
@@ -664,27 +739,34 @@ type Tier = "free" | "hq";
  * they would want the other one; the difference they actually feel is
  * twenty minutes of splitting a pile of notes by hand.
  *
- * Neither says "more accurate". That is the one claim a disappointed user
- * argues with — and they will, because a solo guitar legitimately comes back
- * as a single track. Capability is checkable in a DAW in ten seconds.
+ * NAMED FOR ACCURACY, NOT TRACK COUNT. "Single track" vs "Multi-track" is MIDI
+ * vocabulary, and the search data says arrivals here don't have it: they type
+ * "mp3 to midi", "melody to midi", "vocal to midi", "accurate mp3 to midi".
+ * Neither search console reports a single impression for multi-track anything.
+ * Naming the paid tier after a word nobody searches hid what it is best at.
+ *
+ * Accuracy leads; the per-instrument split follows as the second sentence.
+ * That order also keeps the old warning satisfied — the tier still never
+ * PROMISES separate instruments, which is the claim a solo-guitar upload
+ * disproves and the one a disappointed user argues with.
  */
 const TIERS: { id: Tier; label: string; cost: string; blurb: string }[] = [
   {
     id: "free",
-    label: "Single track",
-    cost: "free",
+    label: "Standard",
+    cost: "always free",
     blurb:
-      "Every note in one track. Fine for a melody, a bassline, or anything you'll reassign yourself.",
+      "Every detected note in one track. Fine for a simple melody or bassline you'll tidy up yourself.",
   },
   {
     id: "hq",
-    label: "Multi-track",
-    // The badge renders the live price here instead, so this stays empty —
+    label: "High accuracy",
+    // The badge renders the live cost here instead, so this stays empty —
     // FreeTierBadge knows whether the visitor has free runs left and this
     // module does not.
     cost: "",
     blurb:
-      "Bass, drums and keys land on separate tracks with the right instrument already assigned — ready to edit, not untangle.",
+      "Picks the right engine for what you upload: a stronger model for keys, vocals and full mixes, and a guitar-specific one for riffs and chords.",
   },
 ];
 
@@ -693,6 +775,9 @@ export function AudioToMidiForm({ hqAvailable = false }: { hqAvailable?: boolean
   const isHq = hqAvailable && tier === "hq";
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [settings, setSettings] = useState<Settings>(DEFAULTS);
+  const [instrument, setInstrument] = useState<Instrument>("auto");
+  const [isolate, setIsolate] = useState(false);
+  const isGuitar = isHq && instrument === "guitar";
 
   const { rateLimitFor } = useCredits();
 
@@ -764,6 +849,16 @@ export function AudioToMidiForm({ hqAvailable = false }: { hqAvailable?: boolean
     detail: option.blurb,
   }));
 
+  const instrumentOptions: CardOption<Instrument>[] = INSTRUMENTS.map((option) => {
+    const Icon = INSTRUMENT_ICONS[option.id];
+    return {
+      value: option.id,
+      title: option.label,
+      titleBefore: <Icon className="h-3.5 w-3.5" aria-hidden />,
+      detail: option.blurb,
+    };
+  });
+
   return (
     <JobToolForm
       // Different ROUTE, not a quality flag — the two tiers are different
@@ -783,11 +878,13 @@ export function AudioToMidiForm({ hqAvailable = false }: { hqAvailable?: boolean
       metered={isHq}
       renderResult={isHq ? (jobId) => <MidiHqResultSummary key={jobId} jobId={jobId} /> : undefined}
       fileAccept="audio/*,.mp3,.wav,.m4a,.aac,.ogg,.flac,.aiff,.opus,.webm"
-      submitLabel={isHq ? "Convert to multi-track MIDI" : TOOL_COPY.submitLabel}
+      submitLabel={isHq ? "Convert with high accuracy" : TOOL_COPY.submitLabel}
       toolLabel={TOOL_COPY.toolLabel}
-      toolMeta={isHq ? "multi-track · up to 10 min" : TOOL_COPY.toolMeta}
-      processingLabel={TOOL_COPY.processingLabel}
-      expectedRange={TOOL_COPY.expectedRange}
+      toolMeta={isHq ? "high accuracy · up to 10 min" : TOOL_COPY.toolMeta}
+      processingLabel={
+        isGuitar && isolate ? "Isolating guitar, then transcribing" : TOOL_COPY.processingLabel
+      }
+      expectedRange={isGuitar && isolate ? "one to a few minutes" : TOOL_COPY.expectedRange}
       resultVerb={TOOL_COPY.resultVerb}
       icon={Music4}
       hidePreview
@@ -808,7 +905,10 @@ export function AudioToMidiForm({ hqAvailable = false }: { hqAvailable?: boolean
           // Omitted unless the user turned the filter on. Sending the free
           // tool's 127.7 default here would throw away real notes on a run
           // they paid for — see Settings.limitNoteLength.
-          const fields: Record<string, string> = {};
+          const fields: Record<string, string> = { instrument };
+          if (instrument === "guitar" && isolate) {
+            fields.isolate = "true";
+          }
           if (settings.limitNoteLength) {
             fields.min_note_ms = String(settings.minimumNoteLength);
           }
@@ -845,15 +945,53 @@ export function AudioToMidiForm({ hqAvailable = false }: { hqAvailable?: boolean
           */}
           {hqAvailable && (
             <fieldset disabled={disabled} className="space-y-2">
-              <legend className="mb-2 text-sm font-medium text-text-primary">Output</legend>
+              <legend className="mb-2 text-sm font-medium text-text-primary">Quality</legend>
               <OptionCards
-                label="Transcription engine"
+                label="Transcription quality"
                 options={tierOptions}
                 value={tier}
                 onChange={setTier}
                 columns={2}
                 disabled={disabled}
               />
+            </fieldset>
+          )}
+
+          {/* ---- Instrument: HQ tier only. Routes to the engine on the
+                 backend; guitar is a different model entirely. ---- */}
+          {isHq && (
+            <fieldset disabled={disabled} className="space-y-2">
+              <legend className="mb-2 text-sm font-medium text-text-primary">
+                What are you transcribing?
+              </legend>
+              <OptionCards
+                label="Instrument"
+                options={instrumentOptions}
+                value={instrument}
+                onChange={setInstrument}
+                columns={2}
+                disabled={disabled}
+              />
+
+              {isGuitar && (
+                <div className="flex items-start justify-between gap-3 rounded-lg border border-graphite-800 bg-graphite-850/60 px-3.5 py-3">
+                  <div>
+                    <p className="text-sm font-medium text-text-primary">
+                      Guitar is inside a full mix
+                    </p>
+                    <p className="mt-0.5 text-[11px] leading-snug text-text-subtle">
+                      Pulls the guitar out first, then transcribes just that. Leave
+                      off for a solo guitar recording or DI — it only adds time.
+                    </p>
+                  </div>
+                  <Toggle
+                    checked={isolate}
+                    disabled={disabled}
+                    label="Isolate guitar from mix"
+                    onChange={setIsolate}
+                  />
+                </div>
+              )}
             </fieldset>
           )}
 
@@ -947,7 +1085,8 @@ export function AudioToMidiForm({ hqAvailable = false }: { hqAvailable?: boolean
                     YourMT3 emits note events directly; there is no onset or
                     sustain detector behind it to tune. The API accepts these
                     fields and ignores them, so showing the sliders on HQ would
-                    be two controls that visibly do nothing. */}
+                    be two controls that visibly do nothing. The guitar engine
+                    has a detector but runs its own tuned preset. */}
                 {!isHq && (
                   <div className="space-y-4">
                     <p className="text-[10px] font-medium uppercase tracking-widest text-text-subtle">
@@ -997,9 +1136,9 @@ export function AudioToMidiForm({ hqAvailable = false }: { hqAvailable?: boolean
                       </p>
                       {isHq && (
                         <p className="mt-1 text-[11px] leading-snug text-text-subtle">
-                          Off by default. The multi-track model emits note events
-                          directly, so there is usually nothing to clean up — turn
-                          this on only if the result looks cluttered.
+                          {isGuitar
+                            ? "Off by default. The guitar engine already removes string harmonics and doubled attacks — turn this on only if the result still looks cluttered."
+                            : "Off by default. The multi-track model emits note events directly, so there is usually nothing to clean up — turn this on only if the result looks cluttered."}
                         </p>
                       )}
                     </div>

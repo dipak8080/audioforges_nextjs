@@ -15,10 +15,10 @@ import type { MeteredToolKey } from "@/lib/types/credits";
  * the good mode, never hear the difference, and never become someone who would
  * pay for it.
  *
- * Two free runs a month already exist server-side and are invisible everywhere
- * in the UI. Making them visible BEFORE they're spent turns the toggle from a
- * risk into an invitation, and the whole funnel behind it depends on people
- * reaching the top of it.
+ * Free runs already exist server-side and are invisible everywhere in the UI.
+ * Making them visible BEFORE they're spent turns the toggle from a risk into an
+ * invitation, and the whole funnel behind it depends on people reaching the top
+ * of it.
  *
  * `free_remaining` from the backend is already min(user_left, ip_left), so this
  * never promises a run that will 402.
@@ -37,16 +37,21 @@ import type { MeteredToolKey } from "@/lib/types/credits";
  *
  * ── THIS PASS ──────────────────────────────────────────────────────────
  *
- * IT CHARGED CUSTOMERS FOR RUNS THAT ARE FREE. The branch read
- * `balance > 0 || freeRemaining <= 0` → "1 credit", so the moment someone
- * bought a pack their remaining free runs stopped being mentioned and every
- * Studio Quality run was labelled as costing a credit. It doesn't: the free
- * allowance is spent first — that's what `will_use` on the upgrade route
- * reports, and it's why `free_remaining` keeps counting down for account
- * holders. So a buyer with 30 credits and 2 free runs left was told their next
- * two runs cost money, on the one label that exists to remove hesitation.
+ * THE LABEL HAD TO SAY BOTH FACTS, AND IT ONLY EVER SAID ONE.
  *
- * The order is now: free runs if there are any, price if there aren't.
+ * It read "FREE". On the audio-to-MIDI picker the standard card's own meta also
+ * read "free", so a logged-out visitor saw the same word on both cards and had
+ * nothing to tell them apart. They spent an allowance they never knew was
+ * finite, then met a paywall from nowhere on the next run.
+ *
+ * A first pass changed it to "LEFT", which fixed the collision and broke the
+ * meaning — on the vocal-remover and stems cards, where the standard option's
+ * meta is a duration rather than the word "free", "LEFT" sat alone next to
+ * "1-2 MIN" and answered no question a visitor was asking.
+ *
+ * "FREE LEFT" carries both: it is free right now, and it runs out. It also
+ * matches the navbar pill's wording rather than inventing a third vocabulary
+ * for the same allowance.
  *
  * WORTH A GLANCE AT paywall.guard TO CONFIRM: this assumes the backend spends
  * the free allowance before touching the balance. If it ever charges credits
@@ -128,10 +133,11 @@ export function FreeTierBadge({
         aria-hidden
         className="font-mono text-[9px] font-semibold uppercase tracking-[0.14em] text-teal-400"
       >
-        free
+        free left
       </span>
       {/* The marks carry the number visually; this carries it for everyone
-          else. Without it a screen reader announces "free" and no quantity. */}
+          else. Without it a screen reader announces "free left" and no
+          quantity. */}
       <span className="sr-only">
         {freeRemaining} free {runWord} left this month
       </span>
