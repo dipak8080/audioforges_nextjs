@@ -144,3 +144,42 @@ export function FreeTierBadge({
     </span>
   );
 }
+
+/**
+ * The other half of the pair, and the reason the paid card stopped reading as
+ * the free one.
+ *
+ * On the separation forms the standard card's meta slot is a DURATION, so the
+ * only cost word anywhere in the picker was the one on the metered card. A
+ * visitor comparing "20 sec-1 min" against "1 free left" is being asked which
+ * is cheaper by a control that never mentions price on the free option.
+ *
+ * `pairedTool` is the METERED sibling, not this card: the marker exists only
+ * to contrast with FreeTierBadge, so when the paywall is off — or that rule
+ * isn't metered right now — both cards are free and neither should be
+ * labelled. Rendering one marker and not the other is what created the
+ * confusion in the first place.
+ */
+export function AlwaysFreeTag({
+  pairedTool,
+  className,
+}: {
+  pairedTool: MeteredToolKey;
+  className?: string;
+}) {
+  const { enabled, loading, isToolMetered } = useCredits();
+
+  if (!enabled || loading || !isToolMetered(pairedTool)) return null;
+
+  return (
+    <span
+      className={cn(
+        "shrink-0 font-mono text-[9px] font-semibold uppercase tracking-[0.14em] text-text-subtle",
+        className
+      )}
+      title="Free and unlimited \u2014 no credit, no monthly allowance"
+    >
+      always free
+    </span>
+  );
+}

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Fragment } from "react";
 import Link from "next/link";
 import { AudioToMidiForm } from "@/components/converter/AudioToMidiForm";
+import { MidiCompare } from "@/components/credits/MidiCompare";
 import { FAQSection, type FAQItem } from "@/components/faq/FAQSection";
 import { ToolPageShell } from "@/components/layout/ToolPageShell";
 import { Breadcrumb } from "@/components/layout/Breadcrumb";
@@ -144,6 +145,25 @@ const SOURCE_TYPES = [
 
 const DAWS = ["Ableton Live", "FL Studio", "Logic Pro", "GarageBand", "Cubase", "Studio One", "Reaper"];
 
+const DAW_IMPORTS = [
+  {
+    name: "FL Studio",
+    desc: "Drag the .mid straight onto the playlist, or use File \u2192 Import \u2192 MIDI file. Each track lands on its own pattern, ready to point at a channel.",
+  },
+  {
+    name: "Ableton Live",
+    desc: "Drag the .mid into a MIDI track in Session or Arrangement view. Live creates one clip per track and keeps the original tempo mapping.",
+  },
+  {
+    name: "Logic Pro",
+    desc: "File \u2192 Import \u2192 MIDI File, or drag it into the tracks area. Logic offers to create a software instrument track per MIDI track.",
+  },
+  {
+    name: "GarageBand, Cubase, Studio One and Reaper",
+    desc: "All accept a standard .mid by drag and drop. The file carries note, timing and program data, so nothing needs converting first.",
+  },
+];
+
 export default async function AudioToMidiPage() {
   const relatedTools = getRelatedTools("audio-to-midi", 5);
   /**
@@ -240,6 +260,21 @@ export default async function AudioToMidiPage() {
         "No. Upload a track in your browser, wait for processing, and download the MIDI file directly. No app, plugin, or account required.",
     },
     {
+      question: "How do I convert a melody or vocal to MIDI accurately?",
+      answer:
+        "Upload the clip and choose High accuracy. It follows a sung or played melody line far more closely than the standard detector, holding pitch through sustained notes and picking up quieter ones. An isolated melody transcribes better than the same line inside a full mix, so separate it first if you can.",
+    },
+    {
+      question: "Which audio to MIDI converter is most accurate?",
+      answer:
+        "Accuracy depends far more on the source than the converter: one clean instrument or voice transcribes well, a dense mix does not. AudioForges runs two engines — a standard detector that is free and unlimited, and a high-accuracy mode for melodies, vocals, guitar and multi-instrument material. The comparison at the top of this page plays the same clip through both so you can judge before uploading anything.",
+    },
+    {
+      question: "Can I convert a guitar riff to MIDI?",
+      answer:
+        "Yes. Guitar is the hardest common case, because strings ring into each other and every note carries harmonics a detector can mistake for extra notes. High accuracy routes guitar to an engine tuned for it, which removes those ghost notes automatically, and can isolate the guitar from a full mix first if the riff isn't already on its own.",
+    },
+    {
       question: "What's the maximum audio length and file size?",
       answer: "Uploads can run from 1 second up to 10 minutes long.",
     },
@@ -259,6 +294,27 @@ export default async function AudioToMidiPage() {
         lede="Convert MP3, WAV, FLAC, M4A and more to MIDI, free. Automatic note, pitch, and timing detection — with presets for vocals, piano, bass, and guitar."
         tool={<AudioToMidiForm hqAvailable={midiHqAvailable} />}
       >
+        {/*
+          THE PROOF, AND IT SITS FIRST ON PURPOSE.
+
+          "High accuracy" is an adjective until someone hears it. Three static
+          clips — source, standard render, high-accuracy render — cost nothing
+          per view and answer the one question a visitor cannot answer from
+          copy. It also serves the queries this page already half-ranks for
+          ("accurate mp3 to midi", "best audio to midi converter"), which are
+          comparison queries a comparison answers better than prose.
+
+          MidiCompare returns null until all three files exist, so this is safe
+          to ship ahead of the clips.
+        */}
+        <MidiCompare
+          originalSrc="/demo/midi/melody-original.mp3"
+          standardSrc="/demo/midi/melody-standard.mp3"
+          hqSrc="/demo/midi/melody-hq.mp3"
+          sourceLabel="Sung melody"
+          trackLabel="One vocal line, transcribed both ways"
+        />
+
         {/* Was three separate bordered cards; every other tool page uses the
             one-strip treatment. */}
         <FeatureStrip
@@ -409,23 +465,35 @@ export default async function AudioToMidiPage() {
 
         {midiHqAvailable && (
           /*
-            ADDED LAST, DELIBERATELY LOW ON THE PAGE. This page ranks #1 on
-            Bing for its head terms, so nothing above it moves. Additive only,
-            targeting a distinct query set ("multitrack midi", "separate
-            instruments to midi") the free tool can't honestly claim.
+            RETARGETED 2026-09-01. Was "Multi-track MIDI", written for
+            "multitrack midi" / "separate instruments to midi" — neither search
+            console has ever recorded a single impression for those. What the
+            data does show is melody, vocal and accuracy language, so the
+            section leads with that and keeps the split as a second benefit.
+
+            Still additive and still below the ranking content: nothing above
+            this point moves while the page holds its Bing positions.
 
             Renders nothing while the tool is off, so the page can't advertise
             something a visitor cannot buy.
           */
-          <ToolSection id="multi-track" title="Multi-track MIDI: one track per instrument">
+          <ToolSection id="high-accuracy" title="High-accuracy transcription for melodies, vocals and guitar">
             <p>
-              The free converter returns a single MIDI track containing every
-              note it detected, whatever played them. Multi-track mode runs a
-              different model that separates the performance by instrument
-              instead — a bass line, a piano part and a drum pattern arrive as
-              three tracks, each with a General MIDI program already assigned,
-              so they land on the right instruments the moment you open the file
-              in a DAW.
+              The standard converter returns every note it detected in a single
+              track. High accuracy picks a stronger engine for what you upload:
+              it follows a sung melody, a vocal line or a lead instrument far
+              more closely, catching notes the standard detector misses and
+              holding pitch through sustained passages. Guitar riffs, chords and
+              arpeggios route to an engine tuned for guitar, which strips the
+              string harmonics and doubled attacks that usually turn a clean
+              riff into a cloud of stray notes.
+            </p>
+            <p>
+              On material with several instruments playing at once it also
+              separates the performance — a bass line, a piano part and a drum
+              pattern arrive as three tracks, each with a General MIDI program
+              already assigned, so they land on the right instruments the moment
+              you open the file in a DAW.
             </p>
             <p>
               It is worth being straight about when this helps. On a solo guitar
@@ -437,9 +505,9 @@ export default async function AudioToMidiPage() {
               the right tool and costs nothing.
             </p>
             <p>
-              Multi-track runs on GPU time that costs real money per job, so it
+              High accuracy runs on GPU time that costs real money per job, so it
               uses a credit — with free runs every month and nothing recurring.
-              Single-track transcription stays free and unlimited.{" "}
+              Standard transcription stays free and unlimited.{" "}
               <Link href="/pricing">See what credits cost</Link>.
             </p>
           </ToolSection>
@@ -471,6 +539,14 @@ export default async function AudioToMidiPage() {
           </dl>
         </ToolSection>
 
+        {/*
+          The bare DAW list was already this page's best-ranking content on
+          Google without a word written for it — "fl studio mp3 to midi",
+          "convert mp3 to midi fl studio" and "live audio to midi" all sit
+          20-40 positions ahead of the head terms. Someone searching those
+          wants to know how the file lands in their DAW, which the list never
+          told them.
+        */}
         <ToolSection id="daws" title="Use your MIDI in any DAW">
           <p>
             The downloaded .mid file imports into any MIDI-compatible music
@@ -478,6 +554,14 @@ export default async function AudioToMidiPage() {
             timing, quantize the performance, or use the transcription as a
             starting point for a new arrangement — including {DAWS.join(", ")}.
           </p>
+          <dl>
+            {DAW_IMPORTS.map((d) => (
+              <Fragment key={d.name}>
+                <dt>{d.name}</dt>
+                <dd>{d.desc}</dd>
+              </Fragment>
+            ))}
+          </dl>
         </ToolSection>
 
         <ToolSection id="formats" title="Supported audio formats" bleed>

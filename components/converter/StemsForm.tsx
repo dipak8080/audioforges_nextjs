@@ -13,7 +13,7 @@ import {
 import { submitStems, type SeparationQuality } from "@/lib/api/railway";
 import { getRateLimitLabel } from "@/lib/data/rate-limits";
 import { useCredits } from "@/components/credits/CreditProvider";
-import { FreeTierBadge } from "@/components/credits/FreeTierBadge";
+import { AlwaysFreeTag, FreeTierBadge } from "@/components/credits/FreeTierBadge";
 import type { MeteredToolKey } from "@/lib/types/credits";
 import type { RateLimitRule } from "@/lib/types/credits";
 
@@ -257,7 +257,13 @@ export function StemsForm({ hqAvailable = false }: StemsFormProps) {
         titleBefore:
           option.value === "hq" ? <Sparkles className="h-3.5 w-3.5" aria-hidden /> : undefined,
         // Renders nothing unless this tool is metered right now.
-        titleAfter: option.toolKey ? <FreeTierBadge tool={option.toolKey} /> : undefined,
+        // Both cards carry a cost marker or neither does. AlwaysFreeTag reads
+        // the METERED sibling, so when the paywall is off both stay bare.
+        titleAfter: option.toolKey ? (
+          <FreeTierBadge tool={option.toolKey} />
+        ) : HQ_SPEC.toolKey ? (
+          <AlwaysFreeTag pairedTool={HQ_SPEC.toolKey} />
+        ) : undefined,
         meta: option.time,
         detail: option.detail,
         // Omitted when there's no real figure, rather than filled with a

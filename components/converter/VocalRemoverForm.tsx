@@ -50,7 +50,7 @@ import Link from "next/link";
 import { trackCredits } from "@/lib/analytics";
 import { useCreditGate } from "@/components/credits/useCreditGate";
 import { useCredits } from "@/components/credits/CreditProvider";
-import { FreeTierBadge } from "@/components/credits/FreeTierBadge";
+import { AlwaysFreeTag, FreeTierBadge } from "@/components/credits/FreeTierBadge";
 import { UpgradeToHqCard } from "@/components/credits/UpgradeToHqCard";
 import { CreditReceipt, StudioQualityTag } from "@/components/credits/CreditReceipt";
 
@@ -592,7 +592,13 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
           option.value === "hq" ? <Sparkles className="h-3.5 w-3.5" aria-hidden /> : undefined,
         // Renders nothing unless this tool is metered right now. "2 free runs
         // left" is what makes a first-timer click Studio Quality at all.
-        titleAfter: option.toolKey ? <FreeTierBadge tool={option.toolKey} /> : undefined,
+        // Both cards carry a cost marker or neither does. AlwaysFreeTag reads
+        // the METERED sibling, so when the paywall is off both stay bare.
+        titleAfter: option.toolKey ? (
+          <FreeTierBadge tool={option.toolKey} />
+        ) : HQ_SPEC.toolKey ? (
+          <AlwaysFreeTag pairedTool={HQ_SPEC.toolKey} />
+        ) : undefined,
         meta: option.time,
         detail: option.detail,
         footnote: liveLimit
