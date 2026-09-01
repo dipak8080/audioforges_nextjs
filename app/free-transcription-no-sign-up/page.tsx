@@ -20,7 +20,7 @@ import { getLimits, windowFor, rateLimitLabel, durationLabel } from "@/lib/api/l
 // `: string` is load-bearing — without it TS narrows both to literal types
 // and flags the LAST_VERIFIED !== PUBLISHED check below as impossible.
 const PUBLISHED: string = "2026-08-20";
-const LAST_VERIFIED: string = "2026-08-31";
+const LAST_VERIFIED: string = "2026-09-01";
 
 const formatDate = (iso: string) =>
   new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
@@ -200,7 +200,7 @@ export default async function FreeTranscriptionPage() {
     {
       question: "Is any transcription tool genuinely free with no account?",
       answer:
-        "Some are, including this one. What varies is what they cap instead — usually file length or how often you can submit. A tool with no cap at all and no account is either subsidised by something else or about to change.",
+        "Some are usable with no account at all, including this one — but almost none are uncapped, and that includes us. What varies is which cap they choose: file length, submission frequency, a monthly allowance, or an account gate on the download. Here it is the first three and never the last. A tool with no cap at all and no account is either subsidised by something else or about to change.",
     },
     {
       question: "Is there a free transcription tool with no credit card?",
@@ -209,7 +209,7 @@ export default async function FreeTranscriptionPage() {
     },
     {
       question: "What's the catch here?",
-      answer: `Length, frequency, and a monthly allowance. ${maxLength} per file, ${rateLimit}, and a couple of free transcriptions a month — after that a run costs one credit, roughly 20–30 cents. All stated up front. There is still no account, no card, and no export paywall: every transcript downloads as TXT, SRT and VTT whether you paid or not.`,
+      answer: `Length, frequency, and a monthly allowance. ${maxLength} per file, ${rateLimit}, and a small number of free runs a month — the tool shows how many you have left before you spend one — after that a run costs one credit, roughly 20–30 cents. All stated up front. There is still no account, no card, and no export paywall: every transcript downloads as TXT, SRT and VTT whether you paid or not.`,
     },
     {
       question: "Can I download SRT subtitles without paying?",
@@ -416,8 +416,9 @@ export default async function FreeTranscriptionPage() {
               The honest downsides, since the checklist above doesn&apos;t ask
               for them: no speaker labels, no transcript editor, no batch mode,
               and {rateLimit.toLowerCase()} means a couple of quick retries will
-              hit a cooldown. The free allowance is also shared with the Studio
-              Quality separation tools, so a heavy week on those leaves less
+              hit a cooldown. The free allowance is one pool across every
+              GPU-backed job on the site — Studio Quality separation and
+              high-accuracy MIDI included — so a heavy week on those leaves less
               here. If you need to process fifty files or label who said what, a
               paid tool is the right answer and this isn&apos;t it.
             </p>

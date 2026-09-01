@@ -84,12 +84,12 @@ const faqs: FAQItem[] = [
   {
     question: "Is AudioForges still free?",
     answer:
-      "Yes. Every tool on the site is free and unlimited, including standard vocal removal and stem splitting, with full-quality downloads and no watermark. Credits apply only to jobs that need a GPU, which today means Studio Quality separation and multi-track MIDI. Anything that runs on ordinary CPU processing is free and will stay that way — including standard audio-to-MIDI transcription.",
+      "Yes. Every tool that runs on ordinary CPU processing is free and unlimited, with full-quality downloads and no watermark — including standard vocal removal, stem splitting and standard audio-to-MIDI. Credits apply only to jobs that need a GPU, which today means Studio Quality separation, high-accuracy MIDI, and transcription. Everything on cheap processing stays free and there are no plans to change that.",
   },
   {
     question: "What's the difference between standard and Studio Quality?",
     answer:
-      "The same job run through a heavier model. Standard separation is good enough for reference tracks, practice, and DJ edits, and it's what most people need. Studio Quality pulls cleaner stems out of dense mixes — less instrumental bleed in the vocal, less vocal ghost in the instrumental — which matters when the stem is going into a release rather than a rehearsal. Run both on the same track and keep whichever you prefer; your first two Studio Quality runs each month are free.",
+      "The same job run through a heavier model. Standard separation is good enough for reference tracks, practice, and DJ edits, and it's what most people need. Studio Quality pulls cleaner stems out of dense mixes — less instrumental bleed in the vocal, less vocal ghost in the instrumental — which matters when the stem is going into a release rather than a rehearsal. Run both on the same track and keep whichever you prefer: every visitor gets free runs each month, and the tool shows how many you have left before you spend one.",
   },
   {
     question: "Do credits expire?",
@@ -177,7 +177,7 @@ export default async function PricingPage() {
         <SectionHeading
           eyebrow="What you get"
           title="One credit, one job"
-          description="Both metered jobs cost the same, and both are optional heavier modes of tools that are otherwise free."
+          description="Every metered job costs the same, whichever tool it came from."
         />
         <dl className="mt-6 overflow-hidden rounded-xl border border-graphite-800 bg-graphite-900">
           <div className="flex items-baseline justify-between border-b border-graphite-800 bg-graphite-950/40 px-4 py-3">
@@ -188,13 +188,18 @@ export default async function PricingPage() {
               Any GPU-backed job
             </span>
           </div>
-          {/* Names BOTH metered jobs. A spec panel listing one of two makes the
-              other look like a surprise charge. */}
+          {/* Names EVERY metered job. A spec panel listing two of three makes
+              the third look like a surprise charge — which is exactly what
+              transcription was while this panel omitted it. */}
           <SpecRow label="You get">
             Studio Quality separation — vocals and instrumental, or a full
             four-stem split
           </SpecRow>
-          <SpecRow label="Or">Multi-track MIDI — one track per detected instrument</SpecRow>
+          <SpecRow label="Or">
+            High-accuracy MIDI — closer note detection on melodies, vocals and
+            guitar, and a track per instrument on a full mix
+          </SpecRow>
+          <SpecRow label="Or">Transcription — audio, video or a YouTube link, to text</SpecRow>
           <SpecRow label="Source">An audio file, or a YouTube link</SpecRow>
           <SpecRow label="Track length">
             Up to {hqMaxLabel}. Longer tracks are blocked before anything is charged
@@ -266,23 +271,28 @@ export default async function PricingPage() {
 
       {/*
         NO ARITHMETIC. This read "The other {liveToolCount - 1}+ tools cost
-        nothing" — minus one, on a page naming two paid things. And the framing
-        was weaker than the truth: no tool here is paid, two free tools have an
-        optional heavier mode.
+        nothing" — minus one, on a page naming two paid things.
+
+        TRANSCRIPTION WAS LISTED AS FREE AND HAS NOT BEEN SINCE 2026-08-29.
+        PAYWALL_TOOL_TRANSCRIBE_ENABLED has been true with free_under_seconds
+        at 0, so every transcription spends an op or a credit — while this
+        section named it in a list of tools with "no metering and no plans to
+        add any". A pricing page understating what it charges for is the one
+        error that turns into a refund request.
       */}
       <section className="mt-16">
         <SectionHeading
           eyebrow="Still free"
-          title="Every tool is free. Two have an optional paid mode."
-          description={`All ${liveToolCount} tools run free and unlimited with no sign-up. Credits apply only to the two heavier modes above — never to a tool as a whole.`}
+          title="Almost everything is free and unlimited"
+          description={`Of ${liveToolCount} tools, credits apply to three GPU-backed jobs. Everything else runs free with no sign-up and no metering.`}
         />
         <div className="mt-6 rounded-xl border border-graphite-800 bg-graphite-900 p-5">
           <p className="text-sm leading-relaxed text-text-muted">
             Conversion, trimming, volume, pitch, tempo, noise removal, silence
-            splitting, transcription, key and BPM detection, YouTube and TikTok
-            extraction — all free, with no metering and no plans to add any.
-            Standard vocal removal and stem splitting are free too, with
-            full-quality downloads and no watermark.{" "}
+            splitting, key and BPM detection, standard audio-to-MIDI, YouTube
+            and TikTok extraction — all free, with no metering and no plans to
+            add any. Standard vocal removal and stem splitting are free too,
+            with full-quality downloads and no watermark.{" "}
             <Link
               href="/tools"
               prefetch={false}
