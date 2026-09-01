@@ -275,16 +275,30 @@ export function CreditChipMobile({ onOpenSheet }: { onOpenSheet: () => void }) {
   if (!enabled || loading) return null;
 
   const hasCredits = balance > 0;
-  // A signed-in account always gets a chip, even at zero — it is the ONLY
-  // route to the account sheet on a phone, and hiding it stranded exactly the
-  // customer who had already paid. Only a visitor with no account and nothing
-  // to spend gets nothing.
-  if (!me?.authenticated && !hasCredits && freeRemaining <= 0) return null;
+  const isEmpty = !me?.authenticated && !hasCredits && freeRemaining <= 0;
+
+  /*
+    THE EMPTY STATE USED TO RETURN NULL, AND THAT DELETED THE ONLY WAY TO BUY.
+
+    Desktop answers this case with a quiet "Credits" link (see CreditMenu
+    above). Mobile answered it with nothing at all, so an anonymous visitor who
+    had spent their allowance got a header with Donate and no route to
+    /pricing — on the one device where this chip is the entire credit UI. The
+    old reasoning ("nothing to spend gets nothing") reads as restraint, but a
+    first-time visitor has free runs and does get a chip: the only people it
+    hid from were the ones who had just used everything, which is the moment
+    they are worth talking to.
+
+    Zero is a real number. It renders as the muted variant, not amber — an
+    empty state dressed in amber is a badge for nothing.
+  */
 
   const value = hasCredits ? balance : freeRemaining;
   const title = hasCredits
     ? `${balance} ${balance === 1 ? "credit" : "credits"}`
-    : `${freeRemaining} free ${freeRemaining === 1 ? "run" : "runs"} left this month`;
+    : isEmpty
+      ? "No free runs left this month — see credit packs"
+      : `${freeRemaining} free ${freeRemaining === 1 ? "run" : "runs"} left this month`;
 
   const chipClass = buttonStyles({
     variant: "outline",
