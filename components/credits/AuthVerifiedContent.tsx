@@ -158,6 +158,23 @@ function SignedIn() {
     }
   }, []);
 
+  /*
+    CONSUMED, NOT JUST READ. /checkout/success removes this key after using it;
+    this page did not, so one stale entry survived every later sign-in and sent
+    everyone back to the same page indefinitely.
+
+    In an effect rather than inside the memo above: clearing storage is a side
+    effect, and the compiler drops memoization on an impure useMemo. The memo
+    has already captured the value by the time this runs.
+  */
+  useEffect(() => {
+    try {
+      window.localStorage.removeItem(RETURN_KEY);
+    } catch {
+      /* storage disabled — nothing was readable anyway */
+    }
+  }, []);
+
   if (lookup.state === "loading") {
     return (
       <div className="space-y-4 text-center" role="status" aria-live="polite">

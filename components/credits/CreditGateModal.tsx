@@ -202,7 +202,7 @@ const TOOL_LABELS: Record<string, string> = {
  * Recorded from the live pathname rather than mapped from the tool key, so
  * this needs no knowledge of the route table and cannot go stale.
  */
-function rememberReturnPath(tool: string) {
+function rememberReturnPath(tool: string | null) {
   if (typeof window === "undefined") return;
   const path = window.location.pathname;
   // /pricing and /checkout are not places to send someone back to.
@@ -210,7 +210,7 @@ function rememberReturnPath(tool: string) {
   try {
     window.localStorage.setItem(
       "af_return_to",
-      JSON.stringify({ path, label: TOOL_LABELS[tool] ?? null })
+      JSON.stringify({ path, label: (tool && TOOL_LABELS[tool]) || null })
     );
   } catch {
     /* storage disabled — the success page falls back to a default route */
@@ -704,6 +704,12 @@ function SignInStep({ onBack }: { onBack: () => void }) {
     setSubmitting(true);
     setError(null);
     try {
+      // Was checkout-only, so a magic-link sign-in reused whatever path an
+      // EARLIER checkout had written — "Back to your track" sent everyone to
+      // the same stale page forever. The recovery flow leaves the tab open
+      // too, but the link is often opened on another device where this is the
+      // only record of where they started.
+      rememberReturnPath(null);
       await requestMagicLink(trimmed);
       trackCredits("credits_magic_link_requested");
       setSent(true);
