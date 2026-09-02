@@ -31,14 +31,25 @@ import { ogForTool } from "@/lib/og";
  *
  * DOWNLOADER INTENT: "converter" and "downloader" describe the same action to
  * a user and different intents to a search engine, and half this SERP's query
- * space is phrased as the latter ("tiktok audio downloader", "mp3 downloader",
- * "tiktok sounds"). Those terms live in the body copy of the downloader
- * section below, where they're actually read — they used to sit only in a
- * `keywords` meta array, which Google has ignored since 2009.
+ * space is phrased as the latter. Bing Keyword Research, three months to
+ * 30 Aug 2026, puts numbers on it:
+ *
+ *   tiktok to mp3            26.7K   head term — keeps position zero
+ *   tiktok mp3               12.2K
+ *   tiktok mp3 downloader     7.2K
+ *   tiktok downloader mp3     5.7K   ~19.7K of demand is phrased as
+ *   tiktok audio downloader   4.2K   "downloader", and the title carried
+ *   tiktok sound downloader   2.6K   only the verb "Download", not the noun
+ *   tiktok mp3 converter      4.7K
+ *
+ * So "Free Audio Downloader" replaces "Free MP3 Download": same length class,
+ * matching a cluster nearly as large as the head term rather than a phrase
+ * nobody types. "Converter" stays — it leads the head term and it is what
+ * the tool is called.
  */
-const PAGE_TITLE = "TikTok to MP3 Converter – Free MP3 Download";
+const PAGE_TITLE = "TikTok to MP3 Converter – Free Audio Downloader";
 const PAGE_DESCRIPTION =
-  "Convert TikTok videos to MP3 online for free. Paste a TikTok link, download the audio in seconds, and listen on any device.";
+  "Free TikTok to MP3 converter and audio downloader. Paste a TikTok link and download the sound as an MP3 in seconds — no app, no account, no watermark.";
 
 /** From the rate-limit table rather than typed into a sentence. The FAQ used
  *  to say "30 conversions per hour" as a literal. */
@@ -71,14 +82,14 @@ export const metadata: Metadata = {
 const webAppJsonLd = {
   "@context": "https://schema.org",
   "@type": "WebApplication",
-  name: "TikTok to MP3 Converter",
+  name: "TikTok to MP3 Converter & Audio Downloader",
   url: `${SITE_URL}/tiktok-to-mp3`,
   applicationCategory: "MultimediaApplication",
   operatingSystem: "Any",
   offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
   featureList: [
     "Convert TikTok videos to MP3",
-    "Download TikTok audio and sounds as MP3",
+    "TikTok audio downloader — sounds and full videos as MP3",
     "Works with vt.tiktok.com and vm.tiktok.com share links",
     "No sign-up required",
     "No watermark",

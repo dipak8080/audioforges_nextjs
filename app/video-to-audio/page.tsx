@@ -21,16 +21,36 @@ import { ogForTool } from "@/lib/og";
  * sentences without checking the command.
  */
 
-// Kept to 38 chars so the " | AudioForges" suffix lands at 52 — well inside
-// SERP truncation. Both head terms sit before the first pipe.
-const PAGE_TITLE = "Free MP4 to WAV & MOV to MP3 Converter";
+/*
+  TITLE RETARGETED 2026-09-01, FROM BING KEYWORD RESEARCH (3 months to 30 Aug):
+
+    mp4 to mp3               169K   <- absent from the old title entirely
+    mp4 to mp3 converter    49.5K
+    video to mp3            34.9K
+    convert mp4 to mp3      23.3K
+    video to mp3 converter  17.9K
+    video to audio           8.2K
+    video to wav              857
+
+  The old title led with "MP4 to WAV & MOV to MP3" and never said "MP4 to
+  MP3" — the largest term in the cluster by a wide margin. MP4-to-WAV is not
+  demoted because it is small (that phrase was never measured; the ahrefs note
+  below still stands), but because it cannot outrank a term with 169K
+  impressions for the lead position.
+
+  `absolute` now, matching /youtube-to-mp3 and /tiktok-to-mp3: a bare string
+  opts into the root layout template, which appends " | AudioForges" and spends
+  14 characters on a brand with no recorded search volume. Those 14 characters
+  buy "Video to MP3" instead.
+*/
+const PAGE_TITLE = "MP4 to MP3 Converter – Free Video to MP3 and WAV";
 const PAGE_DESCRIPTION =
-  "Convert MP4 to WAV, MOV to MP3, or MOV to WAV online, free. Extract audio from any video to WAV, MP3, M4A, FLAC, AAC, OGG, or AIFF. No sign-up, no watermark.";
+  "Convert MP4 to MP3 free, or extract audio as WAV, M4A, FLAC, AAC, OGG or AIFF. Also handles MOV to MP3, MOV to WAV and MKV. No sign-up, no watermark.";
 
 const OG_IMAGE = ogForTool("video-to-audio", "Free MP4 to WAV converter");
 
 export const metadata: Metadata = {
-  title: PAGE_TITLE,
+  title: { absolute: PAGE_TITLE },
   description: PAGE_DESCRIPTION,
   alternates: { canonical: `${SITE_URL}/video-to-audio` },
   openGraph: {
@@ -52,14 +72,15 @@ export const metadata: Metadata = {
 // Don't add HowTo schema — deprecated by Google, no benefit. FAQPage comes
 // from <FAQSection />, BreadcrumbList from <Breadcrumb />; don't duplicate.
 
-// Ordered by verified search volume (ahrefs, Aug 2026): mp4 to wav >10,000/mo,
-// mov to mp3 >10,000/mo, mov to wav >1,000/mo. Head terms lead the table so the
-// first rows a crawler reads are the ones the page competes for.
+// Ordered by search volume, head terms first, so the rows a crawler reads
+// first are the ones the page competes for. MP4→MP3 leads on Bing's measured
+// 169K; the ahrefs figures behind the rest (mp4 to wav >10,000/mo, mov to mp3
+// >10,000/mo, mov to wav >1,000/mo, Aug 2026) still stand.
 const FORMAT_PAIRS = [
+  { from: "MP4", to: "MP3" },
   { from: "MP4", to: "WAV" },
   { from: "MOV", to: "MP3" },
   { from: "MOV", to: "WAV" },
-  { from: "MP4", to: "MP3" },
   { from: "MP4", to: "M4A" },
   { from: "MKV", to: "MP3" },
   { from: "WebM", to: "MP3" },
@@ -156,10 +177,12 @@ export default async function VideoToAudioPage() {
   const webAppJsonLd = {
     "@context": "https://schema.org",
     "@type": "WebApplication",
-    name: "MP4 to WAV & MOV to MP3 Converter",
+    name: "MP4 to MP3 & Video to Audio Converter",
     // alternateName carries the head terms as standalone entity labels, which
     // helps Google associate the page with each query independently.
     alternateName: [
+      "MP4 to MP3 Converter",
+      "Video to MP3 Converter",
       "MP4 to WAV Converter",
       "MOV to MP3 Converter",
       "MOV to WAV Converter",
@@ -171,10 +194,10 @@ export default async function VideoToAudioPage() {
     browserRequirements: "Requires JavaScript.",
     offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
     featureList: [
+      "Convert MP4 to MP3",
       "Convert MP4 to WAV",
       "Convert MOV to MP3",
       "Convert MOV to WAV",
-      "Convert MP4 to MP3",
       `Extract audio from ${videoFormats.slice(0, 5).join(", ")}, and more`,
       `Output as ${audioFormatList}`,
       "16-bit PCM WAV output at the source sample rate",
@@ -307,10 +330,10 @@ export default async function VideoToAudioPage() {
             items={[{ name: "Tools", href: "/tools" }, { name: "Video to Audio" }]}
           />
         }
-        title="Free MP4 to WAV & MOV to MP3 Converter"
-        /* Both head terms appear in the first 20 words of body copy, in their
+        title="Free MP4 to MP3 &amp; Video to Audio Converter"
+        /* The head terms appear in the first 20 words of body copy, in their
            natural query order, before any secondary format names. */
-        lede="Convert MP4 to WAV, MOV to MP3, or MOV to WAV online — free, no sign-up, no watermark."
+        lede="Convert MP4 to MP3, MP4 to WAV, or MOV to MP3 online — free, no sign-up, no watermark."
         tool={<VideoToAudioForm />}
       >
         <FeatureStrip

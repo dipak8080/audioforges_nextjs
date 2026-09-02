@@ -52,10 +52,26 @@ import { ogForTool } from "@/lib/og";
  * The exact phrase leads. Bing weights exact-match placement at position zero
  * noticeably harder than Google does, and Bing is currently ~87% of this
  * site's organic traffic, so it gets to decide the word order.
+ *
+ * MEASURED, Bing Keyword Research, three months to 30 Aug 2026:
+ *
+ *   youtube to mp3             1.1M   head term — keeps position zero
+ *   youtube mp3              509.6K
+ *   youtube to mp3 converter 323.9K
+ *   yt to mp3                  247K
+ *   youtube converter        188.4K
+ *   youtube mp3 converter    162.5K
+ *   youtube downloader mp3   111.2K   <- was absent from the title
+ *
+ * "& Downloader" replaces "No Signup". Converter and downloader are the same
+ * action to a user and different intents to an engine, and the downloader
+ * phrasing is a six-figure cluster the title said nothing about. "No signup"
+ * has no measurable search volume — it belongs in the description, where it
+ * still does its CTR job.
  */
-const PAGE_TITLE = "YouTube to MP3 Converter – Free 320kbps, No Signup";
+const PAGE_TITLE = "YouTube to MP3 Converter & Downloader – Free 320kbps";
 const PAGE_DESCRIPTION =
-  "Convert YouTube to MP3 free. Paste a link, pick 320kbps, and download the audio in seconds — no signup, no watermark, works on phone and desktop.";
+  "Free YouTube to MP3 converter and downloader. Paste a link, get 320kbps audio in seconds — no signup, no watermark, no app, on phone or desktop.";
 
 const OG_IMAGE = ogForTool("youtube-to-mp3", "YouTube to MP3 Converter");
 
@@ -84,7 +100,7 @@ export const metadata: Metadata = {
 const webAppJsonLd = {
   "@context": "https://schema.org",
   "@type": "WebApplication",
-  name: "YouTube to MP3 Converter",
+  name: "YouTube to MP3 Converter & Downloader",
   url: `${SITE_URL}/youtube-to-mp3`,
   applicationCategory: "MultimediaApplication",
   operatingSystem: "Any",
@@ -333,6 +349,59 @@ export default function YouTubeToMp3Page() {
               Read WAV vs MP3 for Sampling: What Actually Changes
             </Link>{" "}
             for the detail.
+          </p>
+        </ToolSection>
+
+        {/*
+          "how to convert youtube to mp3 legally" — 50.8K impressions over
+          three months and the steepest-rising trend in the whole cluster.
+          Informational intent, far less contested than the converter terms,
+          and the only honest answer to it was buried in an FAQ.
+
+          Written as the actual answer rather than a hedge. Every competing
+          page either ignores the question or implies everything is fine; the
+          real answer has four clear cases and one grey one, and saying so is
+          the same move the bitrate section above makes.
+        */}
+        <ToolSection id="legal" title="How to convert YouTube to MP3 legally">
+          <p>
+            The honest answer is that it depends on the video, not on the tool.
+            Four cases are clearly fine:
+          </p>
+          <ul>
+            <li>
+              <strong>Your own uploads.</strong> You hold the rights; downloading
+              your own audio is unambiguous.
+            </li>
+            <li>
+              <strong>Creative Commons video.</strong> YouTube has a CC-BY filter
+              in search tools. Check the licence on the video page and follow the
+              attribution terms.
+            </li>
+            <li>
+              <strong>Public domain material.</strong> Old recordings, government
+              footage, anything whose copyright has expired.
+            </li>
+            <li>
+              <strong>Anything you have permission for.</strong> A message from
+              the rights holder saying yes is the whole test.
+            </li>
+          </ul>
+          <p>
+            Commercial music is the case people actually mean, and there the
+            answer is no in most places: those tracks are licensed to YouTube for
+            streaming, not licensed to you for download. Some countries allow a
+            personal private copy and others explicitly don&apos;t, so it turns on
+            where you are rather than on which converter you use. YouTube&apos;s
+            own Terms of Service separately prohibit downloading without
+            permission, which is a contract question rather than a copyright one.
+          </p>
+          <p>
+            What no converter can do is change any of that. A tool advertising
+            &quot;100% legal downloads&quot; is describing its own software, not
+            your rights to the audio. We don&apos;t make that claim, and this
+            isn&apos;t legal advice — it&apos;s the shape of the question so you
+            can answer it for your own situation.
           </p>
         </ToolSection>
 
