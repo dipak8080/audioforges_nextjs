@@ -74,7 +74,7 @@ const organizationJsonLd = {
     "https://www.producthunt.com/products/audioforges",
     "https://github.com/dipak8080/audioforges_nextjs",
     "https://ko-fi.com/audioforges",
-    "https://alternativeto.net/software/audioforges/",
+    "https://www.saashub.com/audioforges",
   ],
 };
 
