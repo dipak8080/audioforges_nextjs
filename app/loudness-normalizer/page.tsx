@@ -18,14 +18,34 @@ import {
   retentionSentences,
 } from "@/lib/api/limits";
 
-const PAGE_TITLE = "Free LUFS Loudness Normalizer – Normalize Audio Online";
+/*
+  TITLE — NOT YET MEASURED. Unlike the other tool pages, no Bing Keyword
+  Research numbers have been pulled for this cluster, so this is a phrasing
+  judgement rather than a data-driven one. Verify before relying on it, and
+  record the figures here when you do:
+
+    audio normalizer · normalize audio · loudness normalizer · lufs ·
+    normalize audio online · mp3 normalizer · audio volume normalizer
+
+  The reasoning: LUFS is producer vocabulary. Someone who already knows the
+  unit is a small, expert slice of the people who want this tool — most search
+  "normalize audio" or "audio normalizer" because the problem they have is
+  "these tracks are different volumes", not "I need -14 LUFS integrated".
+  Leading with LUFS is the same mistake /video-to-audio made leading with
+  "MP4 to WAV": precise, and narrower than the audience.
+
+  LUFS stays in the title, just not at position zero — it is what separates
+  this from a plain gain tool, and the people searching it are the ones most
+  likely to actually use the presets.
+*/
+const PAGE_TITLE = "Audio Normalizer – Normalize Audio to LUFS, Free";
 const PAGE_DESCRIPTION =
-  "Normalize a track to streaming, club, or broadcast loudness (LUFS) online, free. Two-pass accurate normalization. No sign-up, no watermark.";
+  "Free online audio normalizer. Normalize audio to a streaming, club or broadcast LUFS target with two-pass accuracy. No sign-up, no watermark.";
 
 const OG_IMAGE = ogForTool("loudness-normalizer", "Free LUFS Loudness Normalizer");
 
 export const metadata: Metadata = {
-  title: PAGE_TITLE,
+  title: { absolute: PAGE_TITLE },
   description: PAGE_DESCRIPTION,
   alternates: { canonical: `${SITE_URL}/loudness-normalizer` },
   openGraph: {
@@ -50,7 +70,14 @@ export const metadata: Metadata = {
 const webAppJsonLd = {
   "@context": "https://schema.org",
   "@type": "WebApplication",
-  name: "LUFS Loudness Normalizer",
+  name: "Audio Normalizer",
+  alternateName: [
+    "Audio Normalizer",
+    "Loudness Normalizer",
+    "LUFS Normalizer",
+    "Audio Volume Normalizer",
+    "MP3 Normalizer",
+  ],
   url: `${SITE_URL}/loudness-normalizer`,
   applicationCategory: "MultimediaApplication",
   operatingSystem: "Any",
@@ -159,8 +186,8 @@ export default async function LoudnessNormalizerPage() {
             items={[{ name: "Tools", href: "/tools" }, { name: "Loudness Normalizer" }]}
           />
         }
-        title="Free LUFS Loudness Normalizer"
-        lede="Normalize a track to streaming, club, or broadcast loudness, free, no sign-up, no watermark."
+        title="Free Audio Normalizer"
+        lede="Normalize audio to a streaming, club or broadcast LUFS target — free, no sign-up, no watermark."
         tool={<LoudnormForm />}
       >
         <FeatureStrip

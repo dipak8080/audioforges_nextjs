@@ -330,9 +330,10 @@ export default async function VideoToAudioPage() {
             items={[{ name: "Tools", href: "/tools" }, { name: "Video to Audio" }]}
           />
         }
-        title="Free MP4 to MP3 &amp; Video to Audio Converter"
-        /* The head terms appear in the first 20 words of body copy, in their
-           natural query order, before any secondary format names. */
+        /* Short H1, long title tag — same reasoning as /convert. The head
+           terms still appear in the first 20 words of body copy, in query
+           order, via the lede. */
+        title="Free Video to Audio Converter"
         lede="Convert MP4 to MP3, MP4 to WAV, or MOV to MP3 online — free, no sign-up, no watermark."
         tool={<VideoToAudioForm />}
       >

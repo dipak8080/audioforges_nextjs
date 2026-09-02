@@ -18,9 +18,32 @@ import {
   retentionSentences,
 } from "@/lib/api/limits";
 
-const PAGE_TITLE = "Free Audio Fade In & Fade Out Online";
+/*
+  TITLE. Volumes NOT pulled from Bing Keyword Research yet — verify and record
+  them here: audio fade · fade in audio · fade out audio · fade mp3 ·
+  add fade to audio · audio fade in out.
+
+  What IS measured: a crawl of the live SERP (Sep 2026) — notevibes.com,
+  audioeditor.org, premierely.io, wutools.com, aijinglemaker.com,
+  products.aspose.app. Two findings.
+
+  1. MP3 is named explicitly by almost every competitor, and Aspose runs a
+     dedicated /mp3 subpage for it. This title said "Audio" only.
+
+  2. THE ONE THAT MATTERS, AND IT IS NOT A COPY PROBLEM. Nearly every result
+     processes in-browser and leads with it: "your file is never uploaded",
+     "all processing happens on your device". That is the axis this SERP
+     competes on, and we upload to a server, so we lose it outright.
+
+     A fade is a gain ramp — Web Audio API handles it client-side, and
+     components/browser/ already exists for exactly this kind of tool (BPM
+     tapper, metronome). Moving fade there would make it instant, free to
+     run, and let the page make the same privacy claim honestly. That is the
+     change worth making here; the title below is the small half.
+*/
+const PAGE_TITLE = "Audio Fade In & Fade Out – Fade MP3 or WAV, Free";
 const PAGE_DESCRIPTION =
-  "Add a smooth fade in and fade out to any MP3, WAV, FLAC, or other audio file online, free. Avoid clicks and hard cuts. No sign-up, no watermark.";
+  "Add a fade in and fade out to MP3, WAV, FLAC and more, online and free. Smooth an abrupt start or a hard cut at the end. No sign-up, no watermark.";
 
 /**
  * The per-fade ceiling, from the same constant FadeForm enforces
@@ -33,7 +56,7 @@ const MAX_FADE_SECONDS = 30;
 const OG_IMAGE = ogForTool("fade", "Free audio fade in & out");
 
 export const metadata: Metadata = {
-  title: PAGE_TITLE,
+  title: { absolute: PAGE_TITLE },
   description: PAGE_DESCRIPTION,
   alternates: { canonical: `${SITE_URL}/fade` },
   openGraph: {
@@ -58,6 +81,13 @@ const webAppJsonLd = {
   "@context": "https://schema.org",
   "@type": "WebApplication",
   name: "Audio Fade In/Out Tool",
+  alternateName: [
+    "Audio Fade In Out",
+    "Fade In Audio",
+    "Fade Out Audio",
+    "MP3 Fade Tool",
+    "Add Fade to Audio",
+  ],
   url: `${SITE_URL}/fade`,
   applicationCategory: "MultimediaApplication",
   operatingSystem: "Any",
@@ -178,7 +208,7 @@ export default async function FadePage() {
         breadcrumb={
           <Breadcrumb items={[{ name: "Tools", href: "/tools" }, { name: "Fade In/Out" }]} />
         }
-        title="Free Audio Fade In & Fade Out Online"
+        title="Free Audio Fade In &amp; Fade Out"
         lede="Add a smooth fade in and/or fade out to any audio file, free, no sign-up, no watermark."
         tool={<FadeForm />}
       >

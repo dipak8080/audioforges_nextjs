@@ -12,9 +12,31 @@ import { getRelatedTools } from "@/lib/data/tools";
 import { getLimits, durationLabel, retentionSentences } from "@/lib/api/limits";
 import { ogForTool } from "@/lib/og";
 
-const PAGE_TITLE = "Free Audio Joiner — Merge Multiple Files Online";
+/*
+  TITLE, from Bing Keyword Research (three months to 30 Aug 2026):
+
+    audio joiner       17.4K   head term — keeps position zero
+    audio mixer        15.6K   NOT ours, see below
+    audio merger        2.3K
+    audio joiner online 2.0K
+    mp3 joiner          1.5K   ┐
+    audiojoiner         1.5K   |  ~3.5K phrased with "MP3", and the title
+    mp3 merger          1.1K   |  said "Audio" throughout
+    merge audio         1.0K   ┘
+
+  "MP3" earns its place; "audio mixer" does not. Mixing means layering tracks
+  to play at the same time. This tool concatenates end to end with no gap and
+  no crossfade — see the FAQ. Ranking for mixer queries would bring in people
+  who bounce on arrival, which costs more than the impressions are worth. If a
+  real mixer ever ships, it is a separate page.
+
+  `absolute` so the root template does not append " | AudioForges" — fourteen
+  characters on a brand with no recorded search volume, matching the other
+  commercial pages.
+*/
+const PAGE_TITLE = "Audio Joiner – Merge MP3 & Audio Files Online, Free";
 const PAGE_DESCRIPTION =
-  "Combine multiple audio files into one track online, free. Reorder files, mix formats, choose your output. No sign-up, no watermark.";
+  "Free online audio joiner and MP3 merger. Combine multiple files into one track, reorder them, mix formats, pick your output. No sign-up, no watermark.";
 
 const OG_IMAGE = ogForTool("audio-joiner", "Free Audio Joiner");
 
@@ -23,7 +45,7 @@ const OG_IMAGE = ogForTool("audio-joiner", "Free Audio Joiner");
 // hand-maintained — the previous hand table drifted and the FAQ said 30
 // minutes while the backend cap had moved.
 export const metadata: Metadata = {
-  title: PAGE_TITLE,
+  title: { absolute: PAGE_TITLE },
   description: PAGE_DESCRIPTION,
   alternates: { canonical: `${SITE_URL}/audio-joiner` },
   openGraph: {
@@ -74,7 +96,16 @@ export default async function AudioJoinerPage() {
   const webAppJsonLd = {
     "@context": "https://schema.org",
     "@type": "WebApplication",
-    name: "Audio Joiner",
+    name: "Audio Joiner & MP3 Merger",
+    // Standalone entity labels, so each query can associate with the page
+    // independently. No "Audio Mixer" — this tool does not mix.
+    alternateName: [
+      "Audio Joiner",
+      "MP3 Joiner",
+      "Audio Merger",
+      "MP3 Merger",
+      "Online Audio Joiner",
+    ],
     url: `${SITE_URL}/audio-joiner`,
     applicationCategory: "MultimediaApplication",
     operatingSystem: "Any",
@@ -165,8 +196,8 @@ export default async function AudioJoinerPage() {
             items={[{ name: "Tools", href: "/tools" }, { name: "Audio Joiner" }]}
           />
         }
-        title="Free Audio Joiner"
-        lede="Combine multiple audio files into one track, free, no sign-up, no watermark."
+        title="Free Audio Joiner &amp; MP3 Merger"
+        lede="Combine multiple MP3 or audio files into one track, free, no sign-up, no watermark."
         tool={<JoinForm />}
       >
         <FeatureStrip

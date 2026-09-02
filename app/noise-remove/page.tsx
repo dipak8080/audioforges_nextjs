@@ -17,14 +17,39 @@ import {
   retentionSentences,
 } from "@/lib/api/limits";
 
-const PAGE_TITLE = "Free Background Noise Remover — Denoise Any Audio File";
+/*
+  TITLE. Bing Keyword Research, three months to 30 Aug 2026:
+
+    noise cancellation            10.8K   NOT ours — headphone/ANC intent
+    background noise remover       2.3K
+    audio cleaner                  2.3K
+    noise reduction                1.5K
+    noise remover                  1.2K   (contained in the term above)
+    remove background noise from audio  911
+    noise reducer                   780
+    background sound remover        612
+    remove background noise         586
+    background noise remover free   538
+
+  "Background Noise Remover" already contains "noise remover" as adjacent
+  words, so the head term costs nothing extra. Adding "Noise Reduction" picks
+  up 1.5K more. "Denoise Any Audio File" was replaced because nobody searches
+  "denoise" — it is engineer vocabulary, like LUFS on /loudness-normalizer.
+
+  WORTH KNOWING BEFORE INVESTING HERE: the top 10 contains three exact-match
+  domains — noise-remover.com, noiseremover.net, noise-reducer.com — plus
+  LALAL.AI. EMDs are hard to beat on their own term, and this whole cluster is
+  under ~10K excluding the ANC noise. Low priority compared with the converter
+  pages.
+*/
+const PAGE_TITLE = "Background Noise Remover – Free Audio Noise Reduction";
 const PAGE_DESCRIPTION =
-  "Remove background noise from audio online free. Eliminate hiss, hum, fan noise, and static from MP3, WAV, FLAC, AAC, M4A, OGG, and AIFF. No sign-up.";
+  "Free background noise remover and audio noise reduction. Remove background noise from audio — hiss, hum, fan noise and static — in MP3, WAV, FLAC and more. No sign-up.";
 
 const OG_IMAGE = ogForTool("noise-remove", "Free Background Noise Remover");
 
 export const metadata: Metadata = {
-  title: PAGE_TITLE,
+  title: { absolute: PAGE_TITLE },
   description: PAGE_DESCRIPTION,
   alternates: { canonical: `${SITE_URL}/noise-remove` },
   openGraph: {
@@ -47,6 +72,15 @@ const webAppJsonLd = {
   "@context": "https://schema.org",
   "@type": "WebApplication",
   name: "Background Noise Remover",
+  // No "AI Noise Remover" — this is an FFT denoiser, not a model, and every
+  // competitor in this SERP leads with "AI". Same rule as /echo-remove.
+  alternateName: [
+    "Background Noise Remover",
+    "Noise Remover",
+    "Audio Noise Reduction",
+    "Noise Reducer",
+    "Audio Cleaner",
+  ],
   url: `${SITE_URL}/noise-remove`,
   applicationCategory: "MultimediaApplication",
   operatingSystem: "Any",

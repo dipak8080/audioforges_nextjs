@@ -11,9 +11,29 @@ import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
 import { ogForTool } from "@/lib/og";
 
-const PAGE_TITLE = "Free Online Metronome – Adjustable BPM & Tempo";
+/*
+  TITLE. Bing Keyword Research, three months to 30 Aug 2026:
+
+    bpm                250.8K   generic — belongs to /bpm-tapper, not here
+    tempo              169.1K   generic
+    metronome          136.5K   head term
+    metronome online    24.0K   <- the title had the OTHER word order
+    metronom            12.2K   German/Turkish/Polish spelling
+    online metronome     6.7K
+    metronome google     3.6K   ┐ navigational to Google's own widget,
+    google metronome     2.1K   ┘ unwinnable and not worth chasing
+    metronome app        1.5K
+    free metronome       0.7K
+
+  "metronome online" and "online metronome" are the same two words reversed
+  and differ by 3.5x. The old title carried the smaller one. Bing weights
+  exact-match placement hard enough that word order is worth getting right.
+
+  `absolute`, so the brand suffix doesn't push this past the budget.
+*/
+const PAGE_TITLE = "Metronome Online – Free, Adjustable BPM and Tempo";
 const PAGE_DESCRIPTION =
-  "Use a free online metronome with adjustable BPM and time signature. Set your tempo from 30 to 300 BPM and practice rhythm directly in your browser.";
+  "Free metronome online with adjustable BPM and time signature. Set any tempo from 30 to 300 BPM and practice rhythm in your browser — no app, no sign-up.";
 
 /** Same range MetronomeForm enforces. Not a backend limit, so there's nothing
  *  in /limits to read it from — change both together. */
@@ -23,7 +43,7 @@ const MAX_BPM = 300;
 const OG_IMAGE = ogForTool("metronome", "Free Online Metronome");
 
 export const metadata: Metadata = {
-  title: PAGE_TITLE,
+  title: { absolute: PAGE_TITLE },
   description: PAGE_DESCRIPTION,
   alternates: { canonical: `${SITE_URL}/metronome` },
   openGraph: {
@@ -50,6 +70,7 @@ const webAppJsonLd = {
   "@context": "https://schema.org",
   "@type": "WebApplication",
   name: "Online Metronome",
+  alternateName: ["Metronome Online", "Free Metronome", "Metronome", "Browser Metronome"],
   url: `${SITE_URL}/metronome`,
   applicationCategory: "MultimediaApplication",
   operatingSystem: "Any",

@@ -17,15 +17,40 @@ import {
   retentionSentences,
 } from "@/lib/api/limits";
 
-const PAGE_TITLE = "Free Echo Remover";
+/*
+  TITLE. Volumes NOT yet pulled from Bing Keyword Research — verify these and
+  record the figures here:
+
+    echo remover · remove echo from audio · remove echo · ai echo remover ·
+    reverb remover · echo remover online
+
+  What IS measured: a crawl of the live SERP (Sep 2026) — screenapp.io,
+  voice.ai, audiocleaner.ai, tordar.ai, aivoicecleaner.io. Two patterns:
+
+  1. "Remove echo from audio" is the phrasing every competitor titles on. The
+     old 17-character "Free Echo Remover" contained neither that phrase nor
+     anything else, and left most of the title budget unspent.
+
+  2. Every one of them leads with "AI" and claims reverb removal. We do
+     NEITHER, and must not: this is ffmpeg gating trailing reflections, not a
+     dereverb model, and the page says so in three places. Matching their
+     copy would be the one lie on a site whose whole position is not lying.
+
+  That is worth stating plainly rather than working around: on the head terms
+  this page competes against tools claiming a capability it does not have. The
+  title fix closes a real gap; it does not make this page competitive with a
+  dereverb model. If echo ever becomes worth investing in, the answer is a
+  better backend, not better copy.
+*/
+const PAGE_TITLE = "Echo Remover – Remove Echo from Audio Online, Free";
 const SOCIAL_TITLE = "Free Echo Remover — Reduce Echo & Slap-Back in Recordings";
 const PAGE_DESCRIPTION =
-  "Reduce or remove echo from audio recordings online free. Improve voice recordings, podcasts, and interviews by cutting room echo and slap-back. No sign-up.";
+  "Remove echo from audio online, free. Cuts room echo and slap-back in voice recordings, podcasts and Zoom calls — no sign-up, no watermark. Not a full dereverb tool.";
 
 const OG_IMAGE = ogForTool("echo-remove", "Free Echo Remover");
 
 export const metadata: Metadata = {
-  title: PAGE_TITLE,
+  title: { absolute: PAGE_TITLE },
   description: PAGE_DESCRIPTION,
   alternates: { canonical: `${SITE_URL}/echo-remove` },
   openGraph: {
@@ -48,6 +73,9 @@ const webAppJsonLd = {
   "@context": "https://schema.org",
   "@type": "WebApplication",
   name: "Echo Remover",
+  // No "Reverb Remover" — that is the claim every competitor makes and this
+  // tool does not do it. See the title comment.
+  alternateName: ["Echo Remover", "Remove Echo from Audio", "Slap-Back Remover"],
   url: `${SITE_URL}/echo-remove`,
   applicationCategory: "MultimediaApplication",
   operatingSystem: "Any",

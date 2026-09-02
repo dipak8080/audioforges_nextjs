@@ -18,17 +18,37 @@ import {
   retentionSentences,
 } from "@/lib/api/limits";
 
-// Kept to 35 chars so it survives the " | AudioForges" suffix inside the
-// ~60-char SERP budget. The previous title ran to 53 and got truncated
-// mid-phrase, losing the differentiator entirely.
-const PAGE_TITLE = "Free Silence Remover — Cut Dead Air";
+/*
+  TITLE. Volumes NOT pulled from Bing Keyword Research — verify and record:
+  remove silence from audio · silence remover · audio silence remover ·
+  remove silence · dead air removal · auto trim silence.
+
+  What IS measured: a crawl of the live SERP (Sep 2026) — kapwing.com,
+  audiocleaner.ai, rendley.com, notevibes.com, submind.co, verbatik.com,
+  bahaasr.com, voicecleaner.ai. Three findings.
+
+  1. "Remove Silence from Audio" is the phrase EVERY competitor titles on, and
+     it was absent here. "Silence Remover" alone is the shorter, smaller half.
+
+  2. The 35-char ceiling this title was written to is gone. It existed because
+     a bare `title` opts into the root template's " | AudioForges" suffix;
+     `absolute` suppresses it and returns those fourteen characters, which is
+     exactly enough for the head phrase.
+
+  3. Client-side, for the FOURTH time on this site. Notevibes "no upload",
+     Submind "no file upload, 100% private", Verbatik "all processing happens
+     in your browser". See /fade, /mono-stereo-converter,
+     /sample-rate-converter. Four tools losing one axis is a product decision
+     waiting to be made, not four copy problems.
+*/
+const PAGE_TITLE = "Remove Silence from Audio – Free Silence Remover";
 const PAGE_DESCRIPTION =
-  "Strip silent gaps from a podcast, audiobook, or recording free. Cuts dead air throughout, not just the ends. No sign-up, no watermark, no account.";
+  "Remove silence from audio online free. Cuts dead air throughout a podcast, audiobook or recording — not just the ends. No sign-up, no watermark, no account.";
 
 const OG_IMAGE = ogForTool("silence-remove", "Free Silence Remover");
 
 export const metadata: Metadata = {
-  title: PAGE_TITLE,
+  title: { absolute: PAGE_TITLE },
   description: PAGE_DESCRIPTION,
   alternates: { canonical: `${SITE_URL}/silence-remove` },
   openGraph: {
@@ -51,6 +71,12 @@ const webAppJsonLd = {
   "@context": "https://schema.org",
   "@type": "WebApplication",
   name: "Silence Remover",
+  alternateName: [
+    "Remove Silence from Audio",
+    "Audio Silence Remover",
+    "Dead Air Remover",
+    "Auto Trim Silence",
+  ],
   url: `${SITE_URL}/silence-remove`,
   applicationCategory: "MultimediaApplication",
   operatingSystem: "Any",

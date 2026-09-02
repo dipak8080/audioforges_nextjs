@@ -20,14 +20,38 @@ import {
   retentionSentences,
 } from "@/lib/api/limits";
 
-const PAGE_TITLE = "Free Pitch Shifter — Change Key Without Changing Speed";
+/*
+  TITLE. Bing Keyword Research, three months to 30 Aug 2026:
+
+    pitch changer         3.1K   <- larger than "pitch shifter", and absent
+    pitch shifter         2.5K
+    audio speed changer   2.2K   NOT ours — /tempo's
+    bpm changer           1.9K   NOT ours — /tempo's
+    audio pitch changer   1.4K
+    pitch changer online  1.1K
+    change pitch          827
+    audio pitch           346
+    pitch editor          335
+    song pitch changer    233
+
+  "Pitch Changer Online" covers three of those at once: the head term, the
+  "online" variant, and "audio pitch changer" partially. "Pitch Shifter" stays
+  because it is 2.5K in its own right and the two words are what the tool is
+  actually called in a DAW.
+
+  SERP note (Sep 2026): pitchchanger.org and pitchchanger.io are both
+  exact-match domains in the top 10, alongside vocalremover.org and mp3cut.net.
+  EMDs are hard to beat on their own term and this cluster is only ~13K in
+  total. Low priority next to the converter pages.
+*/
+const PAGE_TITLE = "Pitch Changer Online – Free Pitch Shifter, Change Key";
 const PAGE_DESCRIPTION =
-  "Change audio pitch or transpose music online for free. Shift MP3, WAV, FLAC, AAC, M4A, OGG, and AIFF up or down by up to 12 semitones without changing tempo.";
+  "Free online pitch changer and pitch shifter. Change a song's key by up to 12 semitones without changing tempo — MP3, WAV, FLAC, AAC, M4A, OGG and AIFF.";
 
 const OG_IMAGE = ogForTool("pitch", "Free Pitch Shifter");
 
 export const metadata: Metadata = {
-  title: PAGE_TITLE,
+  title: { absolute: PAGE_TITLE },
   description: PAGE_DESCRIPTION,
   alternates: { canonical: `${SITE_URL}/pitch` },
   openGraph: {
@@ -49,7 +73,16 @@ export const metadata: Metadata = {
 const webAppJsonLd = {
   "@context": "https://schema.org",
   "@type": "WebApplication",
-  name: "Pitch Shifter",
+  name: "Pitch Changer",
+  // No "Speed Changer" or "BPM Changer" — those surfaced in the same result
+  // set but belong to /tempo. Two pages on one query helps neither.
+  alternateName: [
+    "Pitch Changer",
+    "Pitch Shifter",
+    "Audio Pitch Changer",
+    "Song Pitch Changer",
+    "Key Changer",
+  ],
   url: `${SITE_URL}/pitch`,
   applicationCategory: "MultimediaApplication",
   operatingSystem: "Any",
@@ -156,7 +189,7 @@ export default async function PitchPage() {
         breadcrumb={
           <Breadcrumb items={[{ name: "Tools", href: "/tools" }, { name: "Pitch Shifter" }]} />
         }
-        title="Free Pitch Shifter"
+        title="Free Pitch Changer"
         lede="Shift a track's pitch up or down without touching its tempo, free, no sign-up, no watermark."
         tool={<PitchForm />}
       >

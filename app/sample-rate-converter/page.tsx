@@ -26,14 +26,34 @@ import {
  * change.
  */
 
-const PAGE_TITLE = "Free Sample Rate Converter — 44.1kHz, 48kHz & 96kHz";
+/*
+  TITLE. Volumes NOT pulled from Bing Keyword Research — verify and record
+  them: sample rate converter · audio resampler · resample audio ·
+  sample rate changer · 44100 to 48000 · change sample rate.
+
+  What IS measured: a crawl of the live SERP (Sep 2026) — notevibes.com,
+  ultimatedesigntools.com, xcodecpack.com, toolmagic.io, blackfm.com, plus the
+  WonderFox and VideoGrabber listicles. Two findings.
+
+  1. "Sample Rate Converter" is the dominant phrase and this title already led
+     with it. What was missing is the VERB: "resample" and "audio resampler"
+     appear in nearly every competing title, and this page never used either.
+     Added, with the rates kept for the "44.1 to 48" long tail.
+
+  2. Client-side, for the third time on this site. Notevibes "no upload",
+     UltimateDesignTools "runs entirely in your browser", ToolMagic
+     "100% browser-based" via OfflineAudioContext. Resampling is a Web Audio
+     primitive. Same finding as /fade and /mono-stereo-converter — three tools
+     losing the same axis is a pattern, not a coincidence.
+*/
+const PAGE_TITLE = "Sample Rate Converter – Resample to 44.1, 48 or 96 kHz";
 const PAGE_DESCRIPTION =
-  "Convert audio sample rates online for free. Resample to 22.05kHz, 44.1kHz, 48kHz, or 96kHz, with optional bit depth conversion. No sign-up.";
+  "Free online sample rate converter and audio resampler. Resample to 22.05, 44.1, 48 or 96 kHz — 44100 to 48000 and back — with optional bit depth conversion. No sign-up.";
 
 const OG_IMAGE = ogForTool("sample-rate-converter", "Free Sample Rate Converter");
 
 export const metadata: Metadata = {
-  title: PAGE_TITLE,
+  title: { absolute: PAGE_TITLE },
   description: PAGE_DESCRIPTION,
   alternates: { canonical: `${SITE_URL}/sample-rate-converter` },
   openGraph: {
@@ -59,6 +79,12 @@ const webAppJsonLd = {
   "@context": "https://schema.org",
   "@type": "WebApplication",
   name: "Sample Rate Converter",
+  alternateName: [
+    "Audio Resampler",
+    "Sample Rate Changer",
+    "Resample Audio",
+    "Audio Sample Rate Converter",
+  ],
   url: `${SITE_URL}/sample-rate-converter`,
   applicationCategory: "MultimediaApplication",
   operatingSystem: "Any",

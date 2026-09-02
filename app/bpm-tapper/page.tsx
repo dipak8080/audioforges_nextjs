@@ -11,14 +11,35 @@ import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
 import { ogForTool } from "@/lib/og";
 
-const PAGE_TITLE = "Free BPM Tapper – Tap to Find BPM & Tempo";
+/*
+  Small cluster — Bing Keyword Research, three months to 30 Aug 2026:
+
+    bpm tapper     2.9K   head term
+    bpm checker    2.8K
+    tap bpm        2.8K
+    tap tempo      2.5K   <- was split across the title, never adjacent
+    bpm analyzer   1.6K
+    tap counter    1.5K
+    tempo tapper   1.5K
+    bpm tap        1.4K
+
+  ~17K in total, so this page is not a traffic play and the title should not
+  be stuffed to chase it. One change only: "Tap Tempo" now sits as an adjacent
+  pair, which the old "Tap to Find BPM & Tempo" never gave despite containing
+  both words.
+
+  Two larger terms in the same result set belong to OTHER pages and should not
+  be pulled here: "online metronome" (6.7K) is /metronome's, and "song key
+  finder" (4.2K) is /key-finder's. Both are bigger than this page's head term.
+*/
+const PAGE_TITLE = "BPM Tapper – Tap Tempo to Find BPM, Free";
 const PAGE_DESCRIPTION =
   "Tap along to a beat to find its BPM and tempo instantly. Free online BPM tapper with keyboard support, no sign-up, and no download.";
 
 const OG_IMAGE = ogForTool("bpm-tapper", "Free BPM Tapper");
 
 export const metadata: Metadata = {
-  title: PAGE_TITLE,
+  title: { absolute: PAGE_TITLE },
   description: PAGE_DESCRIPTION,
   alternates: { canonical: `${SITE_URL}/bpm-tapper` },
   openGraph: {
@@ -43,6 +64,7 @@ const webAppJsonLd = {
   "@context": "https://schema.org",
   "@type": "WebApplication",
   name: "BPM Tapper",
+  alternateName: ["Tap Tempo", "BPM Checker", "Tempo Tapper", "Tap BPM"],
   url: `${SITE_URL}/bpm-tapper`,
   applicationCategory: "MultimediaApplication",
   operatingSystem: "Any",

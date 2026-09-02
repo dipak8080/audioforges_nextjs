@@ -56,10 +56,34 @@ const LAST_VERIFIED = "2026-08-30";
   buckets, so several share a figure because they're one aggregate.
 */
 
-// 39 chars, so 53 with the " | AudioForges" suffix — inside the SERP budget
-// with the differentiator ("No Sign-Up") intact. "Online" would push it to
-// ~60 and the only thing it could displace is the differentiator itself.
-const PAGE_TITLE = "Free Audio to Text Converter, No Sign-Up";
+/*
+  TITLE, measured. Bing Keyword Research, three months to 30 Aug 2026:
+
+    transcript                52.9K   ambiguous intent — not this page
+    transcribe audio to text  27.3K   <- was absent from the title
+    voice to text             19.1K   belongs on /speech-to-text
+    audio to text             16.4K
+    audio to text converter   11.6K
+    transcribe audio to text free 3.8K
+    convert audio to text      2.9K
+    audio to text converter free  2.8K
+    audio to text free         2.6K
+
+  "Transcribe Audio to Text" leads, as the largest term this page can honestly
+  own, and the four words sit adjacent so the exact phrase matches — Bing
+  weights that placement hard. "Audio to Text" is contained inside it at no
+  extra cost, so the 16.4K term is covered by the same words.
+
+  NOT chased here: "transcript" (52.9K) is people looking for a transcript OF
+  something — a video, a meeting, a podcast episode — not a tool to make one,
+  and ranking for it would bring visitors who bounce. "voice to text" (19.1K)
+  is a real term with the wrong noun for this page; /speech-to-text is its
+  home, and cramming it in here would put two pages on one query.
+
+  `absolute` now: 52 chars, and the root template's " | AudioForges" would push
+  it to 66 and truncate the differentiator off the end.
+*/
+const PAGE_TITLE = "Transcribe Audio to Text – Free Converter, No Sign-Up";
 
 /**
  * `metadata` is evaluated at module scope, where getLimits() can't be awaited.
@@ -68,12 +92,12 @@ const PAGE_TITLE = "Free Audio to Text Converter, No Sign-Up";
  * updated — the same narrow window every other page has.
  */
 const DESCRIPTION_MINUTES = 20;
-const PAGE_DESCRIPTION = `Transcribe MP3, WAV, M4A and FLAC to text free online. No account, no email, no credits. Export TXT, SRT or VTT. Files up to ${DESCRIPTION_MINUTES} minutes.`;
+const PAGE_DESCRIPTION = `Transcribe audio to text free online — MP3, WAV, M4A and FLAC. No account, no email, no credits. Export TXT, SRT or VTT. Files up to ${DESCRIPTION_MINUTES} minutes.`;
 
 const OG_IMAGE = ogForTool("audio-to-text", "Free audio to text converter");
 
 export const metadata: Metadata = {
-  title: PAGE_TITLE,
+  title: { absolute: PAGE_TITLE },
   description: PAGE_DESCRIPTION,
   // `keywords` intentionally absent — see the term list above.
   alternates: { canonical: `${SITE_URL}/audio-to-text` },
@@ -143,7 +167,13 @@ export default async function AudioToTextPage() {
     "@context": "https://schema.org",
     "@type": "WebApplication",
     name: "Audio to Text Converter",
-    alternateName: ["Free Audio to Text Converter", "Audio Transcription", "MP3 to Text"],
+    alternateName: [
+      "Transcribe Audio to Text",
+      "Audio to Text Converter",
+      "Free Audio to Text Converter",
+      "Audio Transcription",
+      "MP3 to Text",
+    ],
     url: `${SITE_URL}/audio-to-text`,
     applicationCategory: "MultimediaApplication",
     operatingSystem: "Any",
@@ -263,7 +293,7 @@ export default async function AudioToTextPage() {
               it: no account, free exports. It moves into the wedge section
               below, where it's the argument rather than a preamble. */}
           <h1 className="measure-wide mt-5 text-4xl font-bold leading-[1.04] tracking-[-0.025em] text-text-primary sm:text-5xl">
-            Free audio to text converter
+            Transcribe audio to text, free
           </h1>
           <p className="measure-wide mt-4 text-lg leading-relaxed text-text-muted sm:text-xl">
             Upload an MP3, WAV, M4A or FLAC and get the words back with

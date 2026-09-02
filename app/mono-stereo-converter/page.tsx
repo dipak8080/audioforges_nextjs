@@ -19,14 +19,38 @@ import {
   retentionSentences,
 } from "@/lib/api/limits";
 
-const PAGE_TITLE = "Free Audio to Stereo & Mono Converter";
+/*
+  TITLE. Volumes NOT pulled from Bing Keyword Research yet — verify and record
+  them: stereo to mono · stereo to mono converter · mono to stereo ·
+  convert stereo to mono · make audio mono.
+
+  What IS measured: a crawl of the live SERP (Sep 2026) — notevibes.com,
+  onaircode.com, elysiatools.com, wutools.com, nuttertools.dev, plus the
+  Wondershare and MiniTool listicles. Three findings.
+
+  1. THE OLD TITLE DID NOT CONTAIN THE PHRASE. "Audio to Stereo & Mono
+     Converter" has "Stereo & Mono", not "stereo to mono" — and every single
+     competing result titles on "Stereo to Mono Converter". The head phrase
+     was simply absent.
+
+  2. Notevibes runs TWO pages, /stereo-to-mono-converter and
+     /mono-to-stereo-converter, treating the directions as separate intents.
+     Worth considering if this page ever earns impressions: they are different
+     jobs (downmix vs duplicate) with different reasons behind them. Not split
+     yet — one page with no traffic should not become two.
+
+  3. Client-side, again. "No upload", "processes locally", "100% in-browser
+     via FFmpeg.wasm" — the same axis /fade loses on. A channel downmix is
+     (L+R)/2, trivially doable in Web Audio. See the note on /fade.
+*/
+const PAGE_TITLE = "Stereo to Mono Converter – Free, Also Mono to Stereo";
 const PAGE_DESCRIPTION =
-  "Convert audio to stereo or mono, free. Downmix stereo to mono, or duplicate mono to stereo. No sign-up, no watermark.";
+  "Free online stereo to mono converter. Downmix stereo to a single channel, or duplicate mono to stereo — no sign-up, no watermark, no software to install.";
 
 const OG_IMAGE = ogForTool("mono-stereo-converter", "Free mono & stereo converter");
 
 export const metadata: Metadata = {
-  title: PAGE_TITLE,
+  title: { absolute: PAGE_TITLE },
   description: PAGE_DESCRIPTION,
   alternates: { canonical: `${SITE_URL}/mono-stereo-converter` },
   openGraph: {
@@ -51,7 +75,13 @@ export const metadata: Metadata = {
 const webAppJsonLd = {
   "@context": "https://schema.org",
   "@type": "WebApplication",
-  name: "Mono/Stereo Converter",
+  name: "Stereo to Mono Converter",
+  alternateName: [
+    "Stereo to Mono Converter",
+    "Mono to Stereo Converter",
+    "Audio Channel Converter",
+    "Mono Downmix Tool",
+  ],
   url: `${SITE_URL}/mono-stereo-converter`,
   applicationCategory: "MultimediaApplication",
   operatingSystem: "Any",
@@ -176,7 +206,7 @@ export default async function ChannelsPage() {
             items={[{ name: "Tools", href: "/tools" }, { name: "Mono/Stereo Converter" }]}
           />
         }
-        title="Free Audio to Stereo & Mono Converter"
+        title="Free Stereo to Mono Converter"
         lede="Downmix stereo to mono, or duplicate mono to stereo, in seconds. No sign-up, no watermark."
         tool={<ChannelsForm />}
       >

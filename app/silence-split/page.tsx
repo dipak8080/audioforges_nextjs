@@ -22,11 +22,29 @@ import {
   retentionSentences,
 } from "@/lib/api/limits";
 
-// 46 chars, so ~60 with the " | AudioForges" suffix — right at the SERP
-// budget. If it truncates it drops "by Silence" and still reads as "Free
-// Silence Splitter — Split Audio", which is intact enough. The previous title
-// lost its differentiator entirely when cut.
-const PAGE_TITLE = "Free Silence Splitter — Split Audio by Silence";
+/*
+  TITLE. Volumes NOT pulled from Bing Keyword Research — verify and record:
+  audio splitter · split audio · split audio by silence · silence splitter ·
+  audio splitter online · split mp3.
+
+  What IS measured: a crawl of the live SERP (Sep 2026) — veed.io,
+  aijinglemaker.com, audioeditor.org, fyletools.com, soniqtools.com,
+  elysiatools.com, scribergpt.com. Three findings.
+
+  1. "AUDIO SPLITTER" IS THE TERM, and this title never used it. Nearly every
+     competitor titles on it; "silence splitter" is the narrower subset that
+     only people who already know the technique search for. "Split audio by
+     silence" was already here and stays — it is the right second phrase.
+
+  2. The 46-char ceiling is gone: `absolute` suppresses the root template's
+     " | AudioForges" and returns fourteen characters, which is what makes
+     room for the broader term.
+
+  3. Client-side, for the FIFTH time. And every competitor also offers split
+     BY TIME alongside silence, which this tool does not — worth knowing as a
+     feature gap rather than a copy one.
+*/
+const PAGE_TITLE = "Audio Splitter – Split Audio by Silence, Free Online";
 
 /**
  * `metadata` is evaluated at module scope where getLimits() can't be awaited,
@@ -34,12 +52,12 @@ const PAGE_TITLE = "Free Silence Splitter — Split Audio by Silence";
  * /limits fallback carries.
  */
 const DESCRIPTION_SEGMENTS = getToolLimits("silence-split")?.maxOutputSegments ?? 50;
-const PAGE_DESCRIPTION = `Split one long recording into separate tracks at silent gaps. Adjustable threshold and gap length, up to ${DESCRIPTION_SEGMENTS} tracks. Free, no sign-up, no watermark.`;
+const PAGE_DESCRIPTION = `Free online audio splitter. Split audio by silence — one long recording into separate tracks at every silent gap, up to ${DESCRIPTION_SEGMENTS}. Adjustable threshold, no sign-up, no watermark.`;
 
 const OG_IMAGE = ogForTool("silence-split", "Free Silence Splitter");
 
 export const metadata: Metadata = {
-  title: PAGE_TITLE,
+  title: { absolute: PAGE_TITLE },
   description: PAGE_DESCRIPTION,
   alternates: { canonical: `${SITE_URL}/silence-split` },
   openGraph: {
@@ -128,7 +146,13 @@ export default async function SilenceSplitPage() {
   const webAppJsonLd = {
     "@context": "https://schema.org",
     "@type": "WebApplication",
-    name: "Silence Splitter",
+    name: "Audio Splitter",
+    alternateName: [
+      "Audio Splitter",
+      "Silence Splitter",
+      "Split Audio by Silence",
+      "MP3 Splitter",
+    ],
     url: `${SITE_URL}/silence-split`,
     applicationCategory: "MultimediaApplication",
     operatingSystem: "Any",

@@ -20,14 +20,33 @@ import {
   retentionSentences,
 } from "@/lib/api/limits";
 
-const PAGE_TITLE = "Free Audio Speed Changer | Tempo Changer";
+/*
+  TITLE. Bing Keyword Research, three months to 30 Aug 2026:
+
+    music speed changer   3.6K   <- larger, and the title led with the other
+    audio speed changer   2.2K
+    bpm changer           1.9K   (from the /pitch result set)
+
+  Small cluster, one real change: "music speed changer" leads instead of
+  "audio speed changer". "Speed up or slow down" follows because that is how
+  people describe the job when they don't know the tool has a name.
+
+  Also fixed: this was a bare `title`, so the root template appended
+  " | AudioForges" and the rendered title carried TWO pipes —
+  "Free Audio Speed Changer | Tempo Changer | AudioForges". `absolute` removes
+  the suffix, and the pipe goes with it.
+
+  "Tempo Changer" moves to alternateName. It is what the tool is called in a
+  DAW, but it is not what people search.
+*/
+const PAGE_TITLE = "Music Speed Changer – Speed Up or Slow Down Audio, Free";
 const PAGE_DESCRIPTION =
-  "Speed up or slow down audio free, no sign-up, from 50% to 200% speed, pitch stays the same. Works on MP3, WAV, FLAC, and more.";
+  "Free music and audio speed changer. Speed up or slow down a track from 50% to 200% — pitch stays the same. MP3, WAV, FLAC and more. No sign-up.";
 
 const OG_IMAGE = ogForTool("tempo", "Free Audio Speed Changer");
 
 export const metadata: Metadata = {
-  title: PAGE_TITLE,
+  title: { absolute: PAGE_TITLE },
   description: PAGE_DESCRIPTION,
   alternates: { canonical: `${SITE_URL}/tempo` },
   openGraph: {
@@ -50,6 +69,13 @@ const webAppJsonLd = {
   "@context": "https://schema.org",
   "@type": "WebApplication",
   name: "Audio Speed Changer",
+  alternateName: [
+    "Music Speed Changer",
+    "Audio Speed Changer",
+    "Tempo Changer",
+    "BPM Changer",
+    "Song Speed Changer",
+  ],
   url: `${SITE_URL}/tempo`,
   applicationCategory: "MultimediaApplication",
   operatingSystem: "Any",

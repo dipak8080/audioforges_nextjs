@@ -21,14 +21,40 @@ import {
 // hand-written duration caps have been wrong, always understated, on more
 // than half the pages that stated one.
 
-const PAGE_TITLE = "Free Audio Reverser — Play a Track Backwards";
+/*
+  TITLE. Bing Keyword Research, three months to 30 Aug 2026:
+
+    reverse               32.7K   generic — not this intent
+    reverse audio          1.7K   <- larger than "audio reverser", and absent
+    audio reverser         1.1K
+    reverse singing        979    see below
+    reverse voice          644
+    voice reverser         544
+    reverser               506
+    reverse sound          243
+    online audio reverser   47
+
+  "Reverse Audio Online" carries the head term, the "online" variant, and
+  contains "reverse audio" exactly. "Audio Reverser" stays for its own 1.1K.
+
+  REVERSE SINGING is worth knowing about: reverseplay.org and reverseaudio.fun
+  are entire sites built on that one trend — you sing something backwards,
+  reverse the recording, and hear what it turns into. This tool does it and the
+  page has never mentioned it. Added to the description and alternateName
+  rather than the title, which has no room left.
+
+  SERP note (Sep 2026): audioreverser.com, reverse-audio.com and
+  reverseaudio.fun are all exact-match domains in the top 10. Tiny cluster
+  (~5K excluding the generic term) against three EMDs — low priority.
+*/
+const PAGE_TITLE = "Reverse Audio Online – Free Audio Reverser";
 const PAGE_DESCRIPTION =
-  "Reverse MP3, WAV, FLAC, AAC, M4A, OGG, and AIFF files online for free. Create backwards audio instantly with no sign-up, no watermark, and no software required.";
+  "Reverse audio online free — MP3, WAV, FLAC, AAC, M4A, OGG and AIFF. Play a track backwards, reverse a voice recording or try reverse singing. No sign-up, no watermark.";
 
 const OG_IMAGE = ogForTool("reverse", "Free Audio Reverser");
 
 export const metadata: Metadata = {
-  title: PAGE_TITLE,
+  title: { absolute: PAGE_TITLE },
   description: PAGE_DESCRIPTION,
   alternates: { canonical: `${SITE_URL}/reverse` },
   openGraph: {
@@ -51,6 +77,13 @@ const webAppJsonLd = {
   "@context": "https://schema.org",
   "@type": "WebApplication",
   name: "Audio Reverser",
+  alternateName: [
+    "Reverse Audio",
+    "Audio Reverser",
+    "Voice Reverser",
+    "Reverse Singing Tool",
+    "MP3 Reverser",
+  ],
   url: `${SITE_URL}/reverse`,
   applicationCategory: "MultimediaApplication",
   operatingSystem: "Any",

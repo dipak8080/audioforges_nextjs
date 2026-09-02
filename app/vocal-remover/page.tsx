@@ -32,14 +32,41 @@ import { ogForTool } from "@/lib/og";
  * ends up half-right.
  */
 
-const PAGE_TITLE = "Free AI Vocal Remover – Remove Vocals Online";
+/*
+  TITLE. Bing Keyword Research, three months to 30 Aug 2026:
+
+    vocal remover          106.1K   head term — the biggest on the site
+    ultimate vocal remover  17.6K   UVR5, a desktop app — brand query, not ours
+    vocalremover             9.2K   ┐ vocalremover.org navigational,
+    vocalremover.org         6.7K   ┘ not winnable and not worth chasing
+    voice remover            7.7K   <- same tool, different noun, was absent
+    ai vocal remover         5.5K
+    vocal remover free       5.1K
+    remove vocal / vocals    4.2K each
+    vocal remover ai         3.7K
+    vocal remover online     3.2K
+
+  The old title already led with the head term and covered "ai vocal remover"
+  and "remove vocals". The one gap was "voice remover" — 7.7K of people using
+  a different word for the same thing — so "& Voice" earns its place.
+
+  `absolute` now: the root template appended " | AudioForges", taking the
+  rendered title to 58 characters and pushing the differentiator toward
+  truncation. Fourteen characters on a brand with no recorded search volume.
+
+  WORTH BEING HONEST IN THIS COMMENT: the title is not why this page has no
+  impressions. It is indexed on Bing with zero, against vocalremover.org,
+  lalal.ai and Moises on a 106K term. That is an authority problem, and no
+  wording change solves it. This edit closes a real gap; it is not a fix.
+*/
+const PAGE_TITLE = "Free AI Vocal Remover – Remove Vocals & Voice Online";
 const PAGE_DESCRIPTION =
-  "Remove vocals from songs online with AI for free. Extract instrumentals or acapellas from MP3, WAV, FLAC, AAC and more. No sign-up, no watermark.";
+  "Free AI vocal remover and voice remover. Remove vocals from a song online to get an instrumental or acapella — MP3, WAV, FLAC, AAC. No sign-up, no watermark.";
 
 const OG_IMAGE = ogForTool("vocal-remover", "Free AI Vocal Remover");
 
 export const metadata: Metadata = {
-  title: PAGE_TITLE,
+  title: { absolute: PAGE_TITLE },
   description: PAGE_DESCRIPTION,
   alternates: { canonical: `${SITE_URL}/vocal-remover` },
   openGraph: {
@@ -70,6 +97,8 @@ const webAppJsonLd = {
   alternateName: [
     "Vocal Remover",
     "AI Vocal Remover",
+    "Voice Remover",
+    "Vocal Remover Online",
     "Vocal Isolator",
     "Acapella Extractor",
     "Karaoke Maker",

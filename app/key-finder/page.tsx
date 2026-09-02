@@ -12,14 +12,35 @@ import { getRelatedTools } from "@/lib/data/tools";
 import { getLimits } from "@/lib/api/limits";
 import { ogForTool } from "@/lib/og";
 
-const PAGE_TITLE = "Free Song Key & BPM Finder";
+/*
+  TITLE. Bing Keyword Research, three months to 30 Aug 2026:
+
+    bpm             250.8K   too generic — "bpm" alone is not this intent
+    tunebat          80.8K   competitor brand, navigational, unwinnable
+    bpm finder       50.2K
+    key finder       23.9K   <- was split by "& BPM" in the old title
+    keyfinder         9.9K
+    tunebat key finder 7.4K  brand again
+    bpm detector      6.6K
+    song key finder   4.2K
+    key and bpm finder 4.0K
+    tempo finder      3.5K
+
+  "Song Key Finder & BPM Finder" is the efficient phrasing: it contains
+  "key finder" (23.9K) AND "song key finder" (4.2K) as adjacent words at no
+  extra length, and keeps "bpm finder" (50.2K) adjacent too. The old
+  "Song Key & BPM Finder" only managed the last of those three.
+
+  `absolute`, so the brand suffix doesn't eat the differentiator.
+*/
+const PAGE_TITLE = "Song Key Finder & BPM Finder – Free, No Sign-Up";
 const PAGE_DESCRIPTION =
-  "Find the musical key, BPM, tempo, and Camelot notation of any song online for free. Upload MP3, WAV, FLAC, AAC, M4A, OGG, or AIFF. No sign-up required.";
+  "Free song key finder and BPM finder. Detect the musical key, tempo and Camelot notation of any track — MP3, WAV, FLAC, AAC, M4A, OGG or AIFF. No sign-up.";
 
 const OG_IMAGE = ogForTool("key-finder", "Free Song Key & BPM Finder");
 
 export const metadata: Metadata = {
-  title: PAGE_TITLE,
+  title: { absolute: PAGE_TITLE },
   description: PAGE_DESCRIPTION,
   alternates: { canonical: `${SITE_URL}/key-finder` },
   openGraph: {
@@ -58,7 +79,17 @@ export default async function KeyFinderPage() {
   const webAppJsonLd = {
     "@context": "https://schema.org",
     "@type": "WebApplication",
-    name: "Song Key & BPM Finder",
+    name: "Song Key Finder & BPM Finder",
+    // Standalone entity labels. No "Tunebat" variants — that is a competitor
+    // brand and a navigational query, not something this page can serve.
+    alternateName: [
+      "Song Key Finder",
+      "Key Finder",
+      "BPM Finder",
+      "BPM Detector",
+      "Tempo Finder",
+      "Camelot Key Finder",
+    ],
     url: `${SITE_URL}/key-finder`,
     applicationCategory: "MultimediaApplication",
     operatingSystem: "Any",
@@ -134,7 +165,7 @@ export default async function KeyFinderPage() {
         breadcrumb={
           <Breadcrumb items={[{ name: "Tools", href: "/tools" }, { name: "Key & BPM Finder" }]} />
         }
-        title="Free Song Key & BPM Finder"
+        title="Free Song Key Finder &amp; BPM Finder"
         lede="Upload any song and instantly detect its musical key and tempo, free, no sign-up, nothing to install."
         tool={<KeyFinderForm />}
       >

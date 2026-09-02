@@ -19,14 +19,35 @@ import {
   retentionSentences,
 } from "@/lib/api/limits";
 
-const PAGE_TITLE = "Free MP3 to WAV & WAV to MP3 Converter";
+/*
+  TITLE. Bing Keyword Research, three months to 30 Aug 2026:
+
+    m4a to mp3            35.9K   <- largest, and the title never said "M4A"
+    mp3 to wav            33.7K
+    wav to mp3            26.1K
+    m4a to mp3 converter   8.5K
+    convert m4a to mp3     7.4K
+    m4a                    7.3K
+    wav to mp3 converter   5.5K
+    convert wav to mp3     4.2K
+    online mp3 converter   2.0K
+
+  Three format pairs of comparable size, so all three lead. That reads as a
+  list, and on a converter page it should: those pairs ARE the queries, and a
+  vaguer "Free Audio Converter" matches none of them exactly. Bing weights
+  exact-match placement hard.
+
+  `absolute`, so the root template's " | AudioForges" doesn't take this to 65
+  and truncate the last pair off the end.
+*/
+const PAGE_TITLE = "M4A to MP3, MP3 to WAV & WAV to MP3 Converter, Free";
 const PAGE_DESCRIPTION =
-  "Convert MP3 to WAV, WAV to MP3, and between FLAC, M4A, AAC, OGG, and AIFF, all free. Fast conversion, no sign-up, no watermark on the output.";
+  "Convert M4A to MP3, MP3 to WAV, WAV to MP3, and between FLAC, AAC, OGG and AIFF — all free. Fast, no sign-up, no watermark on the output.";
 
 const OG_IMAGE = ogForTool("convert", "Free audio converter");
 
 export const metadata: Metadata = {
-  title: PAGE_TITLE,
+  title: { absolute: PAGE_TITLE },
   description: PAGE_DESCRIPTION,
   alternates: { canonical: `${SITE_URL}/convert` },
   openGraph: {
@@ -48,7 +69,16 @@ export const metadata: Metadata = {
 const webAppJsonLd = {
   "@context": "https://schema.org",
   "@type": "WebApplication",
-  name: "MP3 to WAV & WAV to MP3 Converter",
+  name: "M4A to MP3, MP3 to WAV & WAV to MP3 Converter",
+  // Standalone entity labels, so each pair can associate with the page
+  // independently rather than only as part of one long string.
+  alternateName: [
+    "M4A to MP3 Converter",
+    "MP3 to WAV Converter",
+    "WAV to MP3 Converter",
+    "Audio Converter",
+    "Online MP3 Converter",
+  ],
   url: `${SITE_URL}/convert`,
   applicationCategory: "MultimediaApplication",
   operatingSystem: "Any",
@@ -64,14 +94,16 @@ const webAppJsonLd = {
 // Don't add HowTo schema — deprecated by Google, no benefit. FAQPage comes
 // from <FAQSection />, BreadcrumbList from <Breadcrumb />; don't duplicate.
 
+// Ordered by measured volume, head pairs first: m4a to mp3 35.9K, mp3 to wav
+// 33.7K, wav to mp3 26.1K. The rest are illustrative.
 const EXAMPLE_PAIRS = [
+  ["M4A", "MP3"],
   ["MP3", "WAV"],
   ["WAV", "MP3"],
   ["FLAC", "MP3"],
   ["WAV", "FLAC"],
   ["AIFF", "MP3"],
   ["OGG", "MP3"],
-  ["M4A", "MP3"],
   ["AAC", "WAV"],
 ];
 
@@ -149,8 +181,15 @@ export default async function ConvertPage() {
         breadcrumb={
           <Breadcrumb items={[{ name: "Tools", href: "/tools" }, { name: "Audio Converter" }]} />
         }
-        title="Free MP3 to WAV & WAV to MP3 Converter"
-        lede="Convert between MP3, WAV, FLAC, M4A, AAC, OGG and AIFF, free. No sign-up, no watermark."
+        /* SHORT H1, LONG TITLE TAG — deliberately different.
+           The <title> carries all three head pairs because the SERP rewards
+           exact-match placement. The H1 is read by someone who has already
+           clicked and only needs to know they are in the right place; three
+           format pairs stacked over two lines reads as a keyword list. The
+           pairs move to the lede, still inside the first 20 words of body
+           copy for a crawler, but as a sentence. */
+        title="Free Audio Converter"
+        lede="Convert M4A to MP3, MP3 to WAV, WAV to MP3 and between FLAC, AAC, OGG and AIFF — free, no sign-up, no watermark."
         tool={<ConvertForm />}
       >
         <FeatureStrip
@@ -202,6 +241,35 @@ export default async function ConvertPage() {
               original encoding.
             </p>
           </Prose>
+        </ToolSection>
+
+        {/* "m4a to mp3" is the largest term this page competes for (35.9K) and
+            had no content of its own — one row in FORMAT_GUIDE and nothing
+            else. The other two head pairs are covered by the lossless/lossy
+            explanation above; M4A needs its own because the question people
+            actually have is about iPhone voice memos and Apple Music, not
+            about compression. */}
+        <ToolSection id="m4a-to-mp3" title="Convert M4A to MP3">
+          <p>
+            M4A is what an iPhone voice memo, a Mac screen recording and most
+            Apple Music downloads come out as — an AAC audio stream in an MP4
+            container. It plays fine on Apple devices and in most modern
+            software, and then fails on the one thing that matters: a car head
+            unit, an older MP3 player, a USB stick in a hire car, a piece of
+            software that only reads MP3.
+          </p>
+          <p>
+            Converting M4A to MP3 fixes that compatibility problem and nothing
+            else. Both formats are lossy, so the audio is decoded from AAC and
+            re-encoded as MP3 rather than passed through untouched — the result
+            sounds the same in practice, but it is a second encoding step rather
+            than a repackage. Upload the .m4a above, choose MP3, download.
+          </p>
+          <p>
+            If the file is going into a DAW or a sampler rather than onto a
+            device, convert to WAV instead: one lossy generation is better than
+            two when the audio is about to be processed further.
+          </p>
         </ToolSection>
 
         <ToolSection id="examples" title="A few common conversions" bleed>

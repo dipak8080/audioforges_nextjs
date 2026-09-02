@@ -17,14 +17,30 @@ import {
   retentionSentences,
 } from "@/lib/api/limits";
 
-const PAGE_TITLE = "Free Audio Trimmer — Cut Any Track Online";
+/*
+  TITLE. Bing Keyword Research, three months to 30 Aug 2026:
+
+    audio trimmer   15.6K   head term — already led the old title, kept
+
+  OPEN QUESTION, worth ten seconds in Keyword Research: "audio cutter".
+  This page's own copy says people search both words for the same thing, and
+  mp3cut.net — one of the strongest sites in this space — calls its tool
+  "Audio Cutter". If that term is larger than 15.6K, the lead should swap.
+  Until it is measured, the measured term keeps position zero.
+
+  "Cut Audio Online" replaces "Cut Any Track Online": same length, and it puts
+  the verb next to the noun people actually type.
+
+  `absolute` so the brand suffix doesn't take this past the budget.
+*/
+const PAGE_TITLE = "Audio Trimmer – Cut Audio Online Free, No Sign-Up";
 const PAGE_DESCRIPTION =
-  "Trim or cut audio files online free. Cut MP3, WAV, FLAC, AAC, M4A, OGG, and AIFF with a precise start and end point. No sign-up, no watermark.";
+  "Free online audio trimmer and cutter. Cut MP3, WAV, FLAC, AAC, M4A, OGG or AIFF to a precise start and end point — original format kept. No sign-up, no watermark.";
 
 const OG_IMAGE = ogForTool("trim", "Free Audio Trimmer");
 
 export const metadata: Metadata = {
-  title: PAGE_TITLE,
+  title: { absolute: PAGE_TITLE },
   description: PAGE_DESCRIPTION,
   alternates: { canonical: `${SITE_URL}/trim` },
   openGraph: {
@@ -47,6 +63,7 @@ const webAppJsonLd = {
   "@context": "https://schema.org",
   "@type": "WebApplication",
   name: "Audio Trimmer",
+  alternateName: ["Audio Trimmer", "Audio Cutter", "MP3 Cutter", "Cut Audio Online"],
   url: `${SITE_URL}/trim`,
   applicationCategory: "MultimediaApplication",
   operatingSystem: "Any",
