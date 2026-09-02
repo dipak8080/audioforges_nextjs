@@ -11,7 +11,7 @@ import { ogImage } from "@/lib/og";
 
 const TOOL_COUNT = getLiveTools().length;
 
-const PAGE_TITLE = "Free Audio Tools for Music Producers, DJs & Musicians";
+const PAGE_TITLE = "AudioForges — Free Online Audio Tools: Stems, Key, BPM & Converter";
 const PAGE_DESCRIPTION =
   "Free online audio tools for producers and DJs. Convert, edit, analyze, transcribe, find BPM and tune your instrument. No sign-up required.";
 
