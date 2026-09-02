@@ -48,7 +48,7 @@ import {
 */
 const PAGE_TITLE = "Sample Rate Converter – Resample to 44.1, 48 or 96 kHz";
 const PAGE_DESCRIPTION =
-  "Free online sample rate converter and audio resampler. Resample to 22.05, 44.1, 48 or 96 kHz — 44100 to 48000 and back — with optional bit depth conversion. No sign-up.";
+  "Free online sample rate converter and audio resampler. Resample to 22.05, 44.1, 48 or 96 kHz, with optional bit depth conversion.";
 
 const OG_IMAGE = ogForTool("sample-rate-converter", "Free Sample Rate Converter");
 

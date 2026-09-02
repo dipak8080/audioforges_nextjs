@@ -44,7 +44,7 @@ import {
 */
 const PAGE_TITLE = "Background Noise Remover – Free Audio Noise Reduction";
 const PAGE_DESCRIPTION =
-  "Free background noise remover and audio noise reduction. Remove background noise from audio — hiss, hum, fan noise and static — in MP3, WAV, FLAC and more. No sign-up.";
+  "Free background noise remover. Remove hiss, hum, fan noise and static from MP3, WAV, FLAC and more — online, no sign-up, no watermark.";
 
 const OG_IMAGE = ogForTool("noise-remove", "Free Background Noise Remover");
 

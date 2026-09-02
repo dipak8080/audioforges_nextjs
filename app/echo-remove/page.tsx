@@ -45,7 +45,7 @@ import {
 const PAGE_TITLE = "Echo Remover – Remove Echo from Audio Online, Free";
 const SOCIAL_TITLE = "Free Echo Remover — Reduce Echo & Slap-Back in Recordings";
 const PAGE_DESCRIPTION =
-  "Remove echo from audio online, free. Cuts room echo and slap-back in voice recordings, podcasts and Zoom calls — no sign-up, no watermark. Not a full dereverb tool.";
+  "Remove echo from audio online, free. Cuts room echo and slap-back in voice recordings, podcasts and Zoom calls. No sign-up, no watermark.";
 
 const OG_IMAGE = ogForTool("echo-remove", "Free Echo Remover");
 

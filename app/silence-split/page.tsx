@@ -52,7 +52,7 @@ const PAGE_TITLE = "Audio Splitter – Split Audio by Silence, Free Online";
  * /limits fallback carries.
  */
 const DESCRIPTION_SEGMENTS = getToolLimits("silence-split")?.maxOutputSegments ?? 50;
-const PAGE_DESCRIPTION = `Free online audio splitter. Split audio by silence — one long recording into separate tracks at every silent gap, up to ${DESCRIPTION_SEGMENTS}. Adjustable threshold, no sign-up, no watermark.`;
+const PAGE_DESCRIPTION = `Free online audio splitter. Split audio by silence into separate tracks at every silent gap, up to ${DESCRIPTION_SEGMENTS}. Adjustable threshold, no sign-up.`;
 
 const OG_IMAGE = ogForTool("silence-split", "Free Silence Splitter");
 

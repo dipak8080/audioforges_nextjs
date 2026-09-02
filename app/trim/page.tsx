@@ -35,7 +35,7 @@ import {
 */
 const PAGE_TITLE = "Audio Trimmer – Cut Audio Online Free, No Sign-Up";
 const PAGE_DESCRIPTION =
-  "Free online audio trimmer and cutter. Cut MP3, WAV, FLAC, AAC, M4A, OGG or AIFF to a precise start and end point — original format kept. No sign-up, no watermark.";
+  "Free online audio trimmer and cutter. Cut MP3, WAV, FLAC, AAC, M4A or OGG to a precise start and end point. No sign-up, no watermark.";
 
 const OG_IMAGE = ogForTool("trim", "Free Audio Trimmer");
 

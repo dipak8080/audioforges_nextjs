@@ -49,7 +49,7 @@ import {
 */
 const PAGE_TITLE = "Reverse Audio Online – Free Audio Reverser";
 const PAGE_DESCRIPTION =
-  "Reverse audio online free — MP3, WAV, FLAC, AAC, M4A, OGG and AIFF. Play a track backwards, reverse a voice recording or try reverse singing. No sign-up, no watermark.";
+  "Reverse audio online free — MP3, WAV, FLAC, AAC, M4A and OGG. Play a track backwards, reverse a voice recording or try reverse singing.";
 
 const OG_IMAGE = ogForTool("reverse", "Free Audio Reverser");
 
