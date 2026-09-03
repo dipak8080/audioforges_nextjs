@@ -68,7 +68,13 @@ export function FreeTierBadge({
   tool: MeteredToolKey;
   className?: string;
 }) {
-  const { enabled, loading, balance, freeRemaining, isToolMetered } = useCredits();
+  const { enabled, loading, balance, freeRemaining, isToolMetered, me } = useCredits();
+
+  // The real per-run cost for THIS tool, from the paywall rule — not a hardcoded
+  // 1. audio-to-sheet is 3; everything else is currently 1. Falls back to 1 only
+  // if the rule isn't loaded yet.
+  const cost = me?.paywall?.tools?.[tool]?.credits ?? 1;
+  const costLabel = `${cost} ${cost === 1 ? "credit" : "credits"}`;
 
   // Nothing to say while the paywall is off or this specific tool isn't metered
   // — Studio Quality is simply free, and a "free" badge on a free thing is
@@ -97,11 +103,11 @@ export function FreeTierBadge({
         )}
         title={
           balance > 0
-            ? `Uses 1 of your ${balance} credits`
-            : "Uses 1 credit — free runs reset monthly"
+            ? `Uses ${costLabel} of your ${balance}`
+            : `Uses ${costLabel} — free runs reset monthly`
         }
       >
-        1 credit
+        {costLabel}
       </span>
     );
   }
