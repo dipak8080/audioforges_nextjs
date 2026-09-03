@@ -13,6 +13,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { JobToolForm } from "@/components/converter/JobToolForm";
+import type { ProcessingStage } from "@/components/tools/JobFormKit";
 import { OptionCards, type CardOption } from "@/components/converter/ToolControls";
 import { FreeTierBadge } from "@/components/credits/FreeTierBadge";
 import { cn } from "@/lib/utils/cn";
@@ -85,9 +86,21 @@ const TOOL_COPY = {
   toolLabel: "Audio to Sheet Music",
   toolMeta: "PDF · MusicXML · MIDI",
   processingLabel: "Transcribing & engraving",
-  expectedRange: "under a minute for most songs",
+  expectedRange: "usually 1–2 minutes",
   resultVerb: "Engraved",
 };
+
+// The live processing checklist — the same four stages the page explains under
+// "From a recording to a score, in four stages". `at` is elapsed seconds; the
+// panel ticks each off as the run passes it. Thresholds are spread across a
+// typical ~90s run so the list advances at a believable pace rather than
+// snapping to done.
+const SHEET_STAGES: ProcessingStage[] = [
+  { at: 0, label: "Transcribing — detecting every note" },
+  { at: 22, label: "Analyzing tempo & key" },
+  { at: 48, label: "Notating — snapping notes to the grid" },
+  { at: 75, label: "Engraving the score" },
+];
 
 export function AudioToSheetForm() {
   const [instrument, setInstrument] = useState<Instrument>("piano");
@@ -117,6 +130,7 @@ export function AudioToSheetForm() {
       toolMeta={TOOL_COPY.toolMeta}
       processingLabel={TOOL_COPY.processingLabel}
       expectedRange={TOOL_COPY.expectedRange}
+      stages={SHEET_STAGES}
       resultVerb={TOOL_COPY.resultVerb}
       // Sheet jobs run a GPU transcription + engrave; give the progress curve a
       // realistic time constant and the submit room to absorb a cold start.
@@ -231,7 +245,7 @@ function SheetResultPanel({ jobId }: { jobId: string }) {
             {result.key && (
               <>
                 <Dot />
-                <Stat value={result.key} label="" />
+                <Stat value={prettyKey(result.key)} label="" />
               </>
             )}
             <Dot />
@@ -315,6 +329,11 @@ function SheetResultPanel({ jobId }: { jobId: string }) {
       </p>
     </div>
   );
+}
+
+// music21 writes accidentals as "-" (flat) and "#" (sharp): "E- major" → "E♭ major".
+function prettyKey(key: string) {
+  return key.replace(/-/g, "\u266d").replace(/#/g, "\u266f");
 }
 
 function Stat({ value, label }: { value: string; label: string }) {

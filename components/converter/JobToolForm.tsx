@@ -10,7 +10,9 @@ import { SupportBlock } from "@/components/ui/SupportBlock";
 import { useCreditGate } from "@/components/credits/useCreditGate";
 import { useCredits } from "@/components/credits/CreditProvider";
 import { CreditReceipt } from "@/components/credits/CreditReceipt";
+import { CreditGateModal } from "@/components/credits/CreditGateModal";
 import type { SubmitBilling } from "@/lib/types/converter";
+import type { CreditsMe, InsufficientCreditsPayload, MeteredToolKey } from "@/lib/types/credits";
 import { validateAudioFile } from "@/lib/utils/validation";
 import { getRetryAfterFallback } from "@/lib/data/rate-limits";
 import type { FileValidationResult } from "@/lib/types/converter";
@@ -92,6 +94,25 @@ function resolveDownloadName(
   if (override.includes(".")) return override;
   if (!sourceName) return `audio.${override}`;
   return `${baseName(sourceName)}.${override}`;
+}
+
+/**
+ * A 429 body carries no packs, so the free-tier rate-limit upsell synthesises a
+ * gate payload from the provider's /credits/me — the same shape the 402 path
+ * gets from the server. credits_needed is the tool's real per-run cost so the
+ * modal's spec reads correctly.
+ */
+function buildUpsellPayload(me: CreditsMe, tool: string): InsufficientCreditsPayload {
+  return {
+    error: "insufficient_credits",
+    message: "",
+    tool,
+    credits_needed: me.paywall?.tools?.[tool as MeteredToolKey]?.credits ?? 1,
+    balance: me.balance,
+    free_remaining: me.free_remaining,
+    free_resets_at: me.free_resets_at,
+    packs: me.packs,
+  };
 }
 
 /**
@@ -362,11 +383,34 @@ export function JobToolForm({
   const { catchCreditError, gate } = useCreditGate({
     onCredited: () => submitRef.current(),
   });
-  const { applyBalance } = useCredits();
+  const { applyBalance, me, balance } = useCredits();
 
   const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pollStartedAtRef = useRef(0);
   const cancelledRef = useRef(false);
+
+  // Free-tier rate-limit upsell. Only set on a metered tool's 429 with tier
+  // "free" (see the submit catch). The payload is built on demand when the user
+  // clicks buy, from the provider's /credits/me.
+  const [showRateLimitUpsell, setShowRateLimitUpsell] = useState(false);
+  const [upsellPayload, setUpsellPayload] = useState<InsufficientCreditsPayload | null>(null);
+
+  // Buying credits lifts the user to the higher paid rate limit, so a free-tier
+  // cooldown stops applying the moment their balance rises. Clear it and the
+  // error so they're not left staring at a stale timer after paying — the same
+  // dead end useCreditGate.onCredited closes for the 402 path.
+  //
+  // Adjusted DURING RENDER, not in an effect: React documents this for "reset
+  // state when a value changes", and setState in an effect both trips the
+  // compiler lint and paints one stale frame first. setShowRateLimitUpsell(false)
+  // breaks the condition, so it runs once.
+  if (showRateLimitUpsell && balance > 0) {
+    setShowRateLimitUpsell(false);
+    setUpsellPayload(null);
+    setCooldownSeconds(0);
+    setError(null);
+    setStatus("idle");
+  }
 
   const isFailed = status === "failed" || status === "error";
   const canSubmit = Boolean(file) && !isBusy && status !== "complete" && cooldownSeconds === 0;
@@ -528,6 +572,8 @@ export function JobToolForm({
     setElapsedSeconds(0);
     setError(null);
     setRetryNotice(null);
+    setShowRateLimitUpsell(false);
+    setUpsellPayload(null);
     cancelledRef.current = false;
 
     const formData = new FormData();
@@ -589,6 +635,12 @@ export function JobToolForm({
           const wait = err.retryAfterSeconds ?? getRetryAfterFallback(endpoint);
           setCooldownCeiling(Math.max(1, wait));
           setCooldownSeconds(wait);
+          // A free-tier rate limit on a metered tool is a conversion moment, not
+          // just a wait: buying credits moves them to the paid rate limit and
+          // unblocks them now. Only upsell when buying would actually help.
+          if (metered && err.rateLimit?.tier === "free" && (me?.packs?.length ?? 0) > 0) {
+            setShowRateLimitUpsell(true);
+          }
         } else {
           setError(humanizeError(err instanceof ApiError ? err.message : "Something went wrong."));
         }
@@ -756,6 +808,26 @@ export function JobToolForm({
         {isFailed && error && (
           <Section className="space-y-4">
             <ErrorPanel error={error} />
+
+            {/* Free-tier rate limit on a metered tool: offer the paid escape
+                hatch beside the timer, keeping the countdown as the free path.
+                Softer than the 402 gate — a nudge, not a wall. */}
+            {showRateLimitUpsell && cooldownSeconds > 0 && me && (
+              <div className="rounded-xl border border-amber-500/25 bg-amber-500/5 px-4 py-3.5">
+                <p className="text-sm leading-relaxed text-text-muted">
+                  You&apos;ve used your free runs this hour. Buy credits to keep going now — they
+                  lift the limit right away — or wait {formatCooldown(cooldownSeconds)}.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setUpsellPayload(buildUpsellPayload(me, endpoint))}
+                  className={buttonStyles({ variant: "primary", size: "sm", className: "mt-3" })}
+                >
+                  Buy credits to continue
+                </button>
+              </div>
+            )}
+
             {/*
               NO TIP JAR ON A BROKEN RUN.
               These forms carry two failure states and they are not the same
@@ -764,14 +836,18 @@ export function JobToolForm({
               and asking for support after one is fine. `failed` means the job ran
               and broke, or polling gave up on it. Following "This is taking
               unusually long" with "Enjoying AudioForges? Buy us a coffee" is the
-              worst timing on the site.
+              worst timing on the site. And a coffee ask directly under a
+              buy-credits upsell is two money asks stacked — suppress it there.
             */}
-            {status === "error" && <SupportBlock />}
+            {status === "error" && !showRateLimitUpsell && <SupportBlock />}
           </Section>
         )}
       </FormShell>
 
       {gate}
+      {upsellPayload && (
+        <CreditGateModal payload={upsellPayload} open onClose={() => setUpsellPayload(null)} />
+      )}
     </>
   );
 }

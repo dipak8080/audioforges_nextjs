@@ -314,6 +314,15 @@ export const guides: Guide[] = [
     updatedDate: "2026-08-18",
     category: "production",
   },
+  {
+    slug: "how-audio-to-sheet-music-works",
+    title: "How Audio to Sheet Music Transcription Works",
+    description:
+      "How an AI turns a recording into a readable score — note detection, tempo and key analysis, quantization, and engraving — why piano transcribes best, and how to clean up the result in MuseScore.",
+    publishedDate: "2026-09-03",
+    updatedDate: "2026-09-03",
+    category: "production",
+  },
 ];
 
 export function getGuideBySlug(slug: string): Guide | undefined {

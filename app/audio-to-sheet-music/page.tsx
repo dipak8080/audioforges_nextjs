@@ -28,9 +28,9 @@ import { getFeatureFlags } from "@/lib/api/railway";
 import { ogImage } from "@/lib/og";
 import { cn } from "@/lib/utils/cn";
 
-const PAGE_TITLE = "Audio to Sheet Music — Convert MP3 to Notation (PDF, MusicXML)";
+const PAGE_TITLE = "Audio to Sheet Music — Free MP3 to PDF & MIDI";
 const PAGE_DESCRIPTION =
-  "Turn any recording into sheet music online. Upload MP3, WAV or a piano recording and get engraved notation as PDF, MusicXML and MIDI. Free preview, no sign-up, no subscription.";
+  "Convert audio to sheet music free. Upload MP3 or WAV, preview the engraved score, and download PDF, MusicXML and MIDI — no sign-up, no subscription.";
 
 const OG_IMAGE = ogImage("Audio to Sheet Music", "MP3 to notation — PDF, MusicXML & MIDI", "New");
 
@@ -254,7 +254,7 @@ export default async function AudioToSheetMusicPage() {
         </ToolSection>
 
         {/* ── POSITIONING ── ranks for "anthemscore alternative" etc. */}
-        <ToolSection id="compare" title="How it compares to AnthemScore, Klangio & Songscription" bleed>
+        <ToolSection id="compare" title="How it compares to AnthemScore & Klangio" bleed>
           <p className="measure mb-5 leading-relaxed text-text-body">
             The other audio-to-notation tools are either paid desktop software you have to install,
             or monthly subscriptions. Here&apos;s where a free, browser-based, pay-per-song tool differs:
@@ -372,6 +372,14 @@ export default async function AudioToSheetMusicPage() {
             </Link>
             , which is free, or any editor that reads MusicXML. Fix a wrong note, adjust a rhythm,
             add dynamics, then export a clean final score.
+          </p>
+          <p>
+            Want to understand what the tool is doing under the hood — and why the rhythm sometimes
+            needs a nudge? Our guide on{" "}
+            <Link href="/guides/how-audio-to-sheet-music-works" className="text-amber-400 hover:underline">
+              how audio-to-sheet-music transcription works
+            </Link>{" "}
+            walks through each stage and how to get the cleanest result.
           </p>
         </ToolSection>
 

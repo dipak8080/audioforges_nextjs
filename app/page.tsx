@@ -55,6 +55,7 @@ const POPULAR_SLUGS = [
   "youtube-to-wav",
   "vocal-remover",
   "audio-to-midi",
+  "audio-to-sheet-music",
   "key-finder",
   "convert",
   "audio-to-text",
