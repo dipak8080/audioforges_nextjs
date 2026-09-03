@@ -93,6 +93,14 @@ function parseServerTime(iso: string): Date {
  */
 interface ToolCopy {
   title: string;
+  /**
+   * The detail that pairs with the credit COUNT row. The count itself is NOT
+   * typed here — it's derived from payload.credits_needed at render, so a tool
+   * that costs more than one credit (audio-to-sheet is three) can never be
+   * shown as "1 credit" the way a hardcoded literal would. Same derive-don't-
+   * type rule the duration lines below already follow.
+   */
+  creditDetail: string;
   spec: Array<[string, string]>;
   /** The reassurance on the way out. Must be TRUE for this tool. */
   closing: string;
@@ -103,8 +111,8 @@ const SEPARATION_CLOSING =
 
 const SEPARATE_HQ: ToolCopy = {
   title: "Studio Quality",
+  creditDetail: "One run of this track through the heavier model",
   spec: [
-    ["1 credit", "One run of this track through the heavier model"],
     ["You get", "Vocals and instrumental, with much less bleed between them"],
     ["Files back", "WAV, full quality, no watermark"],
   ],
@@ -113,8 +121,8 @@ const SEPARATE_HQ: ToolCopy = {
 
 const STEMS_HQ: ToolCopy = {
   title: "Studio Quality",
+  creditDetail: "One run of this track through the heavier model",
   spec: [
-    ["1 credit", "One run of this track through the heavier model"],
     ["You get", "Vocals, drums, bass and other — much less bleed"],
     ["Files back", "WAV, full quality, no watermark"],
   ],
@@ -132,16 +140,12 @@ const TOOL_COPY: Record<string, ToolCopy> = {
   "youtube/stems-hq": STEMS_HQ,
   transcribe: {
     title: "Transcription",
+    // Derived, not typed. This read "up to 20 minutes" while the backend cap
+    // was 600 seconds — on the one screen where somebody decides to pay,
+    // promising twice the length they can actually upload. Exactly the
+    // literal-in-JSX class of bug that has already shipped wrong numbers here.
+    creditDetail: `One transcript, up to ${TRANSCRIPTION_LIMITS.durationSeconds / 60} minutes of audio`,
     spec: [
-      [
-        "1 credit",
-        // Derived, not typed. This read "up to 20 minutes" while the backend
-        // cap was 600 seconds — on the one screen where somebody decides to
-        // pay, promising twice the length they can actually upload. Exactly
-        // the literal-in-JSX class of bug that has already shipped four wrong
-        // numbers on this site.
-        `One transcript, up to ${TRANSCRIPTION_LIMITS.durationSeconds / 60} minutes of audio`,
-      ],
       ["You get", "Full text with timestamps, language detected automatically"],
       // Stated HERE because this is where someone decides. All three
       // transcription tools draw on one "transcribe" allowance, and finding
@@ -153,14 +157,11 @@ const TOOL_COPY: Record<string, ToolCopy> = {
   },
   "audio-to-midi-hq": {
     title: "Multi-track MIDI",
+    // MIDI HQ, not transcription — different cap, same rule: derive it.
+    creditDetail: `One transcription of this file, up to ${
+      (TOOL_LIMITS["audio-to-midi-hq"]?.maxTotalDurationSeconds ?? 600) / 60
+    } minutes`,
     spec: [
-      [
-        "1 credit",
-        // MIDI HQ, not transcription — different cap, same rule: derive it.
-        `One transcription of this file, up to ${
-          (TOOL_LIMITS["audio-to-midi-hq"]?.maxTotalDurationSeconds ?? 600) / 60
-        } minutes`,
-      ],
       ["You get", "One MIDI track per instrument, each with a General MIDI program"],
       // Named because it is the honest limit and it prevents the refund
       // request: on a solo instrument or a short clip the model frequently
@@ -171,12 +172,28 @@ const TOOL_COPY: Record<string, ToolCopy> = {
     closing:
       "Single-track MIDI stays free and unlimited, with the same formats and the same .mid download.",
   },
+  // Costs THREE credits, not one — the credit row derives that from the payload
+  // so this entry doesn't restate it. The multi-stage job (GPU transcription →
+  // analysis → engraving) is why; the closing keeps the free lane honest.
+  "audio-to-sheet": {
+    title: "Audio to Sheet Music",
+    creditDetail: "One song transcribed and engraved into notation",
+    spec: [
+      ["You get", "An engraved score — PDF, MusicXML, MIDI and SVG; piano split into a two-hand grand staff"],
+      // The honest limit, stated before payment for the same reason as the MIDI
+      // "Best on" above: a dense full mix comes back rougher than a clean solo.
+      ["Best on", "Solo piano and clean single-instrument recordings"],
+    ],
+    closing:
+      "Clips of 30 seconds or less stay free, and every tool that doesn't need a GPU stays free too.",
+  },
 };
 
 /** Claims nothing specific, so an unmapped tool key can't lie. */
 const FALLBACK_COPY: ToolCopy = {
   title: "This run needs a credit",
-  spec: [["1 credit", "One run of this job on a GPU"]],
+  creditDetail: "One run of this job on a GPU",
+  spec: [],
   closing: "Everything on the site that doesn't need a GPU stays free and unlimited.",
 };
 
@@ -191,6 +208,7 @@ const TOOL_LABELS: Record<string, string> = {
   // most reassuring.
   transcribe: "your transcript",
   "audio-to-midi-hq": "Multi-track MIDI",
+  "audio-to-sheet": "your sheet music",
 };
 
 /**
@@ -530,6 +548,12 @@ function PackStep({
   // TOOL_LABELS is read by the action bar for the return-trip line, not here.
   const copy = TOOL_COPY[payload.tool] ?? FALLBACK_COPY;
 
+  // The count is the backend's, never a literal — so a 3-credit job reads
+  // "3 credits", not the "1 credit" a hardcoded spec row would have shown.
+  const creditLabel = `${payload.credits_needed} ${
+    payload.credits_needed === 1 ? "credit" : "credits"
+  }`;
+
   return (
     <>
       {/*
@@ -549,6 +573,7 @@ function PackStep({
         sheet for audio stems.
       */}
       <dl className="mt-3 overflow-hidden rounded-xl border border-graphite-800 bg-graphite-950/40 text-sm">
+        <SpecRow label={creditLabel}>{copy.creditDetail}</SpecRow>
         {copy.spec.map(([term, detail]) => (
           <SpecRow key={term} label={term}>
             {detail}
@@ -576,7 +601,12 @@ function PackStep({
       )}
 
       <div className="mt-5">
-        <PackRail packs={payload.packs} selectedKey={activeKey} onSelect={onSelect} />
+        <PackRail
+          packs={payload.packs}
+          selectedKey={activeKey}
+          onSelect={onSelect}
+          creditsPerRun={payload.credits_needed}
+        />
       </div>
 
       {/* The three claims the competition structurally cannot print. One

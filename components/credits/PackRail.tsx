@@ -82,12 +82,24 @@ export function PackRail({
   selectedKey,
   onSelect,
   label = "How many",
+  creditsPerRun,
 }: {
   packs: CreditPack[];
   selectedKey: string | null;
   onSelect: (pack: CreditPack) => void;
   label?: string;
+  /**
+   * How many credits ONE run of the tool in play costs. The gate modal knows
+   * this from the 402 payload and passes it, so the readout can say "per run"
+   * truthfully — a 3-credit tool shows 3x the per-credit price, not 1x.
+   * Omitted on /pricing, where packs serve tools of different run-costs and
+   * there is no single run to price: there the readout says "per credit".
+   */
+  creditsPerRun?: number;
 }) {
+  // 1 keeps the old behaviour exactly for every existing 1-credit tool.
+  const runCredits = creditsPerRun && creditsPerRun > 0 ? creditsPerRun : 1;
+  const runLabel = creditsPerRun ? "Per run" : "Per credit";
   const btnRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
   // Computed from the data the server just sent, never authored. A hardcoded
@@ -116,8 +128,12 @@ export function PackRail({
   const selectedIndex = requested >= 0 ? requested : Math.min(1, packs.length - 1);
   const selected = packs[selectedIndex];
 
-  const perRun = selected.price_usd / selected.credits;
-  const savingPct = worstPerRun > 0 ? Math.round((1 - perRun / worstPerRun) * 100) : 0;
+  // Saving is a property of the pack list (per-credit vs the worst per-credit),
+  // so it's computed from perCredit and is identical whatever a run costs. Only
+  // the DISPLAYED figure scales by runCredits.
+  const perCredit = selected.price_usd / selected.credits;
+  const perRun = perCredit * runCredits;
+  const savingPct = worstPerRun > 0 ? Math.round((1 - perCredit / worstPerRun) * 100) : 0;
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
     const target = nextIndex(e.key, selectedIndex, packs.length);
@@ -159,7 +175,7 @@ export function PackRail({
         {packs.map((pack, i) => {
           const isSelected = pack.key === selected.key;
           const isBestValue = pack.key === bestValueKey;
-          const packPerRun = pack.price_usd / pack.credits;
+          const packPerRun = (pack.price_usd / pack.credits) * runCredits;
           return (
             <button
               key={pack.key}
@@ -175,7 +191,9 @@ export function PackRail({
                  and announced none of them — the segment said "30". */
               aria-label={`${pack.credits} credits for $${pack.price_usd.toFixed(
                 2
-              )}, $${packPerRun.toFixed(2)} per run${isBestValue ? ", best value" : ""}`}
+              )}, $${packPerRun.toFixed(2)} ${
+                creditsPerRun ? "per run" : "per credit"
+              }${isBestValue ? ", best value" : ""}`}
               onClick={() => onSelect(pack)}
               className={cn(
                 "relative z-10 flex-1 rounded-md px-2 py-3 text-center outline-none transition-colors",
@@ -211,7 +229,7 @@ export function PackRail({
 
       <div className="mt-3 grid grid-cols-3 divide-x divide-graphite-800 overflow-hidden rounded-lg border border-graphite-800 bg-graphite-950/40">
         <Readout label="You pay" value={`$${selected.price_usd.toFixed(2)}`} accent />
-        <Readout label="Per run" value={`$${perRun.toFixed(2)}`} />
+        <Readout label={runLabel} value={`$${perRun.toFixed(2)}`} />
         {/* Was "Runs — 30" on the baseline pack, which reprints the number
             already displayed two rows up in the same typeface. "Base" is a
             fact neither of the other cells carries. */}
