@@ -86,7 +86,7 @@ const TOOL_COPY = {
   toolLabel: "Audio to Sheet Music",
   toolMeta: "PDF · MusicXML · MIDI",
   processingLabel: "Transcribing & engraving",
-  expectedRange: "usually 1–2 minutes",
+  expectedRange: "1–2 minutes",
   resultVerb: "Engraved",
 };
 
