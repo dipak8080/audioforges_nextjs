@@ -53,6 +53,7 @@ export const metadata: Metadata = {
  *  render with a hole in it. */
 const POPULAR_SLUGS = [
   "youtube-to-wav",
+  "youtube-to-mp3",
   "vocal-remover",
   "audio-to-midi",
   "audio-to-sheet-music",
