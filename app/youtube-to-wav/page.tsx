@@ -13,9 +13,9 @@ import { getRelatedTools } from "@/lib/data/tools";
 import { getLimits, windowFor, rateLimitLabel, durationLabel } from "@/lib/api/limits";
 import { ogForTool } from "@/lib/og";
 
-const PAGE_TITLE = "Free YouTube to WAV & MP3 Converter";
+const PAGE_TITLE = "Free YouTube to WAV Converter — Lossless Audio";
 const PAGE_DESCRIPTION =
-  "Convert YouTube videos to WAV or 320kbps MP3 online for free. No sign-up, no watermark, supports YouTube Shorts, and downloads high-quality audio in seconds.";
+  "Convert YouTube videos to lossless WAV online for free. No sign-up, no watermark, supports YouTube Shorts, and downloads high-quality audio in seconds.";
 
 const OG_IMAGE = ogForTool("youtube-to-wav", "Free YouTube to WAV Converter");
 
@@ -54,7 +54,7 @@ export const metadata: Metadata = {
 const webAppJsonLd = {
   "@context": "https://schema.org",
   "@type": "WebApplication",
-  name: "YouTube to WAV & MP3 Converter",
+  name: "YouTube to WAV Converter",
   url: `${SITE_URL}/youtube-to-wav`,
   applicationCategory: "MultimediaApplication",
   operatingSystem: "Any",
@@ -210,8 +210,8 @@ export default async function YouTubeToWavPage() {
         breadcrumb={
           <Breadcrumb items={[{ name: "Tools", href: "/tools" }, { name: "YouTube to WAV" }]} />
         }
-        title="Free YouTube to WAV & MP3 Converter"
-        lede="Paste a link and download high-quality audio in seconds. No sign-up, no watermark, no app to install."
+        title="Free YouTube to WAV Converter"
+        lede="Paste a link and download lossless WAV audio in seconds. No sign-up, no watermark, no app to install."
         tool={<YouTubeConverterForm />}
       >
         {/* The third cell carries the limits, which appeared only in the FAQ
