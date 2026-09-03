@@ -83,7 +83,7 @@ const LAST_VERIFIED = "2026-08-30";
   `absolute` now: 52 chars, and the root template's " | AudioForges" would push
   it to 66 and truncate the differentiator off the end.
 */
-const PAGE_TITLE = "Transcribe Audio to Text – Free Converter, No Sign-Up";
+const PAGE_TITLE = "Transcribe Audio to Text — MP3, WAV & M4A to TXT/SRT";
 
 /**
  * `metadata` is evaluated at module scope, where getLimits() can't be awaited.
@@ -92,7 +92,7 @@ const PAGE_TITLE = "Transcribe Audio to Text – Free Converter, No Sign-Up";
  * updated — the same narrow window every other page has.
  */
 const DESCRIPTION_MINUTES = 20;
-const PAGE_DESCRIPTION = `Transcribe audio to text free online — MP3, WAV, M4A and FLAC. No account, no email, no credits. Export TXT, SRT or VTT. Files up to ${DESCRIPTION_MINUTES} minutes.`;
+const PAGE_DESCRIPTION = `Transcribe audio to text online — MP3, WAV, M4A and FLAC to TXT, SRT or VTT, with timestamps. Free, no account needed. Files up to ${DESCRIPTION_MINUTES} minutes.`;
 
 const OG_IMAGE = ogForTool("audio-to-text", "Free audio to text converter");
 
@@ -293,7 +293,7 @@ export default async function AudioToTextPage() {
               it: no account, free exports. It moves into the wedge section
               below, where it's the argument rather than a preamble. */}
           <h1 className="measure-wide mt-5 text-4xl font-bold leading-[1.04] tracking-[-0.025em] text-text-primary sm:text-5xl">
-            Transcribe audio to text, free
+            Transcribe audio to text
           </h1>
           <p className="measure-wide mt-4 text-lg leading-relaxed text-text-muted sm:text-xl">
             Upload an MP3, WAV, M4A or FLAC and get the words back with
