@@ -28,7 +28,8 @@ export type MeteredToolKey =
   | "youtube/separate-hq"
   | "youtube/stems-hq"
   | "transcribe"
-  | "audio-to-midi-hq";
+  | "audio-to-midi-hq"
+  | "audio-to-sheet";
 
 /** Pack keys as configured in Ko-fi. */
 export type PackKey = "starter" | "regular" | "bulk";

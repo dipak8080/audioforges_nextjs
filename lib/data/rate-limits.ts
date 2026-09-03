@@ -178,6 +178,20 @@ export const RATE_LIMITS: Record<string, RateLimitSpec> = {
     limit: 2, windowSeconds: 3600, label: "2 per hour",
     envVar: "MIDI_HQ_RATE_LIMIT_MAX_REQUESTS",
   },
+  // ---- Audio to Sheet Music ----
+  // NOTE: this hourly number is NOT the binding free-tier constraint. Sheet
+  // music's free lane is governed by free_under_seconds=30 (clips <=30s free)
+  // plus FREE_MONTHLY_OPS (a couple of free full-song runs/month), so this
+  // per-IP hourly cap is a secondary abuse limit shown for display only.
+  //
+  // KEEP THIS IN SYNC WITH .env: the backend default for
+  // SHEET_MUSIC_RATE_LIMIT_MAX_REQUESTS is 30. If you set it lower on the VPS
+  // (10 was floated to cap free-tier GPU cost), change `limit` and `label`
+  // here to match — otherwise the UI says 30 while the server enforces 10.
+  "audio-to-sheet": {
+    limit: 30, windowSeconds: 3600, label: "30 per hour",
+    envVar: "SHEET_MUSIC_RATE_LIMIT_MAX_REQUESTS",
+  },
 
   // ---- YouTube / TikTok download ----
   //

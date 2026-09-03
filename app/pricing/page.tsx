@@ -41,11 +41,11 @@ const DEMO_STUDIO = "/audio/demo-vocals-studio.wav";
 
 const PAGE_TITLE = "Pricing — AudioForges credits";
 const PAGE_DESCRIPTION =
-  "One credit runs one GPU-heavy job. No subscription, credits never expire, and every other tool on AudioForges stays free.";
+  "Credits run the GPU-heavy jobs — most one credit each. No subscription, credits never expire, and every other tool on AudioForges stays free.";
 
 const OG_IMAGE = ogImage(
   "Pay once, per heavy job",
-  "One credit runs one GPU job. No subscription, and credits never expire.",
+  "Credits run the GPU jobs. No subscription, and credits never expire.",
   "Pricing"
 );
 
@@ -58,7 +58,7 @@ export const metadata: Metadata = {
     default. It was noindex while the paywall was provisional, for two reasons
     that no longer hold: a 404 Google has crawled as a live page is worse than
     one it never saw (only true while PAYWALL_ENABLED might flip back off, and
-    it won't — five metered tools depend on it), and it competes with the
+    it won't — the metered tools depend on it), and it competes with the
     "free X" queries the tool pages rank on (it doesn't; those pages own those
     terms, and this one targets someone who has already met a limit and wants
     a price). The cost of hiding it was concrete: the only route to the page
@@ -80,63 +80,115 @@ export const metadata: Metadata = {
   },
 };
 
-const faqs: FAQItem[] = [
-  {
-    question: "Is AudioForges still free?",
-    answer:
-      "Yes. Every tool that runs on ordinary CPU processing is free and unlimited, with full-quality downloads and no watermark — including standard vocal removal, stem splitting and standard audio-to-MIDI. Credits apply only to jobs that need a GPU, which today means Studio Quality separation, high-accuracy MIDI, and transcription. Everything on cheap processing stays free and there are no plans to change that.",
-  },
-  {
-    question: "What's the difference between standard and Studio Quality?",
-    answer:
-      "The same job run through a heavier model. Standard separation is good enough for reference tracks, practice, and DJ edits, and it's what most people need. Studio Quality pulls cleaner stems out of dense mixes — less instrumental bleed in the vocal, less vocal ghost in the instrumental — which matters when the stem is going into a release rather than a rehearsal. Run both on the same track and keep whichever you prefer: every visitor gets free runs each month, and the tool shows how many you have left before you spend one.",
-  },
-  {
-    question: "Do credits expire?",
-    answer:
-      "No. Credits stay on your account until you use them, and they work on any tool that takes credits — including ones added after you bought them. There is no subscription, no monthly minimum, and nothing recurring to cancel.",
-  },
-  {
-    question: "What happens if a run fails?",
-    answer:
-      "Your credit is returned automatically. Refunds are handled server-side the moment a job reaches a failed state, and a background sweeper catches anything that never reports back at all. You never have to ask.",
-  },
-  {
-    question: "Do I need an account?",
-    answer:
-      "No. Credits are tied to your browser. You give an email at checkout only so we can match your Ko-fi payment back to you — Ko-fi's payment notification doesn't tell us who paid, so the email is the link. If you later want your credits on a different device, you can sign in with that same email.",
-  },
-  {
-    question: "How do I use credits on another device?",
-    answer:
-      "Choose 'Already bought? Sign in' and enter the email you paid with. We'll send a sign-in link that attaches your credits to that browser. The link expires after 30 minutes. If both devices are in front of you, the account menu can show a QR code instead, which is faster.",
-  },
-];
-
 export default async function PricingPage() {
-  const { paywallEnabled } = await getFeatureFlags();
+  const { paywallEnabled, paywallTools } = await getFeatureFlags();
   if (!paywallEnabled) notFound();
 
   const limits = await getLimits();
-
-  // Was hardcoded at 600 under two comments both claiming to mirror /limits,
-  // one left over from the 360 → 600 change on 2026-08-28.
   const hqMaxLabel = durationLabel(limits.featureDurations.separationHq);
 
-  // No arithmetic. Nothing here is a paid TOOL — two free tools have an
-  // optional paid MODE, which is both accurate and the stronger claim. The old
-  // `liveToolCount - 1` subtracted a paid tool that doesn't exist.
+  /**
+   * Whether audio-to-sheet actually CHARGES right now, resolved live from the
+   * backend flag — never assumed. While PAYWALL_TOOL_AUDIO_TO_SHEET_ENABLED is
+   * off the tool runs free (charged: "none"), so it must not appear here as a
+   * paid tool at all: not in the cost table, not in the metered count, not in
+   * the free-tier FAQ. Flip the env and it appears at 3 credits with no deploy.
+   * This is the same rule railway.ts states for the "1 credit" badge.
+   */
+  const sheetCharges = Boolean(paywallTools["audio-to-sheet"]);
+
+  /**
+   * Every metered job and what it costs — the one place cost is stated, so the
+   * one-credit tools and the three-credit one can't drift apart in prose. Each
+   * carries its OWN output formats and length note, because those genuinely
+   * differ per tool: a blanket "Files back: WAV" was true only for separation,
+   * and became a lie the moment a tool that returns PDF joined the list.
+   */
+  const meteredJobs: { name: string; cost: number; detail: string }[] = [
+    {
+      name: "Studio Quality separation",
+      cost: 1,
+      detail: `Cleaner vocals and instrumental, or a full four-stem split, from a heavier model. Up to ${hqMaxLabel}. Returns WAV, full quality, no watermark.`,
+    },
+    {
+      name: "High-accuracy MIDI",
+      cost: 1,
+      detail:
+        "Closer note detection on melodies, vocals and guitar, and a track per instrument on a full mix. Returns MIDI.",
+    },
+    {
+      name: "Transcription",
+      cost: 1,
+      detail: "Audio, video or a YouTube link, turned into text.",
+    },
+    ...(sheetCharges
+      ? [
+          {
+            name: "Audio to sheet music",
+            cost: 3,
+            detail:
+              "A recording engraved into readable notation — PDF, MusicXML, MIDI and SVG. A multi-stage GPU-plus-engraving job with a higher-value output, which is why it's three rather than one.",
+          },
+        ]
+      : []),
+  ];
+
+  // No arithmetic. Nothing here is a paid TOOL — free tools have optional paid
+  // MODES, which is both accurate and the stronger claim.
   const liveToolCount = TOOLS.filter((t) => t.status === "live").length;
+
+  // The metered list named in the "still free" FAQ, kept in step with what
+  // actually charges. Understating this is the one error that becomes a refund.
+  const meteredList = sheetCharges
+    ? "Studio Quality separation, high-accuracy MIDI, transcription, and audio-to-sheet-music"
+    : "Studio Quality separation, high-accuracy MIDI, and transcription";
+
+  const faqs: FAQItem[] = [
+    {
+      question: "Is AudioForges still free?",
+      answer: `Yes. Every tool that runs on ordinary CPU processing is free and unlimited, with full-quality downloads and no watermark — including standard vocal removal, stem splitting and standard audio-to-MIDI. Credits apply only to jobs that need a GPU, which today means ${meteredList}. Everything on cheap processing stays free and there are no plans to change that.`,
+    },
+    {
+      question: "Why do some jobs cost more than one credit?",
+      answer:
+        "Most GPU jobs are a single model run and cost one credit. A few do more work for a single result — audio-to-sheet-music, for example, runs a GPU transcription, then tempo and key analysis, then engraves the score — so it costs three credits. The cost of a job tracks the work behind it, not the tool it came from.",
+    },
+    {
+      question: "What's the difference between standard and Studio Quality?",
+      answer:
+        "The same job run through a heavier model. Standard separation is good enough for reference tracks, practice, and DJ edits, and it's what most people need. Studio Quality pulls cleaner stems out of dense mixes — less instrumental bleed in the vocal, less vocal ghost in the instrumental — which matters when the stem is going into a release rather than a rehearsal. Run both on the same track and keep whichever you prefer: every visitor gets free runs each month, and the tool shows how many you have left before you spend one.",
+    },
+    {
+      question: "Do credits expire?",
+      answer:
+        "No. Credits stay on your account until you use them, and they work on any tool that takes credits — including ones added after you bought them. There is no subscription, no monthly minimum, and nothing recurring to cancel.",
+    },
+    {
+      question: "What happens if a run fails?",
+      answer:
+        "Your credits are returned automatically. Refunds are handled server-side the moment a job reaches a failed state, and a background sweeper catches anything that never reports back at all. A three-credit job refunds all three. You never have to ask.",
+    },
+    {
+      question: "Do I need an account?",
+      answer:
+        "No. Credits are tied to your browser. You give an email at checkout only so we can match your Ko-fi payment back to you — Ko-fi's payment notification doesn't tell us who paid, so the email is the link. If you later want your credits on a different device, you can sign in with that same email.",
+    },
+    {
+      question: "How do I use credits on another device?",
+      answer:
+        "Choose 'Already bought? Sign in' and enter the email you paid with. We'll send a sign-in link that attaches your credits to that browser. The link expires after 30 minutes. If both devices are in front of you, the account menu can show a QR code instead, which is faster.",
+    },
+  ];
 
   return (
     <main id="main" className="mx-auto max-w-3xl px-4 py-10 sm:py-14">
       <Breadcrumb items={[{ name: "Pricing" }]} className="mb-8" />
 
       {/*
-        Framed around CREDITS, not around vocal separation. Credits are the
-        currency for anything needing a GPU, and that set will grow. Writing
-        this as "the Studio Quality page" would mean rewriting it, and
-        re-earning its rankings, the first time that happens.
+        Framed around CREDITS, not around any one tool. Credits are the currency
+        for anything needing a GPU, and that set grows. Writing this as "the
+        Studio Quality page" would mean rewriting it, and re-earning its
+        rankings, the first time that happens — which it just did.
       */}
       <header>
         <p className="font-mono text-xs uppercase tracking-[0.16em] text-amber-500">Credits</p>
@@ -146,7 +198,8 @@ export default async function PricingPage() {
         <p className="measure mt-5 text-lg leading-relaxed text-text-muted">
           Most of AudioForges runs on cheap CPU processing and is free and
           unlimited — that never changes. A few jobs need a GPU and cost real
-          money per run, so those take one credit each.
+          money per run, so those take credits
+          {sheetCharges ? " — most one credit each, a few a little more" : " — one credit each"}.
         </p>
 
         {/* Three facts, stated before the packs rather than after them. These
@@ -168,53 +221,60 @@ export default async function PricingPage() {
       </div>
 
       {/*
-        THE SPEC PANEL — the ANSWER to the price rather than the preamble to
-        it. Rows of plain fact do more work than pricing copy, and they read
-        like a DAW's file-info panel, which is the register this audience
-        already trusts.
+        THE COST TABLE — the ANSWER to the price rather than the preamble to it.
+        Replaces the old "one credit, one job" spec header, which stopped being
+        true when a three-credit job joined. Rows of plain fact do more work
+        than pricing copy and read like a DAW's file-info panel, the register
+        this audience already trusts.
       */}
       <section className="mt-16">
         <SectionHeading
           eyebrow="What you get"
-          title="One credit, one job"
-          description="Every metered job costs the same, whichever tool it came from."
+          title="What each job costs"
+          description={
+            sheetCharges
+              ? "Every GPU-backed job is priced by the work behind it. Most are one credit; a couple do more for a single result and cost more."
+              : "Every GPU-backed job costs the same one credit, whichever tool it came from."
+          }
         />
         <dl className="mt-6 overflow-hidden rounded-xl border border-graphite-800 bg-graphite-900">
-          <div className="flex items-baseline justify-between border-b border-graphite-800 bg-graphite-950/40 px-4 py-3">
-            <span className="font-mono text-sm font-semibold tabular-nums text-amber-400">
-              1 credit
-            </span>
-            <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-text-subtle">
-              Any GPU-backed job
-            </span>
-          </div>
-          {/* Names EVERY metered job. A spec panel listing two of three makes
-              the third look like a surprise charge — which is exactly what
-              transcription was while this panel omitted it. */}
-          <SpecRow label="You get">
-            Studio Quality separation — vocals and instrumental, or a full
-            four-stem split
-          </SpecRow>
-          <SpecRow label="Or">
-            High-accuracy MIDI — closer note detection on melodies, vocals and
-            guitar, and a track per instrument on a full mix
-          </SpecRow>
-          <SpecRow label="Or">Transcription — audio, video or a YouTube link, to text</SpecRow>
+          {meteredJobs.map((job) => (
+            <div
+              key={job.name}
+              className="flex flex-col gap-1 border-b border-graphite-800 px-4 py-4 last:border-b-0 sm:flex-row sm:items-baseline sm:gap-4"
+            >
+              <dt className="flex shrink-0 items-baseline gap-2 sm:w-44">
+                <span className="font-mono text-sm font-semibold tabular-nums text-amber-400">
+                  {job.cost} {job.cost === 1 ? "credit" : "credits"}
+                </span>
+              </dt>
+              <dd className="text-sm leading-relaxed text-text-primary">
+                <span className="font-medium">{job.name}</span>
+                <span className="mt-0.5 block text-text-muted">{job.detail}</span>
+              </dd>
+            </div>
+          ))}
+        </dl>
+
+        {sheetCharges && (
+          <p className="mt-3 text-sm text-text-subtle">
+            A sheet-music song is 3 credits, so the packs above are roughly 3, 10 and 33 songs.
+          </p>
+        )}
+
+        {/* The facts that ARE common to every metered job, once the per-job
+            differences (cost, formats, length) are out of the way. */}
+        <dl className="mt-4 overflow-hidden rounded-xl border border-graphite-800 bg-graphite-900">
           <SpecRow label="Source">An audio file, or a YouTube link</SpecRow>
-          <SpecRow label="Track length">
-            Up to {hqMaxLabel}. Longer tracks are blocked before anything is charged
-          </SpecRow>
-          <SpecRow label="Files back">
-            WAV, full quality, no watermark, no length limit on playback
-          </SpecRow>
+          <SpecRow label="Files back">Full quality, no watermark, no playback limit</SpecRow>
           <SpecRow label="Turnaround">Usually one to two minutes</SpecRow>
-          <SpecRow label="If it fails">The credit comes straight back, without you asking</SpecRow>
+          <SpecRow label="If it fails">Every credit comes straight back, without you asking</SpecRow>
         </dl>
       </section>
 
-      {/* The A/B. Directly after the spec panel: the rows say what you get,
-          this says what it sounds like — the only claim on this page a reader
-          can check for themselves rather than take on trust. */}
+      {/* The A/B. The rows say what you get; this says what it sounds like —
+          the only claim on this page a reader can check for themselves rather
+          than take on trust. */}
       <div className="mt-8">
         <StemCompare
           standardSrc={DEMO_STANDARD}
@@ -270,21 +330,21 @@ export default async function PricingPage() {
       </section>
 
       {/*
-        NO ARITHMETIC. This read "The other {liveToolCount - 1}+ tools cost
-        nothing" — minus one, on a page naming two paid things.
+        NO ARITHMETIC. The metered count is meteredJobs.length, resolved from the
+        live flags above — so it reads "three" while audio-to-sheet is free and
+        "four" the moment it charges, with no edit here.
 
-        TRANSCRIPTION WAS LISTED AS FREE AND HAS NOT BEEN SINCE 2026-08-29.
-        PAYWALL_TOOL_TRANSCRIBE_ENABLED has been true with free_under_seconds
-        at 0, so every transcription spends an op or a credit — while this
-        section named it in a list of tools with "no metering and no plans to
-        add any". A pricing page understating what it charges for is the one
-        error that turns into a refund request.
+        TRANSCRIPTION WAS LISTED AS FREE AND HAS NOT BEEN SINCE 2026-08-29;
+        audio-to-sheet is the same trap in waiting. A pricing page understating
+        what it charges for is the one error that turns into a refund request,
+        so this whole section is driven off meteredJobs / meteredList rather
+        than a hand-written list that a later launch would leave stale.
       */}
       <section className="mt-16">
         <SectionHeading
           eyebrow="Still free"
           title="Almost everything is free and unlimited"
-          description={`Of ${liveToolCount} tools, credits apply to three GPU-backed jobs. Everything else runs free with no sign-up and no metering.`}
+          description={`Of ${liveToolCount} tools, credits apply to ${meteredJobs.length} GPU-backed jobs. Everything else runs free with no sign-up and no metering.`}
         />
         <div className="mt-6 rounded-xl border border-graphite-800 bg-graphite-900 p-5">
           <p className="text-sm leading-relaxed text-text-muted">

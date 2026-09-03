@@ -513,6 +513,14 @@ export const TOOLS: Tool[] = [
     status: "live",
     related: ["metronome", "bpm-tapper", "key-finder", "voice-recorder", "pitch"],
   },
+    {
+    slug: "audio-to-sheet-music",
+    name: "Audio to Sheet Music",
+    shortDescription: "Turn a recording into printable sheet music — PDF, MusicXML & MIDI.",
+    category: "transcription",
+    status: "live",
+    related: ["audio-to-midi", "key-finder", "vocal-remover", "stems", "youtube-to-wav"],
+  },
 ];
 
 export function getLiveTools(): Tool[] {

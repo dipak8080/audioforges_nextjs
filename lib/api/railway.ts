@@ -415,6 +415,9 @@ export interface FeatureFlags {
    * the 402 handling on paywallTools.
    */
   midiHqEnabled: boolean;
+  /** Kill switch for /audio-to-sheet. FALSE = route returns 503, so the tool
+   *  must not be offered. Same shape as midiHqEnabled: visibility, not price. */
+  sheetMusicEnabled: boolean;
   paywallEnabled: boolean;
   paywallTools: Partial<Record<MeteredToolKey, boolean>>;
 }
@@ -422,6 +425,7 @@ export interface FeatureFlags {
 const FLAGS_OFF: FeatureFlags = {
   separationHqEnabled: false,
   midiHqEnabled: false,
+  sheetMusicEnabled: false,
   paywallEnabled: false,
   paywallTools: {},
 };
@@ -443,6 +447,7 @@ export async function getFeatureFlags(): Promise<FeatureFlags> {
     return {
       separationHqEnabled: Boolean(data?.features?.separation_hq_enabled),
       midiHqEnabled: Boolean(data?.features?.midi_hq_enabled),
+      sheetMusicEnabled: Boolean(data?.features?.sheet_music_enabled),
       paywallEnabled: Boolean(data?.features?.paywall_enabled),
       paywallTools:
         tools && typeof tools === "object"
@@ -1133,6 +1138,75 @@ export async function getAudioToMidiHqResult(
   );
   if (!res.ok) throw await toApiError(res, "job");
   return readJson<MidiHqResult>(res);
+}
+
+// ============ AUDIO TO SHEET MUSIC (/audio-to-sheet) ============
+// The paid notation tool. Unlike MIDI, its output can actually be SHOWN —
+// the SVG preview is the whole selling point — so alongside the counts this
+// result also tells the UI which of the four formats (pdf/svg/musicxml/midi)
+// are available to download. Same result contract as every other job tool:
+// 404 once expired, 409 if not finished yet, call ONCE after status=complete.
+
+export interface SheetTrack {
+  program: number;
+  is_drum: boolean;
+  name: string;
+  notes: number;
+  low: number;
+  high: number;
+}
+
+export interface SheetResult {
+  /** "transkun" (piano specialist) or "yourmt3" (everything else). */
+  engine: string;
+  /** Whether a stem-isolation pass ran before transcription. */
+  separated: boolean;
+  instrument: string;
+  n_notes: number;
+  n_measures: number;
+  /** 1 (single staff) or 2 (grand staff / piano hands). */
+  n_staves: number;
+  n_pages: number;
+  /** Detected tempo fed into quantization (TempoCNN). */
+  tempo_bpm: number;
+  /** Detected key, e.g. "G major" — null if it couldn't be determined. */
+  key: string | null;
+  /** Which downloads are ready, e.g. ["pdf","svg","musicxml","midi"]. */
+  formats: string[];
+  /** Number of engraved SVG pages (mirrors n_pages). */
+  svg_pages: number;
+}
+
+/**
+ * Call ONCE, after status reports complete. Mirrors getAudioToMidiHqResult:
+ * same fetchWithTimeout + credentials + error mapping.
+ */
+export async function getAudioToSheetResult(
+  jobId: string,
+  opts: RequestOptions = {}
+): Promise<SheetResult> {
+  const res = await fetchWithTimeout(
+    `${RAILWAY_API_BASE}/audio-to-sheet/result/${jobId}`,
+    { method: "GET", credentials: "include", signal: opts.signal },
+    15_000
+  );
+  if (!res.ok) throw await toApiError(res, "job");
+  return readJson<SheetResult>(res);
+}
+
+/** SVG score preview (first page), rendered inline — the quality-proof surface. */
+export function getSheetPreviewUrl(jobId: string): string {
+  return `${RAILWAY_API_BASE}/audio-to-sheet/preview/${jobId}`;
+}
+
+/**
+ * Format-aware download. Our tool serves four formats off one endpoint via
+ * ?format=, unlike the single-file getJobDownloadUrl — hence its own helper.
+ */
+export type SheetFormat = "pdf" | "svg" | "musicxml" | "midi";
+
+export function getSheetDownloadUrl(jobId: string, format: SheetFormat): string {
+  return `${RAILWAY_API_BASE}/audio-to-sheet/download/${jobId}?format=${format}`;
 }
 
 // ============ TIKTOK TO MP3 (synchronous) ============
