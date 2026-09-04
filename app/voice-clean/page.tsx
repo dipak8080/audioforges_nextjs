@@ -18,7 +18,7 @@ import {
   retentionSentences,
 } from "@/lib/api/limits";
 
-const PAGE_TITLE = "Free Voice Cleaner — Clean Up Podcasts & Voice Memos";
+const PAGE_TITLE = "Voice Cleaner — Clean Up Podcasts & Memos";
 const PAGE_DESCRIPTION =
   "Clean voice recordings online free. Remove background noise, hiss, hum, and low-frequency rumble from podcasts, interviews, and voice memos. No sign-up.";
 

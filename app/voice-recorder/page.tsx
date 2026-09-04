@@ -12,7 +12,7 @@ import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
 import { ogForTool } from "@/lib/og";
 
-const PAGE_TITLE = "Free Online Voice Recorder — No Upload, No Sign-Up";
+const PAGE_TITLE = "Online Voice Recorder — No Upload, No Sign-Up";
 const PAGE_DESCRIPTION =
   "Record audio from your microphone directly in your browser, free. Nothing is ever uploaded — your recording stays on your device. No sign-up.";
 

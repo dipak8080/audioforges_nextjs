@@ -16,7 +16,7 @@ import { getDurationLabel } from "@/lib/data/tool-limits";
 import { getFeatureFlags } from "@/lib/api/railway";
 import { ogForTool } from "@/lib/og";
 
-const PAGE_TITLE = "Free YouTube Stem Splitter – Split Songs Into Stems";
+const PAGE_TITLE = "YouTube Stem Splitter – Split Songs Into Stems";
 const PAGE_DESCRIPTION =
   "Split YouTube songs into vocals, drums, bass, and other stems with AI. Free, no sign-up, no download required.";
 

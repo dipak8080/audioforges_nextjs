@@ -28,7 +28,7 @@ export const guides: Guide[] = [
   },
   {
     slug: "dj-set-prep-checklist",
-    title: "DJ Set Prep Checklist: 6 Steps to a Set That Flows",
+    title: "DJ Set Prep Checklist: 6 Steps That Flow",
     description:
       "A 6-step DJ set prep workflow: gather tracks, tag key and BPM, group by Camelot compatibility, and order for energy before you play.",
     publishedDate: "2026-07-21",
@@ -37,7 +37,7 @@ export const guides: Guide[] = [
   },
   {
     slug: "finding-reference-tracks",
-    title: "How to Find Reference Tracks That Actually Help",
+    title: "How to Find Reference Tracks That Help",
     description:
       "How to pick reference tracks for a specific purpose, match their role to your mix, and get them into a usable local format for A/B comparison.",
     publishedDate: "2026-07-21",
@@ -82,9 +82,9 @@ export const guides: Guide[] = [
   },
   {
     slug: "pitch-shifting-vs-key-changing",
-    title: "Pitch Shifting Explained: Semitones & Musical Keys",
+    title: "Pitch Shifting Explained: Semitones & Keys",
     description:
-      "Why shifting pitch by semitones is different from just speeding up or slowing down a track, and how to pick a comfortable vocal range without changing tempo.",
+      "Why shifting pitch by semitones differs from speeding up or slowing down a track, and how to pick a comfortable vocal range without changing tempo.",
     publishedDate: "2026-07-24",
     updatedDate: "2026-07-24",
     category: "dj-mixing",
@@ -226,7 +226,7 @@ export const guides: Guide[] = [
   },
   {
     slug: "how-key-and-bpm-detection-works",
-    title: "How Automatic Key and BPM Detection Actually Works",
+    title: "How Key and BPM Detection Actually Works",
     description:
       "Why key and BPM detection can disagree between passes, why confidence scores matter, and why only part of a track gets analyzed.",
     publishedDate: "2026-08-01",
@@ -318,7 +318,7 @@ export const guides: Guide[] = [
     slug: "tiktok-sound-to-ringtone",
     title: "How to Make a Ringtone from a TikTok Sound",
     description:
-      "Turn a TikTok sound into a phone ringtone: where to cut the hook, how long to make it, why it needs a fade, and how to actually install it on iPhone or Android.",
+      "Turn a TikTok sound into a ringtone: where to cut the hook, how long to make it, why it needs a fade, and how to install it on iPhone or Android.",
     publishedDate: "2026-08-18",
     updatedDate: "2026-08-18",
     category: "production",
