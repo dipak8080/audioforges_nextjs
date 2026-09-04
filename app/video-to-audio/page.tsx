@@ -14,40 +14,20 @@ import { getRelatedTools } from "@/lib/data/tools";
 import { getLimits, durationLabel, retentionSentences } from "@/lib/api/limits";
 import { ogForTool } from "@/lib/og";
 
-/**
- * UNCHANGED AND DELIBERATE: the WAV-path claims describe pcm_s16le only.
- * MP3/FLAC/M4A/AAC/OGG/AIFF use different encoder flags that haven't been
- * verified, and the page is careful not to speak for them. Don't broaden those
- * sentences without checking the command.
- */
-
 /*
-  TITLE RETARGETED 2026-09-01, FROM BING KEYWORD RESEARCH (3 months to 30 Aug):
-
-    mp4 to mp3               169K   <- absent from the old title entirely
-    mp4 to mp3 converter    49.5K
-    video to mp3            34.9K
-    convert mp4 to mp3      23.3K
-    video to mp3 converter  17.9K
-    video to audio           8.2K
-    video to wav              857
-
-  The old title led with "MP4 to WAV & MOV to MP3" and never said "MP4 to
-  MP3" — the largest term in the cluster by a wide margin. MP4-to-WAV is not
-  demoted because it is small (that phrase was never measured; the ahrefs note
-  below still stands), but because it cannot outrank a term with 169K
-  impressions for the lead position.
-
-  `absolute` now, matching /youtube-to-mp3 and /tiktok-to-mp3: a bare string
-  opts into the root layout template, which appends " | AudioForges" and spends
-  14 characters on a brand with no recorded search volume. Those 14 characters
-  buy "Video to MP3" instead.
+  General MP4→MP3 / video→audio hub. Targets: mp4 to mp3 (169K), video to mp3
+  (34.9K), mov to mp3, mov to wav, video to audio. "mp4 to wav" is owned by the
+  dedicated /mp4-to-wav page — this page does NOT target that phrase in title,
+  OG, schema, FAQ or section headings, so the two don't self-compete. The only
+  mp4→wav mention here is a single pointer link to the canonical page.
+  WAV-path claims describe pcm_s16le only; don't broaden them without checking
+  the ffmpeg command. absolute title so " | AudioForges" isn't appended.
 */
-const PAGE_TITLE = "MP4 to MP3 Converter – Free Video to MP3 and WAV";
+const PAGE_TITLE = "MP4 to MP3 Converter – Free Online Video to MP3";
 const PAGE_DESCRIPTION =
-  "Convert MP4 to MP3 free, or extract audio as WAV, M4A, FLAC, AAC, OGG or AIFF. Also handles MOV to MP3, MOV to WAV and MKV. No sign-up, no watermark.";
+  "Convert MP4 to MP3 free, or extract audio as M4A, WAV, FLAC, AAC, OGG or AIFF. Also handles MOV to MP3, MOV to WAV, MKV and WebM. No sign-up, no watermark.";
 
-const OG_IMAGE = ogForTool("video-to-audio", "Free MP4 to WAV converter");
+const OG_IMAGE = ogForTool("video-to-audio", "Free MP4 to MP3 converter");
 
 export const metadata: Metadata = {
   title: { absolute: PAGE_TITLE },
@@ -69,16 +49,11 @@ export const metadata: Metadata = {
   },
 };
 
-// Don't add HowTo schema — deprecated by Google, no benefit. FAQPage comes
-// from <FAQSection />, BreadcrumbList from <Breadcrumb />; don't duplicate.
+// FAQPage comes from <FAQSection />, BreadcrumbList from <Breadcrumb />.
 
-// Ordered by search volume, head terms first, so the rows a crawler reads
-// first are the ones the page competes for. MP4→MP3 leads on Bing's measured
-// 169K; the ahrefs figures behind the rest (mp4 to wav >10,000/mo, mov to mp3
-// >10,000/mo, mov to wav >1,000/mo, Aug 2026) still stand.
+// mp4→wav removed — that pair is /mp4-to-wav's. mov→wav / avi→wav stay.
 const FORMAT_PAIRS = [
   { from: "MP4", to: "MP3" },
-  { from: "MP4", to: "WAV" },
   { from: "MOV", to: "MP3" },
   { from: "MOV", to: "WAV" },
   { from: "MP4", to: "M4A" },
@@ -87,20 +62,8 @@ const FORMAT_PAIRS = [
   { from: "AVI", to: "WAV" },
 ];
 
-/**
- * 16-bit PCM size, in decimal MB (1 MB = 1,000,000 bytes) — which is how macOS
- * and Windows report file size.
- *
- *   bytes/sec = sample_rate × 2 bytes × channels
- *
- * COMPUTED RATHER THAN TYPED. The four table rows were correct as literals,
- * but the ceiling sentence beneath them multiplies by the duration cap — and
- * that cap lives on the backend. A literal there goes stale the moment
- * video_extract_max_seconds moves, with nothing to catch it.
- *
- * The backend passes -c:a pcm_s16le with NO -ar and NO -ac, so rate and channel
- * count are inherited from the source. Don't state a fixed rate anywhere.
- */
+// 16-bit PCM, decimal MB. Backend passes -c:a pcm_s16le with no -ar/-ac, so
+// rate and channels come from the source. Computed, not typed.
 const pcmMegabytes = (sampleRate: number, channels: number, seconds: number) =>
   (sampleRate * 2 * channels * seconds) / 1e6;
 
@@ -111,9 +74,7 @@ const WAV_SIZE_SOURCES = [
   { label: "44.1 kHz mono", rate: 44100, channels: 1 },
 ];
 
-// Slugs verified against lib/data/tools.ts. A previous version shipped
-// /key-bpm-finder and /stem-separation, neither of which exists — two 404s in
-// the one section on this page competitors structurally can't copy.
+// Slugs verified against lib/data/tools.ts.
 const AFTER_EXTRACTION = [
   {
     href: "/key-finder",
@@ -142,14 +103,7 @@ export default async function VideoToAudioPage() {
 
   const limits = await getLimits();
 
-  /*
-    THE RIGHT CAP FOR THIS ROUTE. Three different video-related ceilings exist
-    and they're easy to mix up:
-      max_upload_mb            80   ordinary audio routes
-      max_video_upload_mb     200   this page
-      max_video_transcribe_mb 100   /video-to-text
-    Showing 200 on the transcribe page, or 100 here, is wrong for one of them.
-  */
+  // max_video_upload_mb (200), not max_upload_mb or max_video_transcribe_mb.
   const maxUploadMb = limits.maxVideoUploadMb;
   const maxSeconds = limits.durations.videoExtractMaxSeconds;
   const maxDurationLabel = durationLabel(maxSeconds);
@@ -165,25 +119,18 @@ export default async function VideoToAudioPage() {
     tenMinutes: `${Math.round(pcmMegabytes(s.rate, s.channels, 600))} MB`,
   }));
 
-  // Derived from the cap rather than typed. "Roughly 690 MB" was right for a
-  // 60-minute ceiling and becomes wrong the moment that ceiling moves.
   const ceilingWavMb = Math.round(pcmMegabytes(48000, 2, maxSeconds) / 10) * 10;
 
   const retention = retentionSentences(limits.retention.audio_tools);
 
-  // Every claim below is checked against the actual backend command:
-  //   ffmpeg -y -i <input> -vn -map 0:a:0 -c:a pcm_s16le <output>.wav
-  // No guaranteed-timing claims — extraction speed depends on the source.
+  // Checked against: ffmpeg -y -i <input> -vn -map 0:a:0 -c:a pcm_s16le <out>.wav
   const webAppJsonLd = {
     "@context": "https://schema.org",
     "@type": "WebApplication",
     name: "MP4 to MP3 & Video to Audio Converter",
-    // alternateName carries the head terms as standalone entity labels, which
-    // helps Google associate the page with each query independently.
     alternateName: [
       "MP4 to MP3 Converter",
       "Video to MP3 Converter",
-      "MP4 to WAV Converter",
       "MOV to MP3 Converter",
       "MOV to WAV Converter",
       "Video to Audio Converter",
@@ -195,7 +142,6 @@ export default async function VideoToAudioPage() {
     offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
     featureList: [
       "Convert MP4 to MP3",
-      "Convert MP4 to WAV",
       "Convert MOV to MP3",
       "Convert MOV to WAV",
       `Extract audio from ${videoFormats.slice(0, 5).join(", ")}, and more`,
@@ -208,33 +154,24 @@ export default async function VideoToAudioPage() {
   };
 
   const faqs = [
-    // Exact-match commercial questions first. These mirror the long-tail
-    // variants in the ahrefs pull ("convert mp4 to wav", "how to convert mp4
-    // to wav", ".mov to mp3", "mov to mp3 converter free") so each has a
-    // literal on-page answer rather than a paraphrase.
-    {
-      question: "How do I convert MP4 to WAV?",
-      answer:
-        "Upload the MP4 file, select WAV as the output format, and download the result. There are no encoder settings to configure and no sign-up step.",
-    },
     {
       question: "How do I convert MOV to MP3?",
       answer:
         "Upload the .mov file, select MP3 as the output format, and download the extracted audio. QuickTime audio codecs are handled automatically.",
     },
     {
-      question: "Is this MP4 to WAV converter free?",
+      question: "Can I convert MP4 to MP3?",
+      answer: `Yes — MP3 is one of the ${audioFormats.length} output formats available, alongside ${audioFormats.filter((f) => f !== "MP3").join(", ")}.`,
+    },
+    {
+      question: "Is this converter free?",
       answer:
-        "Yes — the converter is completely free, with no account, no email, no trial limit, and no watermark on the output file.",
+        "Yes — completely free, with no account, no email, no trial limit, and no watermark on the output file.",
     },
     {
       question: "Can I convert MOV to WAV?",
       answer:
         "Yes — upload the MOV file and select WAV as the target output format for an uncompressed audio file.",
-    },
-    {
-      question: "Can I convert MP4 to MP3?",
-      answer: `Yes — MP3 is one of the ${audioFormats.length} output formats available, alongside ${audioFormats.filter((f) => f !== "MP3").join(", ")}.`,
     },
     {
       question: "What sample rate and bit depth is the WAV output?",
@@ -252,8 +189,6 @@ export default async function VideoToAudioPage() {
     },
     {
       question: "What video formats can I upload?",
-      // From allowed_video_formats. This list was enforced and unpublished for
-      // a long time — the same gap that left AIFF off /stems.
       answer: `${videoFormatList}.`,
     },
     {
@@ -268,7 +203,6 @@ export default async function VideoToAudioPage() {
     },
     {
       question: "What's the maximum video file size and length?",
-      // max_video_upload_mb, not max_upload_mb — see the note above.
       answer: `Up to ${maxUploadMb}MB per upload, and up to ${maxDurationLabel} of video.`,
     },
     {
@@ -282,19 +216,11 @@ export default async function VideoToAudioPage() {
         "Yes — iPhone videos are usually .mov or .mp4, and both are supported, as are Mac and Windows screen recordings. The file needs to contain an audio track; a silent recording can't produce an extracted audio file.",
     },
     {
-      // Conversion happens server-side via ffmpeg, not in the browser.
       question: "Do I need to install software?",
       answer:
         "No — there's no app or plugin to install. You upload the video through your browser, it's converted on the server, and you download the audio file. Nothing runs locally on your machine.",
     },
     {
-      /*
-        This said the upload is deleted when conversion finishes — true — and
-        stopped there. It said nothing about the extracted file, which lives an
-        hour. Someone reading only the first half assumes their WAV went with
-        it, and comes back to a download that expired without anyone telling
-        them it would.
-      */
       question: "Are my uploaded videos kept?",
       answer: `${retention.input} ${retention.output} There are no accounts, so nothing is linked to you, published, or shared.`,
     },
@@ -330,11 +256,8 @@ export default async function VideoToAudioPage() {
             items={[{ name: "Tools", href: "/tools" }, { name: "Video to Audio" }]}
           />
         }
-        /* Short H1, long title tag — same reasoning as /convert. The head
-           terms still appear in the first 20 words of body copy, in query
-           order, via the lede. */
         title="Free Video to Audio Converter"
-        lede="Convert MP4 to MP3, MP4 to WAV, or MOV to MP3 online — free, no sign-up, no watermark."
+        lede="Convert MP4 to MP3, or MOV to MP3 online — free, no sign-up, no watermark."
         tool={<VideoToAudioForm />}
       >
         <FeatureStrip
@@ -351,39 +274,31 @@ export default async function VideoToAudioPage() {
           ]}
         />
 
-        {/* Written to match the "how to convert mp4 to wav" long-tail
-            (>100/mo) rather than a generic "how it works" heading. */}
-        <ToolSection id="how-to" title="How to convert MP4 to WAV or MOV to MP3">
+        <ToolSection id="how-to" title="How to convert MP4 or MOV to MP3">
           <ol>
             <li>Upload your MP4, MOV, MKV, AVI, WebM, or other supported video file.</li>
             <li>
-              Choose an output format — WAV for uncompressed audio, MP3 for a small
-              file, or M4A/AAC for the fastest extraction when the source already
-              contains compatible AAC audio.
+              Choose an output format — MP3 for a small, universal file, M4A/AAC
+              for the fastest extraction when the source already contains
+              compatible AAC audio, or WAV for uncompressed audio.
             </li>
             <li>Download the extracted audio file.</li>
           </ol>
         </ToolSection>
 
-        {/* Two dedicated sections give each >10,000/mo head term its own
-            substantive block of unique content rather than sharing one generic
-            paragraph. That's what lets Google treat both queries as
-            independently well-served by the page. */}
-        <ToolSection id="mp4-to-wav" title="Convert MP4 to WAV">
+        <ToolSection id="mp4-to-mp3" title="Convert MP4 to MP3">
           <p>
-            MP4 is the most common video container, and its audio track is usually
-            AAC. Converting MP4 to WAV produces an uncompressed file that&apos;s
-            suited to editing in a DAW, importing into a video-editing timeline,
-            or any workflow where you need audio that isn&apos;t re-compressed on
-            every save. Upload your MP4 above, choose WAV as the output, and
-            download the extracted track — this MP4 to WAV converter has no
-            encoder settings to configure.
+            MP4 is the most common video container, and pulling its audio out as
+            MP3 gives you a small, universally compatible file — the right choice
+            for a voice memo, interview, lecture, or soundtrack you just want to
+            listen to or share. Upload the MP4 above, choose MP3, and download the
+            track; there are no encoder settings to configure.
           </p>
           <p>
-            Keep in mind that WAV output decodes the original AAC audio and writes
-            it out uncompressed. The file will be larger, but it won&apos;t sound
-            better than the source — see{" "}
-            <a href="#wav-quality">why lossless output doesn&apos;t restore lost detail</a>.
+            MP3 re-encodes the audio, so it takes a little longer than a
+            direct-copy format. If the source audio is already AAC and you don&apos;t
+            need MP3 specifically, M4A or AAC copies it out almost instantly —{" "}
+            <a href="#m4a-fast">see why M4A/AAC can be the fast option</a>.
           </p>
         </ToolSection>
 
@@ -400,8 +315,7 @@ export default async function VideoToAudioPage() {
             Upload the .mov file above and select MP3 as the output format. The
             converter handles QuickTime&apos;s audio codecs automatically, so
             there&apos;s nothing to configure beyond picking the format — and like
-            every tool here, the MOV to MP3 converter is free with no daily upload
-            cap.
+            every tool here, it&apos;s free with no daily upload cap.
           </p>
         </ToolSection>
 
@@ -417,11 +331,19 @@ export default async function VideoToAudioPage() {
           </p>
         </ToolSection>
 
-        {/* The differentiator. No competitor in this SERP states these or does
-            the file-size arithmetic, and it's the section most likely to get
-            cited by answer engines because it contains concrete verifiable
-            numbers instead of marketing adjectives. Claims here describe the
-            WAV path only. */}
+        {/* Pointer to the dedicated /mp4-to-wav page — a short link, not a
+            duplicated section, so this page doesn't compete for "mp4 to wav". */}
+        <ToolSection id="mp4-to-wav" title="Need MP4 to WAV specifically?">
+          <p>
+            Want the audio from an MP4 as an uncompressed WAV for editing? You can
+            pick WAV as the output above, but the dedicated{" "}
+            <Link href="/mp4-to-wav">MP4 to WAV converter</Link> covers it in full —
+            the file-size math, the 16-bit PCM details, and the honest note on why
+            a WAV pulled from an MP4 is bigger but not higher quality than the AAC
+            it came from.
+          </p>
+        </ToolSection>
+
         <ToolSection id="wav-output-spec" title="What the extracted WAV file actually contains" bleed>
           <Prose>
             <p>
@@ -483,9 +405,6 @@ export default async function VideoToAudioPage() {
           </Prose>
         </ToolSection>
 
-        {/* Renamed from "Convert MP4 to WAV, MOV to MP3, and More" — that
-            heading duplicated the two dedicated H2s above and diluted them.
-            This is clearly the catch-all now, not a third contender. */}
         <ToolSection id="all-combinations" title="Every supported video and audio format combination" bleed>
           <Prose>
             <p>
@@ -538,9 +457,6 @@ export default async function VideoToAudioPage() {
             which takes additional processing time.
           </p>
           <p>
-            {/* Link text matches the guide's actual title. It previously read
-                "Why Extracting Audio to M4A Is Instant (and WAV Isn't)" — a
-                title that doesn't exist. */}
             Want the fuller breakdown of what a stream copy actually is, and when
             lossless output genuinely helps versus when it&apos;s just a bigger
             file?{" "}
@@ -551,7 +467,6 @@ export default async function VideoToAudioPage() {
           </p>
         </ToolSection>
 
-        {/* id is load-bearing — the MP4-to-WAV section links to #wav-quality. */}
         <ToolSection id="wav-quality" title="WAV and FLAC don't add quality back">
           <p>
             A common assumption is that WAV or FLAC output is automatically higher
@@ -564,10 +479,6 @@ export default async function VideoToAudioPage() {
           </p>
         </ToolSection>
 
-        {/* The one case where the honest answer is "don't use this page".
-            Someone who only wants the words gets a smaller, faster result from
-            /video-to-text, and sending them there beats having them extract a
-            115 MB WAV they'll delete. */}
         <ToolSection id="skip-this" title="If you only need the words, skip this step">
           <p>
             Extracting audio purely to transcribe it is a detour.{" "}
@@ -602,10 +513,6 @@ export default async function VideoToAudioPage() {
           </p>
         </ToolSection>
 
-        {/* The producer/DJ workflow is the one thing on this page that
-            CloudConvert, FreeConvert, Convertio and Zamzar structurally can't
-            copy. Naming it as a workflow rather than burying it in the tool
-            grid is what turns a commodity converter into a reason to return. */}
         <ToolSection id="after-extraction" title="After the WAV: what you can do with it here">
           <p>
             Extraction is usually the first step rather than the last one. Once you

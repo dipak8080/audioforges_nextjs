@@ -20,29 +20,26 @@ import {
 } from "@/lib/api/limits";
 
 /*
-  TITLE. Bing Keyword Research, three months to 30 Aug 2026:
+  GENERAL HUB. Bing Keyword Research, three months to 30 Aug 2026:
 
-    m4a to mp3            35.9K   <- largest, and the title never said "M4A"
-    mp3 to wav            33.7K
-    wav to mp3            26.1K
-    m4a to mp3 converter   8.5K
-    convert m4a to mp3     7.4K
-    m4a                    7.3K
-    wav to mp3 converter   5.5K
-    convert wav to mp3     4.2K
-    online mp3 converter   2.0K
+    m4a to mp3            35.9K   <- /m4a-to-mp3 DELETED 2026-09-04; reabsorbed here
+    mp3 to wav            33.7K   <- own page /mp3-to-wav
+    wav to mp3            26.1K   <- own page /wav-to-mp3
+    online audio converter 22.5K  <- this page's core target
 
-  Three format pairs of comparable size, so all three lead. That reads as a
-  list, and on a converter page it should: those pairs ARE the queries, and a
-  vaguer "Free Audio Converter" matches none of them exactly. Bing weights
-  exact-match placement hard.
+  Targets the general terms — "audio converter", "online audio converter",
+  "free audio converter" — and links to the dedicated wav<->mp3 pages, which
+  own those two exact phrases. M4A->MP3 no longer has a dedicated page, so this
+  hub picks that intent back up: the phrase is carried in schema alternateName,
+  a FAQ, and an on-page section that converts here rather than linking away.
+  It does NOT lead with wav<->mp3 in the title/lede, so it doesn't self-compete
+  with those two pages.
 
-  `absolute`, so the root template's " | AudioForges" doesn't take this to 65
-  and truncate the last pair off the end.
+  `absolute`, so the root template's " | AudioForges" isn't appended.
 */
-const PAGE_TITLE = "M4A to MP3, MP3 to WAV & WAV to MP3 Converter, Free";
+const PAGE_TITLE = "Free Audio Converter — MP3, WAV, M4A, FLAC & More";
 const PAGE_DESCRIPTION =
-  "Convert M4A to MP3, MP3 to WAV, WAV to MP3, and between FLAC, AAC, OGG and AIFF — all free. Fast, no sign-up, no watermark on the output.";
+  "Free online audio converter — convert between MP3, WAV, M4A, FLAC, AAC, OGG and AIFF, any format to any other. Fast, no sign-up, no watermark on the output.";
 
 const OG_IMAGE = ogForTool("convert", "Free audio converter");
 
@@ -69,15 +66,16 @@ export const metadata: Metadata = {
 const webAppJsonLd = {
   "@context": "https://schema.org",
   "@type": "WebApplication",
-  name: "M4A to MP3, MP3 to WAV & WAV to MP3 Converter",
-  // Standalone entity labels, so each pair can associate with the page
-  // independently rather than only as part of one long string.
+  name: "Free Audio Converter",
+  // General converter terms, plus M4A->MP3 reabsorbed from the deleted
+  // dedicated page so this hub is the entity that owns that phrase now.
   alternateName: [
-    "M4A to MP3 Converter",
-    "MP3 to WAV Converter",
-    "WAV to MP3 Converter",
     "Audio Converter",
+    "Online Audio Converter",
+    "Free Audio Converter",
     "Online MP3 Converter",
+    "M4A to MP3 Converter",
+    "Convert M4A to MP3",
   ],
   url: `${SITE_URL}/convert`,
   applicationCategory: "MultimediaApplication",
@@ -85,6 +83,7 @@ const webAppJsonLd = {
   offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
   featureList: [
     "Convert between MP3, WAV, FLAC, M4A, AAC, OGG, and AIFF",
+    "Convert M4A to MP3 without iTunes",
     "Any format to any other format",
     "No sign-up required",
     "No watermark",
@@ -148,6 +147,13 @@ export default async function ConvertPage() {
       answer: `Any of ${formatList} — every format converts to every other one.`,
     },
     {
+      // Reabsorbed from the deleted /m4a-to-mp3 page. The head long-tail for
+      // that intent now has a literal on-page answer here, on the hub.
+      question: "How do I convert M4A to MP3 without iTunes?",
+      answer:
+        "Upload the .m4a above and choose MP3 as the output — that's the whole thing. It runs in your browser on any device, so there's no iTunes, Music app, or GarageBand involved, and nothing to install on Windows or Mac. Both M4A and MP3 are compressed, so this is a compatibility change, not a quality one — the MP3 plays on car stereos, older players, and hardware that rejects Apple's format.",
+    },
+    {
       question: "Does converting MP3 to WAV improve quality?",
       answer:
         "No. Converting a lossy file like MP3 to a lossless format like WAV repackages the audio but doesn't restore data the original MP3 encoding already discarded — the file gets larger, not higher quality.",
@@ -189,7 +195,7 @@ export default async function ConvertPage() {
            pairs move to the lede, still inside the first 20 words of body
            copy for a crawler, but as a sentence. */
         title="Free Audio Converter"
-        lede="Convert M4A to MP3, MP3 to WAV, WAV to MP3 and between FLAC, AAC, OGG and AIFF — free, no sign-up, no watermark."
+        lede="Convert between MP3, WAV, M4A, FLAC, AAC, OGG and AIFF — any format to any other, free, no sign-up, no watermark."
         tool={<ConvertForm />}
       >
         <FeatureStrip
@@ -243,32 +249,36 @@ export default async function ConvertPage() {
           </Prose>
         </ToolSection>
 
-        {/* "m4a to mp3" is the largest term this page competes for (35.9K) and
-            had no content of its own — one row in FORMAT_GUIDE and nothing
-            else. The other two head pairs are covered by the lossless/lossy
-            explanation above; M4A needs its own because the question people
-            actually have is about iPhone voice memos and Apple Music, not
-            about compression. */}
-        <ToolSection id="m4a-to-mp3" title="Convert M4A to MP3">
+        {/* M4A->MP3 no longer has a dedicated page (/m4a-to-mp3 deleted
+            2026-09-04), so the hub owns this intent again. This is the full
+            treatment now — it converts here rather than pointing at a page
+            that no longer exists. */}
+        <ToolSection id="m4a-to-mp3" title="Convert M4A to MP3 without iTunes">
           <p>
-            M4A is what an iPhone voice memo, a Mac screen recording and most
-            Apple Music downloads come out as — an AAC audio stream in an MP4
-            container. It plays fine on Apple devices and in most modern
-            software, and then fails on the one thing that matters: a car head
-            unit, an older MP3 player, a USB stick in a hire car, a piece of
-            software that only reads MP3.
+            M4A is what an iPhone voice memo, a Mac screen recording, and most Apple Music
+            downloads come out as. It plays fine on Apple devices — and then fails on the one
+            thing that matters: a car head unit, an older MP3 player, a USB stick in a rental
+            car, or Windows software that only reads MP3. Converting to MP3 fixes that.
           </p>
           <p>
-            Converting M4A to MP3 fixes that compatibility problem and nothing
-            else. Both formats are lossy, so the audio is decoded from AAC and
-            re-encoded as MP3 rather than passed through untouched — the result
-            sounds the same in practice, but it is a second encoding step rather
-            than a repackage. Upload the .m4a above, choose MP3, download.
+            Upload the .m4a above and choose MP3 — that&apos;s all there is to it. It runs in
+            the browser on any device, so there&apos;s no iTunes, no Music app, and nothing to
+            install. Both formats are compressed, so this is a compatibility change rather than
+            a quality one: you&apos;re changing what can play the file, not improving or degrading
+            the audio. If the M4A is instead headed into a DAW or a sampler, choose WAV so
+            you&apos;re not stacking a second lossy generation before you process it.
           </p>
+        </ToolSection>
+
+        {/* Pointers to the two dedicated WAV/MP3 pages — short, not a second
+            copy of their content, so nothing duplicates. */}
+        <ToolSection id="wav-mp3-pages" title="Converting between WAV and MP3?">
           <p>
-            If the file is going into a DAW or a sampler rather than onto a
-            device, convert to WAV instead: one lossy generation is better than
-            two when the audio is about to be processed further.
+            Those two go both ways and each has a dedicated page with file-size math and the honest
+            quality story: use the{" "}
+            <Link href="/wav-to-mp3">WAV to MP3 converter</Link> to shrink a big uncompressed file
+            for sharing, or the <Link href="/mp3-to-wav">MP3 to WAV converter</Link> to get an
+            uncompressed file for editing. You can also do either right here.
           </p>
         </ToolSection>
 

@@ -258,8 +258,8 @@ function VideoPreview({
 /* Form                                                                 */
 /* ------------------------------------------------------------------ */
 
-export function VideoToAudioForm() {
-  const [format, setFormat] = useState("m4a");
+export function VideoToAudioForm({ defaultFormat = "m4a" }: { defaultFormat?: string } = {}) {
+  const [format, setFormat] = useState(defaultFormat);
   const [duration, setDuration] = useState<number | null>(null);
   const activeSpec = OUTPUT_FORMATS.find((f) => f.value === format) ?? OUTPUT_FORMATS[0];
 

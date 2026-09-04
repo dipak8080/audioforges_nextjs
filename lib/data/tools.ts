@@ -86,6 +86,17 @@
 // cosmetic here — the category fallback iterates this array in order, so
 // anything parked at the bottom is structurally last in line for every
 // fallback decision on the site.
+//
+// NOTE ON /m4a-to-mp3 REMOVAL (2026-09-04): a dedicated /m4a-to-mp3 page
+// was drafted but never shipped, and the folder is deleted. It was never
+// registered in this file, but three `related` arrays (convert, wav-to-mp3,
+// mp3-to-wav) still pointed at the `m4a-to-mp3` slug. getRelatedTools skips
+// an unresolvable slug silently, so those three pages were quietly running
+// on four resolvable links with the category fallback filling the fifth —
+// the exact failure mode invariants 1 and 2 above exist to prevent. The
+// three references are replaced with live slugs below. The M4A->MP3 intent
+// now lives on /convert (schema, FAQ, on-page section). Do NOT re-add an
+// `m4a-to-mp3` slug here unless that route is actually created.
 
 export type ToolCategory =
   | "download"
@@ -244,7 +255,31 @@ export const TOOLS: Tool[] = [
     shortDescription: "Convert between MP3, WAV, FLAC, M4A, AAC, OGG, AIFF.",
     category: "convert",
     status: "live",
-    related: ["trim", "volume", "sample-rate-converter", "mono-stereo-converter", "video-to-audio"],
+    // 2026-09-04: `m4a-to-mp3` (never-shipped, deleted route) removed from
+    // the first slot. The two dedicated wav<->mp3 pages take its place —
+    // they're the pages /convert most wants to hand authority to, and this
+    // also lifts mp3-to-wav to its second inbound link (invariant 2).
+    related: ["wav-to-mp3", "mp3-to-wav", "trim", "sample-rate-converter", "video-to-audio"],
+  },
+  {
+    slug: "wav-to-mp3",
+    name: "WAV to MP3 Converter",
+    shortDescription: "Convert WAV to MP3 free — shrink big files to share.",
+    category: "convert",
+    status: "live",
+    // 2026-09-04: `m4a-to-mp3` replaced with `mp4-to-wav` — a live sibling
+    // converter, and this becomes its second inbound link (invariant 2).
+    related: ["mp3-to-wav", "convert", "mp4-to-wav", "video-to-audio", "trim"],
+  },
+  {
+    slug: "mp3-to-wav",
+    name: "MP3 to WAV Converter",
+    shortDescription: "Convert MP3 to WAV free — uncompressed, for editing.",
+    category: "convert",
+    status: "live",
+    // 2026-09-04: `m4a-to-mp3` replaced with `tempo`, which matches this
+    // page's own "after the WAV" workflow (trim / pitch / tempo).
+    related: ["wav-to-mp3", "convert", "tempo", "trim", "pitch"],
   },
   {
     slug: "video-to-audio",
@@ -252,10 +287,15 @@ export const TOOLS: Tool[] = [
     shortDescription: "Extract audio from MP4, MOV, and other video files.",
     category: "convert",
     status: "live",
-    // Both YouTube pages listed: someone extracting audio from a local
-    // video file is one step away from wanting the same thing from a
-    // YouTube URL, and this is one of youtube-to-mp3's inbound links.
-    related: ["convert", "youtube-to-mp3", "youtube-to-wav", "tiktok-to-mp3", "trim"],
+    related: ["mp4-to-wav", "convert", "youtube-to-mp3", "youtube-to-wav", "trim"],
+  },
+  {
+    slug: "mp4-to-wav",
+    name: "MP4 to WAV Converter",
+    shortDescription: "Extract uncompressed WAV audio from an MP4 video.",
+    category: "convert",
+    status: "live",
+    related: ["video-to-audio", "convert", "wav-to-mp3", "audio-to-text", "trim"],
   },
   {
     slug: "trim",
@@ -513,7 +553,7 @@ export const TOOLS: Tool[] = [
     status: "live",
     related: ["metronome", "bpm-tapper", "key-finder", "voice-recorder", "pitch"],
   },
-    {
+  {
     slug: "audio-to-sheet-music",
     name: "Audio to Sheet Music",
     shortDescription: "Turn a recording into printable sheet music — PDF, MusicXML & MIDI.",
