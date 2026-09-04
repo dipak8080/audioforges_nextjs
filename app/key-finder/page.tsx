@@ -275,6 +275,21 @@ export default async function KeyFinderPage() {
             </Link>{" "}
             first can improve detection.
           </p>
+          <p>
+            How accurate is it, measured? BPM detection scores 85% exact on the
+            GiantSteps tempo set after moving to a pretrained model; key detection
+            is around 50% and is the harder problem. The full write-up — what the
+            detectors are, what failed, and how the numbers were measured — is in{" "}
+            <Link href="/guides/bpm-detection-tempocnn">
+              BPM Detection: From 42% to 85% Accuracy With a Pretrained Model
+            </Link>
+            . For the plain-language version of why a reading can come back half or
+            double, see{" "}
+            <Link href="/guides/how-key-and-bpm-detection-works">
+              how key and BPM detection works
+            </Link>
+            .
+          </p>
         </ToolSection>
 
         <RelatedToolsGrid tools={relatedTools} />

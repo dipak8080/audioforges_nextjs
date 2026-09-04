@@ -235,6 +235,11 @@ export default function YouTubeKeyFinderPage() {
             <Link href="/guides/how-key-and-bpm-detection-works">
               Read How Automatic Key and BPM Detection Actually Works
             </Link>
+            . If you want the measured numbers — the same engine scores 85% exact
+            on the GiantSteps tempo set, and here&apos;s how it got there — read{" "}
+            <Link href="/guides/bpm-detection-tempocnn">
+              BPM Detection: From 42% to 85% Accuracy With a Pretrained Model
+            </Link>
             .
           </p>
         </ToolSection>

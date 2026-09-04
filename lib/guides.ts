@@ -279,6 +279,15 @@ export const guides: Guide[] = [
     category: "production",
   },
   {
+    slug: "bpm-detection-tempocnn",
+    title: "BPM Detection: From 42% to 85% Accuracy With a Pretrained Model",
+    description:
+      "How AudioForges' tempo detection went from a single DSP detector to consensus voting to a pretrained TempoCNN — measured on GiantSteps, with what failed along the way and what's still broken.",
+    publishedDate: "2026-09-04",
+    updatedDate: "2026-09-04",
+    category: "dj-mixing",
+  },
+  {
     slug: "why-m4a-extraction-is-instant",
     title: "Why M4A Extraction Is Instant (WAV Isn't)",
     description:
