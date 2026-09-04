@@ -43,7 +43,7 @@ import {
 */
 const PAGE_TITLE = "Remove Silence from Audio – Free Silence Remover";
 const PAGE_DESCRIPTION =
-  "Remove silence from audio online free. Cuts dead air throughout a podcast, audiobook or recording — not just the ends. No sign-up, no watermark, no account.";
+  "Remove silence from audio online free. Cuts dead air throughout a podcast, audiobook or recording — not just the ends. No sign-up, no watermark.";
 
 const OG_IMAGE = ogForTool("silence-remove", "Free Silence Remover");
 

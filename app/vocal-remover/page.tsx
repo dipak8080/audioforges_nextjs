@@ -61,7 +61,7 @@ import { ogForTool } from "@/lib/og";
 */
 const PAGE_TITLE = "Free AI Vocal Remover – Remove Vocals & Voice Online";
 const PAGE_DESCRIPTION =
-  "Free AI vocal remover and voice remover. Remove vocals from a song online to get an instrumental or acapella — MP3, WAV, FLAC, AAC. No sign-up, no watermark.";
+  "Free AI vocal remover. Remove vocals from a song online to get an instrumental or acapella — MP3, WAV, FLAC, AAC. No sign-up, no watermark.";
 
 const OG_IMAGE = ogForTool("vocal-remover", "Free AI Vocal Remover");
 
