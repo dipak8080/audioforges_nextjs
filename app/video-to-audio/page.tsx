@@ -23,7 +23,7 @@ import { ogForTool } from "@/lib/og";
   WAV-path claims describe pcm_s16le only; don't broaden them without checking
   the ffmpeg command. absolute title so " | AudioForges" isn't appended.
 */
-const PAGE_TITLE = "MP4 to MP3 Converter – Free Online Video to MP3";
+const PAGE_TITLE = "MP4 to MP3 Converter – Online Video to MP3";
 const PAGE_DESCRIPTION =
   "Convert MP4 to MP3 free, or extract audio as M4A, WAV, FLAC, AAC, OGG or AIFF. Also handles MOV to MP3, MOV to WAV, MKV and WebM. No sign-up, no watermark.";
 

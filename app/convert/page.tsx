@@ -37,7 +37,7 @@ import {
 
   `absolute`, so the root template's " | AudioForges" isn't appended.
 */
-const PAGE_TITLE = "Free Audio Converter — MP3, WAV, M4A, FLAC & More";
+const PAGE_TITLE = "Audio Converter — MP3, WAV, M4A, FLAC & More";
 const PAGE_DESCRIPTION =
   "Free online audio converter — convert between MP3, WAV, M4A, FLAC, AAC, OGG and AIFF, any format to any other. Fast, no sign-up, no watermark on the output.";
 
@@ -194,7 +194,7 @@ export default async function ConvertPage() {
            format pairs stacked over two lines reads as a keyword list. The
            pairs move to the lede, still inside the first 20 words of body
            copy for a crawler, but as a sentence. */
-        title="Free Audio Converter"
+        title="Audio Converter"
         lede="Convert between MP3, WAV, M4A, FLAC, AAC, OGG and AIFF — any format to any other, free, no sign-up, no watermark."
         tool={<ConvertForm />}
       >

@@ -37,7 +37,7 @@ import { ogForTool } from "@/lib/og";
 
   `absolute` title, so " | AudioForges" isn't appended.
 */
-const PAGE_TITLE = "MP3 to WAV Converter — Free, Fast & Online";
+const PAGE_TITLE = "MP3 to WAV Converter — Uncompressed Audio, Online";
 const PAGE_DESCRIPTION =
   "Convert MP3 to WAV free online — get an uncompressed WAV for editing, DAWs, or software that needs it. Honest note: it won't add quality back. No sign-up, no app.";
 
