@@ -9,6 +9,11 @@ import { requireAdmin } from "@/lib/auth/requireAdmin";
 // groups by URL shape, tool/tier report what the backend handler actually
 // decided a request/job IS - which stays correct even when a tier (e.g.
 // HQ separation) shares its polling routes with another tier.
+//
+// 2026-09-04: added `errored` to PASSTHROUGH - the silent-error filter
+// (see log_stream.py fix #24). error_logged/error_count/silent come back
+// inside the JSON body, which this route already forwards wholesale, so
+// no other change is needed on the response side.
 
 const BACKEND_BASE = process.env.NEXT_PUBLIC_RAILWAY_API_BASE;
 const ADMIN_KEY = process.env.BACKEND_ADMIN_KEY;
@@ -53,9 +58,14 @@ export async function GET(request: NextRequest) {
   // see log_stream.py's get_http_logs()/get_system_logs() docstrings for
   // why these need to stay a separate filter axis rather than being
   // folded into family.
+  //
+  // errored added 2026-09-04: "rows that logged an error during the
+  // request, any status" - the silent-failure filter. A THIRD axis again,
+  // orthogonal to status_class (which only sees the returned code) and to
+  // tool/tier. See log_stream.py fix #24.
   const PASSTHROUGH = [
     "method", "q", "status_class", "hide_noise", "since", "until", "level",
-    "job_id", "tool", "tier",
+    "job_id", "tool", "tier", "errored",
   ];
 
   if (type !== "http" && type !== "system") {

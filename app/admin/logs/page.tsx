@@ -20,6 +20,13 @@
  *     fixes the lag: 6000 table rows was the whole problem. Fixed heights also
  *     make scroll anchoring exact — prepending N rows is scrollTop += N * rowH,
  *     not a scrollHeight difference measured across a reflow.
+ *
+ *  2026-09-04 — SILENT ERRORS. A handler that caught its own exception, logged
+ *  it, and still returned 200 was invisible here: bucketed as Success. The
+ *  backend now flags any request that logged an ERROR (fix #24) with
+ *  error_logged/error_count, and returns a `silent` count (returned <400 but
+ *  errored). Surfaced as a clickable Silent stat that doubles as the "errored
+ *  only" filter, plus a red `failed` marker on the row itself.
  */
 
 import {
@@ -109,6 +116,11 @@ interface HttpLogEntry {
   request_id: string | null;
   tool?: string | null;
   tier?: string | null;
+  // Silent-failure flags (backend fix #24): a request that logged an error
+  // while still returning its status code. error_logged is 0/1; error_count is
+  // how many ERROR lines fired. Optional so pre-migration rows still typecheck.
+  error_logged?: number | null;
+  error_count?: number | null;
 }
 
 interface SystemLogEntry {
@@ -149,15 +161,18 @@ type StatusClass = "all" | "4xx" | "5xx";
 type Tab = "http" | "system";
 
 /**
- * Three buckets, not two. "Failed" used to mean anything non-2xx, which counted
- * entirely normal traffic — a bot probing a dead route (404), a rate limit
- * (429), a full queue (503-by-design) — as the server being broken.
+ * Buckets. "Failed" used to mean anything non-2xx, which counted entirely
+ * normal traffic — a bot probing a dead route (404), a rate limit (429), a full
+ * queue (503-by-design) — as the server being broken. Split into client/server,
+ * plus `silent`: returned <400 but logged an error (a subset of success, the
+ * hidden-failure count).
  */
 interface Totals {
   total: number;
   success: number;
   client: number;
   server: number;
+  silent: number;
 }
 
 type SystemGroup = { key: string; entries: SystemLogEntry[] };
@@ -449,7 +464,7 @@ export default function AdminLogsPage() {
   const rowH = isMobile ? ROW_H_MOBILE : ROW_H_DESKTOP;
 
   const [httpLogs, setHttpLogs] = useState<HttpLogEntry[]>([]);
-  const [totals, setTotals] = useState<Totals>({ total: 0, success: 0, client: 0, server: 0 });
+  const [totals, setTotals] = useState<Totals>({ total: 0, success: 0, client: 0, server: 0, silent: 0 });
   const [httpLoading, setHttpLoading] = useState(true);
   const [httpError, setHttpError] = useState<string | null>(null);
 
@@ -463,6 +478,10 @@ export default function AdminLogsPage() {
   const [endpointFilter, setEndpointFilter] = useState("");
   const [statusClassFilter, setStatusClassFilter] = useState<StatusClass>("all");
   const [hideNoise, setHideNoise] = useState(true);
+  // "errored only" is a separate axis from status_class: it matches every
+  // request that logged an error, regardless of the code it returned. That's
+  // what surfaces the 200-that-actually-failed. See backend fix #24.
+  const [erroredOnly, setErroredOnly] = useState(false);
   const [dateFilter, setDateFilter] = useState<DateFilter>("all");
   // Tool/tier is a SEPARATE axis from endpointFilter (path family). It's what
   // answers "only HQ jobs", which path can't: HQ and standard share polling
@@ -608,11 +627,11 @@ export default function AdminLogsPage() {
     endpointFilter: "", methodFilter: "", debouncedPath: "",
     statusClassFilter: "all" as StatusClass,
     dateFilter: "all" as DateFilter, hideNoise: true,
-    toolFilter: "", tierFilter: "" as Tier,
+    toolFilter: "", tierFilter: "" as Tier, erroredOnly: false,
   });
   filterRef.current = {
     endpointFilter, methodFilter, debouncedPath, statusClassFilter,
-    dateFilter, hideNoise, toolFilter, tierFilter,
+    dateFilter, hideNoise, toolFilter, tierFilter, erroredOnly,
   };
 
   const sysFilterRef = useRef({
@@ -631,6 +650,7 @@ export default function AdminLogsPage() {
     if (f.debouncedPath.trim()) p.set("q", f.debouncedPath.trim());
     if (f.statusClassFilter !== "all") p.set("status_class", f.statusClassFilter);
     if (f.hideNoise) p.set("hide_noise", "true");
+    if (f.erroredOnly) p.set("errored", "true");
     if (f.dateFilter !== "all") {
       const { since, until } = nepalDayBounds(f.dateFilter === "today" ? 0 : 1);
       p.set("since", since);
@@ -765,12 +785,12 @@ export default function AdminLogsPage() {
 
       const sig = [
         data.total, data.filtered_total, data.success, data.client,
-        data.server, data.logs.length, data.logs[0]?.id ?? 0,
+        data.server, data.silent, data.logs.length, data.logs[0]?.id ?? 0,
       ].join(":");
       if (sig === httpSigRef.current) return;
       httpSigRef.current = sig;
 
-      setTotals({ total: data.total, success: data.success, client: data.client, server: data.server });
+      setTotals({ total: data.total, success: data.success, client: data.client, server: data.server, silent: data.silent ?? 0 });
       setHttpTotal(data.total);
       if (typeof data.filtered_total === "number") setHttpFilteredTotal(data.filtered_total);
       // Backend returns newest-first; reverse so the newest lands at the bottom,
@@ -962,7 +982,7 @@ export default function AdminLogsPage() {
         return true;
       }
 
-      setTotals({ total: data.total, success: data.success, client: data.client, server: data.server });
+      setTotals({ total: data.total, success: data.success, client: data.client, server: data.server, silent: data.silent ?? 0 });
       setHttpTotal(data.total);
       if (typeof data.filtered_total === "number") setHttpFilteredTotal(data.filtered_total);
       setHttpError(null);
@@ -1230,7 +1250,7 @@ export default function AdminLogsPage() {
     setShowJumpHttp(false);
     void fetchHttp(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [endpointFilter, methodFilter, debouncedPath, statusClassFilter, dateFilter, hideNoise, toolFilter, tierFilter]);
+  }, [endpointFilter, methodFilter, debouncedPath, statusClassFilter, dateFilter, hideNoise, toolFilter, tierFilter, erroredOnly]);
 
   const sysFilterBootRef = useRef(true);
   useEffect(() => {
@@ -1363,6 +1383,7 @@ export default function AdminLogsPage() {
     setDateFilter("all");
     setStatusClassFilter("all");
     setHideNoise(true);
+    setErroredOnly(false);
     setPathFilter("");
     setToolFilter("");
     setTierFilter("");
@@ -1382,13 +1403,16 @@ export default function AdminLogsPage() {
     if (statusClassFilter !== "all") {
       chips.push({ key: "status", label: `${statusClassFilter} only`, clear: () => setStatusClassFilter("all") });
     }
+    if (erroredOnly) {
+      chips.push({ key: "errored", label: "Errored only", clear: () => setErroredOnly(false) });
+    }
     if (dateFilter !== "all") {
       chips.push({ key: "date", label: dateFilter === "today" ? "Today" : "Yesterday", clear: () => setDateFilter("all") });
     }
     if (pathFilter) chips.push({ key: "q", label: `“${pathFilter}”`, clear: () => setPathFilter("") });
     if (!hideNoise) chips.push({ key: "noise", label: "Noise shown", clear: () => setHideNoise(true) });
     return chips;
-  }, [activeToolLabel, methodFilter, tierFilter, statusClassFilter, dateFilter, pathFilter, hideNoise]);
+  }, [activeToolLabel, methodFilter, tierFilter, statusClassFilter, erroredOnly, dateFilter, pathFilter, hideNoise]);
 
   const sysActiveFilters = useMemo(() => {
     const chips: { key: string; label: string; clear: () => void }[] = [];
@@ -1557,10 +1581,11 @@ export default function AdminLogsPage() {
       {/* ===== Stats — HTTP only =====
           4xx is amber as a mild "worth a glance": it's normal traffic (bots,
           rate limits, rejected uploads). 5xx turns red only above zero, and is
-          the one worth investigating. */}
+          the one worth investigating. Silent errors are the 200s that lied —
+          returned OK but logged an error; clicking the box filters to them. */}
       <div
         className={cn(
-          "grid shrink-0 grid-cols-2 gap-px overflow-hidden rounded-xl border border-graphite-800 bg-graphite-800 sm:grid-cols-4",
+          "grid shrink-0 grid-cols-2 gap-px overflow-hidden rounded-xl border border-graphite-800 bg-graphite-800 sm:grid-cols-5",
           tab !== "http" && "hidden"
         )}
       >
@@ -1577,6 +1602,14 @@ export default function AdminLogsPage() {
           value={totals.server}
           valueClass={totals.server > 0 ? "text-red-400" : ""}
           hint="5xx — the backend broke. Check the System tab if this is above zero."
+        />
+        <Stat
+          label="Silent errors"
+          value={totals.silent}
+          valueClass={totals.silent > 0 ? "text-red-400" : ""}
+          hint="Returned <400 but logged an error — a failure the status code hides. Click to show every request that logged an error."
+          onClick={() => setErroredOnly((v) => !v)}
+          active={erroredOnly}
         />
       </div>
 
@@ -1708,6 +1741,17 @@ export default function AdminLogsPage() {
                 className={cn("accent-amber-500", FOCUS_RING)}
               />
               Hide noise
+            </label>
+            {/* Errored-only: the row-level twin of the Silent stat. Matches every
+                request that logged an error, whatever it returned. */}
+            <label className="flex cursor-pointer select-none items-center gap-1.5 whitespace-nowrap rounded-md px-1 py-1 text-sm text-text-muted transition-colors hover:text-text-primary">
+              <input
+                type="checkbox"
+                checked={erroredOnly}
+                onChange={(e) => setErroredOnly(e.target.checked)}
+                className={cn("accent-red-500", FOCUS_RING)}
+              />
+              Only errored
             </label>
           </div>
 
@@ -1984,20 +2028,47 @@ function TabButton({
   );
 }
 
+/** A stat box. Optionally clickable, which turns it into a toggle for the
+ *  filter it summarises — the Silent box uses this so the number and its
+ *  drill-down are the same control. */
 function Stat({
-  label, value, valueClass = "", hint,
+  label, value, valueClass = "", hint, onClick, active = false,
 }: {
   label: string;
   value: number;
   valueClass?: string;
   hint?: string;
+  onClick?: () => void;
+  active?: boolean;
 }) {
-  return (
-    <div className="min-w-0 bg-graphite-900 px-3 py-3.5 sm:px-5" title={hint}>
+  const inner = (
+    <>
       <p className="truncate font-mono text-[10px] uppercase tracking-[0.16em] text-text-subtle">{label}</p>
       <p className={cn("mt-1 text-xl font-semibold tabular-nums sm:text-2xl", valueClass || "text-text-primary")}>
         {value.toLocaleString()}
       </p>
+    </>
+  );
+
+  if (onClick) {
+    return (
+      <button
+        onClick={onClick}
+        title={hint}
+        aria-pressed={active}
+        className={cn(
+          "min-w-0 bg-graphite-900 px-3 py-3.5 text-left transition-colors hover:bg-graphite-850 sm:px-5",
+          FOCUS_RING,
+          active && "ring-1 ring-inset ring-red-500/50"
+        )}
+      >
+        {inner}
+      </button>
+    );
+  }
+  return (
+    <div className="min-w-0 bg-graphite-900 px-3 py-3.5 sm:px-5" title={hint}>
+      {inner}
     </div>
   );
 }
@@ -3043,6 +3114,24 @@ function ToolBadge({ tool, tier }: { tool?: string | null; tier?: string | null 
   );
 }
 
+/** The whole point of the silent-error work: a request that logged an error is
+ *  marked on the row itself, regardless of the status it returned. A 200 that
+ *  actually failed is now visible in the feed, not just buried in the System
+ *  tab. Clicking the row still opens the correlated log lines, so the marker is
+ *  one hop from the traceback. */
+function ErrorBadge({ log }: { log: HttpLogEntry }) {
+  if (!log.error_logged) return null;
+  const n = log.error_count || 1;
+  return (
+    <span
+      title={`${n} error${n === 1 ? "" : "s"} logged during this request — click the row to see them`}
+      className="shrink-0 rounded border border-red-500/40 bg-red-500/15 px-1 py-px text-[9px] font-semibold uppercase tracking-wide text-red-400"
+    >
+      failed
+    </span>
+  );
+}
+
 /** A row is worth clicking if either correlation route exists — a job id in the
  *  path (the whole job's story) or a real request id (that one request). */
 function httpRowTarget(log: HttpLogEntry): "job" | "request" | null {
@@ -3076,7 +3165,7 @@ const HttpTableRow = memo(
         role={clickable ? "button" : undefined}
         aria-label={
           clickable
-            ? `${log.method} ${log.path} returned ${log.status_code}. View ${target === "job" ? "this job's logs" : "this request's logs"}.`
+            ? `${log.method} ${log.path} returned ${log.status_code}${log.error_logged ? ", logged an error" : ""}. View ${target === "job" ? "this job's logs" : "this request's logs"}.`
             : undefined
         }
         title={clickable ? "View related system logs" : "No request id recorded for this row"}
@@ -3084,6 +3173,8 @@ const HttpTableRow = memo(
         className={cn(
           "group grid items-center gap-x-3 border-b border-graphite-800/50 px-4 text-[12.5px] transition-colors",
           FOCUS_RING,
+          // A logged error tints the row red at rest; hover still wins on hover.
+          log.error_logged && "bg-red-500/[0.06]",
           clickable ? "cursor-pointer hover:bg-graphite-850/70" : "opacity-60"
         )}
       >
@@ -3095,6 +3186,7 @@ const HttpTableRow = memo(
         <span className="flex min-w-0 items-center gap-1.5" title={log.path}>
           <span className="truncate font-mono text-[11.5px] text-text-primary">{log.path}</span>
           <ToolBadge tool={log.tool} tier={log.tier} />
+          <ErrorBadge log={log} />
         </span>
         <span className="inline-flex items-center gap-1.5 tabular-nums">
           <span className={cn("h-1.5 w-1.5 rounded-full", statusDot(log.status_code))} />
@@ -3132,6 +3224,7 @@ const HttpCardRow = memo(
         className={cn(
           "flex flex-col justify-center gap-1 border-b border-graphite-800/50 px-4",
           FOCUS_RING,
+          log.error_logged && "bg-red-500/[0.06]",
           clickable ? "cursor-pointer active:bg-graphite-850/70" : "opacity-60"
         )}
       >
@@ -3141,6 +3234,7 @@ const HttpCardRow = memo(
           <span className="flex-1 truncate font-mono text-[11.5px] text-text-primary" title={log.path}>
             {log.path}
           </span>
+          <ErrorBadge log={log} />
           <ToolBadge tool={log.tool} tier={log.tier} />
           <span className={cn("shrink-0 text-[11.5px] font-medium tabular-nums", statusText(log.status_code))}>
             {log.status_code}
