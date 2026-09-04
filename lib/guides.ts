@@ -280,9 +280,9 @@ export const guides: Guide[] = [
   },
   {
     slug: "bpm-detection-tempocnn",
-    title: "BPM Detection: From 42% to 85% Accuracy With a Pretrained Model",
+    title: "BPM Detection: 42% to 85% With TempoCNN",
     description:
-      "How AudioForges' tempo detection went from a single DSP detector to consensus voting to a pretrained TempoCNN — measured on GiantSteps, with what failed along the way and what's still broken.",
+      "Tempo detection from one DSP detector to consensus voting to a pretrained TempoCNN — measured on GiantSteps, with what failed and what's still broken.",
     publishedDate: "2026-09-04",
     updatedDate: "2026-09-04",
     category: "dj-mixing",
