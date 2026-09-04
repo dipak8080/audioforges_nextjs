@@ -25,7 +25,7 @@ import { ogForTool } from "@/lib/og";
 */
 const PAGE_TITLE = "MP4 to MP3 Converter – Online Video to MP3";
 const PAGE_DESCRIPTION =
-  "Convert MP4 to MP3 free, or extract audio as M4A, WAV, FLAC, AAC, OGG or AIFF. Also handles MOV to MP3, MOV to WAV, MKV and WebM. No sign-up, no watermark.";
+  "Convert MP4 to MP3 free, or extract audio as M4A, WAV, FLAC, AAC, OGG or AIFF. Also handles MOV to MP3, MOV to WAV, MKV and WebM. No sign-up.";
 
 const OG_IMAGE = ogForTool("video-to-audio", "Free MP4 to MP3 converter");
 

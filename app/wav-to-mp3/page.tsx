@@ -43,7 +43,7 @@ import { ogForTool } from "@/lib/og";
 */
 const PAGE_TITLE = "WAV to MP3 Converter — Files ~4× Smaller, Online";
 const PAGE_DESCRIPTION =
-  "Convert WAV to MP3 free online — shrink a large, uncompressed WAV into a small MP3 you can email, upload or fit on a phone. No sign-up, no watermark, no app.";
+  "Convert WAV to MP3 free online — shrink a large, uncompressed WAV into a small MP3 you can email, upload or fit on a phone. No sign-up, no app.";
 
 const OG_IMAGE = ogForTool("wav-to-mp3", "Free WAV to MP3 converter");
 

@@ -39,7 +39,7 @@ import { ogForTool } from "@/lib/og";
 */
 const PAGE_TITLE = "MP4 to WAV Converter — Extract Lossless Audio";
 const PAGE_DESCRIPTION =
-  "Convert MP4 to WAV free online — extract the audio from a video as an uncompressed WAV for editing or a DAW. No sign-up, no watermark, no app to install.";
+  "Convert MP4 to WAV free online — extract a video's audio as an uncompressed WAV for editing or a DAW. No sign-up, no watermark, no app.";
 
 const OG_IMAGE = ogForTool("mp4-to-wav", "Free MP4 to WAV converter");
 

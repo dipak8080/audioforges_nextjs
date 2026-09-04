@@ -39,7 +39,7 @@ import {
 */
 const PAGE_TITLE = "Audio Converter — MP3, WAV, M4A, FLAC & More";
 const PAGE_DESCRIPTION =
-  "Free online audio converter — convert between MP3, WAV, M4A, FLAC, AAC, OGG and AIFF, any format to any other. Fast, no sign-up, no watermark on the output.";
+  "Free online audio converter — convert between MP3, WAV, M4A, FLAC, AAC, OGG and AIFF, any format to any other. No sign-up, no watermark.";
 
 const OG_IMAGE = ogForTool("convert", "Free audio converter");
 
