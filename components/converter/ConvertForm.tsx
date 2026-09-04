@@ -155,6 +155,14 @@ function FormatPicker({
   const losslessTarget = value ? LOSSLESS.has(value.toLowerCase()) : false;
   const upconverting = lossySource && losslessTarget;
 
+  // Dedicated pages preset a target (/mp3-to-wav presets "wav"). If the
+  // uploaded file is already that format, the preset can't apply — the
+  // matrix excludes same-to-same — and the picker would otherwise sit on
+  // an unexplained "—". Say why, and offer the real next step.
+  const preset = defaultTarget?.toLowerCase();
+  const alreadyTargetFormat =
+    !!preset && !!sourceExt && sourceExt.toLowerCase() === preset;
+
   return (
     <ControlField
       as="fieldset"
@@ -171,7 +179,12 @@ function FormatPicker({
         ) : undefined
       }
       hint={
-        upconverting ? (
+        alreadyTargetFormat ? (
+          <Hint tone="warn" title={`This file is already a ${preset.toUpperCase()}`}>
+            There&apos;s nothing to convert it to {preset.toUpperCase()} from. Pick a different
+            output below, or upload a file in another format.
+          </Hint>
+        ) : upconverting ? (
           <Hint>
             Converting a compressed source to {value.toUpperCase()} changes the container, not the
             quality — the detail lost in the original encode doesn&apos;t come back.
