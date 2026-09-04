@@ -1,33 +1,9 @@
 "use client";
 
-/**
- * app/admin/logs/page.tsx — full rewrite.
- *
- * Three things drove the redesign:
- *
- *  1. CORRELATION IS NO LONGER A TAB TAKEOVER. Clicking a request used to
- *     switch you to the System tab, replace its contents, and then — on the way
- *     back — remount the HTTP list at scrollTop 0, throwing away your position
- *     in the feed. It now opens in a drawer over the page. Neither feed moves,
- *     nothing remounts, and closing it returns you to exactly where you were.
- *
- *  2. BOTH FEEDS STAY MOUNTED. Switching tabs hides a panel instead of
- *     destroying it, and each panel's scroll offset is saved and restored. A
- *     tab switch is now free and lossless.
- *
- *  3. THE HTTP FEED IS VIRTUALIZED. Rows are a fixed height, so only the ~40
- *     on screen are in the DOM regardless of how many are loaded. That is what
- *     fixes the lag: 6000 table rows was the whole problem. Fixed heights also
- *     make scroll anchoring exact — prepending N rows is scrollTop += N * rowH,
- *     not a scrollHeight difference measured across a reflow.
- *
- *  2026-09-04 — SILENT ERRORS. A handler that caught its own exception, logged
- *  it, and still returned 200 was invisible here: bucketed as Success. The
- *  backend now flags any request that logged an ERROR (fix #24) with
- *  error_logged/error_count, and returns a `silent` count (returned <400 but
- *  errored). Surfaced as a clickable Silent stat that doubles as the "errored
- *  only" filter, plus a red `failed` marker on the row itself.
- */
+// app/admin/logs/page.tsx
+// Correlation opens in a drawer over both feeds. Both feeds stay mounted with
+// saved scroll offsets. HTTP feed is virtualized on fixed-height rows.
+// Silent errors = returned <400 but logged an ERROR (backend fix #24).
 
 import {
   memo,
@@ -46,6 +22,7 @@ import {
   Check,
   ChevronDown,
   Copy,
+  Filter,
   Loader2,
   Pause,
   Play,
@@ -64,18 +41,12 @@ import { cn } from "@/lib/utils/cn";
    =================================================================== */
 
 const PAGE_SIZE = 200;
-
-// Rows in memory. Lower than before because the window is virtualized —
-// keeping more costs memory without buying visible history.
 const RENDER_CAP = 5000;
 
-// Fixed row heights are the contract that makes virtualization exact. If
-// you change these, change the row components to match.
+// Fixed row heights are the contract that makes virtualization exact.
 const ROW_H_DESKTOP = 34;
 const ROW_H_MOBILE = 62;
 const OVERSCAN = 10;
-
-// Height of the sentinel strip pinned above the rows inside the scroller.
 const SENTINEL_H = 40;
 
 const AUTO_LOAD_PX = 500;
@@ -85,20 +56,12 @@ const MIN_POLL_MS = 2500;
 const MAX_POLL_MS = 10000;
 const COUNTS_POLL_MS = 30000;
 
-// Nepal is UTC+5:45, no DST. A Nepal calendar day starts 18:15 UTC the day
-// before. Computed here rather than in SQL because the dashboard already owns
-// Nepal-time rendering, and the same offset in two places is how they drift.
 const NEPAL_OFFSET_MS = (5 * 60 + 45) * 60 * 1000;
-
-// Sentinel for the "unrecognized traffic" bucket. Deliberately not a shape any
-// real route could produce.
 const OTHER_TRAFFIC_KEY = "__other__";
 
 const FOCUS_RING =
   "focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/70 focus-visible:ring-offset-1 focus-visible:ring-offset-graphite-900";
 
-// One grid template for the header and every row, so columns line up without a
-// <table> — which is what lets rows be absolutely positioned.
 const HTTP_COLS = "104px 52px minmax(0,1fr) 58px 74px 124px 18px";
 
 /* ===================================================================
@@ -116,9 +79,6 @@ interface HttpLogEntry {
   request_id: string | null;
   tool?: string | null;
   tier?: string | null;
-  // Silent-failure flags (backend fix #24): a request that logged an error
-  // while still returning its status code. error_logged is 0/1; error_count is
-  // how many ERROR lines fired. Optional so pre-migration rows still typecheck.
   error_logged?: number | null;
   error_count?: number | null;
 }
@@ -160,13 +120,6 @@ type Tier = "" | "standard" | "hq";
 type StatusClass = "all" | "4xx" | "5xx";
 type Tab = "http" | "system";
 
-/**
- * Buckets. "Failed" used to mean anything non-2xx, which counted entirely
- * normal traffic — a bot probing a dead route (404), a rate limit (429), a full
- * queue (503-by-design) — as the server being broken. Split into client/server,
- * plus `silent`: returned <400 but logged an error (a subset of success, the
- * hidden-failure count).
- */
 interface Totals {
   total: number;
   success: number;
@@ -176,6 +129,7 @@ interface Totals {
 }
 
 type SystemGroup = { key: string; entries: SystemLogEntry[] };
+type EndpointOption = { path: string; label: string; count: number };
 
 interface Correlation {
   id: string;
@@ -187,9 +141,6 @@ interface Correlation {
    Identity helpers
    =================================================================== */
 
-/** The backend writes "-" for "no id here". Treating that as a real id is how a
- *  row ends up looking clickable and then correlating on "-", which matches
- *  every unattributed line in the table. */
 function realId(id: string | null | undefined): string | null {
   if (!id) return null;
   const trimmed = id.trim();
@@ -200,8 +151,6 @@ const _ACTION_SEGMENTS = new Set(["status", "preview", "download", "result"]);
 const _ID_SEGMENT = /^[0-9a-f]{6,}(-[0-9a-f]{4,}){0,4}$/i;
 const _FASTAPI_PARAM_SEGMENT = /^\{[^}]+\}$/;
 
-/** Bounded memo. Paths repeat enormously — a single job's 40 status polls share
- *  one path string — and these run per row per render. */
 function memoize1<T>(fn: (key: string) => T, limit = 20000) {
   const cache = new Map<string, T>();
   return (key: string): T => {
@@ -214,24 +163,13 @@ function memoize1<T>(fn: (key: string) => T, limit = 20000) {
   };
 }
 
-/**
- * Collapses a request path to the TOOL it belongs to, mirroring
- * _humanize_endpoint/admin_endpoints() in routes.py exactly.
- *
- *   /convert/status/a1b2c3d4     -> /convert
- *   /youtube/analyze/result/9f8e -> /youtube/analyze
- *
- * The i > 0 guard matters: "download" is both a real tool and an action
- * segment, and without it the busiest endpoint on the API resolves to an empty
- * family. These two implementations must agree or the picker and the filter
- * disagree about what a row belongs to.
- */
+// Mirrors _humanize_endpoint/admin_endpoints() in routes.py exactly.
 const toolFamily = memoize1((path: string) => {
   const parts: string[] = [];
   for (const [i, seg] of path.split("/").filter(Boolean).entries()) {
     const isParam = _ID_SEGMENT.test(seg) || _FASTAPI_PARAM_SEGMENT.test(seg);
     if (i > 0 && (_ACTION_SEGMENTS.has(seg) || isParam)) break;
-    if (isParam) break; // a bare id as the FIRST segment is never a tool
+    if (isParam) break;
     parts.push(seg);
   }
   return parts.length ? "/" + parts.join("/") : path;
@@ -244,10 +182,6 @@ const jobIdFromPath = memoize1((path: string): string | null => {
   return null;
 });
 
-// Logs write ids in prose, not as path segments:
-//   "[YOUTUBE_STEMS_HQ] job=0aee65ad... queued"
-//   "[SEPARATION] Starting Demucs for job 0aee65ad..."
-// Secondary path only — request_id exists on every row and is preferred.
 const _MSG_JOB_ID = /\bjob[=\s]+([0-9a-f]{6,}(?:-[0-9a-f]{4,}){0,4})\b/i;
 const jobIdFromMessage = memoize1((message: string): string | null => {
   const m = _MSG_JOB_ID.exec(message);
@@ -258,16 +192,11 @@ const jobIdFromMessage = memoize1((message: string): string | null => {
    Noise
    =================================================================== */
 
-// Bootstrap fallback only — covers the ~2s before the real list arrives from
-// /api/admin/endpoints. config.NOISE_PATH_MARKERS is the authority.
 let NOISE_PATTERNS: string[] = [
   "/robots.txt", "/favicon.ico", "/.env", "/wp-", "/.git",
   "/SDK/", "/phpmyadmin", "/.well-known", "/xmlrpc.php",
 ];
 
-// Case-insensitive: SQLite's LIKE is case-insensitive for ASCII, JS's
-// .includes() is not — which is how /language/en-GB/en-GB.xml slipped past a
-// /language/en-gb pattern that matched fine server-side.
 function isNoise(path: string): boolean {
   const lower = path.toLowerCase();
   return NOISE_PATTERNS.some((p) => lower.includes(p.toLowerCase()));
@@ -282,9 +211,6 @@ function parseTs(isoString: string): Date {
   return new Date(hasZone ? isoString : isoString + "Z");
 }
 
-// Constructing Intl.DateTimeFormat is the expensive part, and
-// toLocaleTimeString() constructs a fresh one per call. Shared instances plus a
-// per-timestamp cache means each row formats exactly once for its lifetime.
 const NP_TIME_FMT = new Intl.DateTimeFormat("en-US", {
   timeZone: "Asia/Kathmandu",
   hour: "numeric", minute: "2-digit", second: "2-digit", hour12: false,
@@ -354,9 +280,6 @@ function levelTone(level: string): { text: string; border: string } {
   }
 }
 
-/** Merge a page of OLDER rows onto the front, dropping anything already held.
- *  Duplicates happen whenever a page boundary lands next to a delta poll, and a
- *  duplicated React key silently breaks rendering. */
 function prependUnique<T extends { id: number }>(older: T[], current: T[]): T[] {
   if (older.length === 0) return current;
   const seen = new Set(current.map((r) => r.id));
@@ -364,12 +287,6 @@ function prependUnique<T extends { id: number }>(older: T[], current: T[]): T[] 
   return fresh.length === 0 ? current : [...fresh, ...current];
 }
 
-/**
- * Click vs. select. A browser fires click on mouseup regardless of whether that
- * mouseup ended a drag selection, so highlighting an IP and releasing over the
- * row also opened the correlated view and reset the selection. A plain click
- * never has a selection at click-time, so row-opening is unaffected.
- */
 function isTextSelected(): boolean {
   const sel = typeof window !== "undefined" ? window.getSelection() : null;
   return !!sel && sel.toString().length > 0;
@@ -390,10 +307,10 @@ async function copyText(text: string): Promise<boolean> {
 
 function useIsMobile(): boolean {
   const [isMobile, setIsMobile] = useState(() =>
-    typeof window !== "undefined" ? window.matchMedia("(max-width: 767px)").matches : false
+    typeof window !== "undefined" ? window.matchMedia("(max-width: 639px)").matches : false
   );
   useEffect(() => {
-    const mq = window.matchMedia("(max-width: 767px)");
+    const mq = window.matchMedia("(max-width: 639px)");
     const update = () => setIsMobile(mq.matches);
     update();
     mq.addEventListener("change", update);
@@ -402,8 +319,6 @@ function useIsMobile(): boolean {
   return isMobile;
 }
 
-/** Escape-to-dismiss, in one place, so keyboard behaviour can't drift between
- *  the overlays on this page. */
 function useEscape(active: boolean, onEscape: () => void) {
   const handler = useRef(onEscape);
   handler.current = onEscape;
@@ -420,8 +335,15 @@ function useEscape(active: boolean, onEscape: () => void) {
   }, [active]);
 }
 
-/** Re-renders on an interval, but only while `active`. Scoped to the one tiny
- *  component that shows relative time, so a 5s tick never touches the feed. */
+function useLockBodyScroll(active: boolean) {
+  useEffect(() => {
+    if (!active) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, [active]);
+}
+
 function useTicker(active: boolean, intervalMs: number) {
   const [, force] = useState(0);
   useEffect(() => {
@@ -431,18 +353,11 @@ function useTicker(active: boolean, intervalMs: number) {
   }, [active, intervalMs]);
 }
 
-/**
- * Fixed-height windowing. Returns the slice of indices worth rendering and a
- * measure function to call from the scroll handler.
- *
- * Deliberately not a library: rows here are a known constant height, which
- * turns the whole problem into two divisions and makes prepend-anchoring exact.
- */
 function useVirtualWindow(count: number, rowH: number) {
   const [win, setWin] = useState({ start: 0, end: 60 });
   const measure = useCallback(
     (el: HTMLElement | null) => {
-      if (!el || el.clientHeight === 0) return; // hidden panel: nothing to measure
+      if (!el || el.clientHeight === 0) return;
       const top = Math.max(0, el.scrollTop - SENTINEL_H);
       const start = Math.max(0, Math.floor(top / rowH) - OVERSCAN);
       const end = Math.min(count, Math.ceil((top + el.clientHeight) / rowH) + OVERSCAN);
@@ -451,6 +366,13 @@ function useVirtualWindow(count: number, rowH: number) {
     [count, rowH]
   );
   return [win, measure] as const;
+}
+
+let _idSeq = 0;
+function useStableId(prefix: string): string {
+  const ref = useRef<string | null>(null);
+  if (!ref.current) ref.current = `${prefix}-${++_idSeq}`;
+  return ref.current;
 }
 
 /* ===================================================================
@@ -472,25 +394,19 @@ export default function AdminLogsPage() {
   const [systemLoading, setSystemLoading] = useState(true);
   const [systemError, setSystemError] = useState<string | null>(null);
 
-  // ---- HTTP filters ----
+  // HTTP filters
   const [methodFilter, setMethodFilter] = useState("");
   const [pathFilter, setPathFilter] = useState("");
   const [endpointFilter, setEndpointFilter] = useState("");
   const [statusClassFilter, setStatusClassFilter] = useState<StatusClass>("all");
   const [hideNoise, setHideNoise] = useState(true);
-  // "errored only" is a separate axis from status_class: it matches every
-  // request that logged an error, regardless of the code it returned. That's
-  // what surfaces the 200-that-actually-failed. See backend fix #24.
   const [erroredOnly, setErroredOnly] = useState(false);
   const [dateFilter, setDateFilter] = useState<DateFilter>("all");
-  // Tool/tier is a SEPARATE axis from endpointFilter (path family). It's what
-  // answers "only HQ jobs", which path can't: HQ and standard share polling
-  // routes after the initial submit.
   const [toolFilter, setToolFilter] = useState("");
   const [tierFilter, setTierFilter] = useState<Tier>("");
   const [toolOptions, setToolOptions] = useState<ToolCount[]>([]);
 
-  // ---- System filters (independent axis) ----
+  // System filters
   const [levelFilter, setLevelFilter] = useState("");
   const [systemSearch, setSystemSearch] = useState("");
   const [sysToolFilter, setSysToolFilter] = useState("");
@@ -499,11 +415,12 @@ export default function AdminLogsPage() {
   const [suggestOpen, setSuggestOpen] = useState(false);
   const [highlightIndex, setHighlightIndex] = useState(-1);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [sysFiltersOpen, setSysFiltersOpen] = useState(false);
 
   const httpSearchRef = useRef<HTMLInputElement>(null);
   const sysSearchRef = useRef<HTMLInputElement>(null);
 
-  // ---- Correlation drawer ----
+  // Correlation drawer
   const [correlation, setCorrelation] = useState<Correlation | null>(null);
   const [correlatedLogs, setCorrelatedLogs] = useState<SystemLogEntry[]>([]);
   const [correlatedLoading, setCorrelatedLoading] = useState(false);
@@ -517,10 +434,6 @@ export default function AdminLogsPage() {
   const [toast, setToast] = useState<{ text: string; tone: "ok" | "bad" } | null>(null);
 
   const [httpTotal, setHttpTotal] = useState(0);
-  // Rows matching the CURRENT filters across the whole table. Distinct from
-  // httpTotal (all rows) and httpLogs.length (rows in memory). Reporting
-  // "loaded" as the match count is what made filtered views look empty when the
-  // matches were simply older than the window.
   const [httpFilteredTotal, setHttpFilteredTotal] = useState(0);
   const [sysTotal, setSysTotal] = useState(0);
   const [sysFilteredTotal, setSysFilteredTotal] = useState(0);
@@ -530,7 +443,6 @@ export default function AdminLogsPage() {
   const [sysHasOlder, setSysHasOlder] = useState(true);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<number | null>(null);
 
-  // Mirrors read inside callbacks, which would otherwise close over stale state.
   const httpHasOlderRef = useRef(true);
   const sysHasOlderRef = useRef(true);
   const httpOldestRef = useRef(0);
@@ -539,18 +451,12 @@ export default function AdminLogsPage() {
   const httpRef = useRef<HTMLDivElement>(null);
   const sysRef = useRef<HTMLDivElement>(null);
 
-  // Saved offsets, so hiding a panel on tab switch costs nothing. This is the
-  // fix for "come back to HTTP and it's scrolled to the top".
   const httpScrollTopRef = useRef(0);
   const sysScrollTopRef = useRef(0);
 
-  // Fixed row heights make this exact: N prepended rows moved the content down
-  // by exactly N * rowH, no scrollHeight measurement involved.
   const httpPrependRef = useRef(0);
   const sysScrollAdjustRef = useRef<[number, number] | null>(null);
 
-  // "Pinned to bottom" — auto-scroll follows new data. The instant the reader
-  // scrolls up this flips false; it re-pins on scroll back or Jump to latest.
   const httpPinnedRef = useRef(true);
   const sysPinnedRef = useRef(true);
   const [showJumpHttp, setShowJumpHttp] = useState(false);
@@ -563,25 +469,15 @@ export default function AdminLogsPage() {
   const httpSigRef = useRef("");
   const sysSigRef = useRef("");
 
-  // Highest id held per tab. Delta polls send this as afterId so the backend
-  // returns only genuinely new rows.
   const httpLastIdRef = useRef(0);
   const sysLastIdRef = useRef(0);
   const httpDeltaInFlightRef = useRef(false);
   const sysDeltaInFlightRef = useRef(false);
 
-  // "Has a full fetch landed, so the cursor means something?" Replaces using
-  // `lastId === 0`, which conflated never-fetched with fetched-but-empty and
-  // fetched-but-filter-matched-nothing. Only the first should block a delta.
   const httpSeededRef = useRef(false);
   const sysSeededRef = useRef(false);
 
-  /**
-   * One controller for all in-flight requests, aborted on unmount. Created
-   * through a getter that REPLACES an already-aborted controller: under
-   * StrictMode the dev remount otherwise left every fetch bailing on a dead
-   * signal, and only a full reload recovered.
-   */
+  // Replaces an already-aborted controller so StrictMode's remount recovers.
   const abortRef = useRef<AbortController | null>(null);
   const getController = () => {
     if (!abortRef.current || abortRef.current.signal.aborted) {
@@ -599,12 +495,17 @@ export default function AdminLogsPage() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!isMobile) {
+      setFiltersOpen(false);
+      setSysFiltersOpen(false);
+    }
+  }, [isMobile]);
+
   const currentDelayRef = useRef(MIN_POLL_MS);
   const isAbort = (e: unknown) => (e as Error)?.name === "AbortError";
   const markUpdated = useCallback(() => setLastUpdatedAt(Date.now()), []);
 
-  // Debounced inputs, declared above the refs that read them: a const
-  // referenced before its declaration line is a temporal-dead-zone error.
   const [debouncedPath, setDebouncedPath] = useState("");
   useEffect(() => {
     const t = setTimeout(() => setDebouncedPath(pathFilter), 250);
@@ -617,12 +518,7 @@ export default function AdminLogsPage() {
     return () => clearTimeout(t);
   }, [systemSearch]);
 
-  /**
-   * ALL filters go to the backend. Applied in the browser they under-reported
-   * the moment the real result set outgrew the window — a tool with 6 old
-   * requests showed "No requests match" while the stat boxes counted the whole
-   * table. Read through a ref so the fetch callbacks stay memoized on [router].
-   */
+  // All filters go to the backend; read through refs so fetchers stay memoized.
   const filterRef = useRef({
     endpointFilter: "", methodFilter: "", debouncedPath: "",
     statusClassFilter: "all" as StatusClass,
@@ -643,8 +539,6 @@ export default function AdminLogsPage() {
   const filterParams = useCallback(() => {
     const f = filterRef.current;
     const p = new URLSearchParams();
-    // OTHER_TRAFFIC_KEY is a client-side grouping ("not any known tool"), so
-    // there's no single family the server can filter on.
     if (f.endpointFilter && f.endpointFilter !== OTHER_TRAFFIC_KEY) p.set("family", f.endpointFilter);
     if (f.methodFilter) p.set("method", f.methodFilter);
     if (f.debouncedPath.trim()) p.set("q", f.debouncedPath.trim());
@@ -673,10 +567,8 @@ export default function AdminLogsPage() {
     return s ? `&${s}` : "";
   }, []);
 
-  /* ---------------- Correlation (drawer) ---------------- */
+  /* ---------------- Correlation ---------------- */
 
-  // Guards against a slow earlier response overwriting a newer one when rows
-  // are clicked in quick succession.
   const correlationTokenRef = useRef(0);
 
   const runCorrelation = useCallback(
@@ -710,13 +602,6 @@ export default function AdminLogsPage() {
     [router]
   );
 
-  /**
-   * HTTP row -> logs. Prefers JOB scope whenever the path carries a job id.
-   * A job's ~40 status-poll GETs each have their own request_id but log nothing
-   * (the handler is a dict lookup), so correlating a poll by request_id returns
-   * an empty list: technically correct, reads as broken. The job id is shared
-   * across the whole lifecycle.
-   */
   const openFromHttpRow = useCallback(
     (log: HttpLogEntry) => {
       const jobId = jobIdFromPath(log.path);
@@ -730,9 +615,6 @@ export default function AdminLogsPage() {
     [runCorrelation]
   );
 
-  /** System row -> logs, the reverse direction. request_id is on every line and
-   *  is set by middleware regardless of message content, so it's the reliable
-   *  fallback; job id stays the preference. */
   const openFromSystemRow = useCallback(
     (entry: SystemLogEntry) => {
       const jobId = jobIdFromMessage(entry.message);
@@ -746,8 +628,6 @@ export default function AdminLogsPage() {
     [runCorrelation]
   );
 
-  // Closing is now genuinely nothing: no remount, no refetch, no scroll repair.
-  // The feed underneath never moved.
   const closeCorrelation = useCallback(() => {
     correlationTokenRef.current++;
     setCorrelation(null);
@@ -775,10 +655,6 @@ export default function AdminLogsPage() {
       }
       const data = await res.json();
 
-      // Seed the delta cursor HERE — before the signature guard, and regardless
-      // of whether this query matched anything. Seeding inside `if
-      // (rows.length > 0)` left it at 0 for a filter that matched nothing, and
-      // delta polling was then permanently dead for that filter.
       const newestMatching = data.logs.length > 0 ? data.logs[0].id : 0;
       httpLastIdRef.current = Math.max(newestMatching, data.max_id ?? 0);
       httpSeededRef.current = true;
@@ -793,8 +669,6 @@ export default function AdminLogsPage() {
       setTotals({ total: data.total, success: data.success, client: data.client, server: data.server, silent: data.silent ?? 0 });
       setHttpTotal(data.total);
       if (typeof data.filtered_total === "number") setHttpFilteredTotal(data.filtered_total);
-      // Backend returns newest-first; reverse so the newest lands at the bottom,
-      // like a terminal tail.
       const reversed = [...data.logs].reverse();
       setHttpLogs(reversed);
       if (reversed.length > 0) httpOldestRef.current = reversed[0].id;
@@ -822,7 +696,6 @@ export default function AdminLogsPage() {
 
     httpOlderInFlightRef.current = true;
     setHttpLoadingOlder(true);
-    // Reading history is an explicit "stop following the tail" gesture.
     httpPinnedRef.current = false;
     setShowJumpHttp(true);
 
@@ -888,7 +761,7 @@ export default function AdminLogsPage() {
 
       setSysTotal(data.total);
       if (typeof data.filtered_total === "number") setSysFilteredTotal(data.filtered_total);
-      setSystemLogs(data.logs); // already oldest -> newest
+      setSystemLogs(data.logs);
       if (data.logs.length > 0) sysOldestRef.current = data.logs[0].id;
       const more = data.logs.length >= PAGE_SIZE;
       sysHasOlderRef.current = more;
@@ -973,9 +846,6 @@ export default function AdminLogsPage() {
       }
       const data = await res.json();
 
-      // The backend caps this branch (_DELTA_MAX). Hitting the cap means we're
-      // too far behind to catch up incrementally, and splicing a truncated
-      // middle would leave a silent hole in the log.
       if (data.truncated) {
         httpSigRef.current = "";
         void fetchHttp(true);
@@ -991,8 +861,6 @@ export default function AdminLogsPage() {
 
       setHttpLogs((prev) => {
         const merged = [...prev, ...data.logs];
-        // Trim ONLY while following the tail. Trimming while the reader is back
-        // in history would delete the pages they just waited for.
         if (httpPinnedRef.current && merged.length > RENDER_CAP) {
           const trimmed = merged.slice(merged.length - RENDER_CAP);
           httpOldestRef.current = trimmed[0].id;
@@ -1064,8 +932,6 @@ export default function AdminLogsPage() {
   /* ---------------- Endpoints / tools ---------------- */
 
   const [knownEndpoints, setKnownEndpoints] = useState<ToolEndpoint[]>([]);
-  // NOISE_PATTERNS is a module-level array, not React state, so memos that call
-  // isNoise() need a signal that the definition changed.
   const [noiseListVersion, setNoiseListVersion] = useState(0);
 
   const fetchEndpoints = useCallback(async () => {
@@ -1080,14 +946,10 @@ export default function AdminLogsPage() {
         setNoiseListVersion((v) => v + 1);
       }
     } catch {
-      // Fire-and-forget: a failure just means the picker keeps what it has.
+      // picker keeps what it has
     }
   }, []);
 
-  /** Runs once per MOUNT. A bootedRef guard would survive StrictMode's remount
-   *  while the aborted fetches from the first mount would not — turning "the
-   *  first mount's requests got cancelled" into "and no request is ever issued
-   *  again". The in-flight refs already collapse genuine duplicates. */
   useEffect(() => {
     void fetchHttp();
     void fetchSystem();
@@ -1107,9 +969,6 @@ export default function AdminLogsPage() {
 
   const knownPathSet = useMemo(() => new Set(knownEndpoints.map((e) => e.path)), [knownEndpoints]);
 
-  /** Everything the server returned already matches the active filters. The ONE
-   *  exception is the "Other" bucket: it means "not any known tool", which is
-   *  defined by the client's knowledge of the tool list. */
   const otherBucketActive = endpointFilter === OTHER_TRAFFIC_KEY;
   const filtered = useMemo(() => {
     if (!otherBucketActive) return httpLogs;
@@ -1126,7 +985,7 @@ export default function AdminLogsPage() {
     httpScrollTopRef.current = el.scrollTop;
     const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < NEAR_BOTTOM_PX;
     httpPinnedRef.current = nearBottom;
-    setShowJumpHttp(!nearBottom); // React bails when unchanged
+    setShowJumpHttp(!nearBottom);
     measureHttp(el);
     if (el.scrollTop < AUTO_LOAD_PX) void loadOlderHttp();
   }, [loadOlderHttp, measureHttp]);
@@ -1160,10 +1019,7 @@ export default function AdminLogsPage() {
     setShowJumpSys(false);
   }, []);
 
-  /* ---------------- Scroll anchoring ----------------
-     useLayoutEffect, not useEffect: the scroll write has to land in the same
-     frame the rows commit, or the browser paints the un-adjusted position
-     first and you see a jump. */
+  /* ---------------- Scroll anchoring ---------------- */
 
   useLayoutEffect(() => {
     const el = httpRef.current;
@@ -1171,7 +1027,6 @@ export default function AdminLogsPage() {
 
     const prepended = httpPrependRef.current;
     if (prepended > 0) {
-      // Exact, because every row is the same height.
       el.scrollTop += prepended * rowH;
       httpPrependRef.current = 0;
     } else if (httpPinnedRef.current) {
@@ -1181,7 +1036,6 @@ export default function AdminLogsPage() {
     measureHttp(el);
   }, [filtered, tab, rowH, measureHttp]);
 
-  // Level and search are applied in SQL, so what came back already matches.
   const filteredSystemLogs = systemLogs;
 
   useLayoutEffect(() => {
@@ -1197,11 +1051,6 @@ export default function AdminLogsPage() {
     sysScrollTopRef.current = el.scrollTop;
   }, [filteredSystemLogs, tab]);
 
-  /**
-   * Tab switch: restore the offset the panel had when it was hidden. Both
-   * panels stay mounted, so this is a scroll write and nothing else — no
-   * refetch, no remount, no lost position.
-   */
   useLayoutEffect(() => {
     if (tab === "http") {
       const el = httpRef.current;
@@ -1217,8 +1066,6 @@ export default function AdminLogsPage() {
     }
   }, [tab, isMobile, measureHttp]);
 
-  // Row height changes with the breakpoint, so the window has to be recomputed
-  // against the new geometry or the list renders the wrong slice.
   useEffect(() => {
     measureHttp(httpRef.current);
   }, [rowH, measureHttp]);
@@ -1233,9 +1080,6 @@ export default function AdminLogsPage() {
 
   /* ---------------- Filter changes ---------------- */
 
-  // Filtering is server-side, so changing a filter has to re-query, not
-  // re-filter rows fetched under different criteria. Cursors reset because the
-  // old ids belong to the previous result set.
   const filterBootRef = useRef(true);
   useEffect(() => {
     if (filterBootRef.current) { filterBootRef.current = false; return; }
@@ -1246,7 +1090,7 @@ export default function AdminLogsPage() {
     httpHasOlderRef.current = true;
     httpPrependRef.current = 0;
     setHttpHasOlder(true);
-    httpPinnedRef.current = true; // a fresh query starts at its newest end
+    httpPinnedRef.current = true;
     setShowJumpHttp(false);
     void fetchHttp(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1269,9 +1113,6 @@ export default function AdminLogsPage() {
 
   /* ---------------- Self-adjusting poll ---------------- */
 
-  // Starts fast; every empty tick stretches the delay (capped), so a quiet
-  // dashboard left open gradually polls less. Any tick that finds data — or any
-  // manual interaction — snaps back.
   useEffect(() => {
     if (isPaused) return;
     currentDelayRef.current = MIN_POLL_MS;
@@ -1293,8 +1134,6 @@ export default function AdminLogsPage() {
     return () => { cancelled = true; clearTimeout(timeoutId); };
   }, [isPaused, tab, fetchHttpDelta, fetchSystemDelta]);
 
-  // Snap back to fast polling on refocus rather than making the user wait out
-  // accumulated backoff. Respects pause for the same reason the loop does.
   useEffect(() => {
     function onVisibility() {
       if (document.hidden || isPaused) return;
@@ -1331,18 +1170,9 @@ export default function AdminLogsPage() {
 
   /* ---------------- Derived: tools, suggestions, chips ---------------- */
 
-  /**
-   * Which paths are REAL, backend-registered tools — the only ones allowed
-   * their own picker entry. One day of traffic produced ~300 distinct junk
-   * paths; a hand-maintained pattern list can never keep pace. Unrecognized
-   * traffic just has nowhere to go but "Other", automatically, forever.
-   */
-  const endpointOptions = useMemo(() => {
-    const byPath = new Map<string, { path: string; label: string; count: number }>();
+  const endpointOptions = useMemo<EndpointOption[]>(() => {
+    const byPath = new Map<string, EndpointOption>();
     for (const ep of knownEndpoints) {
-      // Real all-time total. Counting LOADED rows made a tool showing 967
-      // quietly become 233 after scrolling, which reads as "requests
-      // disappeared".
       byPath.set(ep.path, { path: ep.path, label: ep.label, count: ep.total_requests ?? 0 });
     }
 
@@ -1361,6 +1191,7 @@ export default function AdminLogsPage() {
     const active = all.filter((e) => e.count > 0).sort((a, b) => b.count - a.count);
     const idle = all.filter((e) => e.count === 0).sort((a, b) => a.label.localeCompare(b.label));
     return [...active, ...idle];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [httpLogs, hideNoise, knownEndpoints, noiseListVersion]);
 
   const pathSuggestions = useMemo(() => {
@@ -1389,8 +1220,6 @@ export default function AdminLogsPage() {
     setTierFilter("");
   }, []);
 
-  // Deviations from DEFAULT, not merely non-empty values: hideNoise defaults
-  // on, so having it on isn't a filter you applied — turning it off is.
   const activeFilters = useMemo(() => {
     const chips: { key: string; label: string; clear: () => void }[] = [];
     if (activeToolLabel) {
@@ -1438,15 +1267,6 @@ export default function AdminLogsPage() {
     setSystemSearch("");
   }, []);
 
-  /**
-   * Groups CONSECUTIVE lines sharing a request_id into one visual unit. A
-   * single download logs 20+ lines; showing every one at full height recreates
-   * the "too much scrolling to find anything" problem. Show what started and
-   * what it ended as, fold the rest.
-   *
-   * Lines with no request_id never merge even when adjacent: sharing "-"
-   * doesn't mean two lines are related, it means neither carries one.
-   */
   const systemGroups = useMemo<SystemGroup[]>(() => {
     const groups: SystemGroup[] = [];
     for (const entry of filteredSystemLogs) {
@@ -1459,9 +1279,6 @@ export default function AdminLogsPage() {
     return groups;
   }, [filteredSystemLogs]);
 
-  // Keyed by the group's own key, not request_id: an id can recur across
-  // separate groups (retrying the same video later) and those expand
-  // independently.
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const toggleGroup = useCallback((key: string) => {
     setExpandedGroups((prev) => {
@@ -1472,8 +1289,6 @@ export default function AdminLogsPage() {
     });
   }, []);
 
-  // Trimmed groups leave their keys behind forever otherwise — a slow leak on a
-  // dashboard designed to be left open all day.
   useEffect(() => {
     setExpandedGroups((prev) => {
       if (prev.size < 200) return prev;
@@ -1499,7 +1314,6 @@ export default function AdminLogsPage() {
       const res = await fetch(url, { method: "DELETE", signal: signal() });
       if (res.status === 401) { router.push("/admin/login"); return; }
       const data = await res.json().catch(() => null);
-      // A 500 returning HTML parses to null and used to report success.
       if (!res.ok) throw new Error(data?.error || `Server returned ${res.status}`);
       const n = data?.deleted_http_logs ?? 0;
       setToast({
@@ -1532,8 +1346,6 @@ export default function AdminLogsPage() {
   async function handleManualRefresh() {
     setIsRefreshing(true);
     currentDelayRef.current = MIN_POLL_MS;
-    // Minimum spin so the button reads as having done something even when the
-    // response is instant.
     const minSpin = new Promise((r) => setTimeout(r, 350));
     try {
       await Promise.all([fetchHttp(true), fetchSystem(true), fetchEndpoints(), minSpin]);
@@ -1556,14 +1368,123 @@ export default function AdminLogsPage() {
 
   const httpRows = filtered.slice(httpWin.start, httpWin.end);
 
+  /* ---------------- Filter controls (shared by row + sheet) ---------------- */
+
+  const methodOptions = [
+    { value: "", label: "Any method" },
+    { value: "GET", label: "GET" },
+    { value: "POST", label: "POST" },
+    { value: "DELETE", label: "DELETE" },
+  ];
+  const tierOptions = [
+    { value: "" as Tier, label: "Any" },
+    { value: "standard" as Tier, label: "Standard" },
+    { value: "hq" as Tier, label: "HQ" },
+  ];
+  const dateOptions = [
+    { value: "all" as DateFilter, label: "Any date" },
+    { value: "today" as DateFilter, label: "Today" },
+    { value: "yesterday" as DateFilter, label: "Yesterday" },
+  ];
+  const levelOptions = [
+    { value: "", label: "Any level" },
+    { value: "ERROR", label: "ERROR" },
+    { value: "CRITICAL", label: "CRITICAL" },
+    { value: "WARNING", label: "WARNING" },
+    { value: "INFO", label: "INFO" },
+  ];
+  const sysToolOptions = [{ value: "", label: "All tools" }, ...toolOptions.map((t) => ({ value: t.tool, label: t.label }))];
+
+  const statusGroup = (fill: boolean) => (
+    <div
+      role="group"
+      aria-label="Status class"
+      className={cn("flex rounded-lg border border-graphite-700 bg-graphite-850 p-0.5", fill && "w-full")}
+    >
+      <StatusChip fill={fill} active={statusClassFilter === "all"} onClick={() => setStatusClassFilter("all")} label="All" />
+      <StatusChip fill={fill} active={statusClassFilter === "4xx"} onClick={() => setStatusClassFilter("4xx")} label="4xx" tone="text-amber-400" />
+      <StatusChip fill={fill} active={statusClassFilter === "5xx"} onClick={() => setStatusClassFilter("5xx")} label="5xx" tone="text-red-400" />
+    </div>
+  );
+
+  const toggles = (
+    <>
+      <ToggleChip checked={hideNoise} onChange={setHideNoise} label="Hide noise" />
+      <ToggleChip checked={erroredOnly} onChange={setErroredOnly} label="Only errored" tone="red" />
+    </>
+  );
+
+  const httpFilterRow = (
+    <div className="hidden flex-wrap items-center gap-2 sm:flex">
+      <Select value={methodFilter} onChange={setMethodFilter} placeholder="Any method" options={methodOptions} />
+      <ToolPicker
+        toolOptions={toolOptions}
+        endpointOptions={endpointOptions}
+        toolFilter={toolFilter}
+        endpointFilter={endpointFilter}
+        activeLabel={activeToolLabel}
+        onPickTool={(t) => { setToolFilter(t); setEndpointFilter(""); }}
+        onPickFamily={(p) => { setEndpointFilter(p); setToolFilter(""); }}
+        onClear={() => { setToolFilter(""); setEndpointFilter(""); }}
+      />
+      <Select value={tierFilter} onChange={setTierFilter} label="Tier" placeholder="Any" options={tierOptions} />
+      <Select value={dateFilter} onChange={setDateFilter} placeholder="Any date" options={dateOptions} />
+      {statusGroup(false)}
+      {toggles}
+    </div>
+  );
+
+  const httpFilterSheet = (
+    <>
+      <div className="grid grid-cols-2 gap-2">
+        <Select value={methodFilter} onChange={setMethodFilter} placeholder="Any method" options={methodOptions} widthClass="w-full" />
+        <Select value={dateFilter} onChange={setDateFilter} placeholder="Any date" options={dateOptions} widthClass="w-full" />
+        <Select value={tierFilter} onChange={setTierFilter} label="Tier" placeholder="Any" options={tierOptions} widthClass="w-full" />
+        {statusGroup(true)}
+      </div>
+      <div className="flex flex-wrap gap-2">{toggles}</div>
+      <div>
+        <p className="mb-1.5 text-xs text-text-muted">Tool</p>
+        <ToolPicker
+          inline
+          toolOptions={toolOptions}
+          endpointOptions={endpointOptions}
+          toolFilter={toolFilter}
+          endpointFilter={endpointFilter}
+          activeLabel={activeToolLabel}
+          onPickTool={(t) => { setToolFilter(t); setEndpointFilter(""); }}
+          onPickFamily={(p) => { setEndpointFilter(p); setToolFilter(""); }}
+          onClear={() => { setToolFilter(""); setEndpointFilter(""); }}
+        />
+      </div>
+    </>
+  );
+
+  const sysFilterRow = (
+    <div className="hidden flex-wrap items-center gap-2 sm:flex">
+      <Select value={levelFilter} onChange={setLevelFilter} placeholder="Any level" options={levelOptions} />
+      <Select value={sysToolFilter} onChange={setSysToolFilter} placeholder="All tools" options={sysToolOptions} />
+      <Select value={sysTierFilter} onChange={setSysTierFilter} label="Tier" placeholder="Any" options={tierOptions} />
+    </div>
+  );
+
+  const sysFilterSheet = (
+    <div className="grid grid-cols-2 gap-2">
+      <Select value={levelFilter} onChange={setLevelFilter} placeholder="Any level" options={levelOptions} widthClass="w-full" />
+      <Select value={sysTierFilter} onChange={setSysTierFilter} label="Tier" placeholder="Any" options={tierOptions} widthClass="w-full" />
+      <div className="col-span-2">
+        <Select value={sysToolFilter} onChange={setSysToolFilter} placeholder="All tools" options={sysToolOptions} widthClass="w-full" />
+      </div>
+    </div>
+  );
+
   /* =================================================================
      Render
      ================================================================= */
 
   return (
-    <div className="mx-auto flex min-h-0 w-full max-w-7xl flex-1 flex-col gap-3.5 px-3 py-4 sm:px-6 sm:py-5">
-      {/* ===== Heading ===== */}
-      <header className="flex shrink-0 flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+    <div className="mx-auto flex min-h-0 w-full max-w-7xl flex-1 flex-col gap-3 px-3 py-3 sm:gap-3.5 sm:px-6 sm:py-5">
+      <header className="flex shrink-0 items-end justify-between gap-3">
         <div className="min-w-0">
           <h1 className="text-lg font-semibold tracking-tight sm:text-xl">Request logs</h1>
           <LiveStatus isPaused={isPaused} lastUpdatedAt={lastUpdatedAt} />
@@ -1571,54 +1492,47 @@ export default function AdminLogsPage() {
         <div
           role="tablist"
           aria-label="Log source"
-          className="flex self-start rounded-lg border border-graphite-800 bg-graphite-900 p-0.5 sm:self-auto"
+          className="flex shrink-0 rounded-lg border border-graphite-800 bg-graphite-900 p-0.5"
         >
           <TabButton active={tab === "http"} onClick={() => setTab("http")} icon={Activity} label="HTTP" />
           <TabButton active={tab === "system"} onClick={() => setTab("system")} icon={Terminal} label="System" />
         </div>
       </header>
 
-      {/* ===== Stats — HTTP only =====
-          4xx is amber as a mild "worth a glance": it's normal traffic (bots,
-          rate limits, rejected uploads). 5xx turns red only above zero, and is
-          the one worth investigating. Silent errors are the 200s that lied —
-          returned OK but logged an error; clicking the box filters to them. */}
       <div
         className={cn(
-          "grid shrink-0 grid-cols-2 gap-px overflow-hidden rounded-xl border border-graphite-800 bg-graphite-800 sm:grid-cols-5",
+          "grid shrink-0 grid-cols-5 gap-px overflow-hidden rounded-xl border border-graphite-800 bg-graphite-800",
           tab !== "http" && "hidden"
         )}
       >
-        <Stat label="Total" value={totals.total} />
-        <Stat label="Success" value={totals.success} valueClass="text-teal-400" />
+        <Stat label="Total" short="Total" value={totals.total} />
+        <Stat label="Success" short="OK" value={totals.success} valueClass="text-teal-400" />
         <Stat
           label="Client errors"
+          short="4xx"
           value={totals.client}
           valueClass="text-amber-400"
           hint="4xx — rejected requests: rate limits, bad uploads, bots probing routes. Normal, not a bug."
         />
         <Stat
           label="Server errors"
+          short="5xx"
           value={totals.server}
           valueClass={totals.server > 0 ? "text-red-400" : ""}
           hint="5xx — the backend broke. Check the System tab if this is above zero."
         />
         <Stat
           label="Silent errors"
+          short="Silent"
           value={totals.silent}
           valueClass={totals.silent > 0 ? "text-red-400" : ""}
-          hint="Returned <400 but logged an error — a failure the status code hides. Click to show every request that logged an error."
+          hint="Returned <400 but logged an error. Tap to show every request that logged an error."
           onClick={() => setErroredOnly((v) => !v)}
           active={erroredOnly}
         />
       </div>
 
-      {/* ===== HTTP panel =====
-          Kept MOUNTED when the System tab is showing. That is what preserves
-          scroll position, the loaded window, and the poll cursors across a tab
-          switch — and what stopped the feed jumping to the top after a detour
-          through the correlated view.
-          NOTE: no overflow-hidden — it would clip the Delete menu. */}
+      {/* ===== HTTP panel (always mounted) ===== */}
       <section
         className={cn(
           "flex min-h-0 flex-1 flex-col rounded-xl border border-graphite-800 bg-graphite-900",
@@ -1632,9 +1546,7 @@ export default function AdminLogsPage() {
               value={pathFilter}
               onChange={(v) => { setPathFilter(v); setSuggestOpen(true); setHighlightIndex(-1); }}
               onClear={() => { setPathFilter(""); setHighlightIndex(-1); }}
-              // Global search, not path-only: the backend's `q` spans path, IP,
-              // method, request id, tool tag and a bare 3-digit status.
-              placeholder="Search path, IP, status, tool…"
+              placeholder={isMobile ? "Search logs…" : "Search path, IP, status, tool…"}
               combobox={{
                 open: suggestOpen && pathSuggestions.length > 0,
                 setOpen: setSuggestOpen,
@@ -1642,8 +1554,6 @@ export default function AdminLogsPage() {
                 setHighlightIndex,
                 suggestions: pathSuggestions,
                 onPick: (path) => {
-                  // Sets the EXACT tool filter, not a fuzzy substring — picking
-                  // "Convert" from a list of tools should mean that tool.
                   setEndpointFilter(path);
                   setPathFilter("");
                   setSuggestOpen(false);
@@ -1651,116 +1561,16 @@ export default function AdminLogsPage() {
                 },
               }}
             />
-
-            {/* Mobile: collapse the filter row behind one button. The badge
-                shows how many are active, so a filtered view is never silently
-                hidden behind a closed panel. */}
-            <button
-              onClick={() => setFiltersOpen((o) => !o)}
-              aria-expanded={filtersOpen}
-              className={cn(
-                "flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs transition-colors sm:hidden",
-                FOCUS_RING,
-                filtersOpen || activeFilters.length > 0
-                  ? "border-amber-500/50 text-amber-400"
-                  : "border-graphite-700 text-text-muted"
-              )}
-            >
-              <SlidersHorizontal className="h-3.5 w-3.5" />
-              Filters
-              {activeFilters.length > 0 && (
-                <span className="ml-0.5 rounded-full bg-amber-500 px-1.5 text-[10px] font-semibold tabular-nums text-graphite-950">
-                  {activeFilters.length}
-                </span>
-              )}
-            </button>
-
+            <FilterButton count={activeFilters.length} onClick={() => setFiltersOpen(true)} />
             <div className="hidden h-5 w-px bg-graphite-800 sm:block" />
             {actionBar}
           </div>
 
-          <div className={cn("flex-wrap items-center gap-2 sm:flex", filtersOpen ? "flex" : "hidden")}>
-            <Select
-              value={methodFilter}
-              onChange={setMethodFilter}
-              placeholder="Any method"
-              options={[
-                { value: "", label: "Any method" },
-                { value: "GET", label: "GET" },
-                { value: "POST", label: "POST" },
-                { value: "DELETE", label: "DELETE" },
-              ]}
-            />
-
-            {/* ONE tool picker, two sections — not two dropdowns both reading
-                "All tools", which was genuinely ambiguous: nothing said one
-                meant "the tool the backend tagged this as" and the other meant
-                "the URL shape it hit". */}
-            <ToolPicker
-              toolOptions={toolOptions}
-              endpointOptions={endpointOptions}
-              toolFilter={toolFilter}
-              endpointFilter={endpointFilter}
-              activeLabel={activeToolLabel}
-              onPickTool={(t) => { setToolFilter(t); setEndpointFilter(""); }}
-              onPickFamily={(p) => { setEndpointFilter(p); setToolFilter(""); }}
-              onClear={() => { setToolFilter(""); setEndpointFilter(""); }}
-            />
-
-            <Select
-              value={tierFilter}
-              onChange={setTierFilter}
-              label="Tier"
-              placeholder="Any"
-              options={[
-                { value: "" as Tier, label: "Any" },
-                { value: "standard" as Tier, label: "Standard" },
-                { value: "hq" as Tier, label: "HQ" },
-              ]}
-            />
-            <Select
-              value={dateFilter}
-              onChange={setDateFilter}
-              placeholder="Any date"
-              options={[
-                { value: "all" as DateFilter, label: "Any date" },
-                { value: "today" as DateFilter, label: "Today" },
-                { value: "yesterday" as DateFilter, label: "Yesterday" },
-              ]}
-            />
-            <div role="group" aria-label="Status class" className="flex rounded-lg border border-graphite-700 bg-graphite-850 p-0.5">
-              <StatusChip active={statusClassFilter === "all"} onClick={() => setStatusClassFilter("all")} label="All" />
-              <StatusChip active={statusClassFilter === "4xx"} onClick={() => setStatusClassFilter("4xx")} label="4xx" tone="text-amber-400" />
-              <StatusChip active={statusClassFilter === "5xx"} onClick={() => setStatusClassFilter("5xx")} label="5xx" tone="text-red-400" />
-            </div>
-            <label className="flex cursor-pointer select-none items-center gap-1.5 whitespace-nowrap rounded-md px-1 py-1 text-sm text-text-muted transition-colors hover:text-text-primary">
-              <input
-                type="checkbox"
-                checked={hideNoise}
-                onChange={(e) => setHideNoise(e.target.checked)}
-                className={cn("accent-amber-500", FOCUS_RING)}
-              />
-              Hide noise
-            </label>
-            {/* Errored-only: the row-level twin of the Silent stat. Matches every
-                request that logged an error, whatever it returned. */}
-            <label className="flex cursor-pointer select-none items-center gap-1.5 whitespace-nowrap rounded-md px-1 py-1 text-sm text-text-muted transition-colors hover:text-text-primary">
-              <input
-                type="checkbox"
-                checked={erroredOnly}
-                onChange={(e) => setErroredOnly(e.target.checked)}
-                className={cn("accent-red-500", FOCUS_RING)}
-              />
-              Only errored
-            </label>
-          </div>
+          {httpFilterRow}
 
           {activeFilters.length > 0 && <FilterChips chips={activeFilters} onClearAll={resetFilters} />}
         </div>
 
-        {/* Column header lives OUTSIDE the scroller. Rows are absolutely
-            positioned inside a spacer, so a sticky <thead> has nothing to stick
-            to — and this alignment is exact because both use HTTP_COLS. */}
         {!isMobile && (
           <div
             className="grid shrink-0 items-center gap-x-3 border-b border-graphite-800 px-4 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-text-subtle"
@@ -1776,11 +1586,11 @@ export default function AdminLogsPage() {
           </div>
         )}
 
-        <div className="relative min-h-0 flex-1">
+        <div className="relative min-h-[280px] flex-1 sm:min-h-0">
           <div
             ref={httpRef}
             onScroll={handleHttpScroll}
-            className="af-scroll h-full overflow-y-auto overscroll-contain"
+            className="af-scroll absolute inset-0 overflow-y-auto overscroll-contain"
           >
             <TopSentinel
               loading={httpLoadingOlder}
@@ -1789,8 +1599,6 @@ export default function AdminLogsPage() {
               total={httpFilteredTotal}
             />
 
-            {/* The virtual window. Total height is exact (count * rowH), so the
-                scrollbar is honest even though only ~40 rows exist. */}
             <div style={{ height: filtered.length * rowH }} className="relative">
               <div style={{ transform: `translateY(${httpWin.start * rowH}px)` }} className="absolute inset-x-0 top-0">
                 {httpRows.map((log) =>
@@ -1824,79 +1632,42 @@ export default function AdminLogsPage() {
 
         <Footer
           loaded={filtered.length}
-          // The "Other" bucket is filtered client-side, so the server's
-          // filtered_total counts rows this view is deliberately hiding.
           matching={otherBucketActive ? null : httpFilteredTotal}
           total={httpTotal}
         />
       </section>
 
-      {/* ===== System panel — also always mounted ===== */}
+      {/* ===== System panel (always mounted) ===== */}
       <section
         className={cn(
           "flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-graphite-800 bg-graphite-900",
           tab !== "system" && "hidden"
         )}
       >
-        <div className="flex shrink-0 flex-col gap-2 border-b border-graphite-800 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4">
-          <p className="text-sm text-text-muted">
-            System log
-            {sysTotal > 0 && (
-              <span className="tabular-nums text-text-subtle">
-                {" · "}{systemLogs.length.toLocaleString()} of {sysFilteredTotal.toLocaleString()} matching
-              </span>
-            )}
-          </p>
-          <div className="flex items-center gap-1.5 sm:gap-2">{actionBar}</div>
-        </div>
-
-        <div className="flex shrink-0 flex-col gap-2.5 border-b border-graphite-800 px-3 py-2.5 sm:px-4">
-          <div className="flex flex-wrap items-center gap-2">
+        <div className="flex shrink-0 flex-col gap-2.5 border-b border-graphite-800 px-3 py-3 sm:px-4">
+          <div className="flex items-center gap-1.5 sm:gap-2">
             <SearchBox
               inputRef={sysSearchRef}
               value={systemSearch}
               onChange={setSystemSearch}
               onClear={() => setSystemSearch("")}
-              placeholder="Search message, logger, request id, tool…"
+              placeholder={isMobile ? "Search log…" : "Search message, logger, request id, tool…"}
             />
-            <Select
-              value={levelFilter}
-              onChange={setLevelFilter}
-              placeholder="Any level"
-              options={[
-                { value: "", label: "Any level" },
-                { value: "ERROR", label: "ERROR" },
-                { value: "CRITICAL", label: "CRITICAL" },
-                { value: "WARNING", label: "WARNING" },
-                { value: "INFO", label: "INFO" },
-              ]}
-            />
-            <Select
-              value={sysToolFilter}
-              onChange={setSysToolFilter}
-              placeholder="All tools"
-              options={[{ value: "", label: "All tools" }, ...toolOptions.map((t) => ({ value: t.tool, label: t.label }))]}
-            />
-            <Select
-              value={sysTierFilter}
-              onChange={setSysTierFilter}
-              label="Tier"
-              placeholder="Any"
-              options={[
-                { value: "" as Tier, label: "Any" },
-                { value: "standard" as Tier, label: "Standard" },
-                { value: "hq" as Tier, label: "HQ" },
-              ]}
-            />
+            <FilterButton count={sysActiveFilters.length} onClick={() => setSysFiltersOpen(true)} />
+            <div className="hidden h-5 w-px bg-graphite-800 sm:block" />
+            {actionBar}
           </div>
+
+          {sysFilterRow}
+
           {sysActiveFilters.length > 0 && <FilterChips chips={sysActiveFilters} onClearAll={resetSysFilters} />}
         </div>
 
-        <div className="relative min-h-0 flex-1">
+        <div className="relative min-h-[280px] flex-1 sm:min-h-0">
           <div
             ref={sysRef}
             onScroll={handleSysScroll}
-            className="af-scroll h-full overflow-y-auto overscroll-contain font-mono text-xs"
+            className="af-scroll absolute inset-0 overflow-y-auto overscroll-contain font-mono text-xs"
           >
             <TopSentinel loading={sysLoadingOlder} hasOlder={sysHasOlder} count={systemLogs.length} total={sysFilteredTotal} />
             {systemGroups.map((group, index) => (
@@ -1927,7 +1698,32 @@ export default function AdminLogsPage() {
           </div>
           {showJumpSys && <JumpButton onClick={jumpToBottomSys} />}
         </div>
+
+        <Footer loaded={systemLogs.length} matching={sysFilteredTotal} total={sysTotal} />
       </section>
+
+      {isMobile && (
+        <>
+          <FilterSheet
+            open={filtersOpen}
+            title="Filter requests"
+            activeCount={activeFilters.length}
+            onClose={() => setFiltersOpen(false)}
+            onReset={resetFilters}
+          >
+            {httpFilterSheet}
+          </FilterSheet>
+          <FilterSheet
+            open={sysFiltersOpen}
+            title="Filter system log"
+            activeCount={sysActiveFilters.length}
+            onClose={() => setSysFiltersOpen(false)}
+            onReset={resetSysFilters}
+          >
+            {sysFilterSheet}
+          </FilterSheet>
+        </>
+      )}
 
       {correlation && (
         <CorrelationDrawer
@@ -1973,7 +1769,9 @@ export default function AdminLogsPage() {
 .af-scroll::-webkit-scrollbar-thumb:hover { background: rgb(245 158 11 / .5); background-clip: content-box; }
 @keyframes af-slide { from { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: none; } }
 .af-slide { animation: af-slide .18s cubic-bezier(.22,.9,.32,1) both; }
-@media (prefers-reduced-motion: reduce) { .af-slide { animation: none; } }
+@keyframes af-rise { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: none; } }
+.af-rise { animation: af-rise .22s cubic-bezier(.22,.9,.32,1) both; }
+@media (prefers-reduced-motion: reduce) { .af-slide, .af-rise { animation: none; } }
 `,
         }}
       />
@@ -1985,8 +1783,6 @@ export default function AdminLogsPage() {
    Header pieces
    =================================================================== */
 
-/** Live/paused plus how fresh the data is. A feed that shows no rows for a
- *  minute is indistinguishable from a broken one without this. */
 function LiveStatus({ isPaused, lastUpdatedAt }: { isPaused: boolean; lastUpdatedAt: number | null }) {
   useTicker(!isPaused && lastUpdatedAt !== null, 5000);
   return (
@@ -2017,7 +1813,7 @@ function TabButton({
       aria-selected={active}
       onClick={onClick}
       className={cn(
-        "flex items-center gap-1.5 rounded-md px-3.5 py-1.5 text-sm font-medium transition-colors",
+        "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors sm:px-3.5",
         FOCUS_RING,
         active ? "bg-graphite-800 text-text-primary" : "text-text-muted hover:text-text-primary"
       )}
@@ -2028,13 +1824,13 @@ function TabButton({
   );
 }
 
-/** A stat box. Optionally clickable, which turns it into a toggle for the
- *  filter it summarises — the Silent box uses this so the number and its
- *  drill-down are the same control. */
+/** Stat box. Compact on phones (short label), full on desktop. With onClick it
+ *  becomes a filter toggle: filter icon in the label row, red ring when on. */
 function Stat({
-  label, value, valueClass = "", hint, onClick, active = false,
+  label, short, value, valueClass = "", hint, onClick, active = false,
 }: {
   label: string;
+  short: string;
   value: number;
   valueClass?: string;
   hint?: string;
@@ -2043,12 +1839,29 @@ function Stat({
 }) {
   const inner = (
     <>
-      <p className="truncate font-mono text-[10px] uppercase tracking-[0.16em] text-text-subtle">{label}</p>
-      <p className={cn("mt-1 text-xl font-semibold tabular-nums sm:text-2xl", valueClass || "text-text-primary")}>
+      <p className="flex items-center gap-1 font-mono text-[9px] uppercase tracking-[0.12em] text-text-subtle sm:text-[10px] sm:tracking-[0.16em]">
+        <span className="truncate">
+          <span className="sm:hidden">{short}</span>
+          <span className="hidden sm:inline">{label}</span>
+        </span>
+        {onClick && (
+          <Filter
+            className={cn("h-2.5 w-2.5 shrink-0 transition-colors", active ? "text-red-400" : "text-text-subtle/60")}
+          />
+        )}
+        {onClick && active && (
+          <span className="ml-auto hidden rounded bg-red-500/15 px-1 text-[8px] font-semibold tracking-normal text-red-400 sm:inline">
+            on
+          </span>
+        )}
+      </p>
+      <p className={cn("mt-0.5 truncate text-sm font-semibold tabular-nums sm:mt-1 sm:text-2xl", valueClass || "text-text-primary")}>
         {value.toLocaleString()}
       </p>
     </>
   );
+
+  const base = "min-w-0 px-1.5 py-2 sm:px-5 sm:py-3.5";
 
   if (onClick) {
     return (
@@ -2057,9 +1870,10 @@ function Stat({
         title={hint}
         aria-pressed={active}
         className={cn(
-          "min-w-0 bg-graphite-900 px-3 py-3.5 text-left transition-colors hover:bg-graphite-850 sm:px-5",
+          base,
+          "text-left transition-colors",
           FOCUS_RING,
-          active && "ring-1 ring-inset ring-red-500/50"
+          active ? "bg-red-500/[0.07] ring-1 ring-inset ring-red-500/50" : "bg-graphite-900 hover:bg-graphite-850"
         )}
       >
         {inner}
@@ -2067,7 +1881,7 @@ function Stat({
     );
   }
   return (
-    <div className="min-w-0 bg-graphite-900 px-3 py-3.5 sm:px-5" title={hint}>
+    <div className={cn(base, "bg-graphite-900")} title={hint}>
       {inner}
     </div>
   );
@@ -2142,7 +1956,7 @@ function IconAction({
       aria-label={label}
       aria-expanded={expanded}
       className={cn(
-        "flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-60",
+        "flex h-9 shrink-0 items-center gap-1.5 rounded-lg border px-2.5 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-60 sm:h-auto sm:py-1.5",
         FOCUS_RING,
         highlight
           ? "border-amber-500/50 text-amber-400"
@@ -2171,13 +1985,126 @@ function MenuItem({ children, onClick, danger = false }: { children: React.React
   );
 }
 
+/** Mobile-only trigger for the filter sheet. */
+function FilterButton({ count, onClick }: { count: number; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      aria-haspopup="dialog"
+      aria-label={count > 0 ? `Filters, ${count} active` : "Filters"}
+      className={cn(
+        "flex h-9 shrink-0 items-center gap-1.5 rounded-lg border px-2.5 text-xs transition-colors sm:hidden",
+        FOCUS_RING,
+        count > 0 ? "border-amber-500/50 text-amber-400" : "border-graphite-700 text-text-muted"
+      )}
+    >
+      <SlidersHorizontal className="h-3.5 w-3.5" />
+      {count > 0 ? (
+        <span className="rounded-full bg-amber-500 px-1.5 text-[10px] font-semibold tabular-nums text-graphite-950">{count}</span>
+      ) : (
+        <span>Filters</span>
+      )}
+    </button>
+  );
+}
+
+/** Bottom sheet for filters on phones. Selects inside still open as popovers;
+ *  the tool picker renders inline so nothing needs to escape the sheet. */
+function FilterSheet({
+  open, title, activeCount, onClose, onReset, children,
+}: {
+  open: boolean;
+  title: string;
+  activeCount: number;
+  onClose: () => void;
+  onReset: () => void;
+  children: React.ReactNode;
+}) {
+  useEscape(open, onClose);
+  useLockBodyScroll(open);
+  if (!open) return null;
+  return (
+    <div role="dialog" aria-modal="true" aria-label={title} className="fixed inset-0 z-50 flex items-end">
+      <button aria-hidden tabIndex={-1} onClick={onClose} className="absolute inset-0 cursor-default bg-black/55 backdrop-blur-[2px]" />
+      <div className="af-rise relative flex max-h-[88vh] w-full flex-col rounded-t-2xl border-t border-graphite-700 bg-graphite-900 shadow-2xl">
+        <div className="mx-auto mt-2.5 h-1 w-10 shrink-0 rounded-full bg-graphite-700" />
+        <div className="flex shrink-0 items-center justify-between gap-3 px-4 pb-2.5 pt-3">
+          <p className="flex items-center gap-2 text-sm font-semibold text-text-primary">
+            {title}
+            {activeCount > 0 && (
+              <span className="rounded-full bg-amber-500/15 px-2 py-px text-[11px] font-medium text-amber-400">
+                {activeCount} active
+              </span>
+            )}
+          </p>
+          <div className="flex items-center gap-2">
+            {activeCount > 0 && (
+              <button
+                onClick={onReset}
+                className={cn("rounded-lg px-2.5 py-1.5 text-xs text-text-muted transition-colors hover:text-text-primary", FOCUS_RING)}
+              >
+                Reset
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className={cn(
+                "rounded-lg bg-amber-500 px-3.5 py-1.5 text-xs font-semibold text-graphite-950 transition-colors hover:bg-amber-400",
+                FOCUS_RING
+              )}
+            >
+              Done
+            </button>
+          </div>
+        </div>
+        <div className="af-scroll flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-1">
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Switch-style chip that replaces the native checkbox. */
+function ToggleChip({
+  checked, onChange, label, tone = "amber",
+}: {
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  label: string;
+  tone?: "amber" | "red";
+}) {
+  const on = tone === "red" ? "bg-red-500" : "bg-amber-500";
+  const text = tone === "red" ? "border-red-500/40 text-red-400" : "border-amber-500/40 text-amber-400";
+  return (
+    <button
+      role="switch"
+      aria-checked={checked}
+      onClick={() => onChange(!checked)}
+      className={cn(
+        "flex h-9 items-center gap-2 rounded-lg border px-2.5 text-sm transition-colors sm:h-auto sm:py-1.5",
+        FOCUS_RING,
+        checked ? cn("bg-graphite-850", text) : "border-graphite-700 text-text-muted hover:border-graphite-600 hover:text-text-primary"
+      )}
+    >
+      <span className={cn("relative h-4 w-7 shrink-0 rounded-full transition-colors", checked ? on : "bg-graphite-700")}>
+        <span
+          className={cn(
+            "absolute top-0.5 h-3 w-3 rounded-full bg-white shadow-sm transition-transform",
+            checked ? "translate-x-3.5" : "translate-x-0.5"
+          )}
+        />
+      </span>
+      {label}
+    </button>
+  );
+}
+
 type Suggestion = { path: string; label: string; count: number };
 
 function SearchBox({
   inputRef, value, onChange, onClear, placeholder, combobox,
 }: {
-  // React 19 types useRef<T>(null) as RefObject<T | null>; widening here stays
-  // assignable under React 18's types too.
   inputRef: React.RefObject<HTMLInputElement | null>;
   value: string;
   onChange: (v: string) => void;
@@ -2192,22 +2119,18 @@ function SearchBox({
     onPick: (path: string) => void;
   };
 }) {
-  const listId = "search-suggestions";
+  const listId = useStableId("search-suggestions");
   const c = combobox;
 
   return (
     <div className="relative min-w-0 flex-1 sm:min-w-[220px]">
       <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-text-subtle" />
       <input
-        // Cast keeps this compiling under both React 18 and 19 typings, which
-        // disagree about whether useRef<T>(null) yields RefObject<T | null>.
         ref={inputRef as React.Ref<HTMLInputElement>}
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onFocus={() => c?.setOpen(true)}
-        // Delayed so a mousedown on a suggestion still lands — blur fires first
-        // otherwise and the list is gone before the click resolves.
         onBlur={() => c && setTimeout(() => c.setOpen(false), 120)}
         onKeyDown={(e) => {
           if (e.key === "Escape") {
@@ -2223,8 +2146,6 @@ function SearchBox({
             e.preventDefault();
             c.setHighlightIndex((i) => (i <= 0 ? c.suggestions.length - 1 : i - 1));
           } else if (e.key === "Enter") {
-            // Only hijack Enter when something is highlighted; otherwise the
-            // typed text stands.
             if (c.highlightIndex >= 0) {
               e.preventDefault();
               c.onPick(c.suggestions[c.highlightIndex].path);
@@ -2242,7 +2163,7 @@ function SearchBox({
         aria-autocomplete={c ? "list" : undefined}
         aria-activedescendant={c && c.open && c.highlightIndex >= 0 ? `${listId}-${c.highlightIndex}` : undefined}
         className={cn(
-          "w-full rounded-lg border border-graphite-700 bg-graphite-850 py-1.5 pl-9 pr-9 text-sm text-text-primary transition-colors placeholder:text-text-subtle hover:border-graphite-600 focus:border-amber-500/60",
+          "h-9 w-full rounded-lg border border-graphite-700 bg-graphite-850 pl-9 pr-9 text-sm text-text-primary transition-colors placeholder:text-text-subtle hover:border-graphite-600 focus:border-amber-500/60 sm:h-auto sm:py-1.5",
           FOCUS_RING
         )}
       />
@@ -2274,8 +2195,6 @@ function SearchBox({
               id={`${listId}-${i}`}
               role="option"
               aria-selected={i === c.highlightIndex}
-              // mousedown, not click: fires before the input's blur, so the
-              // selection isn't lost to the dropdown unmounting first.
               onMouseDown={(e) => { e.preventDefault(); c.onPick(sug.path); }}
               onMouseEnter={() => c.setHighlightIndex(i)}
               className={cn(
@@ -2298,13 +2217,6 @@ function SearchBox({
   );
 }
 
-/**
- * One dropdown for the whole dashboard, replacing native <select>. A native
- * select's OPEN list is drawn by the OS, so no CSS this app owns reaches it —
- * its radius, focus ring, scrollbar and hover states are the platform's, not
- * the design system's. Focus stays on the trigger and moves via
- * aria-activedescendant, which keeps Escape/Tab predictable.
- */
 function Select<T extends string>({
   value, options, onChange, placeholder, label, widthClass = "",
 }: {
@@ -2312,7 +2224,6 @@ function Select<T extends string>({
   options: { value: T; label: string }[];
   onChange: (v: T) => void;
   placeholder: string;
-  /** Static prefix shown before the value, e.g. "Tier". */
   label?: string;
   widthClass?: string;
 }) {
@@ -2359,7 +2270,7 @@ function Select<T extends string>({
         aria-controls={open ? listId : undefined}
         aria-activedescendant={open ? `${listId}-${active}` : undefined}
         className={cn(
-          "flex w-full items-center justify-between gap-2 rounded-lg border bg-graphite-850 px-2.5 py-1.5 text-left text-sm transition-colors",
+          "flex h-9 w-full items-center justify-between gap-2 rounded-lg border bg-graphite-850 px-2.5 text-left text-sm transition-colors sm:h-auto sm:py-1.5",
           FOCUS_RING,
           open
             ? "border-amber-500/60 text-text-primary"
@@ -2391,7 +2302,7 @@ function Select<T extends string>({
                 onMouseEnter={() => setActive(i)}
                 onClick={() => { onChange(o.value); setOpen(false); }}
                 className={cn(
-                  "flex w-full items-center justify-between gap-2 whitespace-nowrap px-3 py-1.5 text-left text-sm transition-colors",
+                  "flex w-full items-center justify-between gap-2 whitespace-nowrap px-3 py-2 text-left text-sm transition-colors sm:py-1.5",
                   i === active ? "bg-graphite-800 text-text-primary" : "text-text-muted"
                 )}
               >
@@ -2406,29 +2317,20 @@ function Select<T extends string>({
   );
 }
 
-/** Stable per-instance id for aria wiring. Named useStableId rather than useId
- *  so it can't shadow React's own export the day someone imports it here. */
-let _idSeq = 0;
-function useStableId(prefix: string): string {
-  const ref = useRef<string | null>(null);
-  if (!ref.current) ref.current = `${prefix}-${++_idSeq}`;
-  return ref.current;
-}
-
-/** The merged tool picker: tagged tools first, path families below. Filterable,
- *  because with ~25 tools plus families the list is long enough that scanning
- *  beats scrolling. */
+/** Merged tool picker: tagged tools first, path families below. `inline`
+ *  renders the search + list as a static block (used inside the mobile sheet). */
 function ToolPicker({
-  toolOptions, endpointOptions, toolFilter, endpointFilter, activeLabel, onPickTool, onPickFamily, onClear,
+  toolOptions, endpointOptions, toolFilter, endpointFilter, activeLabel, onPickTool, onPickFamily, onClear, inline = false,
 }: {
   toolOptions: ToolCount[];
-  endpointOptions: { path: string; label: string; count: number }[];
+  endpointOptions: EndpointOption[];
   toolFilter: string;
   endpointFilter: string;
   activeLabel: string | null;
   onPickTool: (tool: string) => void;
   onPickFamily: (path: string) => void;
   onClear: () => void;
+  inline?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -2436,15 +2338,15 @@ function ToolPicker({
   const inputRef = useRef<HTMLInputElement>(null);
   const listId = useStableId("toolpicker");
 
-  useEscape(open, () => setOpen(false));
+  useEscape(open && !inline, () => setOpen(false));
 
   useEffect(() => {
-    if (open) {
+    if (open && !inline) {
       setQuery("");
       setActive(0);
       requestAnimationFrame(() => inputRef.current?.focus());
     }
-  }, [open]);
+  }, [open, inline]);
 
   const needle = query.trim().toLowerCase();
   const tools = useMemo(
@@ -2459,11 +2361,10 @@ function ToolPicker({
     [endpointOptions, needle]
   );
 
-  // Flat nav list so arrow keys cross the section boundary the way the eye does.
   type Row =
     | { kind: "all" }
     | { kind: "tool"; tool: ToolCount }
-    | { kind: "family"; family: { path: string; label: string; count: number } };
+    | { kind: "family"; family: EndpointOption };
 
   const rows = useMemo<Row[]>(() => {
     const out: Row[] = [];
@@ -2477,11 +2378,141 @@ function ToolPicker({
     if (row.kind === "all") onClear();
     else if (row.kind === "tool") onPickTool(row.tool.tool);
     else onPickFamily(row.family.path);
-    setOpen(false);
+    if (!inline) setOpen(false);
+  }
+
+  const panel = (
+    <>
+      <div className="border-b border-graphite-800 p-2">
+        <input
+          ref={inputRef}
+          value={query}
+          onChange={(e) => { setQuery(e.target.value); setActive(0); }}
+          onKeyDown={(e) => {
+            if (e.key === "ArrowDown") {
+              e.preventDefault();
+              setActive((i) => (i + 1) % Math.max(rows.length, 1));
+            } else if (e.key === "ArrowUp") {
+              e.preventDefault();
+              setActive((i) => (i <= 0 ? rows.length - 1 : i - 1));
+            } else if (e.key === "Enter" && rows[active]) {
+              e.preventDefault();
+              commit(rows[active]);
+            }
+          }}
+          placeholder="Filter tools…"
+          aria-label="Filter tools"
+          aria-controls={listId}
+          aria-activedescendant={`${listId}-${active}`}
+          className={cn(
+            "h-9 w-full rounded-md border border-graphite-700 bg-graphite-900 px-2.5 text-sm text-text-primary placeholder:text-text-subtle sm:h-auto sm:py-1.5",
+            FOCUS_RING
+          )}
+        />
+      </div>
+
+      <div id={listId} role="listbox" className={cn("af-scroll overflow-y-auto py-1", inline ? "max-h-60" : "max-h-72")}>
+        {rows.length === 0 && <p className="px-3 py-3 text-center text-xs text-text-subtle">No tools match.</p>}
+        {rows.map((row, i) => {
+          const isActive = i === active;
+          const common = cn(
+            "flex w-full items-center justify-between gap-3 px-3 py-2 text-left transition-colors sm:py-1.5",
+            isActive && "bg-graphite-800"
+          );
+
+          if (row.kind === "all") {
+            const selected = !toolFilter && !endpointFilter;
+            return (
+              <button
+                key="all"
+                id={`${listId}-${i}`}
+                role="option"
+                aria-selected={selected}
+                onMouseEnter={() => setActive(i)}
+                onClick={() => commit(row)}
+                className={cn(common, "text-sm", selected ? "text-text-primary" : "text-text-muted")}
+              >
+                All tools
+                {selected && <Check className="h-3 w-3 shrink-0 text-amber-500" />}
+              </button>
+            );
+          }
+
+          if (row.kind === "tool") {
+            const t = row.tool;
+            const selected = toolFilter === t.tool;
+            const first = rows[i - 1]?.kind !== "tool";
+            return (
+              <div key={`tool:${t.tool}`}>
+                {first && <PickerSection>Tools</PickerSection>}
+                <button
+                  id={`${listId}-${i}`}
+                  role="option"
+                  aria-selected={selected}
+                  title={`${t.total.toLocaleString()} requests${t.hq_count > 0 ? ` · ${t.hq_count.toLocaleString()} HQ` : ""}`}
+                  onMouseEnter={() => setActive(i)}
+                  onClick={() => commit(row)}
+                  className={common}
+                >
+                  <span className="truncate text-sm text-text-primary">{t.label}</span>
+                  <span className="flex shrink-0 items-center gap-1.5">
+                    {t.hq_count > 0 && (
+                      <span className="rounded border border-amber-500/30 bg-amber-500/15 px-1 py-px text-[9px] font-semibold uppercase text-amber-400">
+                        HQ
+                      </span>
+                    )}
+                    <span className="text-[11px] tabular-nums text-text-subtle">{t.total.toLocaleString()}</span>
+                    {selected && <Check className="h-3 w-3 text-amber-500" />}
+                  </span>
+                </button>
+              </div>
+            );
+          }
+
+          const e = row.family;
+          const selected = endpointFilter === e.path;
+          const isOther = e.path === OTHER_TRAFFIC_KEY;
+          const first = rows[i - 1]?.kind !== "family";
+          return (
+            <div key={`fam:${e.path}`}>
+              {first && <PickerSection>By URL path</PickerSection>}
+              <button
+                id={`${listId}-${i}`}
+                role="option"
+                aria-selected={selected}
+                title={
+                  isOther
+                    ? `${e.count.toLocaleString()} requests to paths that aren't a registered tool — mostly scanner traffic`
+                    : `${e.label}\n${e.path}\n${e.count > 0 ? `${e.count.toLocaleString()} requests all-time` : "No traffic yet"}`
+                }
+                onMouseEnter={() => setActive(i)}
+                onClick={() => commit(row)}
+                className={common}
+              >
+                <span className="min-w-0">
+                  <span className={cn("block truncate text-sm", isOther ? "italic text-text-muted" : "text-text-primary")}>
+                    {e.label}
+                  </span>
+                  {!isOther && <span className="block truncate font-mono text-[10px] text-text-subtle">{e.path}</span>}
+                </span>
+                <span className="flex shrink-0 items-center gap-1.5">
+                  {e.count > 0 && <span className="text-[11px] tabular-nums text-text-subtle">{e.count.toLocaleString()}</span>}
+                  {selected && <Check className="h-3 w-3 text-amber-500" />}
+                </span>
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </>
+  );
+
+  if (inline) {
+    return <div className="overflow-hidden rounded-lg border border-graphite-700 bg-graphite-850">{panel}</div>;
   }
 
   return (
-    <div className="relative min-w-0 flex-1 sm:w-[240px] sm:flex-none">
+    <div className="relative w-[240px] shrink-0">
       <button
         onClick={() => setOpen(!open)}
         aria-expanded={open}
@@ -2504,128 +2535,8 @@ function ToolPicker({
       {open && (
         <>
           <button aria-hidden tabIndex={-1} onClick={() => setOpen(false)} className="fixed inset-0 z-20 cursor-default" />
-          <div className="absolute left-0 right-0 top-full z-30 mt-1 overflow-hidden rounded-lg border border-graphite-700 bg-graphite-850 shadow-xl sm:right-auto sm:min-w-[300px]">
-            <div className="border-b border-graphite-800 p-2">
-              <input
-                ref={inputRef}
-                value={query}
-                onChange={(e) => { setQuery(e.target.value); setActive(0); }}
-                onKeyDown={(e) => {
-                  if (e.key === "ArrowDown") {
-                    e.preventDefault();
-                    setActive((i) => (i + 1) % Math.max(rows.length, 1));
-                  } else if (e.key === "ArrowUp") {
-                    e.preventDefault();
-                    setActive((i) => (i <= 0 ? rows.length - 1 : i - 1));
-                  } else if (e.key === "Enter" && rows[active]) {
-                    e.preventDefault();
-                    commit(rows[active]);
-                  }
-                }}
-                placeholder="Filter tools…"
-                aria-label="Filter tools"
-                aria-controls={listId}
-                aria-activedescendant={`${listId}-${active}`}
-                className={cn(
-                  "w-full rounded-md border border-graphite-700 bg-graphite-900 px-2.5 py-1.5 text-sm text-text-primary placeholder:text-text-subtle",
-                  FOCUS_RING
-                )}
-              />
-            </div>
-
-            <div id={listId} role="listbox" className="af-scroll max-h-72 overflow-y-auto py-1">
-              {rows.length === 0 && <p className="px-3 py-3 text-center text-xs text-text-subtle">No tools match.</p>}
-              {rows.map((row, i) => {
-                const isActive = i === active;
-                const common = cn(
-                  "flex w-full items-center justify-between gap-3 px-3 py-1.5 text-left transition-colors",
-                  isActive && "bg-graphite-800"
-                );
-
-                if (row.kind === "all") {
-                  const selected = !toolFilter && !endpointFilter;
-                  return (
-                    <button
-                      key="all"
-                      id={`${listId}-${i}`}
-                      role="option"
-                      aria-selected={selected}
-                      onMouseEnter={() => setActive(i)}
-                      onClick={() => commit(row)}
-                      className={cn(common, "text-sm", selected ? "text-text-primary" : "text-text-muted")}
-                    >
-                      All tools
-                      {selected && <Check className="h-3 w-3 shrink-0 text-amber-500" />}
-                    </button>
-                  );
-                }
-
-                if (row.kind === "tool") {
-                  const t = row.tool;
-                  const selected = toolFilter === t.tool;
-                  const first = rows[i - 1]?.kind !== "tool";
-                  return (
-                    <div key={`tool:${t.tool}`}>
-                      {first && <PickerSection>Tools</PickerSection>}
-                      <button
-                        id={`${listId}-${i}`}
-                        role="option"
-                        aria-selected={selected}
-                        title={`${t.total.toLocaleString()} requests${t.hq_count > 0 ? ` · ${t.hq_count.toLocaleString()} HQ` : ""}`}
-                        onMouseEnter={() => setActive(i)}
-                        onClick={() => commit(row)}
-                        className={common}
-                      >
-                        <span className="truncate text-sm text-text-primary">{t.label}</span>
-                        <span className="flex shrink-0 items-center gap-1.5">
-                          {t.hq_count > 0 && (
-                            <span className="rounded border border-amber-500/30 bg-amber-500/15 px-1 py-px text-[9px] font-semibold uppercase text-amber-400">
-                              HQ
-                            </span>
-                          )}
-                          <span className="text-[11px] tabular-nums text-text-subtle">{t.total.toLocaleString()}</span>
-                          {selected && <Check className="h-3 w-3 text-amber-500" />}
-                        </span>
-                      </button>
-                    </div>
-                  );
-                }
-
-                const e = row.family;
-                const selected = endpointFilter === e.path;
-                const isOther = e.path === OTHER_TRAFFIC_KEY;
-                const first = rows[i - 1]?.kind !== "family";
-                return (
-                  <div key={`fam:${e.path}`}>
-                    {first && <PickerSection>By URL path</PickerSection>}
-                    <button
-                      id={`${listId}-${i}`}
-                      role="option"
-                      aria-selected={selected}
-                      title={
-                        isOther
-                          ? `${e.count.toLocaleString()} requests to paths that aren't a registered tool — mostly scanner traffic`
-                          : `${e.label}\n${e.path}\n${e.count > 0 ? `${e.count.toLocaleString()} requests all-time` : "No traffic yet"}`
-                      }
-                      onMouseEnter={() => setActive(i)}
-                      onClick={() => commit(row)}
-                      className={common}
-                    >
-                      <span className="min-w-0">
-                        <span className={cn("block truncate text-sm", isOther ? "italic text-text-muted" : "text-text-primary")}>
-                          {e.label}
-                        </span>
-                        {!isOther && <span className="block truncate font-mono text-[10px] text-text-subtle">{e.path}</span>}
-                      </span>
-                      <span className="flex shrink-0 items-center gap-1.5">
-                        {e.count > 0 && <span className="text-[11px] tabular-nums text-text-subtle">{e.count.toLocaleString()}</span>}
-                        {selected && <Check className="h-3 w-3 text-amber-500" />}
-                      </span>
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
+          <div className="absolute left-0 top-full z-30 mt-1 min-w-[300px] overflow-hidden rounded-lg border border-graphite-700 bg-graphite-850 shadow-xl">
+            {panel}
           </div>
         </>
       )}
@@ -2633,8 +2544,6 @@ function ToolPicker({
   );
 }
 
-/** Non-interactive. Exists so "Tools" and "By URL path" read as two different
- *  kinds of thing rather than one undifferentiated list. */
 function PickerSection({ children }: { children: React.ReactNode }) {
   return (
     <p className="mt-1 border-t border-graphite-800 px-3 pb-1 pt-2 font-mono text-[10px] uppercase tracking-[0.14em] text-text-subtle first:mt-0 first:border-t-0">
@@ -2643,14 +2552,23 @@ function PickerSection({ children }: { children: React.ReactNode }) {
   );
 }
 
-function StatusChip({ active, onClick, label, tone = "" }: { active: boolean; onClick: () => void; label: string; tone?: string }) {
+function StatusChip({
+  active, onClick, label, tone = "", fill = false,
+}: {
+  active: boolean;
+  onClick: () => void;
+  label: string;
+  tone?: string;
+  fill?: boolean;
+}) {
   return (
     <button
       onClick={onClick}
       aria-pressed={active}
       className={cn(
-        "rounded px-2.5 py-1 text-xs font-medium transition-colors",
+        "rounded px-2.5 py-1.5 text-xs font-medium transition-colors sm:py-1",
         FOCUS_RING,
+        fill && "flex-1",
         active ? cn("bg-graphite-700", tone || "text-text-primary") : cn("text-text-subtle hover:text-text-primary", tone)
       )}
     >
@@ -2659,8 +2577,6 @@ function StatusChip({ active, onClick, label, tone = "" }: { active: boolean; on
   );
 }
 
-/** What's actually filtering the view, each removable on its own. A lone
- *  "Clear" button tells you something is applied but not what. */
 function FilterChips({
   chips, onClearAll,
 }: {
@@ -2737,10 +2653,6 @@ function JumpButton({ onClick }: { onClick: () => void }) {
   );
 }
 
-/** Sits at the top of a log list. Older entries load automatically when the
- *  reader scrolls near it, so this reports status rather than being a button.
- *  Fixed height on purpose: the virtual window's offset math treats it as a
- *  constant, and a height that changed mid-load would shift every row. */
 function TopSentinel({
   loading, hasOlder, count, total,
 }: {
@@ -2776,13 +2688,11 @@ function Footer({
   loaded, matching, total,
 }: {
   loaded: number;
-  /** null when the active filter is client-side and the server's match count
-   *  would describe a different set of rows than what's shown. */
   matching: number | null;
   total: number;
 }) {
   return (
-    <div className="shrink-0 border-t border-graphite-800 px-4 py-2.5 text-xs tabular-nums text-text-subtle">
+    <div className="shrink-0 border-t border-graphite-800 px-3 py-2 text-[11px] tabular-nums text-text-subtle sm:px-4 sm:py-2.5 sm:text-xs">
       {matching === null ? (
         <>Showing {loaded.toLocaleString()} loaded · counted in this window only</>
       ) : (
@@ -2795,9 +2705,6 @@ function Footer({
   );
 }
 
-/** Loading, error and empty in one place, so the two feeds can't drift apart on
- *  what a dead-end looks like. Empty states offer the way out rather than just
- *  naming the problem. */
 function ListState({
   loading, error, empty, emptyTitle, emptyBody, onClearFilters, onRetry, skeletonRows, rowH,
 }: {
@@ -2867,11 +2774,6 @@ function ListState({
    Correlation drawer
    =================================================================== */
 
-/**
- * The replacement for the old tab takeover. It floats above both feeds, so
- * opening and closing it changes nothing underneath: no remount, no refetch, no
- * scroll repair, no lost position in the HTTP list.
- */
 function CorrelationDrawer({
   correlation, logs, loading, error, onClose,
 }: {
@@ -2881,7 +2783,6 @@ function CorrelationDrawer({
   error: string | null;
   onClose: () => void;
 }) {
-  const panelRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -2895,10 +2796,7 @@ function CorrelationDrawer({
   return (
     <div role="dialog" aria-modal="true" aria-label="Correlated logs" className="fixed inset-0 z-50 flex justify-end">
       <button aria-hidden tabIndex={-1} onClick={onClose} className="absolute inset-0 cursor-default bg-black/50 backdrop-blur-[2px]" />
-      <div
-        ref={panelRef}
-        className="af-slide relative flex h-full w-full flex-col border-l border-graphite-700 bg-graphite-900 shadow-2xl sm:w-[560px]"
-      >
+      <div className="af-slide relative flex h-full w-full flex-col border-l border-graphite-700 bg-graphite-900 shadow-2xl sm:w-[560px]">
         <div className="flex shrink-0 items-start justify-between gap-3 border-b border-graphite-800 bg-amber-500/[0.05] px-4 py-3">
           <div className="min-w-0">
             <p className="text-xs font-medium text-amber-400">
@@ -2927,7 +2825,7 @@ function CorrelationDrawer({
             ref={closeRef}
             onClick={onClose}
             className={cn(
-              "flex shrink-0 items-center gap-1 rounded-lg border border-graphite-700 px-2.5 py-1 text-xs text-text-muted transition-colors hover:bg-graphite-850 hover:text-text-primary",
+              "flex shrink-0 items-center gap-1 rounded-lg border border-graphite-700 px-2.5 py-1.5 text-xs text-text-muted transition-colors hover:bg-graphite-850 hover:text-text-primary sm:py-1",
               FOCUS_RING
             )}
           >
@@ -2953,10 +2851,6 @@ function CorrelationDrawer({
               No system log lines were recorded for this {scope === "job" ? "job" : "request"}.
             </p>
           )}
-          {/* newGroup is always false: every line here belongs to the same
-              request or job by construction. onOpenEntry is omitted because
-              this view already shows exactly one — making its lines clickable
-              would reload the identical view. */}
           {logs.map((entry) => (
             <SystemRow key={entry.id} entry={entry} newGroup={false} />
           ))}
@@ -2985,9 +2879,6 @@ function ConfirmDialog({
 
   useEscape(!loading, onCancel);
 
-  // Focus the panel and keep Tab inside it. A destructive confirm that lets
-  // focus wander back to the page behind it is how you end up pressing Enter on
-  // the wrong thing.
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
     confirmRef.current?.focus();
@@ -3013,14 +2904,14 @@ function ConfirmDialog({
   }, []);
 
   return (
-    <div role="dialog" aria-modal="true" aria-labelledby="confirm-title" className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+    <div role="dialog" aria-modal="true" aria-labelledby="confirm-title" className="fixed inset-0 z-[60] flex items-end justify-center p-3 sm:items-center sm:p-4">
       <button
         aria-hidden
         tabIndex={-1}
         onClick={loading ? undefined : onCancel}
         className="absolute inset-0 cursor-default bg-black/60 backdrop-blur-[2px]"
       />
-      <div ref={panelRef} className="relative flex w-full max-w-sm flex-col gap-3 rounded-xl border border-graphite-700 bg-graphite-900 p-4 shadow-2xl sm:p-5">
+      <div ref={panelRef} className="af-rise relative flex w-full max-w-sm flex-col gap-3 rounded-xl border border-graphite-700 bg-graphite-900 p-4 shadow-2xl sm:p-5">
         <div className="flex items-start gap-3">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-500/10">
             <AlertTriangle className="h-4 w-4 text-red-400" />
@@ -3059,8 +2950,6 @@ function ConfirmDialog({
   );
 }
 
-/** Auto-dismisses on success; failures stay until acknowledged, since those are
- *  the ones you need to act on. */
 function Toast({ toast, onDismiss }: { toast: { text: string; tone: "ok" | "bad" }; onDismiss: () => void }) {
   useEffect(() => {
     if (toast.tone !== "ok") return;
@@ -3091,10 +2980,6 @@ function Toast({ toast, onDismiss }: { toast: { text: string; tone: "ok" | "bad"
    Rows
    =================================================================== */
 
-/** Which tool/tier actually produced a row. Worth the pixels because the PATH
- *  frequently can't tell you: a /youtube/stems/status/<id> poll looks identical
- *  whether its job was standard or HQ. HQ is coloured; standard is deliberately
- *  not badged — tagging every ordinary row is noise on the 95% case. */
 function ToolBadge({ tool, tier }: { tool?: string | null; tier?: string | null }) {
   const name = realId(tool);
   if (!name) return null;
@@ -3114,11 +2999,6 @@ function ToolBadge({ tool, tier }: { tool?: string | null; tier?: string | null 
   );
 }
 
-/** The whole point of the silent-error work: a request that logged an error is
- *  marked on the row itself, regardless of the status it returned. A 200 that
- *  actually failed is now visible in the feed, not just buried in the System
- *  tab. Clicking the row still opens the correlated log lines, so the marker is
- *  one hop from the traceback. */
 function ErrorBadge({ log }: { log: HttpLogEntry }) {
   if (!log.error_logged) return null;
   const n = log.error_count || 1;
@@ -3132,23 +3012,16 @@ function ErrorBadge({ log }: { log: HttpLogEntry }) {
   );
 }
 
-/** A row is worth clicking if either correlation route exists — a job id in the
- *  path (the whole job's story) or a real request id (that one request). */
 function httpRowTarget(log: HttpLogEntry): "job" | "request" | null {
   if (jobIdFromPath(log.path)) return "job";
   if (realId(log.request_id)) return "request";
   return null;
 }
 
-// Log rows are immutable once written — same id means identical content, so a
-// fresh fetch producing new-but-equal objects skips the re-render entirely.
 const HttpTableRow = memo(
   function HttpTableRow({ log, onOpen }: { log: HttpLogEntry; onOpen: (log: HttpLogEntry) => void }) {
     const target = httpRowTarget(log);
     const clickable = target !== null;
-    // See isTextSelected(): a drag-select ending over this row still fires a
-    // click on mouseup. Bailing when a selection exists lets that click be a
-    // no-op instead of yanking the user into the drawer.
     const open = () => { if (!isTextSelected()) onOpen(log); };
 
     return (
@@ -3173,7 +3046,6 @@ const HttpTableRow = memo(
         className={cn(
           "group grid items-center gap-x-3 border-b border-graphite-800/50 px-4 text-[12.5px] transition-colors",
           FOCUS_RING,
-          // A logged error tints the row red at rest; hover still wins on hover.
           log.error_logged && "bg-red-500/[0.06]",
           clickable ? "cursor-pointer hover:bg-graphite-850/70" : "opacity-60"
         )}
@@ -3222,7 +3094,7 @@ const HttpCardRow = memo(
         }
         style={{ height: ROW_H_MOBILE }}
         className={cn(
-          "flex flex-col justify-center gap-1 border-b border-graphite-800/50 px-4",
+          "flex flex-col justify-center gap-1 border-b border-graphite-800/50 px-3",
           FOCUS_RING,
           log.error_logged && "bg-red-500/[0.06]",
           clickable ? "cursor-pointer active:bg-graphite-850/70" : "opacity-60"
@@ -3254,10 +3126,6 @@ const HttpCardRow = memo(
   (prev, next) => prev.log.id === next.log.id
 );
 
-/** contentVisibility:auto skips layout, paint and style for entries scrolled
- *  out of view. System messages wrap to arbitrary heights so they're the
- *  expensive ones; containIntrinsicSize gives the scrollbar an estimate so
- *  skipping them doesn't make scroll height jump. */
 const SystemRow = memo(
   function SystemRow({
     entry, newGroup, onOpenEntry,
@@ -3267,10 +3135,6 @@ const SystemRow = memo(
     onOpenEntry?: (entry: SystemLogEntry) => void;
   }) {
     const tone = levelTone(entry.level);
-    // Checks BOTH correlation targets. Previously only the message-text job id
-    // counted, which meant an ERROR line with no "job=<id>" in its text — a
-    // plain exception, a startup failure — was a dead end even though it
-    // belonged to a real, correlatable request.
     const hasJobId = jobIdFromMessage(entry.message) !== null;
     const hasRequestId = realId(entry.request_id) !== null;
     const clickable = !!onOpenEntry && (hasJobId || hasRequestId);
@@ -3290,7 +3154,7 @@ const SystemRow = memo(
         title={clickable ? (hasJobId ? "View this job's full log" : "View this request's logs") : undefined}
         style={{ contentVisibility: "auto", containIntrinsicSize: "0 56px" }}
         className={cn(
-          "border-l-2 px-4 py-2 transition-colors hover:bg-graphite-850/60",
+          "border-l-2 px-3 py-2 transition-colors hover:bg-graphite-850/60 sm:px-4",
           tone.border,
           FOCUS_RING,
           clickable && "cursor-pointer",
@@ -3325,13 +3189,6 @@ function worstLevel(entries: SystemLogEntry[]): string {
   return worst;
 }
 
-/**
- * EVERY group folds, including the live one. Exempting the newest group made an
- * in-flight download dump 40+ progress lines at full height, so the grouping
- * that makes this feed readable stopped applying to the one request you're
- * actually watching. The tail is recomputed every render, so it IS the newest
- * line and updates live on its own.
- */
 const SystemGroupBlock = memo(
   function SystemGroupBlock({
     group, isFirst, expanded, onToggle, onOpenEntry,
@@ -3361,7 +3218,7 @@ const SystemGroupBlock = memo(
             onClick={onToggle}
             aria-expanded={expanded}
             className={cn(
-              "flex w-full items-center gap-2 border-l-2 px-4 py-1.5 text-[11px] transition-colors hover:bg-graphite-850/60",
+              "flex w-full items-center gap-2 border-l-2 px-3 py-2 text-[11px] transition-colors hover:bg-graphite-850/60 sm:px-4 sm:py-1.5",
               tone.border,
               tone.text,
               FOCUS_RING
