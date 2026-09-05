@@ -155,19 +155,30 @@ const TOOL_COPY: Record<string, ToolCopy> = {
     closing:
       "Your free runs reset every month, and every tool that doesn't need a GPU stays free.",
   },
+  // Piano & keys and Guitar presets. Full mix / Let it decide use the
+  // 3-credit "audio-to-midi-hq-mix" key below.
   "audio-to-midi-hq": {
-    title: "Multi-track MIDI",
-    // MIDI HQ, not transcription — different cap, same rule: derive it.
+    title: "Instrument MIDI",
     creditDetail: `One transcription of this file, up to ${
       (TOOL_LIMITS["audio-to-midi-hq"]?.maxTotalDurationSeconds ?? 600) / 60
     } minutes`,
     spec: [
-      ["You get", "One MIDI track per instrument, each with a General MIDI program"],
-      // Named because it is the honest limit and it prevents the refund
-      // request: on a solo instrument or a short clip the model frequently
-      // returns a single track, and someone who paid expecting separation
-      // would be right to be annoyed.
-      ["Best on", "Real multi-instrument material — a solo part may come back as one track"],
+      ["You get", "One MIDI track from a model trained for that instrument — piano (Transkun) or guitar"],
+      ["Best on", "A solo recording or an isolated stem. A full mix will bleed other instruments into the notes"],
+    ],
+    closing:
+      "Single-track MIDI stays free and unlimited, with the same formats and the same .mid download.",
+  },
+  // 3 credits — the credit row derives that from the payload. One Demucs
+  // split plus up to four transcriptions is why.
+  "audio-to-midi-hq-mix": {
+    title: "Full-mix MIDI",
+    creditDetail: `One full track split and transcribed, up to ${
+      (TOOL_LIMITS["audio-to-midi-hq"]?.maxTotalDurationSeconds ?? 600) / 60
+    } minutes`,
+    spec: [
+      ["You get", "Separate MIDI tracks for bass, piano, guitar, vocals and other, with the detected BPM set as the tempo"],
+      ["Honest limit", "Bass, piano and vocal lines come back cleanest. Synth leads and pads (“other”) are still the hardest part for any model"],
     ],
     closing:
       "Single-track MIDI stays free and unlimited, with the same formats and the same .mid download.",
@@ -207,7 +218,8 @@ const TOOL_LABELS: Record<string, string> = {
   // line on the screen where naming the thing they were mid-way through is
   // most reassuring.
   transcribe: "your transcript",
-  "audio-to-midi-hq": "Multi-track MIDI",
+  "audio-to-midi-hq": "Instrument MIDI",
+  "audio-to-midi-hq-mix": "Full-mix MIDI",
   "audio-to-sheet": "your sheet music",
 };
 

@@ -32,7 +32,7 @@ const ORDER: Variant[] = ["original", "standard", "hq"];
 const LABELS: Record<Variant, { title: string; note: string }> = {
   original: { title: "Original", note: "Source audio" },
   standard: { title: "Standard", note: "Always free" },
-  hq: { title: "High accuracy", note: "1 credit" },
+  hq: { title: "High accuracy", note: "from 1 credit" },
 };
 
 export function MidiCompare({

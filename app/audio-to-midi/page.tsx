@@ -477,37 +477,42 @@ export default async function AudioToMidiPage() {
             Renders nothing while the tool is off, so the page can't advertise
             something a visitor cannot buy.
           */
-          <ToolSection id="high-accuracy" title="High-accuracy transcription for melodies, vocals and guitar">
+          <ToolSection id="high-accuracy" title="High-accuracy transcription: one model per instrument">
             <p>
-              The standard converter returns every note it detected in a single
-              track. High accuracy picks a stronger engine for what you upload:
-              it follows a sung melody, a vocal line or a lead instrument far
-              more closely, catching notes the standard detector misses and
-              holding pitch through sustained passages. Guitar riffs, chords and
-              arpeggios route to an engine tuned for guitar, which strips the
-              string harmonics and doubled attacks that usually turn a clean
-              riff into a cloud of stray notes.
+              The standard converter runs one general-purpose detector and returns
+              every note it finds in a single track. High accuracy uses a
+              dedicated model for each kind of part instead. Piano goes to a
+              model trained only on piano. Guitar goes to an engine tuned for
+              riffs, chords and arpeggios that strips the string harmonics and
+              doubled attacks that usually turn a clean riff into a cloud of
+              stray notes. Both can pull their instrument out of a mix first if
+              the recording is not a solo.
             </p>
             <p>
-              On material with several instruments playing at once it also
-              separates the performance — a bass line, a piano part and a drum
-              pattern arrive as three tracks, each with a General MIDI program
-              already assigned, so they land on the right instruments the moment
-              you open the file in a DAW.
+              Full mix does the whole arrangement. The track is split into stems
+              first — bass, piano, guitar, vocals and everything else — and each
+              stem is transcribed by the model best at it. You get one MIDI
+              track per instrument, named and with a General MIDI program
+              assigned, and the detected BPM written in as the tempo so the notes
+              sit on the grid when you drop the file into a DAW.
             </p>
             <p>
-              It is worth being straight about when this helps. On a solo guitar
-              recording, a hummed melody, or a short clip, the model often
-              returns a single track — there is only one instrument to find. The
-              difference shows on real multi-instrument material: a full
-              arrangement, a band recording, a loop with drums and bass playing
-              together. If your source is one instrument, the free converter is
-              the right tool and costs nothing.
+              It is worth being straight about what comes back well and what
+              does not. Bass lines, piano parts and sung melodies come out
+              cleanest. Guitar is good on clear riffs and rougher on heavily
+              distorted or layered parts. Synth leads, pads and everything that
+              ends up in the &ldquo;other&rdquo; stem are the hardest for any
+              transcription model, ours included — expect that track to need
+              the most editing. If your source is a single instrument, pick that
+              instrument rather than full mix; if it is a simple melody, the free
+              converter is probably enough and costs nothing.
             </p>
             <p>
-              High accuracy runs on GPU time that costs real money per job, so it
-              uses a credit — with free runs every month and nothing recurring.
-              Standard transcription stays free and unlimited.{" "}
+              High accuracy runs on GPU time that costs real money per job. Piano
+              and guitar use one credit; a full mix — one separation plus up to
+              four transcriptions — uses three. Everyone gets free runs each
+              month, nothing recurs, and standard transcription stays free and
+              unlimited.{" "}
               <Link href="/pricing">See what credits cost</Link>.
             </p>
           </ToolSection>

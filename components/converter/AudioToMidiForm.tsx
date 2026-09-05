@@ -17,6 +17,7 @@ import { getRateLimitLabel } from "@/lib/data/rate-limits";
 import { cn } from "@/lib/utils/cn";
 import { useCredits } from "@/components/credits/CreditProvider";
 import { FreeTierBadge } from "@/components/credits/FreeTierBadge";
+import type { MeteredToolKey } from "@/lib/types/credits";
 import { getAudioToMidiHqResult, type MidiHqResult } from "@/lib/api/railway";
 
 /**
@@ -40,11 +41,14 @@ import { getAudioToMidiHqResult, type MidiHqResult } from "@/lib/api/railway";
  *
  * ── INSTRUMENT ROUTING (2026-09-01) ────────────────────────────────────
  *
- * HQ now takes an `instrument` field. auto/piano/mix go to YourMT3 as before.
- * guitar goes to a basic-pitch guitar mode on the backend (preset + harmonic
- * cleanup), optionally after an htdemucs_6s guitar-stem isolation pass
- * (`isolate=true`). Same route, same credit. The result carries `engine` so
- * the summary can say which one ran.
+ * HQ takes an `instrument` field (2026-09-05 routing):
+ *   auto    Demucs split, then one engine per stem (bass/vocals basic-pitch,
+ *           piano Transkun, guitar preset, other YourMT3), merged into one
+ *           multi-track MIDI with the detected BPM as tempo. 3 credits under
+ *           the "audio-to-midi-hq-mix" rule.
+ *   piano   Transkun. 1 credit. `isolate=true` pulls the piano stem first.
+ *   guitar  basic-pitch guitar mode. 1 credit. `isolate=true` as before.
+ * The result carries `engine` (stems | transkun | basic-pitch-guitar).
  *
  * ── THIS PASS ──────────────────────────────────────────────────────────
  *
@@ -300,41 +304,53 @@ function formatRateLimit(max: number, windowSeconds: number): string {
 
 type Instrument = "auto" | "piano" | "mix" | "guitar";
 
-const INSTRUMENTS: { id: Instrument; label: string; blurb: string }[] = [
+const INSTRUMENTS: { id: Instrument; label: string; blurb: string; credits: 1 | 3 }[] = [
   {
     id: "auto",
-    label: "Let it decide",
-    blurb: "Good default for keys, vocals and most melodies.",
+    label: "Full mix",
+    credits: 3,
+    blurb:
+      "Splits the track first, then transcribes each part with the model best at it. Separate tracks for bass, piano, guitar, vocals and other. Bass, keys and vocal lines come back cleanest; synth leads and pads are the weakest.",
   },
   {
     id: "piano",
     label: "Piano & keys",
-    blurb: "Solo piano, synths, electric piano.",
-  },
-  {
-    id: "mix",
-    label: "Full mix",
-    blurb: "Several instruments at once, split onto separate tracks.",
+    credits: 1,
+    blurb: "A dedicated piano model. Best on solo piano; for keys inside a mix, turn on isolation below.",
   },
   {
     id: "guitar",
     label: "Guitar",
-    blurb: "Riffs, chords and arpeggios. Uses a guitar-specific engine.",
+    credits: 1,
+    blurb: "Riffs, chords and arpeggios on a guitar-specific engine. Isolation available for guitar inside a mix.",
   },
 ];
 
 const INSTRUMENT_ICONS: Record<Instrument, typeof Sparkles> = {
-  auto: Sparkles,
+  auto: Disc3,
   piano: Piano,
   mix: Disc3,
   guitar: Guitar,
 };
+
+const hqToolKey = (instrument: Instrument): MeteredToolKey =>
+  instrument === "auto" || instrument === "mix" ? "audio-to-midi-hq-mix" : "audio-to-midi-hq";
 
 /** Fields the backend added for guitar mode; railway.ts may not type them yet. */
 type MidiHqResultExtra = MidiHqResult & {
   engine?: string;
   isolated?: boolean;
   notes_dropped_by_cleanup?: number;
+  bpm?: number | null;
+  stems_used?: string[];
+  stems_skipped?: string[];
+};
+
+const ENGINE_LABEL: Record<string, string> = {
+  stems: "split per instrument",
+  transkun: "piano engine",
+  "basic-pitch-guitar": "guitar engine",
+  yourmt3: "multi-track model",
 };
 
 /* ------------------------------------------------------------------ *
@@ -657,16 +673,20 @@ function MidiHqResultSummary({ jobId }: { jobId: string }) {
   if (!result || result.tracks.length === 0) return null;
 
   const isGuitarEngine = result.engine === "basic-pitch-guitar";
+  const engineLabel = result.engine ? ENGINE_LABEL[result.engine] : undefined;
   const cleaned = result.notes_dropped_by_cleanup ?? 0;
+  const skipped = (result.stems_skipped ?? []).filter((stem) => stem !== "drums");
 
   return (
     <div className="overflow-hidden rounded-xl border border-graphite-800 bg-graphite-950/40">
       <div className="flex items-baseline justify-between gap-3 border-b border-graphite-800 px-4 py-2.5">
         <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-text-subtle">
           Detected
-          {isGuitarEngine && (
+          {engineLabel && (
             <span className="ml-2 normal-case tracking-normal text-amber-400/80">
-              guitar engine{result.isolated ? " · isolated from mix" : ""}
+              {engineLabel}
+              {result.isolated ? " · isolated from mix" : ""}
+              {result.bpm ? ` · ${Math.round(result.bpm)} BPM set as tempo` : ""}
             </span>
           )}
         </span>
@@ -696,6 +716,13 @@ function MidiHqResultSummary({ jobId }: { jobId: string }) {
           </li>
         ))}
       </ul>
+
+      {skipped.length > 0 && (
+        <p className="border-t border-graphite-800 px-4 py-2.5 text-[11px] leading-relaxed text-text-subtle">
+          No {skipped.join(", ")} part was found in this track, so{" "}
+          {skipped.length === 1 ? "that stem was" : "those stems were"} left out.
+        </p>
+      )}
 
       {isGuitarEngine && cleaned > 0 && (
         <p className="border-t border-graphite-800 px-4 py-2.5 text-[11px] leading-relaxed text-text-subtle">
@@ -766,7 +793,7 @@ const TIERS: { id: Tier; label: string; cost: string; blurb: string }[] = [
     // module does not.
     cost: "",
     blurb:
-      "Picks the right engine for what you upload: a stronger model for keys, vocals and full mixes, and a guitar-specific one for riffs and chords.",
+      "A dedicated model per instrument. Full mixes are split into stems first so bass, keys, guitar and vocals each land on their own track.",
   },
 ];
 
@@ -778,6 +805,9 @@ export function AudioToMidiForm({ hqAvailable = false }: { hqAvailable?: boolean
   const [instrument, setInstrument] = useState<Instrument>("auto");
   const [isolate, setIsolate] = useState(false);
   const isGuitar = isHq && instrument === "guitar";
+  const isPiano = isHq && instrument === "piano";
+  const canIsolate = isGuitar || isPiano;
+  const isFullMix = isHq && (instrument === "auto" || instrument === "mix");
 
   const { rateLimitFor } = useCredits();
 
@@ -844,7 +874,7 @@ export function AudioToMidiForm({ hqAvailable = false }: { hqAvailable?: boolean
         <Music4 className="h-3.5 w-3.5" aria-hidden />
       ),
     // Renders nothing while this rule is off.
-    titleAfter: option.id === "hq" ? <FreeTierBadge tool="audio-to-midi-hq" /> : undefined,
+    titleAfter: option.id === "hq" ? <FreeTierBadge tool={hqToolKey(instrument)} /> : undefined,
     meta: option.cost || undefined,
     detail: option.blurb,
   }));
@@ -855,7 +885,7 @@ export function AudioToMidiForm({ hqAvailable = false }: { hqAvailable?: boolean
       value: option.id,
       title: option.label,
       titleBefore: <Icon className="h-3.5 w-3.5" aria-hidden />,
-      detail: option.blurb,
+      detail: `${option.blurb} ${option.credits} ${option.credits === 1 ? "credit" : "credits"} per run.`,
     };
   });
 
@@ -882,9 +912,13 @@ export function AudioToMidiForm({ hqAvailable = false }: { hqAvailable?: boolean
       toolLabel={TOOL_COPY.toolLabel}
       toolMeta={isHq ? "high accuracy · up to 10 min" : TOOL_COPY.toolMeta}
       processingLabel={
-        isGuitar && isolate ? "Isolating guitar, then transcribing" : TOOL_COPY.processingLabel
+        isFullMix
+          ? "Splitting into stems, then transcribing each"
+          : canIsolate && isolate
+            ? `Isolating ${instrument}, then transcribing`
+            : TOOL_COPY.processingLabel
       }
-      expectedRange={isGuitar && isolate ? "one to a few minutes" : TOOL_COPY.expectedRange}
+      expectedRange={isFullMix || (canIsolate && isolate) ? "one to a few minutes" : TOOL_COPY.expectedRange}
       resultVerb={TOOL_COPY.resultVerb}
       icon={Music4}
       hidePreview
@@ -906,7 +940,7 @@ export function AudioToMidiForm({ hqAvailable = false }: { hqAvailable?: boolean
           // tool's 127.7 default here would throw away real notes on a run
           // they paid for — see Settings.limitNoteLength.
           const fields: Record<string, string> = { instrument };
-          if (instrument === "guitar" && isolate) {
+          if ((instrument === "guitar" || instrument === "piano") && isolate) {
             fields.isolate = "true";
           }
           if (settings.limitNoteLength) {
@@ -973,21 +1007,21 @@ export function AudioToMidiForm({ hqAvailable = false }: { hqAvailable?: boolean
                 disabled={disabled}
               />
 
-              {isGuitar && (
+              {canIsolate && (
                 <div className="flex items-start justify-between gap-3 rounded-lg border border-graphite-800 bg-graphite-850/60 px-3.5 py-3">
                   <div>
                     <p className="text-sm font-medium text-text-primary">
-                      Guitar is inside a full mix
+                      {isGuitar ? "Guitar" : "Piano"} is inside a full mix
                     </p>
                     <p className="mt-0.5 text-[11px] leading-snug text-text-subtle">
-                      Pulls the guitar out first, then transcribes just that. Leave
-                      off for a solo guitar recording or DI — it only adds time.
+                      Pulls the {isGuitar ? "guitar" : "piano"} out first, then transcribes just
+                      that. Leave off for a solo recording — it only adds time.
                     </p>
                   </div>
                   <Toggle
                     checked={isolate}
                     disabled={disabled}
-                    label="Isolate guitar from mix"
+                    label={`Isolate ${isGuitar ? "guitar" : "piano"} from mix`}
                     onChange={setIsolate}
                   />
                 </div>
@@ -1138,7 +1172,7 @@ export function AudioToMidiForm({ hqAvailable = false }: { hqAvailable?: boolean
                         <p className="mt-1 text-[11px] leading-snug text-text-subtle">
                           {isGuitar
                             ? "Off by default. The guitar engine already removes string harmonics and doubled attacks — turn this on only if the result still looks cluttered."
-                            : "Off by default. The multi-track model emits note events directly, so there is usually nothing to clean up — turn this on only if the result looks cluttered."}
+                            : "Off by default. Each engine already cleans its own output — turn this on only if the result looks cluttered."}
                         </p>
                       )}
                     </div>
