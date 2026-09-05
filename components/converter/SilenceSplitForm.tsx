@@ -86,6 +86,9 @@ const MIN_DURATION_MIN = 0.1;
 const MIN_DURATION_MAX = 10;
 const MIN_DURATION_DEFAULT = 0.5;
 const GAP_STEP = 0.1;
+// Mirrors SILENCE_SPLIT_MIN_SEGMENT_SECONDS / SILENCE_SPLIT_MIN_SEGMENT_MAX_SECONDS.
+const MIN_SEGMENT_MAX = 600;
+const SEGMENT_STEP = 1;
 
 /** The two rules the SERVER applies to the segment list, which the preview
  *  used to ignore. Read from TOOL_LIMITS rather than restated. */
@@ -104,6 +107,11 @@ function clamp(value: number, min: number, max: number): number {
 function normalizeGap(value: number, fallback = MIN_DURATION_DEFAULT): number {
   if (!Number.isFinite(value)) return fallback;
   return Math.round(clamp(value, MIN_DURATION_MIN, MIN_DURATION_MAX) * 10) / 10;
+}
+
+function normalizeSegment(value: number, fallback = MIN_SEGMENT_SECONDS): number {
+  if (!Number.isFinite(value)) return fallback;
+  return Math.round(clamp(value, MIN_SEGMENT_SECONDS, MIN_SEGMENT_MAX));
 }
 
 function formatTime(seconds: number): string {
@@ -136,10 +144,12 @@ function SplitPreview({
   file,
   thresholdDb,
   minDuration,
+  minSegment,
 }: {
   file: File;
   thresholdDb: number;
   minDuration: number;
+  minSegment: number;
 }) {
   const [duration, setDuration] = useState<number | null>(null);
   const [envelope, setEnvelope] = useState<WaveformEnvelope | null>(null);
@@ -192,9 +202,9 @@ function SplitPreview({
   const segments = useMemo(() => {
     if (duration === null) return [];
     return findAudibleSegments(duration, quietRanges).filter(
-      (seg) => seg.endSeconds - seg.startSeconds >= MIN_SEGMENT_SECONDS
+      (seg) => seg.endSeconds - seg.startSeconds >= minSegment
     );
-  }, [duration, quietRanges]);
+  }, [duration, quietRanges, minSegment]);
 
   /* Audio that survives as a track is highlighted; the gaps that get
      cut away render grey. */
@@ -268,8 +278,8 @@ function SplitPreview({
                honest answer is that nothing comes back at all. */
             <Hint tone="warn">
               Nothing would survive at these settings — every stretch is shorter than{" "}
-              {MIN_SEGMENT_SECONDS}s once the gaps are cut. Lower the threshold or raise the
-              minimum gap.
+              {minSegment}s once the gaps are cut. Lower the threshold, raise the minimum gap,
+              or lower the minimum track length.
             </Hint>
           ) : segments.length === 1 ? (
             <Hint tone="warn">
@@ -279,24 +289,14 @@ function SplitPreview({
           ) : (
             <>
               <p className="text-[11px] text-text-subtle">
-                About {segments.length} tracks at these settings
-                {MIN_SEGMENT_SECONDS > 0 ? `, ignoring anything under ${MIN_SEGMENT_SECONDS}s` : ""}.
+                About {overCap ? MAX_SEGMENTS : segments.length} tracks at these settings
+                {minSegment > 0 ? `, ignoring anything under ${minSegment}s` : ""}.
               </p>
-              {/*
-                DOES NOT PREDICT THE SERVER'S COUNT.
-
-                This preview runs its own dB scan in the browser; the server
-                runs a different one, then drops short segments, THEN checks
-                the 50 cap. So the two numbers can differ, and the server
-                already refuses with a message that names the real count and
-                the fix — before writing any files, so nothing is half-done.
-                Restating the limit in our own words would compete with that
-                message and lose. This says only that the failure exists.
-              */}
               {overCap && (
                 <Hint tone="warn">
-                  Files with many short gaps can exceed the {MAX_SEGMENTS}-segment limit. If this
-                  one does, nothing is written and the error will say what to change.
+                  This would produce over {MAX_SEGMENTS} tracks, so the shortest gaps will be
+                  merged automatically to fit the {MAX_SEGMENTS}-track limit. Raise the minimum
+                  gap or minimum track length to control which cuts survive.
                 </Hint>
               )}
             </>
@@ -332,8 +332,10 @@ export function SilenceSplitForm() {
   const [format, setFormat] = useState("mp3");
   const [thresholdDb, setThresholdDb] = useState(THRESHOLD_DEFAULT);
   const [minDurationSeconds, setMinDurationSeconds] = useState(MIN_DURATION_DEFAULT);
+  const [minSegmentSeconds, setMinSegmentSeconds] = useState(MIN_SEGMENT_SECONDS);
 
   const setGap = (v: number) => setMinDurationSeconds(normalizeGap(v, minDurationSeconds));
+  const setSegment = (v: number) => setMinSegmentSeconds(normalizeSegment(v, minSegmentSeconds));
 
   return (
     <MultiOutputToolForm
@@ -345,6 +347,7 @@ export function SilenceSplitForm() {
         fd.append("target_format", format);
         fd.append("threshold_db", String(thresholdDb));
         fd.append("min_duration_seconds", String(minDurationSeconds));
+        fd.append("min_segment_seconds", String(minSegmentSeconds));
         return submitJob("silence-split", fd, 30_000);
       }}
       pollIntervalMs={3_000}
@@ -368,7 +371,12 @@ export function SilenceSplitForm() {
       renderControls={(file, disabled) => (
         <div className="space-y-5">
           {file ? (
-            <SplitPreview file={file} thresholdDb={thresholdDb} minDuration={minDurationSeconds} />
+            <SplitPreview
+              file={file}
+              thresholdDb={thresholdDb}
+              minDuration={minDurationSeconds}
+              minSegment={minSegmentSeconds}
+            />
           ) : (
             <p className="text-xs text-text-subtle">
               Upload a file to preview exactly where it would split.
@@ -436,6 +444,39 @@ export function SilenceSplitForm() {
                 "accent-amber-500 disabled:opacity-40"
               )}
               aria-label="Minimum silence gap duration in seconds"
+            />
+          </ControlField>
+
+          <ControlField
+            as="fieldset"
+            label="Minimum track length"
+            meta={
+              <Stepper
+                label="Minimum track length"
+                value={minSegmentSeconds}
+                step={SEGMENT_STEP}
+                bigStep={10}
+                precision={0}
+                unit="s"
+                disabled={disabled || !file}
+                onChange={setSegment}
+              />
+            }
+            hint="Stretches shorter than this are dropped rather than saved as their own track. Raise it on speech or lecture recordings to skip clips that are just a few words long."
+          >
+            <input
+              type="range"
+              min={MIN_SEGMENT_SECONDS}
+              max={MIN_SEGMENT_MAX}
+              step={SEGMENT_STEP}
+              value={minSegmentSeconds}
+              onChange={(e) => setSegment(Number(e.target.value))}
+              disabled={disabled || !file}
+              className={cn(
+                "h-1.5 w-full cursor-pointer appearance-none rounded-full bg-graphite-700",
+                "accent-amber-500 disabled:opacity-40"
+              )}
+              aria-label="Minimum track length in seconds"
             />
           </ControlField>
         </div>
