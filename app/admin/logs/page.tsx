@@ -2082,18 +2082,19 @@ function ToggleChip({
       aria-checked={checked}
       onClick={() => onChange(!checked)}
       className={cn(
-        "flex h-9 items-center gap-2 rounded-lg border px-2.5 text-sm transition-colors sm:h-auto sm:py-1.5",
+        "flex h-9 items-center gap-2 whitespace-nowrap rounded-lg border px-2.5 text-sm transition-colors sm:h-auto sm:py-1.5",
         FOCUS_RING,
         checked ? cn("bg-graphite-850", text) : "border-graphite-700 text-text-muted hover:border-graphite-600 hover:text-text-primary"
       )}
     >
-      <span className={cn("relative h-4 w-7 shrink-0 rounded-full transition-colors", checked ? on : "bg-graphite-700")}>
-        <span
-          className={cn(
-            "absolute top-0.5 h-3 w-3 rounded-full bg-white shadow-sm transition-transform",
-            checked ? "translate-x-3.5" : "translate-x-0.5"
-          )}
-        />
+      <span
+        aria-hidden
+        className={cn(
+          "flex h-4 w-7 shrink-0 items-center rounded-full px-0.5 transition-colors",
+          checked ? cn(on, "justify-end") : "justify-start bg-graphite-700"
+        )}
+      >
+        <span className="h-3 w-3 rounded-full bg-white shadow-sm" />
       </span>
       {label}
     </button>
