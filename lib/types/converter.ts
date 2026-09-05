@@ -184,6 +184,8 @@ export type SeparationStatus =
  */
 export interface SubmitBilling {
   charged: "credit" | "free" | "none";
+  /** Credits actually taken for this run. Absent on older routes; treat as 1. */
+  credits?: number;
   balance: number;
   free_remaining: number;
 }

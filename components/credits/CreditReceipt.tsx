@@ -75,6 +75,7 @@ export function CreditReceipt({
   if (!billing) return null;
 
   const { charged, balance, free_remaining } = billing;
+  const credits = billing.credits ?? 1;
 
   // "none" means the route was metered but nothing was taken — the global
   // paywall is off, or this tool's own rule is disabled, so paywall.guard
@@ -89,7 +90,9 @@ export function CreditReceipt({
 
   const isCredit = charged === "credit";
 
-  const label = isCredit ? "1 credit used" : "Free run used";
+  const label = isCredit
+    ? `${credits} ${credits === 1 ? "credit" : "credits"} used`
+    : "Free run used";
   const figure = isCredit
     ? `${balance} left`
     : `${free_remaining} left this month`;
