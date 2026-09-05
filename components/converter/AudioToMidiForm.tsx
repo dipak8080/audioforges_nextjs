@@ -10,6 +10,7 @@ import {
   Piano,
   Disc3,
   Guitar,
+  Lightbulb,
 } from "lucide-react";
 import { JobToolForm } from "@/components/converter/JobToolForm";
 import { OptionCards, type CardOption } from "@/components/converter/ToolControls";
@@ -314,9 +315,10 @@ const INSTRUMENTS: { id: Instrument; label: string; blurb: string; credits: 1 | 
   },
   {
     id: "piano",
-    label: "Piano & keys",
+    label: "Piano, keys & synths",
     credits: 1,
-    blurb: "A dedicated piano model. Best on solo piano; for keys inside a mix, turn on isolation below.",
+    blurb:
+      "Piano, electric piano, synth chords and plucks — anything played on keys. Best on a single sound; for keys inside a song, turn on isolation below.",
   },
   {
     id: "guitar",
@@ -332,6 +334,81 @@ const INSTRUMENT_ICONS: Record<Instrument, typeof Sparkles> = {
   mix: Disc3,
   guitar: Guitar,
 };
+
+const SINGLE_SOUND_HINT = /\b(loop|stem|sample|one[- ]?shot|chord|pluck|lead|pad|riff|arp|melody|solo|dry|di)\b/i;
+const BASS_VOCAL_HINT = /\b(bass|808|sub|vocal|vox|voice|acapella|a cappella)\b/i;
+const SMALL_FILE_BYTES = 2_500_000;
+
+type Hint = { text: string; action?: { label: string; instrument?: Instrument; isolate?: boolean } };
+
+function presetHint(file: File | null, instrument: Instrument, isolate: boolean): Hint | null {
+  if (!file) return null;
+  const name = file.name.replace(/\.[^.]+$/, "");
+  const looksSingle = SINGLE_SOUND_HINT.test(name) || file.size < SMALL_FILE_BYTES;
+  const looksBassOrVocal = BASS_VOCAL_HINT.test(name);
+
+  if (looksBassOrVocal && instrument !== "auto") {
+    return {
+      text: "Bass and vocal lines are only transcribed by Full mix — there is no single-instrument preset for them.",
+      action: { label: "Use Full mix", instrument: "auto", isolate: false },
+    };
+  }
+  if (looksSingle && instrument === "auto") {
+    return {
+      text: "This looks like a single sound. An instrument preset with isolation off usually beats Full mix here, and it is 1 credit instead of 3.",
+      action: { label: "Switch to Piano, keys & synths", instrument: "piano", isolate: false },
+    };
+  }
+  if (looksSingle && isolate) {
+    return {
+      text: "This looks like a solo recording. Isolation would strip most of it — leave it off.",
+      action: { label: "Turn isolation off", isolate: false },
+    };
+  }
+  return null;
+}
+
+function PresetHint({
+  hint,
+  disabled,
+  onApply,
+}: {
+  hint: Hint | null;
+  disabled: boolean;
+  onApply: (a: NonNullable<Hint["action"]>) => void;
+}) {
+  if (!hint) {
+    return (
+      <details className="group text-[11px] leading-snug text-text-subtle">
+        <summary className="cursor-pointer select-none list-none text-text-muted transition-colors hover:text-text-primary">
+          Not sure which to pick?
+        </summary>
+        <ul className="mt-1.5 space-y-1 pl-3">
+          <li>One sound — a loop, a stem, a solo recording: pick that instrument, isolation off.</li>
+          <li>Synth chords, plucks, pads: Piano, keys &amp; synths.</li>
+          <li>Piano or guitar inside a song: that instrument, isolation on.</li>
+          <li>A whole song with bass, keys and vocals: Full mix.</li>
+        </ul>
+      </details>
+    );
+  }
+  return (
+    <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 rounded-md border border-amber-500/25 bg-amber-500/[0.06] px-3 py-2 text-[11px] leading-snug text-text-muted">
+      <Lightbulb className="h-3 w-3 shrink-0 translate-y-[1px] text-amber-400/80" aria-hidden />
+      <span className="flex-1 basis-[16rem]">{hint.text}</span>
+      {hint.action && (
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => onApply(hint.action!)}
+          className="font-medium text-amber-400 underline-offset-2 hover:underline disabled:opacity-50"
+        >
+          {hint.action.label}
+        </button>
+      )}
+    </div>
+  );
+}
 
 const hqToolKey = (instrument: Instrument): MeteredToolKey =>
   instrument === "auto" || instrument === "mix" ? "audio-to-midi-hq-mix" : "audio-to-midi-hq";
@@ -964,7 +1041,7 @@ export function AudioToMidiForm({ hqAvailable = false }: { hqAvailable?: boolean
         }
         return fields;
       }}
-      renderControls={(_file, disabled) => (
+      renderControls={(file, disabled) => (
         <div className="space-y-3">
           {/*
             ENGINE, not quality. Named for what the user gets — one track vs
@@ -1007,6 +1084,15 @@ export function AudioToMidiForm({ hqAvailable = false }: { hqAvailable?: boolean
                 disabled={disabled}
               />
 
+              <PresetHint
+                hint={presetHint(file, instrument, isolate)}
+                disabled={disabled}
+                onApply={(a) => {
+                  if (a.instrument) setInstrument(a.instrument);
+                  if (a.isolate !== undefined) setIsolate(a.isolate);
+                }}
+              />
+
               {canIsolate && (
                 <div className="flex items-start justify-between gap-3 rounded-lg border border-graphite-800 bg-graphite-850/60 px-3.5 py-3">
                   <div>
@@ -1015,7 +1101,7 @@ export function AudioToMidiForm({ hqAvailable = false }: { hqAvailable?: boolean
                     </p>
                     <p className="mt-0.5 text-[11px] leading-snug text-text-subtle">
                       Pulls the {isGuitar ? "guitar" : "piano"} out first, then transcribes just
-                      that. Leave off for a solo recording — it only adds time.
+                      that. Off for loops, stems and solo recordings.
                     </p>
                   </div>
                   <Toggle
