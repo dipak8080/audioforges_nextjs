@@ -8,6 +8,7 @@ import { GuideByline } from "@/components/guides/GuideByline";
 import { Breadcrumb } from "@/components/layout/Breadcrumb";
 import { Prose } from "@/components/ui/Prose";
 import { ogForGuide } from "@/lib/og";
+import { ToolVideo } from "@/components/media/ToolVideo";
 
 const guide = getGuideBySlug("convert-audio-for-phone-systems-3cx-asterisk-ivr")!;
 
@@ -196,6 +197,9 @@ export default function PhoneSystemAudioGuidePage() {
           </div>
 
           <h2 id="convert">How to convert a file in two steps</h2>
+          <div className="not-prose my-6">
+            <ToolVideo slug="phone-system-audio" bare />
+          </div>
           <ol>
             <li>
               <strong>Make it mono.</strong> Open the{" "}
