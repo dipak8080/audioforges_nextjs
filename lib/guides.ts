@@ -189,6 +189,15 @@ export const guides: Guide[] = [
     category: "production",
   },
   {
+    slug: "convert-audio-for-phone-systems-3cx-asterisk-ivr",
+    title: "Convert Audio to 8 kHz Mono WAV for 3CX, Asterisk & IVR",
+    description:
+      "The exact WAV format 3CX, Asterisk, Cisco, Twilio and RingCentral expect for hold music and IVR prompts, and how to convert any file to it in two steps.",
+    publishedDate: "2026-09-06",
+    updatedDate: "2026-09-06",
+    category: "production",
+  },
+  {
     slug: "sample-rate-and-bit-depth-explained",
     title: "Sample Rate and Bit Depth Explained",
     description:

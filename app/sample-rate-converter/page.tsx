@@ -350,6 +350,15 @@ export default async function ResamplePage() {
             batch of files recorded at inconsistent rates before combining them.
           </p>
           <p>
+            Preparing hold music or IVR prompts for a phone system? PBX software
+            like 3CX, Asterisk and Cisco expects 8kHz, 16-bit, mono WAV and
+            rejects or distorts anything else.{" "}
+            <Link href="/guides/convert-audio-for-phone-systems-3cx-asterisk-ivr">
+              Read the phone-system audio guide
+            </Link>{" "}
+            for the exact spec per system and the two-step conversion.
+          </p>
+          <p>
             Want the fuller breakdown of why upsampling and downsampling behave so
             differently, and what bit depth is actually doing under the hood?{" "}
             <Link href="/guides/sample-rate-and-bit-depth-explained">

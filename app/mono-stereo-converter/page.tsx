@@ -341,7 +341,11 @@ export default async function ChannelsPage() {
             <Link href="/guides/mono-vs-stereo-what-changes">
               Read Mono vs. Stereo: What Actually Changes When You Convert
             </Link>
-            .
+            . Converting to mono for a phone system or IVR? See the{" "}
+            <Link href="/guides/convert-audio-for-phone-systems-3cx-asterisk-ivr">
+              phone-system audio guide
+            </Link>{" "}
+            for the full 8kHz mono WAV workflow.
           </p>
         </ToolSection>
 

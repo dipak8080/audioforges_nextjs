@@ -146,7 +146,13 @@ export default function SampleRateGuidePage() {
             Our <Link href="/sample-rate-converter">Sample Rate Converter</Link>{" "}
             handles both directions, with an optional bit depth change for WAV and
             AIFF files — upload a file, pick a target, and download the result, no
-            account or software install needed.
+            account or software install needed. For the one common case that
+            needs a very low rate — hold music and IVR prompts for phone systems —
+            see{" "}
+            <Link href="/guides/convert-audio-for-phone-systems-3cx-asterisk-ivr">
+              Convert Audio to 8 kHz Mono WAV for Phone Systems
+            </Link>
+            .
           </p>
         </Prose>
 

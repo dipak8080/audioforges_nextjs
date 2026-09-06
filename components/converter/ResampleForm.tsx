@@ -49,6 +49,8 @@ interface RateSpec {
 }
 
 const SAMPLE_RATES: RateSpec[] = [
+  { rate: 8000, label: "8 kHz", nyquistKhz: 4, use: "Phone systems, IVR" },
+  { rate: 16000, label: "16 kHz", nyquistKhz: 8, use: "Speech, HD voice" },
   { rate: 22050, label: "22.05 kHz", nyquistKhz: 11.025, use: "Voice, small files" },
   { rate: 44100, label: "44.1 kHz", nyquistKhz: 22.05, use: "CD standard" },
   { rate: 48000, label: "48 kHz", nyquistKhz: 24, use: "Video, DAWs" },
