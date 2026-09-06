@@ -7,6 +7,7 @@ import { Breadcrumb } from "@/components/layout/Breadcrumb";
 import { ToolSection } from "@/components/ui/ToolSection";
 import { FeatureStrip } from "@/components/ui/FeatureStrip";
 import { RelatedToolsGrid } from "@/components/tools/RelatedToolsGrid";
+import { ToolVideo } from "@/components/media/ToolVideo";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
 import { getLimits } from "@/lib/api/limits";
@@ -291,6 +292,8 @@ export default async function KeyFinderPage() {
             .
           </p>
         </ToolSection>
+
+        <ToolVideo slug="key-finder" />
 
         <RelatedToolsGrid tools={relatedTools} />
 

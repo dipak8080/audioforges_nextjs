@@ -7,6 +7,7 @@ import { Breadcrumb } from "@/components/layout/Breadcrumb";
 import { ToolSection } from "@/components/ui/ToolSection";
 import { FeatureStrip } from "@/components/ui/FeatureStrip";
 import { RelatedToolsGrid } from "@/components/tools/RelatedToolsGrid";
+import { ToolVideo } from "@/components/media/ToolVideo";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
 import { getRateLimitLabel } from "@/lib/data/rate-limits";
@@ -243,6 +244,8 @@ export default function YouTubeKeyFinderPage() {
             .
           </p>
         </ToolSection>
+
+        <ToolVideo slug="youtube-key-finder" />
 
         <RelatedToolsGrid tools={relatedTools} />
 

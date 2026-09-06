@@ -35,4 +35,20 @@ export const TOOL_VIDEOS: Record<string, ToolVideo> = {
     uploadDate: "2026-09-06",
     heading: "Watch: WAV to OGG in under a minute",
   },
+  "key-finder": {
+    videoId: "Z8xAleqoVH0",
+    title: "Find the Key & BPM of Any Song or YouTube Video — Free, No Signup",
+    description:
+      "Upload a track or paste a YouTube link and get the key, BPM, Camelot code and confidence in seconds. Runs Essentia's TempoCNN model; 85% exact-tempo accuracy on GiantSteps. No signup.",
+    uploadDate: "2026-09-06",
+    heading: "Watch: key and BPM from a file or a YouTube link",
+  },
+  "youtube-key-finder": {
+    videoId: "Z8xAleqoVH0",
+    title: "Find the Key & BPM of Any Song or YouTube Video — Free, No Signup",
+    description:
+      "Paste a YouTube link and get the key, BPM and Camelot code in seconds, or upload a file. Runs Essentia's TempoCNN model. No signup, no install.",
+    uploadDate: "2026-09-06",
+    heading: "Watch: key and BPM straight from a YouTube link",
+  },
 };
