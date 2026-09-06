@@ -272,7 +272,22 @@ export function CreditMenu({ className }: { className?: string }) {
 export function CreditChipMobile({ onOpenSheet }: { onOpenSheet: () => void }) {
   const { enabled, loading, me, balance, freeRemaining } = useCredits();
 
-  if (!enabled || loading) return null;
+  if (!enabled) return null;
+
+  if (loading) {
+    return (
+      <span
+        aria-hidden="true"
+        className={buttonStyles({
+          variant: "outline",
+          size: "md",
+          className: "gap-1 px-2.5 tabular-nums text-text-muted md:hidden",
+        })}
+      >
+        <Loader2 className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
+      </span>
+    );
+  }
 
   const hasCredits = balance > 0;
   const isEmpty = !me?.authenticated && !hasCredits && freeRemaining <= 0;
