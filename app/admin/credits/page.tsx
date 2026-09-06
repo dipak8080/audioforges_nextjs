@@ -105,7 +105,7 @@ const VIEWS: { id: View; label: string; hint: string; icon: typeof Coins }[] = [
   { id: "overview", label: "Overview", hint: "Liability and paywall state", icon: Wallet },
   { id: "costs", label: "Spend", hint: "Day by tool", icon: Zap },
   { id: "jobs", label: "Jobs", hint: "Cost joined to billing", icon: Clock },
-  { id: "webhooks", label: "Webhooks", hint: "Payments with no account", icon: Inbox },
+  { id: "webhooks", label: "Webhooks", hint: "Payment delivery log", icon: Inbox },
 ];
 
 const PAGE_SIZE = 50;
@@ -1575,6 +1575,7 @@ function ReadPanel({ view, tick }: { view: View; tick: number }) {
   const [email, setEmail] = useState("");
   const [emailApplied, setEmailApplied] = useState("");
   const [offset, setOffset] = useState(0);
+  const [hooksProblemsOnly, setHooksProblemsOnly] = useState(false);
   const filters = useJobFilters();
 
   const load = useCallback(
@@ -1583,7 +1584,7 @@ function ReadPanel({ view, tick }: { view: View; tick: number }) {
       setError(null);
       try {
         const params = new URLSearchParams({ view });
-        if (view === "webhooks") params.set("unprocessed_only", "true");
+        if (view === "webhooks" && hooksProblemsOnly) params.set("unprocessed_only", "true");
         if (view === "costs") {
           params.set("days", days);
           if (tool) params.set("tool", tool);
@@ -1607,7 +1608,7 @@ function ReadPanel({ view, tick }: { view: View; tick: number }) {
         if (!signal?.aborted) setLoading(false);
       }
     },
-    [view, days, tool, status, chargeType, emailApplied, offset]
+    [view, days, tool, status, chargeType, emailApplied, offset, hooksProblemsOnly]
   );
 
   useEffect(() => {
@@ -1647,6 +1648,17 @@ function ReadPanel({ view, tick }: { view: View; tick: number }) {
     <div className="flex min-h-0 flex-1 flex-col gap-3">
       <Card className="shrink-0 p-2.5">
         <div className="flex flex-wrap items-center gap-2">
+          {view === "webhooks" && (
+            <Button
+              size="sm"
+              variant={hooksProblemsOnly ? "primary" : "ghost"}
+              onClick={() => setHooksProblemsOnly((v) => !v)}
+            >
+              <AlertTriangle className="h-3.5 w-3.5" aria-hidden />
+              Problems only
+            </Button>
+          )}
+          {view !== "webhooks" && (
           <Select label="Window" value={days} onChange={setFilter(setDays)}>
             {["1", "7", "30", "90", "365"].map((d) => (
               <option key={d} value={d}>
@@ -1654,7 +1666,9 @@ function ReadPanel({ view, tick }: { view: View; tick: number }) {
               </option>
             ))}
           </Select>
+          )}
 
+          {view !== "webhooks" && (
           <Select label="Tool" value={tool} onChange={setFilter(setTool)}>
             <option value="">Any tool</option>
             {(filters.tools ?? []).map((t) => (
@@ -1663,6 +1677,7 @@ function ReadPanel({ view, tick }: { view: View; tick: number }) {
               </option>
             ))}
           </Select>
+          )}
 
           {view === "jobs" && (
             <>
@@ -1764,7 +1779,7 @@ function ReadPanel({ view, tick }: { view: View; tick: number }) {
           />
         </>
       )}
-      {data !== null && view === "webhooks" && <WebhooksPanel rows={hookRows} />}
+      {data !== null && view === "webhooks" && <WebhooksPanel rows={hookRows} problemsOnly={hooksProblemsOnly} />}
     </div>
   );
 }
@@ -2038,7 +2053,7 @@ function JobsPanel({ rows }: { rows: JobRow[] }) {
  * union of whatever the server sent; clicking a row expands the full record
  * underneath it, so nothing is hidden and nothing needs a JSON viewer.
  */
-function WebhooksPanel({ rows }: { rows: unknown[] }) {
+function WebhooksPanel({ rows, problemsOnly }: { rows: unknown[]; problemsOnly: boolean }) {
   const [open, setOpen] = useState<number | null>(null);
 
   const objs = useMemo(
@@ -2046,10 +2061,15 @@ function WebhooksPanel({ rows }: { rows: unknown[] }) {
     [rows]
   );
 
+  const hookStatus = (r: Rec): "processed" | "failed" | "pending" =>
+    r.processed_at ? "processed" : r.error ? "failed" : "pending";
+
+  const problems = useMemo(() => objs.filter((r) => hookStatus(r) !== "processed"), [objs]);
+
   const cols = useMemo(() => {
     const seen = new Set<string>();
     objs.forEach((r) => Object.keys(r).forEach((k) => seen.add(k)));
-    const preferred = ["created_at", "email", "amount", "tier_name", "message_id", "processed"];
+    const preferred = ["received_at", "provider", "event_name", "processed_at", "event_id", "error"];
     const ordered = preferred.filter((p) => seen.has(p));
     return [...ordered, ...[...seen].filter((k) => !ordered.includes(k))].slice(0, 6);
   }, [objs]);
@@ -2059,8 +2079,12 @@ function WebhooksPanel({ rows }: { rows: unknown[] }) {
       <div className="flex min-h-0 flex-1 items-center justify-center">
         <Empty
           icon={ShieldCheck}
-          title="Every payment reached an account"
-          body="Nothing to chase. Unmatched Ko-fi payments show here with the email they were paid with."
+          title={problemsOnly ? "Every payment reached an account" : "No webhook deliveries yet"}
+          body={
+            problemsOnly
+              ? "Nothing to chase. Deliveries that failed to credit an account show here with their error."
+              : "Payment webhook deliveries appear here as they arrive, newest first."
+          }
         />
       </div>
     );
@@ -2068,15 +2092,18 @@ function WebhooksPanel({ rows }: { rows: unknown[] }) {
 
   return (
     <>
-      <div className="shrink-0">
-        <ErrorNote
-          message={`${objs.length} payment${objs.length === 1 ? "" : "s"} never matched an account. Copy the email, then grant the credits by hand from the Customer tab.`}
-        />
-      </div>
+      {problems.length > 0 && (
+        <div className="shrink-0">
+          <ErrorNote
+            message={`${problems.length} deliver${problems.length === 1 ? "y" : "ies"} never credited an account. Open the row for the error, then grant the credits by hand from the Customer tab.`}
+          />
+        </div>
+      )}
       <DataScroll>
         <Table>
           <thead>
             <tr>
+              <Th>Status</Th>
               {cols.map((c) => (
                 <Th key={c}>{prettyLabel(c)}</Th>
               ))}
@@ -2084,30 +2111,36 @@ function WebhooksPanel({ rows }: { rows: unknown[] }) {
             </tr>
           </thead>
           <tbody>
-            {objs.map((r, i) => (
-              <Fragment key={i}>
-                <Tr onClick={() => setOpen(open === i ? null : i)}>
-                  {cols.map((c) => (
-                    <Td key={c} className={cn("max-w-[16rem] truncate", c === "email" && "text-amber-300")}>
-                      <FieldValue name={c} value={r[c]} />
+            {objs.map((r, i) => {
+              const s = hookStatus(r);
+              return (
+                <Fragment key={i}>
+                  <Tr onClick={() => setOpen(open === i ? null : i)}>
+                    <Td>
+                      <Badge tone={s === "processed" ? "good" : s === "failed" ? "bad" : "accent"}>{s}</Badge>
                     </Td>
-                  ))}
-                  <Td className="text-right">
-                    <ChevronDown
-                      className={cn("inline h-3.5 w-3.5 text-text-subtle transition-transform", open === i && "rotate-180")}
-                      aria-hidden
-                    />
-                  </Td>
-                </Tr>
-                {open === i && (
-                  <tr className="border-b border-graphite-800/60">
-                    <td colSpan={cols.length + 1} className="bg-graphite-950/40 px-4 py-4">
-                      <FieldGrid data={r} columns={3} />
-                    </td>
-                  </tr>
-                )}
-              </Fragment>
-            ))}
+                    {cols.map((c) => (
+                      <Td key={c} className={cn("max-w-[16rem] truncate", c === "email" && "text-amber-300")}>
+                        <FieldValue name={c} value={r[c]} />
+                      </Td>
+                    ))}
+                    <Td className="text-right">
+                      <ChevronDown
+                        className={cn("inline h-3.5 w-3.5 text-text-subtle transition-transform", open === i && "rotate-180")}
+                        aria-hidden
+                      />
+                    </Td>
+                  </Tr>
+                  {open === i && (
+                    <tr className="border-b border-graphite-800/60">
+                      <td colSpan={cols.length + 2} className="bg-graphite-950/40 px-4 py-4">
+                        <FieldGrid data={r} columns={3} />
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              );
+            })}
           </tbody>
         </Table>
       </DataScroll>
