@@ -10,6 +10,7 @@ import { ToolSection } from "@/components/ui/ToolSection";
 import { FeatureStrip } from "@/components/ui/FeatureStrip";
 import { Prose } from "@/components/ui/Prose";
 import { RelatedToolsGrid } from "@/components/tools/RelatedToolsGrid";
+import { ToolVideo } from "@/components/media/ToolVideo";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
 import { getFeatureFlags } from "@/lib/api/railway";
@@ -614,6 +615,8 @@ export default async function StemsPage() {
             ))}
           </dl>
         </ToolSection>
+
+        <ToolVideo slug="stems" />
 
         <RelatedToolsGrid tools={relatedTools} />
 

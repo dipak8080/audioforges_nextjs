@@ -8,6 +8,7 @@ import { GuideByline } from "@/components/guides/GuideByline";
 import { Breadcrumb } from "@/components/layout/Breadcrumb";
 import { Prose } from "@/components/ui/Prose";
 import { ogForGuide } from "@/lib/og";
+import { ToolVideo } from "@/components/media/ToolVideo";
 
 const guide = getGuideBySlug("audio-format-for-game-engines-unity-unreal-godot")!;
 
@@ -209,6 +210,9 @@ export default function GameAudioFormatGuidePage() {
           </div>
 
           <h2 id="workflow">Batch-prepping a folder of sounds</h2>
+          <div className="not-prose my-6">
+            <ToolVideo slug="game-audio-format" bare />
+          </div>
           <ol>
             <li>
               <strong>Trim leading silence</strong> on each SFX with the{" "}

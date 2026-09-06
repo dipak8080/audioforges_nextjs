@@ -27,6 +27,15 @@ export const TOOL_VIDEOS: Record<string, ToolVideo> = {
     heading: "Watch: the two-step conversion",
     pageUrl: "/guides/convert-audio-for-phone-systems-3cx-asterisk-ivr",
   },
+  "game-audio-format": {
+    videoId: "SEVFgH35BVE",
+    title: "Game Audio Format: WAV vs OGG, 48 kHz, Mono SFX (Unity, Unreal, Godot)",
+    description:
+      "Prep sound effects and music for Unity, Unreal and Godot: trim silence, convert SFX to mono, resample to 48 kHz 16-bit WAV, and convert music to OGG, free in the browser.",
+    uploadDate: "2026-09-06",
+    heading: "Watch: the batch-prep workflow",
+    pageUrl: "/guides/audio-format-for-game-engines-unity-unreal-godot",
+  },
   convert: {
     videoId: "yyUUOX8K1MQ",
     title: "Convert WAV to OGG Online — Free, No Signup",
@@ -50,5 +59,45 @@ export const TOOL_VIDEOS: Record<string, ToolVideo> = {
       "Paste a YouTube link and get the key, BPM and Camelot code in seconds, or upload a file. Runs Essentia's TempoCNN model. No signup, no install.",
     uploadDate: "2026-09-06",
     heading: "Watch: key and BPM straight from a YouTube link",
+  },
+  "vocal-remover": {
+    videoId: "ci0cLOFwwb8",
+    title: "Free Vocal Remover — Remove Vocals from Any Song or YouTube Video",
+    description:
+      "Remove vocals from any song, or keep just the vocal, free in the browser. Upload a file or paste a YouTube link. Runs htdemucs, so vocals are separated by AI rather than EQ'd out. No signup.",
+    uploadDate: "2026-09-06",
+    heading: "Watch: vocals out of a file or a YouTube link",
+  },
+  "youtube-vocal-remover": {
+    videoId: "ci0cLOFwwb8",
+    title: "Free Vocal Remover — Remove Vocals from Any Song or YouTube Video",
+    description:
+      "Paste a YouTube link and get the instrumental and acapella in about a minute, or upload a file. AI separation via htdemucs. No signup, no install.",
+    uploadDate: "2026-09-06",
+    heading: "Watch: vocals removed straight from a YouTube link",
+  },
+  stems: {
+    videoId: "JO9xCQhdZwo",
+    title: "Free Stem Splitter — Split Any Song or YouTube Video into Stems",
+    description:
+      "Split any song into vocals, drums, bass, guitar, piano and other, free in the browser. Upload a file or paste a YouTube link. 2, 4 or 6 stems via htdemucs. No signup.",
+    uploadDate: "2026-09-06",
+    heading: "Watch: stems from a file or a YouTube link",
+  },
+  "youtube-stem-splitter": {
+    videoId: "JO9xCQhdZwo",
+    title: "Free Stem Splitter — Split Any Song or YouTube Video into Stems",
+    description:
+      "Paste a YouTube link and get separate vocal, drum, bass and instrument stems in a minute, or upload a file. AI separation via htdemucs. No signup, no install.",
+    uploadDate: "2026-09-06",
+    heading: "Watch: stems straight from a YouTube link",
+  },
+  "youtube-to-wav": {
+    videoId: "J6q9WSnVZlw",
+    title: "YouTube to WAV — Convert YouTube Audio to Lossless WAV Free, No App",
+    description:
+      "Paste a YouTube link and download lossless WAV audio in the browser. Free, no signup, no app, no watermark. Supports watch links, youtu.be and Shorts.",
+    uploadDate: "2026-09-06",
+    heading: "Watch: YouTube link to WAV in under a minute",
   },
 };

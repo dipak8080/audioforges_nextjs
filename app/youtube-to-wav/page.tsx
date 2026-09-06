@@ -8,6 +8,7 @@ import { ToolSection } from "@/components/ui/ToolSection";
 import { FeatureStrip } from "@/components/ui/FeatureStrip";
 import { Prose } from "@/components/ui/Prose";
 import { RelatedToolsGrid } from "@/components/tools/RelatedToolsGrid";
+import { ToolVideo } from "@/components/media/ToolVideo";
 import { SITE_URL } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
 import { getLimits, windowFor, rateLimitLabel, durationLabel } from "@/lib/api/limits";
@@ -377,6 +378,8 @@ export default async function YouTubeToWavPage() {
             </p>
           </Prose>
         </ToolSection>
+
+        <ToolVideo slug="youtube-to-wav" />
 
         <RelatedToolsGrid tools={relatedTools} />
 
