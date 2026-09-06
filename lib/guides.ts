@@ -190,7 +190,7 @@ export const guides: Guide[] = [
   },
   {
     slug: "audio-format-for-game-engines-unity-unreal-godot",
-    title: "Game Audio Format: WAV vs OGG, 48 kHz for Unity, Unreal & Godot",
+    title: "WAV vs OGG for Unity, Unreal & Godot",
     description:
       "The sample rate, bit depth and file format to use for game sound effects and music in Unity, Unreal and Godot, plus fixes for pops, lag and build bloat.",
     publishedDate: "2026-09-06",
