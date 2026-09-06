@@ -161,7 +161,7 @@ export const TOOLS: Tool[] = [
     // page takes the first slot. video-to-audio was dropped from this list
     // to make room; it keeps inbound links from convert, youtube-to-text
     // and video-to-text, so it stays well connected.
-    related: ["youtube-to-mp3", "key-finder", "vocal-remover", "tiktok-to-mp3", "trim"],
+    related: ["youtube-to-mp3", "key-finder", "vocal-remover", "tiktok-to-mp3", "audio-to-sheet-music"],
   },
   {
     slug: "youtube-to-mp3",
@@ -180,7 +180,7 @@ export const TOOLS: Tool[] = [
     // youtube-to-wav leads the list, and youtube-to-mp3 leads that page's
     // list in return. The reciprocal first-slot pairing is what makes the
     // two read as siblings rather than as one page duplicated.
-    related: ["youtube-to-wav", "trim", "ringtone-maker", "tiktok-to-mp3", "convert"],
+    related: ["youtube-to-wav", "trim", "audio-to-sheet-music", "tiktok-to-mp3", "convert"],
   },
   {
     slug: "youtube-key-finder",
@@ -229,7 +229,7 @@ export const TOOLS: Tool[] = [
     shortDescription: "Detect musical key, tempo, and Camelot notation.",
     category: "vocals",
     status: "live",
-    related: ["bpm-tapper", "youtube-key-finder", "vocal-remover", "tempo", "audio-to-midi"],
+    related: ["bpm-tapper", "youtube-key-finder", "vocal-remover", "audio-to-sheet-music", "audio-to-midi"],
   },
   {
     slug: "vocal-remover",
@@ -515,7 +515,7 @@ export const TOOLS: Tool[] = [
     shortDescription: "Transcribe a melody or vocal line into a downloadable MIDI file.",
     category: "transcription",
     status: "live",
-    related: ["key-finder", "vocal-remover", "stems", "tempo", "youtube-to-wav"],
+    related: ["key-finder", "vocal-remover", "stems", "audio-to-sheet-music", "youtube-to-wav"],
   },
 
   // ---------- BROWSER TOOLS ----------

@@ -29,9 +29,9 @@ import { getFeatureFlags } from "@/lib/api/railway";
 import { ogImage } from "@/lib/og";
 import { cn } from "@/lib/utils/cn";
 
-const PAGE_TITLE = "Audio to Sheet Music — Free MP3 to PDF & MIDI";
+const PAGE_TITLE = "Audio to Sheet Music Converter — Free AI MP3 to PDF";
 const PAGE_DESCRIPTION =
-  "Convert audio to sheet music free. Upload MP3 or WAV, preview the engraved score, and download PDF, MusicXML and MIDI — no sign-up, no subscription.";
+  "Free AI audio to sheet music converter. Turn any song — MP3, WAV or piano — into engraved notation. Download PDF, MusicXML & MIDI. No sign-up.";
 
 const OG_IMAGE = ogImage("Audio to Sheet Music", "MP3 to notation — PDF, MusicXML & MIDI", "New");
 
@@ -58,13 +58,13 @@ export const metadata: Metadata = {
 const webAppJsonLd = {
   "@context": "https://schema.org",
   "@type": "WebApplication",
-  name: "Audio to Sheet Music",
+  name: "Audio to Sheet Music Converter",
   url: `${SITE_URL}/audio-to-sheet-music`,
   applicationCategory: "MultimediaApplication",
   operatingSystem: "Any",
   offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
   featureList: [
-    "Convert MP3, WAV, FLAC and more into engraved sheet music",
+    "AI music transcription — convert MP3, WAV, FLAC and more into engraved sheet music",
     "Piano transcription powered by a solo-piano specialist AI (Transkun)",
     "Two-hand grand-staff notation for piano",
     "Download as PDF, MusicXML, MIDI, and SVG",
@@ -168,6 +168,26 @@ export default async function AudioToSheetMusicPage() {
         "That's exactly what this is for. If a piece was never printed, there's nowhere to buy the sheet music — this transcribes it directly from the recording so you have something to read, play and edit.",
     },
     {
+      question: "Can I convert a YouTube video to sheet music?",
+      answer:
+        "Yes — in two steps. Grab the audio first with the free YouTube to MP3 tool on AudioForges, then upload that MP3 here to transcribe it into sheet music. The same works for any video: extract the audio, then convert it.",
+    },
+    {
+      question: "Does it use AI to transcribe the music?",
+      answer:
+        "Yes. This is AI music transcription: a neural network listens to the recording and detects every note's pitch and timing, with piano routed to Transkun, a model trained specifically on solo piano. The detected notes are then quantized, notated and engraved into a score.",
+    },
+    {
+      question: "Can I convert singing or humming to sheet music?",
+      answer:
+        "Yes. A single sung melody is one of the easier cases for the transcriber — record yourself singing or humming, upload the file, and you'll get the melody as notation you can print or edit.",
+    },
+    {
+      question: "Can I convert audio to MusicXML?",
+      answer:
+        "Yes — every transcription includes a MusicXML file alongside the PDF, MIDI and SVG, so this doubles as an audio to MusicXML converter. MusicXML opens in MuseScore, Sibelius, Finale and Dorico for full editing.",
+    },
+    {
       question: "Why does the score have wrong or extra notes?",
       answer:
         "Automatic transcription detects notes from audio rather than reading them directly, so quiet, overlapping or heavily-pedaled notes can be missed or misjudged. Cleaner, more isolated recordings transcribe best. The MusicXML export lets you correct anything by hand in a notation editor.",
@@ -180,8 +200,8 @@ export default async function AudioToSheetMusicPage() {
 
       <ToolPageShell
         breadcrumb={<Breadcrumb items={[{ name: "Tools", href: "/tools" }, { name: "Audio to Sheet Music" }]} />}
-        title="Audio to Sheet Music"
-        lede="Turn any recording into printable sheet music. Upload an MP3, WAV or piano track and get engraved notation as PDF, MusicXML and MIDI — with a free preview so you see the score before you pay."
+        title="Audio to Sheet Music Converter"
+        lede="Turn any song into printable sheet music. Upload an MP3, WAV or piano recording and AI transcribes it into engraved notation — PDF, MusicXML and MIDI, with a free preview so you see the score before you pay."
         tool={
           sheetMusicEnabled ? (
             <AudioToSheetForm />
