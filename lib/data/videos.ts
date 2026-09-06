@@ -108,4 +108,12 @@ export const TOOL_VIDEOS: Record<string, ToolVideo> = {
     uploadDate: "2026-09-06",
     heading: "Watch: recording to printable score",
   },
+  "youtube-to-mp3": {
+    videoId: "_ix6IFGJVaU",
+    title: "YouTube to MP3 — Convert YouTube Audio to 320kbps MP3 Free, No App",
+    description:
+      "Paste a YouTube link and download 320kbps MP3 in the browser. Free, no signup, no app, no watermark. Works with watch links, youtu.be and Shorts, on phone or desktop.",
+    uploadDate: "2026-09-06",
+    heading: "Watch: YouTube link to 320kbps MP3 in under a minute",
+  },
 };

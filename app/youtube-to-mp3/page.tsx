@@ -8,6 +8,7 @@ import { ToolSection } from "@/components/ui/ToolSection";
 import { FeatureStrip } from "@/components/ui/FeatureStrip";
 import { Prose } from "@/components/ui/Prose";
 import { RelatedToolsGrid } from "@/components/tools/RelatedToolsGrid";
+import { ToolVideo } from "@/components/media/ToolVideo";
 import { SITE_URL } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
 import { ogForTool } from "@/lib/og";
@@ -422,6 +423,8 @@ export default function YouTubeToMp3Page() {
             stops working entirely.
           </p>
         </ToolSection>
+
+        <ToolVideo slug="youtube-to-mp3" />
 
         <RelatedToolsGrid tools={relatedTools} />
 
