@@ -132,21 +132,68 @@ export default function PhoneSystemAudioGuidePage() {
             things, so if an upload fails, check the current spec — but the 8 kHz
             / 16-bit / mono WAV below works on all of them.
           </p>
-          <table>
-            <thead>
-              <tr><th>System</th><th>Format</th><th>Sample rate</th><th>Channels</th></tr>
-            </thead>
-            <tbody>
-              <tr><td>3CX</td><td>WAV PCM 16-bit</td><td>8 kHz</td><td>Mono</td></tr>
-              <tr><td>Asterisk / FreePBX</td><td>WAV PCM 16-bit (or .sln)</td><td>8 kHz (16 kHz for wideband)</td><td>Mono</td></tr>
-              <tr><td>Cisco CUCM / Unity</td><td>WAV, CCITT µ-law 8-bit</td><td>8 kHz</td><td>Mono</td></tr>
-              <tr><td>Twilio</td><td>WAV or MP3 (transcoded)</td><td>8 kHz recommended</td><td>Mono</td></tr>
-              <tr><td>RingCentral</td><td>WAV or MP3</td><td>8 kHz recommended</td><td>Mono</td></tr>
-              <tr><td>Microsoft Teams Phone</td><td>WAV, MP3, WMA</td><td>Any; 8–16 kHz recommended</td><td>Mono</td></tr>
-              <tr><td>Zoom Phone</td><td>WAV or MP3</td><td>8 kHz recommended</td><td>Mono</td></tr>
-              <tr><td>Grandstream UCM</td><td>WAV PCM 16-bit</td><td>8 kHz</td><td>Mono</td></tr>
-            </tbody>
-          </table>
+          <div className="not-prose my-6 overflow-x-auto rounded-xl border border-graphite-800">
+            <table className="w-full min-w-[560px] text-sm">
+              <thead className="bg-graphite-900">
+                <tr>
+                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-text-secondary">System</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-text-secondary">Format</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-text-secondary">Sample rate</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-text-secondary">Channels</th>
+                </tr>
+              </thead>
+              <tbody>
+              <tr className="border-t border-graphite-800">
+                <td className="px-3 py-2 align-top"><strong>3CX</strong></td>
+                <td className="px-3 py-2 align-top">WAV PCM 16-bit</td>
+                <td className="px-3 py-2 align-top">8 kHz</td>
+                <td className="px-3 py-2 align-top">Mono</td>
+              </tr>
+              <tr className="border-t border-graphite-800">
+                <td className="px-3 py-2 align-top"><strong>Asterisk / FreePBX</strong></td>
+                <td className="px-3 py-2 align-top">WAV PCM 16-bit (or .sln)</td>
+                <td className="px-3 py-2 align-top">8 kHz (16 kHz wideband)</td>
+                <td className="px-3 py-2 align-top">Mono</td>
+              </tr>
+              <tr className="border-t border-graphite-800">
+                <td className="px-3 py-2 align-top"><strong>Cisco CUCM / Unity</strong></td>
+                <td className="px-3 py-2 align-top">WAV, CCITT µ-law 8-bit</td>
+                <td className="px-3 py-2 align-top">8 kHz</td>
+                <td className="px-3 py-2 align-top">Mono</td>
+              </tr>
+              <tr className="border-t border-graphite-800">
+                <td className="px-3 py-2 align-top"><strong>Twilio</strong></td>
+                <td className="px-3 py-2 align-top">WAV or MP3 (transcoded)</td>
+                <td className="px-3 py-2 align-top">8 kHz recommended</td>
+                <td className="px-3 py-2 align-top">Mono</td>
+              </tr>
+              <tr className="border-t border-graphite-800">
+                <td className="px-3 py-2 align-top"><strong>RingCentral</strong></td>
+                <td className="px-3 py-2 align-top">WAV or MP3</td>
+                <td className="px-3 py-2 align-top">8 kHz recommended</td>
+                <td className="px-3 py-2 align-top">Mono</td>
+              </tr>
+              <tr className="border-t border-graphite-800">
+                <td className="px-3 py-2 align-top"><strong>Microsoft Teams Phone</strong></td>
+                <td className="px-3 py-2 align-top">WAV, MP3, WMA</td>
+                <td className="px-3 py-2 align-top">8–16 kHz recommended</td>
+                <td className="px-3 py-2 align-top">Mono</td>
+              </tr>
+              <tr className="border-t border-graphite-800">
+                <td className="px-3 py-2 align-top"><strong>Zoom Phone</strong></td>
+                <td className="px-3 py-2 align-top">WAV or MP3</td>
+                <td className="px-3 py-2 align-top">8 kHz recommended</td>
+                <td className="px-3 py-2 align-top">Mono</td>
+              </tr>
+              <tr className="border-t border-graphite-800">
+                <td className="px-3 py-2 align-top"><strong>Grandstream UCM</strong></td>
+                <td className="px-3 py-2 align-top">WAV PCM 16-bit</td>
+                <td className="px-3 py-2 align-top">8 kHz</td>
+                <td className="px-3 py-2 align-top">Mono</td>
+              </tr>
+              </tbody>
+            </table>
+          </div>
 
           <h2 id="convert">How to convert a file in two steps</h2>
           <ol>
