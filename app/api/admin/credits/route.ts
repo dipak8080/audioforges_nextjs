@@ -102,6 +102,9 @@ export async function GET(request: NextRequest) {
     "offset",
     "email",
     "unprocessed_only",
+    "date_from",
+    "date_to",
+    "has_account",
     // Jobs filters. `email` is the one that matters for support: /users/lookup
     // returns a customer's charges but not their GPU costs or failure reasons,
     // so "they say it failed twice, what happened?" used to take two endpoints

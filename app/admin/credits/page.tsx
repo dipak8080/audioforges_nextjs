@@ -650,42 +650,6 @@ function Table({ children }: { children: React.ReactNode }) {
   return <table className="w-full border-collapse text-left text-sm">{children}</table>;
 }
 
-/** Signature element: the spend trail. Ops reads shape before it reads numbers. */
-function Sparkline({ values }: { values: number[] }) {
-  if (values.length < 2) return null;
-  const w = 260;
-  const h = 40;
-  const max = Math.max(...values);
-  const min = Math.min(...values);
-  const span = max - min || 1;
-  const pts = values.map<[number, number]>((v, i) => [
-    (i / (values.length - 1)) * w,
-    h - 4 - ((v - min) / span) * (h - 10),
-  ]);
-  const line = pts.map(([x, y], i) => `${i ? "L" : "M"}${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
-  const last = pts[pts.length - 1];
-  return (
-    <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" className="h-10 w-full" aria-hidden>
-      <defs>
-        <linearGradient id="af-spend" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="rgb(245 158 11)" stopOpacity="0.28" />
-          <stop offset="100%" stopColor="rgb(245 158 11)" stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <path d={`${line} L${w},${h} L0,${h} Z`} fill="url(#af-spend)" />
-      <path
-        d={line}
-        fill="none"
-        stroke="rgb(245 158 11)"
-        strokeWidth="1.5"
-        strokeLinejoin="round"
-        strokeLinecap="round"
-        vectorEffect="non-scaling-stroke"
-      />
-      <circle cx={last[0]} cy={last[1]} r="2.5" fill="rgb(245 158 11)" />
-    </svg>
-  );
-}
 
 /* ------------------------------------------------------------------ */
 /* field rendering — what replaced the JSON dumps                      */
@@ -1577,7 +1541,73 @@ function OverviewPanel({
 /* costs / jobs / webhooks                                             */
 /* ------------------------------------------------------------------ */
 
-type JobsPreset = { status?: string; chargeType?: string; days?: string; email?: string };
+type JobsPreset = { status?: string; chargeType?: string; range?: string; email?: string };
+
+type RangeKey = "today" | "yesterday" | "7d" | "30d" | "90d";
+
+const RANGES: { key: RangeKey; label: string }[] = [
+  { key: "today", label: "Today" },
+  { key: "yesterday", label: "Yesterday" },
+  { key: "7d", label: "7 days" },
+  { key: "30d", label: "30 days" },
+  { key: "90d", label: "90 days" },
+];
+
+const utcDay = (offset: number) => new Date(Date.now() - offset * 864e5).toISOString().slice(0, 10);
+
+function rangeDates(key: RangeKey): { from: string; to: string } {
+  switch (key) {
+    case "today":
+      return { from: utcDay(0), to: utcDay(0) };
+    case "yesterday":
+      return { from: utcDay(1), to: utcDay(1) };
+    case "7d":
+      return { from: utcDay(6), to: utcDay(0) };
+    case "90d":
+      return { from: utcDay(89), to: utcDay(0) };
+    default:
+      return { from: utcDay(29), to: utcDay(0) };
+  }
+}
+
+function Segmented({
+  value,
+  onChange,
+  options,
+  label,
+}: {
+  value: string;
+  onChange: (next: string) => void;
+  options: { key: string; label: string }[];
+  label: string;
+}) {
+  return (
+    <div
+      role="group"
+      aria-label={label}
+      className="inline-flex h-9 shrink-0 items-center rounded-lg border border-graphite-700 bg-graphite-850/80 p-0.5"
+    >
+      {options.map((o) => {
+        const on = o.key === value;
+        return (
+          <button
+            key={o.key}
+            type="button"
+            aria-pressed={on}
+            onClick={() => onChange(o.key)}
+            className={cn(
+              "h-8 rounded-md px-2.5 text-[12px] font-medium outline-none transition-colors",
+              "focus-visible:ring-2 focus-visible:ring-amber-400/70",
+              on ? "bg-amber-500/15 text-amber-300" : "text-text-muted hover:text-text-primary"
+            )}
+          >
+            {o.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 function ReadPanel({
   view,
@@ -1593,10 +1623,11 @@ function ReadPanel({
   const [data, setData] = useState<unknown>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [days, setDays] = useState(preset?.days ?? "30");
+  const [range, setRange] = useState<RangeKey>((preset?.range as RangeKey) ?? "30d");
   const [tool, setTool] = useState("");
   const [status, setStatus] = useState(preset?.status ?? "");
   const [chargeType, setChargeType] = useState(preset?.chargeType ?? "");
+  const [accountsOnly, setAccountsOnly] = useState(false);
   const [email, setEmail] = useState(preset?.email ?? "");
   const [emailApplied, setEmailApplied] = useState(preset?.email ?? "");
   const [offset, setOffset] = useState(0);
@@ -1610,18 +1641,19 @@ function ReadPanel({
       try {
         const params = new URLSearchParams({ view });
         if (view === "webhooks" && hooksProblemsOnly) params.set("unprocessed_only", "true");
-        if (view === "costs") {
-          params.set("days", String(Math.max(Number(days) || 30, 30)));
+        if (view === "costs" || view === "jobs") {
+          const { from, to } = rangeDates(range);
+          params.set("date_from", from);
+          params.set("date_to", to);
           if (tool) params.set("tool", tool);
         }
         if (view === "jobs") {
           params.set("limit", String(PAGE_SIZE));
           params.set("offset", String(offset));
-          params.set("days", days);
-          if (tool) params.set("tool", tool);
           if (status) params.set("status", status);
           if (chargeType) params.set("charge_type", chargeType);
           if (emailApplied) params.set("email", emailApplied);
+          if (accountsOnly) params.set("has_account", "true");
         }
         const next = await api(`/api/admin/credits?${params.toString()}`, { signal });
         setData(next);
@@ -1633,7 +1665,7 @@ function ReadPanel({
         if (!signal?.aborted) setLoading(false);
       }
     },
-    [view, days, tool, status, chargeType, emailApplied, offset, hooksProblemsOnly]
+    [view, range, tool, status, chargeType, emailApplied, offset, accountsOnly, hooksProblemsOnly]
   );
 
   useEffect(() => {
@@ -1642,19 +1674,17 @@ function ReadPanel({
     return () => controller.abort();
   }, [load, tick]);
 
-  // Narrowing a filter must reset the page. Dropping 90 days to 1 while on page
-  // 3 would request offset=100 against maybe five rows: an empty table under a
-  // pager reading "Showing 101–101 of 5", which reads as a broken endpoint
-  // rather than a filter that moved.
-  const setFilter = (fn: (v: string) => void) => (v: string) => {
+  // Narrowing a filter must reset the page: offset 100 against five rows reads
+  // as a broken endpoint rather than a filter that moved.
+  const setFilter = <T,>(fn: (v: T) => void) => (v: T) => {
     fn(v);
     setOffset(0);
   };
 
   const activeChips = [
     tool && { label: `Tool: ${tool}`, clear: () => setFilter(setTool)("") },
-    status && { label: `Status: ${status}`, clear: () => setFilter(setStatus)("") },
     chargeType && { label: `Charge: ${chargeType}`, clear: () => setFilter(setChargeType)("") },
+    accountsOnly && { label: "Accounts only", clear: () => setFilter(setAccountsOnly)(false) },
     emailApplied && {
       label: emailApplied,
       clear: () => {
@@ -1673,7 +1703,7 @@ function ReadPanel({
     <div className="flex min-h-0 flex-1 flex-col gap-3">
       <Card className="shrink-0 p-2.5">
         <div className="flex flex-wrap items-center gap-2">
-          {view === "webhooks" && (
+          {view === "webhooks" ? (
             <Button
               size="sm"
               variant={hooksProblemsOnly ? "primary" : "ghost"}
@@ -1682,61 +1712,38 @@ function ReadPanel({
               <AlertTriangle className="h-3.5 w-3.5" aria-hidden />
               Problems only
             </Button>
-          )}
-          {view !== "webhooks" && (
-          <Select label="Window" value={days} onChange={setFilter(setDays)}>
-            {["1", "7", "30", "90", "365"].map((d) => (
-              <option key={d} value={d}>
-                Last {d} {d === "1" ? "day" : "days"}
-              </option>
-            ))}
-          </Select>
+          ) : (
+            <Segmented
+              label="Date range"
+              value={range}
+              onChange={(v) => setFilter(setRange)(v as RangeKey)}
+              options={RANGES.map((r) => ({ key: r.key, label: r.label }))}
+            />
           )}
 
           {view !== "webhooks" && (
-          <Select label="Tool" value={tool} onChange={setFilter(setTool)}>
-            <option value="">Any tool</option>
-            {(filters.tools ?? []).map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
-          </Select>
+            <Select label="Tool" value={tool} onChange={setFilter(setTool)}>
+              <option value="">Any tool</option>
+              {(filters.tools ?? []).map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </Select>
           )}
 
           {view === "jobs" && (
             <>
-              <span className="flex shrink-0 gap-1.5">
-                <Button
-                  size="sm"
-                  variant={status === "failed" ? "primary" : "ghost"}
-                  onClick={() => setFilter(setStatus)(status === "failed" ? "" : "failed")}
-                >
-                  Failed
-                </Button>
-                <Button
-                  size="sm"
-                  variant={chargeType === "credit" ? "primary" : "ghost"}
-                  onClick={() => setFilter(setChargeType)(chargeType === "credit" ? "" : "credit")}
-                >
-                  Paid
-                </Button>
-                <Button
-                  size="sm"
-                  variant={days === "1" ? "primary" : "ghost"}
-                  onClick={() => setFilter(setDays)(days === "1" ? "30" : "1")}
-                >
-                  Today
-                </Button>
-              </span>
-              <Select label="Status" value={status} onChange={setFilter(setStatus)}>
-                <option value="">Any status</option>
-                {(filters.statuses ?? []).map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </Select>
+              <Segmented
+                label="Status"
+                value={status}
+                onChange={setFilter(setStatus)}
+                options={[
+                  { key: "", label: "All" },
+                  { key: "completed", label: "Completed" },
+                  { key: "failed_all", label: "Failed" },
+                ]}
+              />
               <Select label="Charge" value={chargeType} onChange={setFilter(setChargeType)}>
                 <option value="">Any charge</option>
                 {(filters.charge_types ?? []).map((t) => (
@@ -1745,10 +1752,16 @@ function ReadPanel({
                   </option>
                 ))}
               </Select>
+              <Button
+                size="sm"
+                variant={accountsOnly ? "primary" : "ghost"}
+                title="Only jobs from logged-in accounts"
+                onClick={() => setFilter(setAccountsOnly)(!accountsOnly)}
+              >
+                <Users className="h-3.5 w-3.5" aria-hidden />
+                Accounts only
+              </Button>
 
-              {/* The support query. /users/lookup returns a customer's charges
-                  but not their GPU cost or failure reason, so "they say it
-                  failed twice, what happened?" took two endpoints and a join. */}
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -1777,13 +1790,13 @@ function ReadPanel({
 
           <div className="ml-auto flex items-center gap-2">
             {view === "costs" && costRows.length > 0 && (
-              <Button size="sm" onClick={() => downloadCsv(`credits-spend-${days}d.csv`, costRows as unknown as Rec[])}>
+              <Button size="sm" onClick={() => downloadCsv(`credits-spend-${range}.csv`, costRows as unknown as Rec[])}>
                 <Download className="h-3.5 w-3.5" aria-hidden />
                 CSV
               </Button>
             )}
             {view === "jobs" && jobRows.length > 0 && (
-              <Button size="sm" onClick={() => downloadCsv(`credits-jobs-${days}d.csv`, jobRows as unknown as Rec[])}>
+              <Button size="sm" onClick={() => downloadCsv(`credits-jobs-${range}.csv`, jobRows as unknown as Rec[])}>
                 <Download className="h-3.5 w-3.5" aria-hidden />
                 CSV
               </Button>
@@ -1816,11 +1829,7 @@ function ReadPanel({
       {loading && !data && <SkeletonPanel />}
 
       {data !== null && view === "costs" && (
-        <CostsPanel
-          rows={costRows}
-          windowDays={Number(days) || 30}
-          onDrillFailed={() => onGoToJobs({ status: "failed", days })}
-        />
+        <CostsPanel rows={costRows} onDrillFailed={() => onGoToJobs({ status: "failed_all", range })} />
       )}
       {data !== null && view === "jobs" && (
         <>
@@ -1845,202 +1854,234 @@ function ReadPanel({
   );
 }
 
-function CostsPanel({
-  rows,
-  windowDays,
-  onDrillFailed,
-}: {
-  rows: CostRow[];
-  windowDays: number;
-  onDrillFailed: () => void;
-}) {
-  const [openDays, setOpenDays] = useState<Set<string>>(() => new Set());
-  const [touched, setTouched] = useState(false);
+function DailyBars({ data }: { data: { day: string; cost: number }[] }) {
+  if (data.length < 2) return null;
+  const w = 720;
+  const h = 130;
+  const axis = 16;
+  const pad = 4;
+  const max = Math.max(...data.map((d) => d.cost), 0.0001);
+  const bw = (w - pad * 2) / data.length;
+  const label = (day: string) => day.slice(5).replace("-", "/");
+  const ticks = [0, Math.floor((data.length - 1) / 2), data.length - 1];
+  return (
+    <Card className="shrink-0 px-3 pb-1.5 pt-2.5">
+      <div className="flex items-baseline justify-between">
+        <SectionLabel>Daily spend</SectionLabel>
+        <span className="font-mono text-[10px] text-text-subtle">peak {money(max, 2)}/day</span>
+      </div>
+      <svg viewBox={`0 0 ${w} ${h + axis}`} className="mt-1 w-full" role="img" aria-label="Daily spend chart">
+        {data.map((d, i) => {
+          const bh = d.cost > 0 ? Math.max((d.cost / max) * (h - 6), 2) : 0;
+          return (
+            <rect
+              key={d.day}
+              x={pad + i * bw + bw * 0.12}
+              y={h - bh}
+              width={bw * 0.76}
+              height={bh || 0.5}
+              rx={Math.min(2, bw * 0.2)}
+              className="fill-amber-500/60 transition-colors hover:fill-amber-400"
+            >
+              <title>{`${d.day} — ${money(d.cost, 2)}`}</title>
+            </rect>
+          );
+        })}
+        {ticks.map((i) => (
+          <text
+            key={i}
+            x={pad + i * bw + bw / 2}
+            y={h + 12}
+            textAnchor={i === 0 ? "start" : i === data.length - 1 ? "end" : "middle"}
+            className="fill-current font-mono text-[10px] text-text-subtle"
+          >
+            {label(data[i].day)}
+          </text>
+        ))}
+      </svg>
+    </Card>
+  );
+}
 
-  const dayKey = (offset: number) => new Date(Date.now() - offset * 864e5).toISOString().slice(0, 10);
-  const today = dayKey(0);
-  const yesterday = dayKey(1);
+interface ToolAgg {
+  tool: string;
+  jobs: number;
+  failed: number;
+  paid: number;
+  gpu_seconds: number;
+  cost: number;
+}
 
-  const period = (from: string) => {
-    const acc = { jobs: 0, failed: 0, paid: 0, cost: 0 };
-    rows.forEach((r) => {
-      if (r.day >= from) {
-        acc.jobs += r.jobs ?? 0;
-        acc.failed += r.failed ?? 0;
-        acc.paid += r.paid_jobs ?? 0;
-        acc.cost += r.est_cost_usd ?? 0;
-      }
-    });
-    return acc;
-  };
+type ToolSortKey = "tool" | "jobs" | "failed" | "paid" | "gpu_seconds" | "cost";
 
-  const pToday = period(today);
-  const pYesterday = (() => {
-    const acc = { jobs: 0, failed: 0, paid: 0, cost: 0 };
-    rows.forEach((r) => {
-      if (r.day === yesterday) {
-        acc.jobs += r.jobs ?? 0;
-        acc.failed += r.failed ?? 0;
-        acc.paid += r.paid_jobs ?? 0;
-        acc.cost += r.est_cost_usd ?? 0;
-      }
-    });
-    return acc;
-  })();
-  const p7 = period(dayKey(6));
-  const p30 = period(dayKey(29));
+function CostsPanel({ rows, onDrillFailed }: { rows: CostRow[]; onDrillFailed: () => void }) {
+  const [sort, setSort] = useState<{ key: ToolSortKey; dir: "asc" | "desc" }>({ key: "cost", dir: "desc" });
 
-  const cutoff = dayKey(windowDays - 1);
-  const shown = useMemo(() => rows.filter((r) => r.day >= cutoff), [rows, cutoff]);
-
-  const byDay = useMemo(() => {
-    const m = new Map<string, CostRow[]>();
-    shown.forEach((r) => {
-      const list = m.get(r.day) ?? [];
-      list.push(r);
-      m.set(r.day, list);
-    });
-    return [...m.entries()]
-      .sort((a, b) => b[0].localeCompare(a[0]))
-      .map(([day, tools]) => {
-        tools.sort((a, b) => (b.est_cost_usd ?? 0) - (a.est_cost_usd ?? 0));
-        const t = tools.reduce(
-          (a, r) => ({
-            jobs: a.jobs + (r.jobs ?? 0),
-            failed: a.failed + (r.failed ?? 0),
-            paid: a.paid + (r.paid_jobs ?? 0),
-            cost: a.cost + (r.est_cost_usd ?? 0),
-          }),
-          { jobs: 0, failed: 0, paid: 0, cost: 0 }
-        );
-        return { day, tools, ...t };
-      });
-  }, [shown]);
-
-  const trail = useMemo(
-    () => [...byDay].sort((a, b) => a.day.localeCompare(b.day)).map((d) => d.cost),
-    [byDay]
+  const totals = useMemo(
+    () =>
+      rows.reduce(
+        (a, r) => ({
+          jobs: a.jobs + (r.jobs ?? 0),
+          failed: a.failed + (r.failed ?? 0),
+          cost: a.cost + (r.est_cost_usd ?? 0),
+          paid: a.paid + (r.paid_jobs ?? 0),
+        }),
+        { jobs: 0, failed: 0, cost: 0, paid: 0 }
+      ),
+    [rows]
   );
 
-  const expanded = (day: string) => (touched ? openDays.has(day) : day === byDay[0]?.day);
-  const toggle = (day: string) => {
-    setOpenDays((prev) => {
-      const base = touched ? new Set(prev) : new Set(byDay.filter((d) => expanded(d.day)).map((d) => d.day));
-      if (base.has(day)) base.delete(day);
-      else base.add(day);
-      return base;
+  const daily = useMemo(() => {
+    const byDay = new Map<string, number>();
+    rows.forEach((r) => byDay.set(r.day, (byDay.get(r.day) ?? 0) + (r.est_cost_usd ?? 0)));
+    return [...byDay.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([day, cost]) => ({ day, cost }));
+  }, [rows]);
+
+  const byTool = useMemo(() => {
+    const m = new Map<string, ToolAgg>();
+    rows.forEach((r) => {
+      const t = m.get(r.tool) ?? { tool: r.tool, jobs: 0, failed: 0, paid: 0, gpu_seconds: 0, cost: 0 };
+      t.jobs += r.jobs ?? 0;
+      t.failed += r.failed ?? 0;
+      t.paid += r.paid_jobs ?? 0;
+      t.gpu_seconds += r.gpu_seconds ?? 0;
+      t.cost += r.est_cost_usd ?? 0;
+      m.set(r.tool, t);
     });
-    setTouched(true);
-  };
+    const dir = sort.dir === "asc" ? 1 : -1;
+    return [...m.values()].sort((a, b) => {
+      const x = a[sort.key];
+      const y = b[sort.key];
+      if (typeof x === "number" && typeof y === "number") return (x - y) * dir;
+      return String(x).localeCompare(String(y)) * dir;
+    });
+  }, [rows, sort]);
+
+  const onSort = (key: string) =>
+    setSort((s) =>
+      s.key === key ? { key: s.key, dir: s.dir === "asc" ? "desc" : "asc" } : { key: key as ToolSortKey, dir: "desc" }
+    );
 
   if (rows.length === 0) {
     return (
       <div className="flex min-h-0 flex-1 items-center justify-center">
-        <Empty icon={Zap} title="No jobs in this window" body="Widen the window or clear the tool filter." />
+        <Empty icon={Zap} title="No jobs in this range" body="Widen the range or clear the tool filter." />
       </div>
     );
   }
 
-  const dayLabel = (day: string) => (day === today ? "Today" : day === yesterday ? "Yesterday" : day);
+  const failRate = totals.jobs > 0 ? totals.failed / totals.jobs : 0;
 
   return (
     <>
-      <div className="grid shrink-0 grid-cols-2 gap-3 lg:grid-cols-5">
-        <Stat label="Today" value={money(pToday.cost, 2)} sub={`${num(pToday.jobs)} jobs · ${num(pToday.failed)} failed`} tone="accent" />
-        <Stat label="Yesterday" value={money(pYesterday.cost, 2)} sub={`${num(pYesterday.jobs)} jobs · ${num(pYesterday.failed)} failed`} />
-        <Stat label="Last 7 days" value={money(p7.cost, 2)} sub={`${num(p7.jobs)} jobs · ${num(p7.paid)} paid`} />
+      <div className="grid shrink-0 grid-cols-2 gap-3 lg:grid-cols-4">
+        <Stat label="Est. spend" value={money(totals.cost, 2)} tone="accent" />
+        <Stat label="Jobs" value={num(totals.jobs)} />
         <button
           type="button"
           onClick={onDrillFailed}
-          title="Open failed jobs"
+          title="Open these failed jobs in the Jobs tab"
           className={cn(
             "rounded-2xl border px-3.5 py-3 text-left outline-none transition-colors",
             "focus-visible:ring-2 focus-visible:ring-amber-400/70",
-            p30.jobs > 0 && p30.failed / p30.jobs >= 0.1
+            failRate >= 0.1
               ? "border-red-500/30 bg-red-500/[0.06] hover:bg-red-500/10"
               : "border-graphite-800 bg-graphite-900/70 hover:border-graphite-700"
           )}
         >
-          <SectionLabel>Failed · 30d</SectionLabel>
+          <SectionLabel>Failed</SectionLabel>
           <p
             className={cn(
               "mt-1.5 font-mono text-xl font-semibold leading-none tabular-nums",
-              p30.jobs > 0 && p30.failed / p30.jobs >= 0.1 ? "text-red-400" : "text-text-primary"
+              failRate >= 0.1 ? "text-red-400" : "text-text-primary"
             )}
           >
-            {num(p30.failed)}
-            {p30.jobs > 0 && <span className="ml-1 text-xs font-normal">{Math.round((p30.failed / p30.jobs) * 100)}%</span>}
+            {num(totals.failed)}
+            {totals.jobs > 0 && (
+              <span className="ml-1 text-xs font-normal text-text-subtle">{Math.round(failRate * 100)}%</span>
+            )}
           </p>
-          <p className="mt-1 text-[11px] text-text-subtle">Click to see which jobs</p>
+          <p className="mt-1 text-[11px] text-text-subtle">View failed jobs →</p>
         </button>
-        <Card className="hidden px-3 pb-1 pt-2.5 lg:block">
-          <div className="flex items-baseline justify-between">
-            <SectionLabel>Daily</SectionLabel>
-            <span className="font-mono text-[10px] text-text-subtle">peak {money(Math.max(...trail), 2)}</span>
-          </div>
-          <Sparkline values={trail} />
-        </Card>
+        <Stat label="Paid jobs" value={num(totals.paid)} sub="Charged a credit" />
       </div>
 
+      <DailyBars data={daily} />
+
       <DataScroll>
-        <Table>
-          <thead>
-            <tr>
-              <Th>Day</Th>
-              <Th right>Jobs</Th>
-              <Th right>Failed</Th>
-              <Th right>Paid</Th>
-              <Th right>Cost</Th>
-              <Th />
-            </tr>
-          </thead>
-          <tbody>
-            {byDay.map((d) => {
-              const open = expanded(d.day);
-              const rate = d.jobs > 0 ? d.failed / d.jobs : 0;
-              return (
-                <Fragment key={d.day}>
-                  <Tr onClick={() => toggle(d.day)} className="bg-graphite-900/50">
-                    <Td className="whitespace-nowrap font-medium text-text-primary">{dayLabel(d.day)}</Td>
-                    <Td right>{num(d.jobs)}</Td>
-                    <Td right className={rate >= 0.1 && d.failed > 0 ? "font-semibold text-red-400" : "text-text-muted"}>
-                      {num(d.failed)}
-                      {rate >= 0.1 && d.failed > 0 && (
-                        <span className="ml-1 text-[11px] font-normal">{Math.round(rate * 100)}%</span>
-                      )}
+        {/* mobile */}
+        <div className="space-y-2 p-2 md:hidden">
+          {byTool.map((t) => {
+            const rate = t.jobs > 0 ? t.failed / t.jobs : 0;
+            return (
+              <Card key={t.tool} className="p-3">
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="truncate font-mono text-[11px] text-text-primary">{t.tool}</span>
+                  <span className="font-mono text-[12px] text-amber-400">{money(t.cost)}</span>
+                </div>
+                <div className="mt-2 grid grid-cols-3 gap-2">
+                  <Cell label="Jobs" value={num(t.jobs)} />
+                  <Cell
+                    label="Failed"
+                    value={`${num(t.failed)}${rate >= 0.25 ? ` (${Math.round(rate * 100)}%)` : ""}`}
+                    tone={rate >= 0.25 ? "bad" : undefined}
+                  />
+                  <Cell label="Share" value={totals.cost > 0 ? `${Math.round((t.cost / totals.cost) * 100)}%` : "—"} />
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+
+        {/* desktop */}
+        <div className="hidden md:block">
+          <Table>
+            <thead>
+              <tr>
+                <Th sortKey="tool" sort={sort} onSort={onSort}>Tool</Th>
+                <Th right sortKey="jobs" sort={sort} onSort={onSort}>Jobs</Th>
+                <Th right sortKey="failed" sort={sort} onSort={onSort}>Failed</Th>
+                <Th right sortKey="paid" sort={sort} onSort={onSort}>Paid</Th>
+                <Th right sortKey="gpu_seconds" sort={sort} onSort={onSort}>GPU s</Th>
+                <Th right sortKey="cost" sort={sort} onSort={onSort}>Cost</Th>
+                <Th right>Share</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {byTool.map((t) => {
+                const rate = t.jobs > 0 ? t.failed / t.jobs : 0;
+                const bad = rate >= 0.25;
+                const share = totals.cost > 0 ? t.cost / totals.cost : 0;
+                return (
+                  <Tr key={t.tool}>
+                    <Td className="font-mono text-[11px]">{t.tool}</Td>
+                    <Td right>{num(t.jobs)}</Td>
+                    <Td right className={bad ? "font-semibold text-red-400" : "text-text-muted"}>
+                      {num(t.failed)}
+                      {bad && <span className="ml-1 text-[11px] font-normal">{Math.round(rate * 100)}%</span>}
                     </Td>
-                    <Td right>{num(d.paid)}</Td>
-                    <Td right className="font-semibold text-amber-400">{money(d.cost, 2)}</Td>
-                    <Td className="text-right">
-                      <ChevronDown
-                        className={cn("inline h-3.5 w-3.5 text-text-subtle transition-transform", open && "rotate-180")}
-                        aria-hidden
-                      />
+                    <Td right>{num(t.paid)}</Td>
+                    <Td right className="text-text-subtle">{num(t.gpu_seconds, 1)}</Td>
+                    <Td right className="text-amber-400">{money(t.cost)}</Td>
+                    <Td right>
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className="h-1.5 w-14 overflow-hidden rounded-full bg-graphite-800">
+                          <span
+                            className="block h-full rounded-full bg-amber-500/70"
+                            style={{ width: `${Math.max(share * 100, 2)}%` }}
+                          />
+                        </span>
+                        <span className="w-8 text-right font-mono text-[11px] text-text-subtle">
+                          {Math.round(share * 100)}%
+                        </span>
+                      </span>
                     </Td>
                   </Tr>
-                  {open &&
-                    d.tools.map((r, i) => {
-                      const trate = r.jobs > 0 ? r.failed / r.jobs : 0;
-                      const bad = trate >= 0.25;
-                      return (
-                        <Tr key={`${d.day}-${r.tool}-${i}`}>
-                          <Td className="pl-7 font-mono text-[11px] text-text-muted">{r.tool}</Td>
-                          <Td right className="text-text-subtle">{num(r.jobs)}</Td>
-                          <Td right className={bad ? "font-semibold text-red-400" : "text-text-subtle"}>
-                            {num(r.failed)}
-                            {bad && <span className="ml-1 text-[11px] font-normal">{Math.round(trate * 100)}%</span>}
-                          </Td>
-                          <Td right className="text-text-subtle">{num(r.paid_jobs)}</Td>
-                          <Td right className="text-amber-400/80">{money(r.est_cost_usd)}</Td>
-                          <Td>{null}</Td>
-                        </Tr>
-                      );
-                    })}
-                </Fragment>
-              );
-            })}
-          </tbody>
-        </Table>
+                );
+              })}
+            </tbody>
+          </Table>
+        </div>
       </DataScroll>
     </>
   );
@@ -2063,20 +2104,24 @@ function Cell({ label, value, tone }: { label: string; value: string; tone?: "ba
 }
 
 function JobsPanel({ rows, onEmail }: { rows: JobRow[]; onEmail: (email: string) => void }) {
+  const [open, setOpen] = useState<string | null>(null);
+
   if (rows.length === 0) {
     return (
       <div className="flex min-h-0 flex-1 items-center justify-center">
-        <Empty icon={Clock} title="No jobs match these filters" body="Clear a filter chip above, or widen the window." />
+        <Empty icon={Clock} title="No jobs match these filters" body="Clear a filter chip above, or widen the range." />
       </div>
     );
   }
+
+  const isFailed = (r: JobRow) => r.status === "failed" || r.status === "timeout" || r.status === "cancelled";
 
   return (
     <DataScroll>
       {/* mobile */}
       <div className="space-y-2 p-2 md:hidden">
         {rows.map((r) => (
-          <Card key={r.job_id} className="p-3">
+          <Card key={r.job_id} className={cn("p-3", isFailed(r) && "border-red-500/25")}>
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <p className="truncate font-mono text-[12px] text-text-primary">{r.tool}</p>
@@ -2113,73 +2158,89 @@ function JobsPanel({ rows, onEmail }: { rows: JobRow[]; onEmail: (email: string)
               <Th>Email</Th>
               <Th>Status</Th>
               <Th>Charge</Th>
-              <Th right>Input s</Th>
               <Th right>GPU s</Th>
               <Th right>Cost</Th>
+              <Th />
             </tr>
           </thead>
           <tbody>
-            {rows.map((r) => (
-              <Tr
-                key={r.job_id}
-                className={cn((r.status === "failed" || r.status === "timeout") && "bg-red-500/[0.04]")}
-              >
-                <Td className="whitespace-nowrap text-text-subtle">
-                  <span title={fullTime(r.created_at)}>{relTime(r.created_at)}</span>
-                </Td>
-                <Td className="font-mono text-[11px]">
-                  <span className="group inline-flex items-center gap-1">
-                    {r.tool}
-                    <CopyButton value={r.job_id} label="Copy job id" />
-                  </span>
-                </Td>
-                <Td className="max-w-[13rem]">
-                  {r.email ? (
-                    <button
-                      type="button"
-                      onClick={() => onEmail(r.email as string)}
-                      title={`Filter to ${r.email}`}
-                      className="block max-w-full truncate font-mono text-[11px] text-amber-300 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-amber-400/70"
-                    >
-                      {r.email}
-                    </button>
-                  ) : (
-                    <span className="font-mono text-[11px] text-text-subtle">anon</span>
-                  )}
-                </Td>
-                <Td>
-                  <Badge tone={statusTone(r.status)}>{r.status}</Badge>
-                  {/* The server writes these for a human. Truncated on the row,
-                      full text on hover — why a job failed is the whole point. */}
-                  {r.error && (
-                    <span title={r.error} className="mt-1 block max-w-md truncate text-[11px] text-text-subtle">
-                      {r.error}
-                    </span>
-                  )}
-                </Td>
-                <Td>
-                  <span
-                    className={cn(
-                      "font-mono text-[11px]",
-                      r.charge_type === "credit" ? "text-amber-400" : "text-text-subtle"
-                    )}
+            {rows.map((r) => {
+              const expanded = open === r.job_id;
+              return (
+                <Fragment key={r.job_id}>
+                  <Tr
+                    onClick={() => setOpen(expanded ? null : r.job_id)}
+                    className={cn(isFailed(r) && "bg-red-500/[0.04]")}
                   >
-                    {r.charge_type ?? "—"}
-                  </span>
-                  {r.charge_status && r.charge_status !== "settled" && (
-                    <span className="ml-1.5 font-mono text-[10px] text-text-subtle">{r.charge_status}</span>
+                    <Td className="whitespace-nowrap text-text-subtle">
+                      <span title={fullTime(r.created_at)}>{relTime(r.created_at)}</span>
+                    </Td>
+                    <Td className="font-mono text-[11px]">{r.tool}</Td>
+                    <Td className="max-w-[13rem]">
+                      {r.email ? (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onEmail(r.email as string);
+                          }}
+                          title={`Filter to ${r.email}`}
+                          className="block max-w-full truncate font-mono text-[11px] text-amber-300 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-amber-400/70"
+                        >
+                          {r.email}
+                        </button>
+                      ) : (
+                        <span className="font-mono text-[11px] text-text-subtle">anon</span>
+                      )}
+                    </Td>
+                    <Td>
+                      <Badge tone={statusTone(r.status)}>{r.status}</Badge>
+                    </Td>
+                    <Td>
+                      <span
+                        className={cn(
+                          "font-mono text-[11px]",
+                          r.charge_type === "credit" ? "text-amber-400" : "text-text-subtle"
+                        )}
+                      >
+                        {r.charge_type ?? "—"}
+                      </span>
+                      {r.charge_status && r.charge_status !== "settled" && (
+                        <span className="ml-1.5 font-mono text-[10px] text-text-subtle">{r.charge_status}</span>
+                      )}
+                    </Td>
+                    <Td right className="text-text-subtle">{num(r.gpu_seconds, 1)}</Td>
+                    <Td right className="text-amber-400">{money(r.est_cost_usd)}</Td>
+                    <Td className="text-right">
+                      <ChevronDown
+                        className={cn(
+                          "inline h-3.5 w-3.5 text-text-subtle transition-transform",
+                          expanded && "rotate-180"
+                        )}
+                        aria-hidden
+                      />
+                    </Td>
+                  </Tr>
+                  {expanded && (
+                    <tr className="border-b border-graphite-800/60">
+                      <td colSpan={8} className="bg-graphite-950/40 px-4 py-4">
+                        {r.error && (
+                          <p className="mb-3 rounded-lg border border-red-500/20 bg-red-500/[0.06] p-2.5 text-[12px] leading-relaxed text-red-200">
+                            {r.error}
+                          </p>
+                        )}
+                        {r.refund_reason && (
+                          <p className="mb-3 rounded-lg border border-amber-500/20 bg-amber-500/[0.06] p-2.5 text-[12px] leading-relaxed text-amber-200">
+                            Refunded: {r.refund_reason}
+                          </p>
+                        )}
+                        <FieldGrid data={r as unknown as Rec} omit={["error", "refund_reason"]} columns={3} />
+                      </td>
+                    </tr>
                   )}
-                  {r.refund_reason && (
-                    <span title={r.refund_reason} className="mt-0.5 block max-w-[14rem] truncate text-[10px] text-text-subtle">
-                      refund: {r.refund_reason}
-                    </span>
-                  )}
-                </Td>
-                <Td right className="text-text-subtle">{num(r.input_seconds, 1)}</Td>
-                <Td right className="text-text-subtle">{num(r.gpu_seconds, 1)}</Td>
-                <Td right className="text-amber-400">{money(r.est_cost_usd)}</Td>
-              </Tr>
-            ))}
+                </Fragment>
+              );
+            })}
           </tbody>
         </Table>
       </div>
@@ -2187,11 +2248,6 @@ function JobsPanel({ rows, onEmail }: { rows: JobRow[]; onEmail: (email: string)
   );
 }
 
-/**
- * Unmatched payments, as fields rather than a payload dump. Columns are the
- * union of whatever the server sent; clicking a row expands the full record
- * underneath it, so nothing is hidden and nothing needs a JSON viewer.
- */
 function WebhooksPanel({ rows, problemsOnly }: { rows: unknown[]; problemsOnly: boolean }) {
   const [open, setOpen] = useState<number | null>(null);
 
