@@ -90,6 +90,7 @@ interface JobRow {
   ended_at: string | null;
   charge_status: string | null;
   refund_reason: string | null;
+  email: string | null;
 }
 
 interface Filters {
@@ -103,7 +104,7 @@ type Rec = Record<string, unknown>;
 const VIEWS: { id: View; label: string; hint: string; icon: typeof Coins }[] = [
   { id: "lookup", label: "Customer", hint: "Paid and got nothing", icon: Search },
   { id: "overview", label: "Overview", hint: "Liability and paywall state", icon: Wallet },
-  { id: "costs", label: "Spend", hint: "Day by tool", icon: Zap },
+  { id: "costs", label: "Spend", hint: "Spend by day", icon: Zap },
   { id: "jobs", label: "Jobs", hint: "Cost joined to billing", icon: Clock },
   { id: "webhooks", label: "Webhooks", hint: "Payment delivery log", icon: Inbox },
 ];
@@ -630,13 +631,14 @@ function Td({ children, right, className }: { children: React.ReactNode; right?:
   );
 }
 
-function Tr({ children, onClick }: { children: React.ReactNode; onClick?: () => void }) {
+function Tr({ children, onClick, className }: { children: React.ReactNode; onClick?: () => void; className?: string }) {
   return (
     <tr
       onClick={onClick}
       className={cn(
         "group border-b border-graphite-800/60 transition-colors last:border-0 hover:bg-graphite-850/40",
-        onClick && "cursor-pointer"
+        onClick && "cursor-pointer",
+        className
       )}
     >
       {children}
@@ -866,11 +868,22 @@ export default function AdminCreditsPage() {
   const [view, setView] = useState<View>("lookup");
   const [tick, setTick] = useState(0);
   const [auto, setAuto] = useState(false);
+  const [jobsPreset, setJobsPreset] = useState<JobsPreset | null>(null);
   const { toasts, push, dismiss } = useToasts();
   const overview = useOverview(tick);
   const [shellRef, shellHeight] = useShellHeight();
 
   const refresh = useCallback(() => setTick((t) => t + 1), []);
+
+  const switchView = useCallback((next: View) => {
+    setJobsPreset(null);
+    setView(next);
+  }, []);
+
+  const goToJobs = useCallback((preset: JobsPreset) => {
+    setJobsPreset(preset);
+    setView("jobs");
+  }, []);
 
   useEffect(() => {
     if (!auto) return;
@@ -885,12 +898,12 @@ export default function AdminCreditsPage() {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       if (el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) return;
       const n = Number(e.key);
-      if (n >= 1 && n <= VIEWS.length) setView(VIEWS[n - 1].id);
+      if (n >= 1 && n <= VIEWS.length) switchView(VIEWS[n - 1].id);
       if (e.key.toLowerCase() === "r") refresh();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [refresh]);
+  }, [refresh, switchView]);
 
   const active = VIEWS.find((v) => v.id === view) ?? VIEWS[0];
 
@@ -959,7 +972,7 @@ export default function AdminCreditsPage() {
                 <button
                   key={v.id}
                   type="button"
-                  onClick={() => setView(v.id)}
+                  onClick={() => switchView(v.id)}
                   aria-current={on ? "page" : undefined}
                   className={cn(
                     "relative flex shrink-0 items-center gap-1.5 rounded-t-lg px-3 py-2.5 text-[13px] font-medium outline-none transition-colors",
@@ -989,7 +1002,7 @@ export default function AdminCreditsPage() {
         ) : view === "overview" ? (
           <OverviewPanel data={overview} onToast={push} onChanged={refresh} />
         ) : (
-          <ReadPanel key={view} view={view} tick={tick} />
+          <ReadPanel key={view} view={view} tick={tick} preset={jobsPreset} onGoToJobs={goToJobs} />
         )}
       </main>
 
@@ -1564,16 +1577,28 @@ function OverviewPanel({
 /* costs / jobs / webhooks                                             */
 /* ------------------------------------------------------------------ */
 
-function ReadPanel({ view, tick }: { view: View; tick: number }) {
+type JobsPreset = { status?: string; chargeType?: string; days?: string; email?: string };
+
+function ReadPanel({
+  view,
+  tick,
+  preset,
+  onGoToJobs,
+}: {
+  view: View;
+  tick: number;
+  preset: JobsPreset | null;
+  onGoToJobs: (preset: JobsPreset) => void;
+}) {
   const [data, setData] = useState<unknown>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [days, setDays] = useState("30");
+  const [days, setDays] = useState(preset?.days ?? "30");
   const [tool, setTool] = useState("");
-  const [status, setStatus] = useState("");
-  const [chargeType, setChargeType] = useState("");
-  const [email, setEmail] = useState("");
-  const [emailApplied, setEmailApplied] = useState("");
+  const [status, setStatus] = useState(preset?.status ?? "");
+  const [chargeType, setChargeType] = useState(preset?.chargeType ?? "");
+  const [email, setEmail] = useState(preset?.email ?? "");
+  const [emailApplied, setEmailApplied] = useState(preset?.email ?? "");
   const [offset, setOffset] = useState(0);
   const [hooksProblemsOnly, setHooksProblemsOnly] = useState(false);
   const filters = useJobFilters();
@@ -1586,7 +1611,7 @@ function ReadPanel({ view, tick }: { view: View; tick: number }) {
         const params = new URLSearchParams({ view });
         if (view === "webhooks" && hooksProblemsOnly) params.set("unprocessed_only", "true");
         if (view === "costs") {
-          params.set("days", days);
+          params.set("days", String(Math.max(Number(days) || 30, 30)));
           if (tool) params.set("tool", tool);
         }
         if (view === "jobs") {
@@ -1681,6 +1706,29 @@ function ReadPanel({ view, tick }: { view: View; tick: number }) {
 
           {view === "jobs" && (
             <>
+              <span className="flex shrink-0 gap-1.5">
+                <Button
+                  size="sm"
+                  variant={status === "failed" ? "primary" : "ghost"}
+                  onClick={() => setFilter(setStatus)(status === "failed" ? "" : "failed")}
+                >
+                  Failed
+                </Button>
+                <Button
+                  size="sm"
+                  variant={chargeType === "credit" ? "primary" : "ghost"}
+                  onClick={() => setFilter(setChargeType)(chargeType === "credit" ? "" : "credit")}
+                >
+                  Paid
+                </Button>
+                <Button
+                  size="sm"
+                  variant={days === "1" ? "primary" : "ghost"}
+                  onClick={() => setFilter(setDays)(days === "1" ? "30" : "1")}
+                >
+                  Today
+                </Button>
+              </span>
               <Select label="Status" value={status} onChange={setFilter(setStatus)}>
                 <option value="">Any status</option>
                 {(filters.statuses ?? []).map((t) => (
@@ -1767,10 +1815,23 @@ function ReadPanel({ view, tick }: { view: View; tick: number }) {
       {error && <ErrorNote message={error} onRetry={() => void load()} />}
       {loading && !data && <SkeletonPanel />}
 
-      {data !== null && view === "costs" && <CostsPanel rows={costRows} />}
+      {data !== null && view === "costs" && (
+        <CostsPanel
+          rows={costRows}
+          windowDays={Number(days) || 30}
+          onDrillFailed={() => onGoToJobs({ status: "failed", days })}
+        />
+      )}
       {data !== null && view === "jobs" && (
         <>
-          <JobsPanel rows={jobRows} />
+          <JobsPanel
+            rows={jobRows}
+            onEmail={(addr) => {
+              setEmail(addr);
+              setEmailApplied(addr);
+              setOffset(0);
+            }}
+          />
           <Pager
             offset={offset}
             count={jobRows.length}
@@ -1784,45 +1845,93 @@ function ReadPanel({ view, tick }: { view: View; tick: number }) {
   );
 }
 
-type CostSortKey = "day" | "tool" | "jobs" | "failed" | "paid_jobs" | "gpu_seconds" | "est_cost_usd";
+function CostsPanel({
+  rows,
+  windowDays,
+  onDrillFailed,
+}: {
+  rows: CostRow[];
+  windowDays: number;
+  onDrillFailed: () => void;
+}) {
+  const [openDays, setOpenDays] = useState<Set<string>>(() => new Set());
+  const [touched, setTouched] = useState(false);
 
-function CostsPanel({ rows }: { rows: CostRow[] }) {
-  const [sort, setSort] = useState<{ key: CostSortKey; dir: "asc" | "desc" }>({ key: "day", dir: "desc" });
+  const dayKey = (offset: number) => new Date(Date.now() - offset * 864e5).toISOString().slice(0, 10);
+  const today = dayKey(0);
+  const yesterday = dayKey(1);
 
-  const totals = useMemo(
-    () =>
-      rows.reduce(
-        (a, r) => ({
-          jobs: a.jobs + (r.jobs ?? 0),
-          failed: a.failed + (r.failed ?? 0),
-          cost: a.cost + (r.est_cost_usd ?? 0),
-          paid: a.paid + (r.paid_jobs ?? 0),
-        }),
-        { jobs: 0, failed: 0, cost: 0, paid: 0 }
-      ),
-    [rows]
+  const period = (from: string) => {
+    const acc = { jobs: 0, failed: 0, paid: 0, cost: 0 };
+    rows.forEach((r) => {
+      if (r.day >= from) {
+        acc.jobs += r.jobs ?? 0;
+        acc.failed += r.failed ?? 0;
+        acc.paid += r.paid_jobs ?? 0;
+        acc.cost += r.est_cost_usd ?? 0;
+      }
+    });
+    return acc;
+  };
+
+  const pToday = period(today);
+  const pYesterday = (() => {
+    const acc = { jobs: 0, failed: 0, paid: 0, cost: 0 };
+    rows.forEach((r) => {
+      if (r.day === yesterday) {
+        acc.jobs += r.jobs ?? 0;
+        acc.failed += r.failed ?? 0;
+        acc.paid += r.paid_jobs ?? 0;
+        acc.cost += r.est_cost_usd ?? 0;
+      }
+    });
+    return acc;
+  })();
+  const p7 = period(dayKey(6));
+  const p30 = period(dayKey(29));
+
+  const cutoff = dayKey(windowDays - 1);
+  const shown = useMemo(() => rows.filter((r) => r.day >= cutoff), [rows, cutoff]);
+
+  const byDay = useMemo(() => {
+    const m = new Map<string, CostRow[]>();
+    shown.forEach((r) => {
+      const list = m.get(r.day) ?? [];
+      list.push(r);
+      m.set(r.day, list);
+    });
+    return [...m.entries()]
+      .sort((a, b) => b[0].localeCompare(a[0]))
+      .map(([day, tools]) => {
+        tools.sort((a, b) => (b.est_cost_usd ?? 0) - (a.est_cost_usd ?? 0));
+        const t = tools.reduce(
+          (a, r) => ({
+            jobs: a.jobs + (r.jobs ?? 0),
+            failed: a.failed + (r.failed ?? 0),
+            paid: a.paid + (r.paid_jobs ?? 0),
+            cost: a.cost + (r.est_cost_usd ?? 0),
+          }),
+          { jobs: 0, failed: 0, paid: 0, cost: 0 }
+        );
+        return { day, tools, ...t };
+      });
+  }, [shown]);
+
+  const trail = useMemo(
+    () => [...byDay].sort((a, b) => a.day.localeCompare(b.day)).map((d) => d.cost),
+    [byDay]
   );
 
-  const trail = useMemo(() => {
-    const byDay = new Map<string, number>();
-    rows.forEach((r) => byDay.set(r.day, (byDay.get(r.day) ?? 0) + (r.est_cost_usd ?? 0)));
-    return [...byDay.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([, v]) => v);
-  }, [rows]);
-
-  const sorted = useMemo(() => {
-    const dir = sort.dir === "asc" ? 1 : -1;
-    return [...rows].sort((a, b) => {
-      const x = a[sort.key];
-      const y = b[sort.key];
-      if (typeof x === "number" && typeof y === "number") return (x - y) * dir;
-      return String(x).localeCompare(String(y)) * dir;
+  const expanded = (day: string) => (touched ? openDays.has(day) : day === byDay[0]?.day);
+  const toggle = (day: string) => {
+    setOpenDays((prev) => {
+      const base = touched ? new Set(prev) : new Set(byDay.filter((d) => expanded(d.day)).map((d) => d.day));
+      if (base.has(day)) base.delete(day);
+      else base.add(day);
+      return base;
     });
-  }, [rows, sort]);
-
-  const onSort = (key: string) =>
-    setSort((s) =>
-      s.key === key ? { key: s.key, dir: s.dir === "asc" ? "desc" : "asc" } : { key: key as CostSortKey, dir: "desc" }
-    );
+    setTouched(true);
+  };
 
   if (rows.length === 0) {
     return (
@@ -1832,19 +1941,38 @@ function CostsPanel({ rows }: { rows: CostRow[] }) {
     );
   }
 
-  const failRate = totals.jobs > 0 ? totals.failed / totals.jobs : 0;
+  const dayLabel = (day: string) => (day === today ? "Today" : day === yesterday ? "Yesterday" : day);
 
   return (
     <>
       <div className="grid shrink-0 grid-cols-2 gap-3 lg:grid-cols-5">
-        <Stat label="Jobs" value={num(totals.jobs)} />
-        <Stat
-          label="Failed"
-          value={`${num(totals.failed)}${totals.jobs ? ` · ${Math.round(failRate * 100)}%` : ""}`}
-          tone={failRate >= 0.1 ? "alarm" : "plain"}
-        />
-        <Stat label="Paid jobs" value={num(totals.paid)} sub="Charged a credit" />
-        <Stat label="Est. spend" value={money(totals.cost, 2)} tone="accent" />
+        <Stat label="Today" value={money(pToday.cost, 2)} sub={`${num(pToday.jobs)} jobs · ${num(pToday.failed)} failed`} tone="accent" />
+        <Stat label="Yesterday" value={money(pYesterday.cost, 2)} sub={`${num(pYesterday.jobs)} jobs · ${num(pYesterday.failed)} failed`} />
+        <Stat label="Last 7 days" value={money(p7.cost, 2)} sub={`${num(p7.jobs)} jobs · ${num(p7.paid)} paid`} />
+        <button
+          type="button"
+          onClick={onDrillFailed}
+          title="Open failed jobs"
+          className={cn(
+            "rounded-2xl border px-3.5 py-3 text-left outline-none transition-colors",
+            "focus-visible:ring-2 focus-visible:ring-amber-400/70",
+            p30.jobs > 0 && p30.failed / p30.jobs >= 0.1
+              ? "border-red-500/30 bg-red-500/[0.06] hover:bg-red-500/10"
+              : "border-graphite-800 bg-graphite-900/70 hover:border-graphite-700"
+          )}
+        >
+          <SectionLabel>Failed · 30d</SectionLabel>
+          <p
+            className={cn(
+              "mt-1.5 font-mono text-xl font-semibold leading-none tabular-nums",
+              p30.jobs > 0 && p30.failed / p30.jobs >= 0.1 ? "text-red-400" : "text-text-primary"
+            )}
+          >
+            {num(p30.failed)}
+            {p30.jobs > 0 && <span className="ml-1 text-xs font-normal">{Math.round((p30.failed / p30.jobs) * 100)}%</span>}
+          </p>
+          <p className="mt-1 text-[11px] text-text-subtle">Click to see which jobs</p>
+        </button>
         <Card className="hidden px-3 pb-1 pt-2.5 lg:block">
           <div className="flex items-baseline justify-between">
             <SectionLabel>Daily</SectionLabel>
@@ -1855,74 +1983,64 @@ function CostsPanel({ rows }: { rows: CostRow[] }) {
       </div>
 
       <DataScroll>
-        {/* mobile */}
-        <div className="space-y-2 p-2 md:hidden">
-          {sorted.map((r, i) => {
-            const bad = r.jobs > 0 && r.failed / r.jobs >= 0.25;
-            return (
-              <Card key={`${r.day}-${r.tool}-${i}`} className="p-3">
-                <div className="flex items-baseline justify-between gap-2">
-                  <span className="font-mono text-[11px] text-text-primary">{r.tool}</span>
-                  <span className="font-mono text-[11px] text-text-subtle">{r.day}</span>
-                </div>
-                <div className="mt-2 grid grid-cols-3 gap-2">
-                  <Cell label="Jobs" value={num(r.jobs)} />
-                  <Cell
-                    label="Failed"
-                    value={`${num(r.failed)}${bad ? ` (${Math.round((r.failed / r.jobs) * 100)}%)` : ""}`}
-                    tone={bad ? "bad" : undefined}
-                  />
-                  <Cell label="Cost" value={money(r.est_cost_usd)} tone="accent" />
-                  <Cell label="Paid" value={num(r.paid_jobs)} />
-                  <Cell label="Free" value={num(r.free_jobs)} />
-                  <Cell label="GPU s" value={num(r.gpu_seconds, 1)} />
-                </div>
-              </Card>
-            );
-          })}
-        </div>
-
-        {/* desktop */}
-        <div className="hidden md:block">
-          <Table>
-            <thead>
-              <tr>
-                <Th sortKey="day" sort={sort} onSort={onSort}>Day</Th>
-                <Th sortKey="tool" sort={sort} onSort={onSort}>Tool</Th>
-                <Th right sortKey="jobs" sort={sort} onSort={onSort}>Jobs</Th>
-                <Th right sortKey="failed" sort={sort} onSort={onSort}>Failed</Th>
-                <Th right sortKey="paid_jobs" sort={sort} onSort={onSort}>Paid</Th>
-                <Th right>Free</Th>
-                <Th right>Min</Th>
-                <Th right sortKey="gpu_seconds" sort={sort} onSort={onSort}>GPU s</Th>
-                <Th right sortKey="est_cost_usd" sort={sort} onSort={onSort}>Cost</Th>
-              </tr>
-            </thead>
-            <tbody>
-              {sorted.map((r, i) => {
-                // A failure rate this page must not let you scroll past.
-                const rate = r.jobs > 0 ? r.failed / r.jobs : 0;
-                const bad = rate >= 0.25;
-                return (
-                  <Tr key={`${r.day}-${r.tool}-${i}`}>
-                    <Td className="whitespace-nowrap text-text-muted">{r.day}</Td>
-                    <Td className="font-mono text-[11px]">{r.tool}</Td>
-                    <Td right>{num(r.jobs)}</Td>
-                    <Td right className={bad ? "font-semibold text-red-400" : "text-text-muted"}>
-                      {num(r.failed)}
-                      {bad && <span className="ml-1 text-[11px] font-normal">{Math.round(rate * 100)}%</span>}
+        <Table>
+          <thead>
+            <tr>
+              <Th>Day</Th>
+              <Th right>Jobs</Th>
+              <Th right>Failed</Th>
+              <Th right>Paid</Th>
+              <Th right>Cost</Th>
+              <Th />
+            </tr>
+          </thead>
+          <tbody>
+            {byDay.map((d) => {
+              const open = expanded(d.day);
+              const rate = d.jobs > 0 ? d.failed / d.jobs : 0;
+              return (
+                <Fragment key={d.day}>
+                  <Tr onClick={() => toggle(d.day)} className="bg-graphite-900/50">
+                    <Td className="whitespace-nowrap font-medium text-text-primary">{dayLabel(d.day)}</Td>
+                    <Td right>{num(d.jobs)}</Td>
+                    <Td right className={rate >= 0.1 && d.failed > 0 ? "font-semibold text-red-400" : "text-text-muted"}>
+                      {num(d.failed)}
+                      {rate >= 0.1 && d.failed > 0 && (
+                        <span className="ml-1 text-[11px] font-normal">{Math.round(rate * 100)}%</span>
+                      )}
                     </Td>
-                    <Td right>{num(r.paid_jobs)}</Td>
-                    <Td right className="text-text-subtle">{num(r.free_jobs)}</Td>
-                    <Td right className="text-text-subtle">{num(r.input_minutes, 1)}</Td>
-                    <Td right className="text-text-subtle">{num(r.gpu_seconds, 1)}</Td>
-                    <Td right className="text-amber-400">{money(r.est_cost_usd)}</Td>
+                    <Td right>{num(d.paid)}</Td>
+                    <Td right className="font-semibold text-amber-400">{money(d.cost, 2)}</Td>
+                    <Td className="text-right">
+                      <ChevronDown
+                        className={cn("inline h-3.5 w-3.5 text-text-subtle transition-transform", open && "rotate-180")}
+                        aria-hidden
+                      />
+                    </Td>
                   </Tr>
-                );
-              })}
-            </tbody>
-          </Table>
-        </div>
+                  {open &&
+                    d.tools.map((r, i) => {
+                      const trate = r.jobs > 0 ? r.failed / r.jobs : 0;
+                      const bad = trate >= 0.25;
+                      return (
+                        <Tr key={`${d.day}-${r.tool}-${i}`}>
+                          <Td className="pl-7 font-mono text-[11px] text-text-muted">{r.tool}</Td>
+                          <Td right className="text-text-subtle">{num(r.jobs)}</Td>
+                          <Td right className={bad ? "font-semibold text-red-400" : "text-text-subtle"}>
+                            {num(r.failed)}
+                            {bad && <span className="ml-1 text-[11px] font-normal">{Math.round(trate * 100)}%</span>}
+                          </Td>
+                          <Td right className="text-text-subtle">{num(r.paid_jobs)}</Td>
+                          <Td right className="text-amber-400/80">{money(r.est_cost_usd)}</Td>
+                          <Td>{null}</Td>
+                        </Tr>
+                      );
+                    })}
+                </Fragment>
+              );
+            })}
+          </tbody>
+        </Table>
       </DataScroll>
     </>
   );
@@ -1944,7 +2062,7 @@ function Cell({ label, value, tone }: { label: string; value: string; tone?: "ba
   );
 }
 
-function JobsPanel({ rows }: { rows: JobRow[] }) {
+function JobsPanel({ rows, onEmail }: { rows: JobRow[]; onEmail: (email: string) => void }) {
   if (rows.length === 0) {
     return (
       <div className="flex min-h-0 flex-1 items-center justify-center">
@@ -1964,6 +2082,9 @@ function JobsPanel({ rows }: { rows: JobRow[] }) {
                 <p className="truncate font-mono text-[12px] text-text-primary">{r.tool}</p>
                 <p className="mt-0.5 text-[11px] text-text-subtle" title={fullTime(r.created_at)}>
                   {relTime(r.created_at)}
+                </p>
+                <p className={cn("mt-0.5 truncate text-[11px]", r.email ? "text-amber-300" : "text-text-subtle")}>
+                  {r.email ?? "anonymous"}
                 </p>
               </div>
               <Badge tone={statusTone(r.status)}>{r.status}</Badge>
@@ -1989,6 +2110,7 @@ function JobsPanel({ rows }: { rows: JobRow[] }) {
             <tr>
               <Th>When</Th>
               <Th>Tool</Th>
+              <Th>Email</Th>
               <Th>Status</Th>
               <Th>Charge</Th>
               <Th right>Input s</Th>
@@ -1998,7 +2120,10 @@ function JobsPanel({ rows }: { rows: JobRow[] }) {
           </thead>
           <tbody>
             {rows.map((r) => (
-              <Tr key={r.job_id}>
+              <Tr
+                key={r.job_id}
+                className={cn((r.status === "failed" || r.status === "timeout") && "bg-red-500/[0.04]")}
+              >
                 <Td className="whitespace-nowrap text-text-subtle">
                   <span title={fullTime(r.created_at)}>{relTime(r.created_at)}</span>
                 </Td>
@@ -2007,6 +2132,20 @@ function JobsPanel({ rows }: { rows: JobRow[] }) {
                     {r.tool}
                     <CopyButton value={r.job_id} label="Copy job id" />
                   </span>
+                </Td>
+                <Td className="max-w-[13rem]">
+                  {r.email ? (
+                    <button
+                      type="button"
+                      onClick={() => onEmail(r.email as string)}
+                      title={`Filter to ${r.email}`}
+                      className="block max-w-full truncate font-mono text-[11px] text-amber-300 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-amber-400/70"
+                    >
+                      {r.email}
+                    </button>
+                  ) : (
+                    <span className="font-mono text-[11px] text-text-subtle">anon</span>
+                  )}
                 </Td>
                 <Td>
                   <Badge tone={statusTone(r.status)}>{r.status}</Badge>
