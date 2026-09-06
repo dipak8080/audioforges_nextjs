@@ -356,7 +356,12 @@ export default async function ResamplePage() {
             <Link href="/guides/convert-audio-for-phone-systems-3cx-asterisk-ivr">
               Read the phone-system audio guide
             </Link>{" "}
-            for the exact spec per system and the two-step conversion.
+            for the exact spec per system and the two-step conversion. Prepping
+            sound effects for Unity, Unreal or Godot? The{" "}
+            <Link href="/guides/audio-format-for-game-engines-unity-unreal-godot">
+              game audio format guide
+            </Link>{" "}
+            covers 44.1 vs 48 kHz, WAV vs OGG, and mono for positional sounds.
           </p>
           <p>
             Want the fuller breakdown of why upsampling and downsampling behave so

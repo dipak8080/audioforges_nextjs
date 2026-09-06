@@ -189,6 +189,15 @@ export const guides: Guide[] = [
     category: "production",
   },
   {
+    slug: "audio-format-for-game-engines-unity-unreal-godot",
+    title: "Game Audio Format: WAV vs OGG, 48 kHz for Unity, Unreal & Godot",
+    description:
+      "The sample rate, bit depth and file format to use for game sound effects and music in Unity, Unreal and Godot, plus fixes for pops, lag and build bloat.",
+    publishedDate: "2026-09-06",
+    updatedDate: "2026-09-06",
+    category: "production",
+  },
+  {
     slug: "convert-audio-for-phone-systems-3cx-asterisk-ivr",
     title: "Convert Audio to 8 kHz Mono WAV for 3CX, Asterisk & IVR",
     description:

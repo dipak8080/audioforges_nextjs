@@ -27,4 +27,12 @@ export const TOOL_VIDEOS: Record<string, ToolVideo> = {
     heading: "Watch: the two-step conversion",
     pageUrl: "/guides/convert-audio-for-phone-systems-3cx-asterisk-ivr",
   },
+  convert: {
+    videoId: "yyUUOX8K1MQ",
+    title: "Convert WAV to OGG Online — Free, No Signup",
+    description:
+      "Convert WAV to OGG Vorbis in the browser, free, with no signup or install. The same converter handles MP3, FLAC, M4A, AAC and AIFF.",
+    uploadDate: "2026-09-06",
+    heading: "Watch: WAV to OGG in under a minute",
+  },
 };
