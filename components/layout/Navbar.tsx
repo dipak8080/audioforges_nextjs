@@ -185,10 +185,11 @@ export function Navbar() {
     const previous = document.body.style.overflow;
     document.body.style.overflow = "hidden";
 
+    if (sheetRef.current) sheetRef.current.scrollTop = 0;
     const firstLink = sheetRef.current?.querySelector<HTMLElement>(
       'a[href], button:not([disabled])'
     );
-    firstLink?.focus();
+    firstLink?.focus({ preventScroll: true });
 
     return () => {
       document.body.style.overflow = previous;
