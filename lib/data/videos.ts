@@ -100,4 +100,12 @@ export const TOOL_VIDEOS: Record<string, ToolVideo> = {
     uploadDate: "2026-09-06",
     heading: "Watch: YouTube link to WAV in under a minute",
   },
+  "audio-to-sheet-music": {
+    videoId: "cj97mCNmCyI",
+    title: "Audio to Sheet Music Free — Piano, Guitar & Vocals to PDF, MusicXML & MIDI",
+    description:
+      "Upload MP3 or WAV, preview the engraved score and download PDF, MusicXML, MIDI or SVG. Piano uses a dedicated model with a two-hand grand staff; key detection sets the key signature. Free, no signup.",
+    uploadDate: "2026-09-06",
+    heading: "Watch: recording to printable score",
+  },
 };
