@@ -1856,49 +1856,30 @@ function ReadPanel({
 
 function DailyBars({ data }: { data: { day: string; cost: number }[] }) {
   if (data.length < 2) return null;
-  const w = 720;
-  const h = 130;
-  const axis = 16;
-  const pad = 4;
   const max = Math.max(...data.map((d) => d.cost), 0.0001);
-  const bw = (w - pad * 2) / data.length;
   const label = (day: string) => day.slice(5).replace("-", "/");
-  const ticks = [0, Math.floor((data.length - 1) / 2), data.length - 1];
+  const mid = Math.floor((data.length - 1) / 2);
   return (
-    <Card className="shrink-0 px-3 pb-1.5 pt-2.5">
+    <Card className="shrink-0 px-3 pb-2 pt-2.5">
       <div className="flex items-baseline justify-between">
         <SectionLabel>Daily spend</SectionLabel>
         <span className="font-mono text-[10px] text-text-subtle">peak {money(max, 2)}/day</span>
       </div>
-      <svg viewBox={`0 0 ${w} ${h + axis}`} className="mt-1 w-full" role="img" aria-label="Daily spend chart">
-        {data.map((d, i) => {
-          const bh = d.cost > 0 ? Math.max((d.cost / max) * (h - 6), 2) : 0;
-          return (
-            <rect
-              key={d.day}
-              x={pad + i * bw + bw * 0.12}
-              y={h - bh}
-              width={bw * 0.76}
-              height={bh || 0.5}
-              rx={Math.min(2, bw * 0.2)}
-              className="fill-amber-500/60 transition-colors hover:fill-amber-400"
-            >
-              <title>{`${d.day} — ${money(d.cost, 2)}`}</title>
-            </rect>
-          );
-        })}
-        {ticks.map((i) => (
-          <text
-            key={i}
-            x={pad + i * bw + bw / 2}
-            y={h + 12}
-            textAnchor={i === 0 ? "start" : i === data.length - 1 ? "end" : "middle"}
-            className="fill-current font-mono text-[10px] text-text-subtle"
-          >
-            {label(data[i].day)}
-          </text>
+      <div className="mt-2 flex h-[120px] items-end gap-[3px]" role="img" aria-label="Daily spend chart">
+        {data.map((d) => (
+          <div key={d.day} title={`${d.day} — ${money(d.cost, 2)}`} className="group flex h-full flex-1 items-end">
+            <div
+              className="w-full rounded-t-sm bg-amber-500/60 transition-colors group-hover:bg-amber-400"
+              style={{ height: d.cost > 0 ? `${Math.max((d.cost / max) * 100, 2)}%` : "0%" }}
+            />
+          </div>
         ))}
-      </svg>
+      </div>
+      <div className="mt-1 flex justify-between font-mono text-[10px] text-text-subtle">
+        <span>{label(data[0].day)}</span>
+        <span>{label(data[mid].day)}</span>
+        <span>{label(data[data.length - 1].day)}</span>
+      </div>
     </Card>
   );
 }
