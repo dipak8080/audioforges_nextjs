@@ -433,7 +433,7 @@ const FLAGS_OFF: FeatureFlags = {
 export async function getFeatureFlags(): Promise<FeatureFlags> {
   try {
     const res = await fetch(`${RAILWAY_API_BASE}/`, {
-      next: { revalidate: 60 },
+      next: { revalidate: 3600 },
       // The only call in this file that doesn't go through
       // fetchWithTimeout, because it needs Next's data cache. Without a
       // deadline, a VPS that accepts the connection but never answers

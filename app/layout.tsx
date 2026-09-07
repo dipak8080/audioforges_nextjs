@@ -83,7 +83,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   // requests on the ~90 pages of this site while the paywall is off.
   //
   // This does NOT make the site dynamic: getFeatureFlags() uses
-  // `next: { revalidate: 60 }`, so pages stay static with ISR. It also
+  // `next: { revalidate: 3600 }`, so pages stay static with ISR. It also
   // fails closed and has a 5s deadline, so a dead VPS renders the site
   // normally with the paywall reading as off rather than hanging the
   // render.
