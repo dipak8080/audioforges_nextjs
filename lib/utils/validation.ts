@@ -52,7 +52,27 @@ export const FILE_SIZE_LIMITS = {
   audioMin: 1024,
 } as const;
 
+/**
+ * Voice-note extensions accepted by /voice-clean ONLY - mirrors
+ * VOICE_CLEAN_INPUT_FORMATS on the backend (config.py). Kept out of
+ * AUDIO_EXTENSIONS because the other tools' backends still reject
+ * opus/webm; widening the shared list would claim support the server
+ * doesn't honour. KEEP IN SYNC with the backend set.
+ */
+export const VOICE_CLEAN_EXTENSIONS = [...AUDIO_EXTENSIONS, ".opus", ".webm"] as const;
+
+export function validateVoiceCleanFile(file: File | null): FileValidationResult {
+  return validateAudioFileWithExtensions(file, VOICE_CLEAN_EXTENSIONS);
+}
+
 export function validateAudioFile(file: File | null): FileValidationResult {
+  return validateAudioFileWithExtensions(file, AUDIO_EXTENSIONS);
+}
+
+function validateAudioFileWithExtensions(
+  file: File | null,
+  extensions: readonly string[]
+): FileValidationResult {
   const warnings: string[] = [];
 
   if (!file) return { isValid: false, error: "No file selected" };
@@ -67,13 +87,13 @@ export function validateAudioFile(file: File | null): FileValidationResult {
 
   const fileName = file.name.toLowerCase();
   const isValidMime = file.type.startsWith("audio/");
-  const isValidExtension = AUDIO_EXTENSIONS.some((ext) => fileName.endsWith(ext));
+  const isValidExtension = extensions.some((ext) => fileName.endsWith(ext));
 
   if (!isValidMime && !isValidExtension) {
     // Built from the list rather than typed, so the message can't name a
     // different set of formats from the one actually being checked — which is
     // exactly how AIFF ended up absent here and present in every accept string.
-    const formats = AUDIO_EXTENSIONS.map((ext) => ext.slice(1).toUpperCase()).join(", ");
+    const formats = extensions.map((ext) => ext.slice(1).toUpperCase()).join(", ");
     return {
       isValid: false,
       error: `Invalid file type. Please upload an audio file (${formats})`,

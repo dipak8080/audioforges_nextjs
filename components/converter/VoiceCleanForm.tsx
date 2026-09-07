@@ -2,6 +2,7 @@
 
 import { JobToolForm } from "@/components/converter/JobToolForm";
 import { getRateLimitLabel } from "@/lib/data/rate-limits";
+import { validateVoiceCleanFile } from "@/lib/utils/validation";
 
 /**
  * One change, and there is nothing else to make: this tool has no parameters.
@@ -17,6 +18,8 @@ export function VoiceCleanForm() {
   return (
     <JobToolForm
       endpoint="voice-clean"
+      fileAccept="audio/*,.mp3,.wav,.m4a,.aac,.ogg,.flac,.aiff,.opus,.webm"
+      validateFile={validateVoiceCleanFile}
       pollIntervalMs={2500}
       toolLabel="Voice cleanup"
       toolMeta="denoise + normalize"
