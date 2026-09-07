@@ -189,6 +189,15 @@ export const guides: Guide[] = [
     category: "production",
   },
   {
+    slug: "prepare-samples-for-sp404-digitakt-mpc",
+    title: "Prepare Samples for the SP-404, Digitakt & MPC",
+    description:
+      "The sample rate, bit depth and mono format the SP-404MKII, Digitakt, MPC and Octatrack actually use, plus file naming and a browser batch-prep workflow.",
+    publishedDate: "2026-09-07",
+    updatedDate: "2026-09-07",
+    category: "production",
+  },
+  {
     slug: "audio-format-for-game-engines-unity-unreal-godot",
     title: "WAV vs OGG for Unity, Unreal & Godot",
     description:

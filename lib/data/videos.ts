@@ -108,6 +108,22 @@ export const TOOL_VIDEOS: Record<string, ToolVideo> = {
     uploadDate: "2026-09-06",
     heading: "Watch: recording to printable score",
   },
+  "sample-rate-converter": {
+    videoId: "JQoPiCbBuYE",
+    title: "Convert 44.1 kHz to 48 kHz Online — Free Sample Rate Converter, No Signup",
+    description:
+      "Convert audio between 8, 16, 22.05, 44.1, 48 and 96 kHz free in the browser. Upload, pick a rate and bit depth, download. Works in reverse for MPC and Octatrack, and down to 8 kHz for phone systems.",
+    uploadDate: "2026-09-07",
+    heading: "Watch: 44.1 to 48 kHz in under a minute",
+  },
+  "sampler-guide-resample": {
+    videoId: "JQoPiCbBuYE",
+    title: "Convert 44.1 kHz to 48 kHz Online — Free Sample Rate Converter, No Signup",
+    description:
+      "Resample audio for hardware samplers free in the browser: 48 kHz for the SP-404MKII and Digitakt, 44.1 kHz for MPC and Octatrack. Upload, pick a rate and bit depth, download.",
+    uploadDate: "2026-09-07",
+    pageUrl: "/guides/prepare-samples-for-sp404-digitakt-mpc",
+  },
   "youtube-to-mp3": {
     videoId: "_ix6IFGJVaU",
     title: "YouTube to MP3 — Convert YouTube Audio to 320kbps MP3 Free, No App",

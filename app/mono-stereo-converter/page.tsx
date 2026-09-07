@@ -345,7 +345,13 @@ export default async function ChannelsPage() {
             <Link href="/guides/convert-audio-for-phone-systems-3cx-asterisk-ivr">
               phone-system audio guide
             </Link>{" "}
-            for the full 8kHz mono WAV workflow.
+            for the full 8kHz mono WAV workflow. Sending samples to a Digitakt
+            or another mono hardware sampler? The{" "}
+            <Link href="/guides/prepare-samples-for-sp404-digitakt-mpc">
+              hardware sampler guide
+            </Link>{" "}
+            explains why summing to mono yourself beats letting the transfer
+            tool take one channel.
           </p>
         </ToolSection>
 

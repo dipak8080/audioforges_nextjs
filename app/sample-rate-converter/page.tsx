@@ -9,6 +9,7 @@ import { ToolSection } from "@/components/ui/ToolSection";
 import { FeatureStrip } from "@/components/ui/FeatureStrip";
 import { Prose } from "@/components/ui/Prose";
 import { RelatedToolsGrid } from "@/components/tools/RelatedToolsGrid";
+import { ToolVideo } from "@/components/media/ToolVideo";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
 import { ogForTool } from "@/lib/og";
@@ -362,6 +363,11 @@ export default async function ResamplePage() {
               game audio format guide
             </Link>{" "}
             covers 44.1 vs 48 kHz, WAV vs OGG, and mono for positional sounds.
+            Loading samples onto an SP-404, Digitakt or MPC? The{" "}
+            <Link href="/guides/prepare-samples-for-sp404-digitakt-mpc">
+              hardware sampler guide
+            </Link>{" "}
+            lists each device&apos;s native rate and the batch-prep steps.
           </p>
           <p>
             Want the fuller breakdown of why upsampling and downsampling behave so
@@ -378,6 +384,8 @@ export default async function ResamplePage() {
             beyond just joining.
           </p>
         </ToolSection>
+
+        <ToolVideo slug="sample-rate-converter" />
 
         <RelatedToolsGrid tools={relatedTools} />
 
