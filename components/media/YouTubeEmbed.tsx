@@ -14,6 +14,9 @@ type Props = {
 export function YouTubeEmbed({ videoId, title, description, uploadDate, pageUrl, siteUrl }: Props) {
   const [play, setPlay] = useState(false);
   const thumb = `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
+  const isoUploadDate = /^\d{4}-\d{2}-\d{2}$/.test(uploadDate)
+    ? `${uploadDate}T12:00:00+05:45`
+    : uploadDate;
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -21,7 +24,7 @@ export function YouTubeEmbed({ videoId, title, description, uploadDate, pageUrl,
     name: title,
     description,
     thumbnailUrl: [thumb],
-    uploadDate,
+    uploadDate: isoUploadDate,
     contentUrl: `https://www.youtube.com/watch?v=${videoId}`,
     embedUrl: `https://www.youtube-nocookie.com/embed/${videoId}`,
     publisher: { "@type": "Organization", name: "AudioForges", url: siteUrl },
