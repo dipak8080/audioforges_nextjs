@@ -144,15 +144,21 @@ export default function SampleRateGuidePage() {
           </p>
           <p>
             Our <Link href="/sample-rate-converter">Sample Rate Converter</Link>{" "}
-            handles both directions, with an optional bit depth change for WAV and
-            AIFF files — upload a file, pick a target, and download the result, no
-            account or software install needed. For the one common case that
-            needs a very low rate — hold music and IVR prompts for phone systems —
-            see{" "}
+            handles both directions across the full practical range — 8, 16,
+            22.05, 44.1, 48 and 96 kHz — with an optional bit depth change for
+            WAV and AIFF files. Upload a file, pick a target, and download the
+            result, no account or software install needed. The low end of that
+            range exists for telephony: hold music and IVR prompts need 8 kHz
+            (or 16 kHz for wideband systems) — see{" "}
             <Link href="/guides/convert-audio-for-phone-systems-3cx-asterisk-ivr">
               Convert Audio to 8 kHz Mono WAV for Phone Systems
             </Link>
-            .
+            . And if the target is a hardware sampler, each box has one native
+            rate worth matching —{" "}
+            <Link href="/guides/prepare-samples-for-sp404-digitakt-mpc">
+              Prepare Samples for the SP-404, Digitakt &amp; MPC
+            </Link>{" "}
+            lists them all.
           </p>
         </Prose>
 

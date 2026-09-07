@@ -221,7 +221,7 @@ export const guides: Guide[] = [
     description:
       "What sample rate and bit depth actually measure, why converting to a higher sample rate doesn't add quality, and when you genuinely need to change either.",
     publishedDate: "2026-08-01",
-    updatedDate: "2026-08-01",
+    updatedDate: "2026-09-07",
     category: "production",
   },
   {
