@@ -17,6 +17,7 @@ import type { ProcessingStage } from "@/components/tools/JobFormKit";
 import { OptionCards, type CardOption } from "@/components/converter/ToolControls";
 import { FreeTierBadge } from "@/components/credits/FreeTierBadge";
 import { cn } from "@/lib/utils/cn";
+import { SheetResultPlayer } from "@/components/converter/SheetResultPlayer";
 import {
   getAudioToSheetResult,
   getSheetPreviewUrl,
@@ -262,22 +263,28 @@ function SheetResultPanel({ jobId }: { jobId: string }) {
         )}
       </div>
 
-      {/* The score — a bright sheet of paper glowing against the dark page. */}
-      <div className="overflow-hidden rounded-xl border border-amber-500/30 bg-white shadow-[0_8px_40px_-12px_rgba(232,162,61,0.35)]">
-        <object
-          data={getSheetPreviewUrl(jobId)}
-          type="image/svg+xml"
-          aria-label="Engraved sheet music preview"
-          className="block max-h-[70vh] w-full"
-        >
-          {/* Fallback if the browser won't inline the SVG in <object>. */}
-          <img
-            src={getSheetPreviewUrl(jobId)}
-            alt="Engraved sheet music preview"
-            className="block w-full"
-          />
-        </object>
-      </div>
+      {/* The score — engraved live and playable, cursor following the music.
+          Falls back to the backend's static SVG if the player can't load. */}
+      <SheetResultPlayer
+        musicXmlUrl={getSheetDownloadUrl(jobId, "musicxml")}
+        tempoBpm={result?.tempo_bpm ?? 120}
+        fallback={
+          <div className="overflow-hidden rounded-xl border border-amber-500/30 bg-white shadow-[0_8px_40px_-12px_rgba(232,162,61,0.35)]">
+            <object
+              data={getSheetPreviewUrl(jobId)}
+              type="image/svg+xml"
+              aria-label="Engraved sheet music preview"
+              className="block max-h-[70vh] w-full"
+            >
+              <img
+                src={getSheetPreviewUrl(jobId)}
+                alt="Engraved sheet music preview"
+                className="block w-full"
+              />
+            </object>
+          </div>
+        }
+      />
 
       {result && result.n_pages > 1 && (
         <p className="text-center text-xs text-text-subtle">
