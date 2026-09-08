@@ -1,36 +1,64 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AudioForges
 
-## Getting Started
+Free browser-based audio tools for producers, DJs and musicians — no sign-up, no watermarks, no daily limits.
 
-First, run the development server:
+**Live site: [audioforges.com](https://www.audioforges.com)**
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+Built and run by one person. The frontend is Next.js; the analysis and conversion backend is FastAPI + ffmpeg with a few ML models behind it.
+
+## Tools
+
+**Analysis**
+- [Key & BPM finder](https://www.audioforges.com/key-finder) — Essentia key/tempo detection cross-checked with librosa, with a confidence score. Reads the audio itself rather than looking a track up in a database, so it works on unreleased music and demos.
+- [Audio to MIDI](https://www.audioforges.com/audio-to-midi) — note detection with a piano-roll preview before you download.
+- [Audio to sheet music](https://www.audioforges.com/audio-to-sheet-music) — engraved score you can play back in the browser, exported as PDF, MusicXML and MIDI.
+- [Instrument tuner](https://www.audioforges.com/tuner), [metronome](https://www.audioforges.com/metronome)
+
+**Separation and cleanup**
+- [Stem splitter](https://www.audioforges.com/stems) — vocals, drums, bass, other
+- [Vocal remover](https://www.audioforges.com/vocal-remover)
+- [Voice cleanup](https://www.audioforges.com/voice-clean)
+
+**Conversion**
+- [Format converter](https://www.audioforges.com/convert), [sample rate converter](https://www.audioforges.com/sample-rate-converter), [mono/stereo converter](https://www.audioforges.com/mono-stereo-converter)
+- [YouTube to WAV](https://www.audioforges.com/youtube-to-wav), [YouTube to MP3](https://www.audioforges.com/youtube-to-mp3), [video to audio](https://www.audioforges.com/video-to-audio)
+- [Trim](https://www.audioforges.com/trim), [pitch shift](https://www.audioforges.com/pitch), [loudness normalizer](https://www.audioforges.com/loudness-normalizer), [ringtone maker](https://www.audioforges.com/ringtone-maker)
+
+**Transcription**
+- [Audio to text](https://www.audioforges.com/audio-to-text), [video to text](https://www.audioforges.com/video-to-text), [YouTube to text](https://www.audioforges.com/youtube-to-text)
+
+## Embeddable widgets
+
+Two tools can be embedded on any site with one line of HTML — free, no account, no API key. The only condition is keeping the attribution link visible.
+
+```html
+<iframe src="https://www.audioforges.com/embed/key-finder"
+  width="100%" height="330" style="border:none;max-width:520px"
+  title="Free key and BPM finder by AudioForges"
+  loading="lazy"></iframe>
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Audio-to-MIDI is available at `/embed/audio-to-midi`. Live previews and the copy-paste snippets: **[audioforges.com/embed](https://www.audioforges.com/embed)**
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Stack
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- Next.js (App Router), TypeScript, Tailwind
+- FastAPI backend, ffmpeg, Essentia, librosa, basic-pitch, Demucs
+- Deployed on Vercel; analysis workers on a VPS
 
-## Learn More
+## Guides
 
-To learn more about Next.js, take a look at the following resources:
+Long-form documentation on the audio problems behind the tools — [sample rate and bit depth](https://www.audioforges.com/guides/sample-rate-and-bit-depth-explained), [audio formats for game engines](https://www.audioforges.com/guides/audio-format-for-game-engines-unity-unreal-godot), [preparing samples for hardware samplers](https://www.audioforges.com/guides/prepare-samples-for-sp404-digitakt-mpc), [converting audio for phone systems](https://www.audioforges.com/guides/convert-audio-for-phone-systems-3cx-asterisk-ivr) and more at [audioforges.com/guides](https://www.audioforges.com/guides).
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Development
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+npm install
+npm run dev
+```
 
-## Deploy on Vercel
+Open http://localhost:3000.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Contact
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Bug reports and feature requests: open an issue, or contact@audioforges.com
