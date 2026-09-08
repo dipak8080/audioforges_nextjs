@@ -351,6 +351,15 @@ export const guides: Guide[] = [
     category: "production",
   },
   {
+    slug: "songscription-alternatives-free",
+    title: "Free Songscription Alternatives Compared",
+    description:
+      "Songscription's free tier stops at 30 seconds. Here's an honest comparison of the free and paid alternatives for turning a full song into sheet music.",
+    publishedDate: "2026-09-08",
+    updatedDate: "2026-09-08",
+    category: "production",
+  },
+  {
     slug: "how-audio-to-sheet-music-works",
     title: "How Audio to Sheet Music Transcription Works",
     description:

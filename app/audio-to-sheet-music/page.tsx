@@ -29,9 +29,9 @@ import { getFeatureFlags } from "@/lib/api/railway";
 import { ogImage } from "@/lib/og";
 import { cn } from "@/lib/utils/cn";
 
-const PAGE_TITLE = "Audio to Sheet Music Converter — Free AI MP3 to PDF";
+const PAGE_TITLE = "Free MP3 & Audio to Sheet Music Converter Online";
 const PAGE_DESCRIPTION =
-  "Free AI audio to sheet music converter. Get a playable engraved score — press play and follow along — then download PDF, MusicXML & MIDI. No sign-up.";
+  "Convert MP3, WAV or humming to sheet music free. Play the engraved score in your browser to check it, then download PDF, MusicXML & MIDI. No sign-up.";
 
 const OG_IMAGE = ogImage("Audio to Sheet Music", "MP3 to notation — PDF, MusicXML & MIDI", "New");
 
@@ -447,6 +447,13 @@ export default async function AudioToSheetMusicPage() {
               how audio-to-sheet-music transcription works
             </Link>{" "}
             walks through each stage and how to get the cleanest result.
+          </p>
+          <p>
+            Weighing this against Songscription, Klangio or AnthemScore? The{" "}
+            <Link href="/guides/songscription-alternatives-free" className="text-amber-400 hover:underline">
+              comparison of free and paid transcription tools
+            </Link>{" "}
+            lays out what each one limits, costs and does best.
           </p>
         </ToolSection>
 
