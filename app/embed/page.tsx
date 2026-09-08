@@ -6,11 +6,11 @@ import { EmbedSnippet } from "@/components/embed/EmbedSnippet";
 import { SITE_URL } from "@/lib/constants";
 import { ogImage } from "@/lib/og";
 
-const TITLE = "Free Key & BPM Finder Widget for Your Site";
+const TITLE = "Free Audio Tool Widgets to Embed on Your Site";
 const DESCRIPTION =
-  "Embed a free key and BPM detector on your music blog or site with one line of HTML. No account, no API key, no cost.";
+  "Embed a free key & BPM finder or audio-to-MIDI converter on your music blog with one line of HTML. No account, no API key, no cost.";
 
-const OG_IMAGE = ogImage("Embeddable Key & BPM Finder", "Add free key detection to any site.");
+const OG_IMAGE = ogImage("Embeddable Audio Tools", "Key, BPM and MIDI widgets for any site.");
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -73,18 +73,20 @@ export default function EmbedPage() {
 
         <header>
           <h1 className="measure-wide text-4xl font-bold leading-[1.06] tracking-[-0.02em] text-text-primary sm:text-5xl">
-            Put a free key &amp; BPM finder on your site
+            Put free audio tools on your site
           </h1>
           <p className="mt-5 text-lg text-text-secondary">
             One line of HTML. Your readers drop in a track and get the key, Camelot
-            code and tempo without leaving your page. No account, no API key, no cost.
+            code and tempo — or a MIDI file of the melody — without leaving your
+            page. No account, no API key, no cost.
           </p>
         </header>
 
         <section className="mt-10">
           <h2 className="text-xl font-semibold text-text-primary">Live preview</h2>
           <p className="mt-2 text-sm text-text-secondary">
-            This is the widget itself, running right here — try it with a track.
+            This is the key &amp; BPM widget itself, running right here — try it
+            with a track. The audio-to-MIDI widget works the same way.
           </p>
           <div className="mt-4 overflow-hidden rounded-xl border border-graphite-800">
             <iframe
@@ -101,14 +103,21 @@ export default function EmbedPage() {
         <EmbedSnippet />
 
         <Prose className="mt-12">
-          <h2>What it does</h2>
+          <h2>What they do</h2>
           <p>
-            The widget runs the same analysis as the{" "}
+            The key &amp; BPM widget runs the same analysis as the{" "}
             <Link href="/key-finder">full AudioForges key finder</Link>: Essentia
             estimates the key and tempo, librosa cross-checks both, and the result
             carries a confidence score. It reads the audio itself rather than looking
             the track up in a database, so it works on unreleased music, demos and
             your own recordings — not just released catalogue.
+          </p>
+          <p>
+            The audio-to-MIDI widget runs the same detection as{" "}
+            <Link href="/audio-to-midi">the full converter</Link>, turning a melody,
+            bassline or chord part into a MIDI file your readers can download and
+            drop into any DAW. It takes longer than key detection — usually under a
+            minute — so give it a taller frame.
           </p>
 
           <h2>Terms, in plain words</h2>
