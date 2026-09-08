@@ -16,14 +16,14 @@ import { getRelatedTools } from "@/lib/data/tools";
 import { getFeatureFlags } from "@/lib/api/railway";
 import { ogForTool } from "@/lib/og";
 
-const PAGE_TITLE = "Audio to MIDI Converter – MP3 & WAV to MIDI with Preview";
+const PAGE_TITLE = "Audio to MIDI Converter – Free MP3 & WAV to MIDI Online";
 const PAGE_DESCRIPTION =
   "Free audio to MIDI converter with interactive piano roll preview. Convert MP3, WAV & FLAC, hear your MIDI before downloading, solo each stem. No sign-up.";
 
 const OG_IMAGE = ogForTool("audio-to-midi", "Audio to MIDI Converter");
 
 export const metadata: Metadata = {
-  title: PAGE_TITLE,
+  title: { absolute: PAGE_TITLE },
   description: PAGE_DESCRIPTION,
   alternates: { canonical: `${SITE_URL}/audio-to-midi` },
   openGraph: {
