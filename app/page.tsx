@@ -11,9 +11,9 @@ import { ogImage } from "@/lib/og";
 
 const TOOL_COUNT = getLiveTools().length;
 
-const PAGE_TITLE = "AudioForges — Free Online Audio Tools: Stems, Key, BPM & Converter";
+const PAGE_TITLE = "AudioForges - Free Online Audio Tools: Stems, Key, BPM & Converter";
 const PAGE_DESCRIPTION =
-  "Free online audio tools for producers and DJs. Convert, edit, analyze, transcribe, find BPM and tune your instrument. No sign-up required.";
+  "Free online audio tools for producers and DJs. Convert, clean up, find key & BPM, transcribe to MIDI or sheet music with live previews. No sign-up.";
 
 const OG_IMAGE = ogImage(
   "Free audio tools for producers",
@@ -193,6 +193,35 @@ export default function HomePage() {
       ),
     },
     {
+      question: "Can I hear my MIDI or sheet music before downloading it?",
+      answer:
+        "Yes. The Audio to MIDI converter opens every transcription in an interactive DAW-style piano roll — play it in the browser, slow it down to 50%, and on full-mix HQ runs solo or mute each stem. The Audio to Sheet Music tool renders a live engraved score with synced playback: a cursor follows the staff and each note lights up as it sounds, so you can verify the transcription before downloading the PDF, MusicXML, or MIDI.",
+      answerNode: (
+        <>
+          Yes. The{" "}
+          <Link
+            href="/audio-to-midi"
+            prefetch={false}
+            className="text-amber-400 underline underline-offset-2 hover:text-amber-300"
+          >
+            Audio to MIDI converter
+          </Link>{" "}
+          opens every transcription in an interactive DAW-style piano roll — play it in the
+          browser, slow it down to 50%, and on full-mix HQ runs solo or mute each stem. The{" "}
+          <Link
+            href="/audio-to-sheet-music"
+            prefetch={false}
+            className="text-amber-400 underline underline-offset-2 hover:text-amber-300"
+          >
+            Audio to Sheet Music
+          </Link>{" "}
+          tool renders a live engraved score with synced playback: a cursor follows the staff and
+          each note lights up as it sounds, so you can verify the transcription before
+          downloading the PDF, MusicXML, or MIDI.
+        </>
+      ),
+    },
+    {
       question: "What happens to the files I upload?",
       // DRAFT — CHECK AGAINST THE CACHE BEFORE DEPLOY. Replace "a short
       // period" with the real eviction window, and make the footer line agree.
@@ -282,6 +311,69 @@ export default function HomePage() {
               </li>
             ))}
           </ol>
+        </section>
+
+        <section className="border-t border-graphite-800 py-14">
+          <SectionHeading
+            eyebrow="New"
+            title="Preview your transcription before you download it"
+            description="The most advanced free in-browser MIDI and sheet music previews we're aware of — play the result online, check it note by note, then download."
+          />
+
+          <div className="mt-10 grid gap-8 lg:grid-cols-2">
+            {[
+              {
+                href: "/audio-to-midi",
+                title: "Audio to MIDI with a DAW-style piano roll",
+                lead:
+                  "Hear your MIDI before you download it. The transcription opens in an FL Studio / Ableton-style piano roll right in the browser — keys light up on the keyboard as notes play, with note names and a velocity lane when you zoom in.",
+                points: [
+                  "Play MIDI online — no DAW, no plugins, no sign-up",
+                  "Slow playback to 50% to check the transcription note by note",
+                  "Full-mix HQ: solo or mute each stem — bass, vocals, piano, other",
+                  "Zoom, pan, loop, and click anywhere on the beat grid to seek",
+                ],
+                cta: "Convert audio to MIDI",
+              },
+              {
+                href: "/audio-to-sheet-music",
+                title: "Audio to sheet music you can play back",
+                lead:
+                  "Not a static image: your recording becomes a live engraved score. Press play and follow along — a cursor moves across the staff in sync with the music and each note lights up as it sounds, auto-scrolling through every page.",
+                points: [
+                  "Playable sheet music in the browser, synced to one timeline",
+                  "Tempo slider from 50–150% anchored to the detected BPM",
+                  "Verify the score before printing — cursor never drifts from the sound",
+                  "Download as PDF, MusicXML for MuseScore, MIDI for DAWs, or SVG",
+                ],
+                cta: "Convert audio to sheet music",
+              },
+            ].map((card) => (
+              <div
+                key={card.href}
+                className="rounded-xl border border-graphite-800 bg-graphite-900 p-6"
+              >
+                <h3 className="text-lg font-semibold text-text-primary">{card.title}</h3>
+                <p className="mt-2.5 text-sm leading-relaxed text-text-muted">{card.lead}</p>
+                <ul className="mt-4 space-y-2">
+                  {card.points.map((point) => (
+                    <li key={point} className="flex gap-2.5 text-sm leading-relaxed text-text-muted">
+                      <span aria-hidden="true" className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-amber-500" />
+                      {point}
+                    </li>
+                  ))}
+                </ul>
+                <Link
+                  href={card.href}
+                  prefetch={false}
+                  className="group mt-5 flex w-fit items-center gap-1 text-sm font-medium text-amber-400 transition-colors hover:text-amber-300"
+                >
+                  {card.cta}
+                  <ArrowRight className="h-3.5 w-3.5 -translate-x-1 opacity-0 transition-all duration-150 group-hover:translate-x-0 group-hover:opacity-100" />
+                </Link>
+              </div>
+            ))}
+          </div>
         </section>
 
         <section className="border-t border-graphite-800 py-14">

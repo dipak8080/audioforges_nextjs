@@ -512,7 +512,7 @@ export const TOOLS: Tool[] = [
   {
     slug: "audio-to-midi",
     name: "Audio to MIDI Converter",
-    shortDescription: "Transcribe a melody or vocal line into a downloadable MIDI file.",
+    shortDescription: "Transcribe audio to MIDI and preview it in an interactive piano roll before downloading.",
     category: "transcription",
     status: "live",
     related: ["key-finder", "vocal-remover", "stems", "audio-to-sheet-music", "youtube-to-wav"],
@@ -556,7 +556,7 @@ export const TOOLS: Tool[] = [
   {
     slug: "audio-to-sheet-music",
     name: "Audio to Sheet Music",
-    shortDescription: "Turn a recording into printable sheet music — PDF, MusicXML & MIDI.",
+    shortDescription: "Turn a recording into playable sheet music with synced playback — PDF, MusicXML & MIDI.",
     category: "transcription",
     status: "live",
     related: ["audio-to-midi", "key-finder", "vocal-remover", "stems", "youtube-to-wav"],

@@ -16,9 +16,9 @@ import { getRelatedTools } from "@/lib/data/tools";
 import { getFeatureFlags } from "@/lib/api/railway";
 import { ogForTool } from "@/lib/og";
 
-const PAGE_TITLE = "Audio to MIDI Converter – MP3 & WAV to MIDI";
+const PAGE_TITLE = "Audio to MIDI Converter – MP3 & WAV to MIDI with Preview";
 const PAGE_DESCRIPTION =
-  "Free online audio to MIDI converter. Convert MP3, WAV, FLAC & more into editable MIDI notes — presets for vocals, piano, bass & guitar. No sign-up.";
+  "Free audio to MIDI converter with interactive piano roll preview. Convert MP3, WAV & FLAC, hear your MIDI before downloading, solo each stem. No sign-up.";
 
 const OG_IMAGE = ogForTool("audio-to-midi", "Audio to MIDI Converter");
 
@@ -56,6 +56,9 @@ const webAppJsonLd = {
   },
   featureList: [
     "Automatic note transcription from MP3, WAV, FLAC, M4A, AAC, OGG, AIFF, Opus, and WebM",
+    "Interactive DAW-style piano roll preview — play the MIDI in the browser before downloading",
+    "Playback controls with loop, seek, and a 50–150% tempo slider",
+    "Per-stem solo and mute on full-mix transcriptions",
     "Transcription presets for piano, vocal, bass, guitar, and fast passages",
     "Adjustable onset, frame, note-length, and frequency-range controls",
     "No sign-up required",
@@ -276,6 +279,16 @@ export default async function AudioToMidiPage() {
         "Yes. Guitar is the hardest common case, because strings ring into each other and every note carries harmonics a detector can mistake for extra notes. High accuracy routes guitar to an engine tuned for it, which removes those ghost notes automatically, and can isolate the guitar from a full mix first if the riff isn't already on its own.",
     },
     {
+      question: "Can I play my MIDI online before downloading it?",
+      answer:
+        "Yes. Every transcription opens in an interactive DAW-style piano roll in the browser: press play and the keyboard keys light up as notes sound, with note names shown when zoomed in and a velocity lane underneath. You can loop, seek by clicking the beat grid, and slow playback down to 50% to check the transcription note by note — then download the .mid once it sounds right.",
+    },
+    {
+      question: "Can I listen to each instrument separately?",
+      answer:
+        "On full-mix HQ transcriptions, yes. Each stem — bass, vocals, piano, and other — appears in its own color in the piano roll with per-track mute and solo, so you can hear one instrument's transcription in isolation before downloading.",
+    },
+    {
       question: "What's the maximum audio length and file size?",
       answer: "Uploads can run from 1 second up to 10 minutes long.",
     },
@@ -292,7 +305,7 @@ export default async function AudioToMidiPage() {
           />
         }
         title="Audio to MIDI Converter"
-        lede="Convert MP3, WAV, FLAC, M4A and more to MIDI, free. Automatic note, pitch, and timing detection — with presets for vocals, piano, bass, and guitar."
+        lede="Convert MP3, WAV, FLAC, M4A and more to MIDI, free — then hear the result in an interactive piano roll before you download it. Automatic note, pitch, and timing detection, with presets for vocals, piano, bass, and guitar."
         tool={<AudioToMidiForm hqAvailable={midiHqAvailable} />}
       >
         {/*
@@ -320,11 +333,50 @@ export default async function AudioToMidiPage() {
             one-strip treatment. */}
         <FeatureStrip
           features={[
+            { title: "Piano roll preview", desc: "Play your MIDI in the browser before downloading it." },
             { title: "MP3 & WAV support", desc: "Plus FLAC, M4A, AAC, OGG, AIFF, Opus, and WebM." },
-            { title: "No install", desc: "Upload, transcribe, download. Nothing to install." },
             { title: "Free", desc: "No sign-up, no watermark, free for everyone." },
           ]}
         />
+
+        <ToolSection id="piano-roll-preview" title="Hear your MIDI before you download it">
+          <p>
+            Every transcription opens in a DAW-style piano roll, right in the
+            browser — the same view you&apos;d get in FL Studio or Ableton. A
+            piano keyboard runs down the side with keys lighting up in real time
+            as notes play, note names (G4, F&#9839;5) appear on each note when
+            you zoom in, and a velocity lane shows the dynamics of every
+            detected note. Sound is synthesized locally, so nothing needs
+            installing and playback works even offline once the page has loaded.
+          </p>
+          <ul>
+            <li>
+              <strong>Play MIDI online</strong> with play/pause, stop, loop, and
+              click-to-seek on a bar-numbered beat grid.
+            </li>
+            <li>
+              <strong>Slow it down to check accuracy.</strong> A 50&ndash;150%
+              tempo slider lets you verify the transcription at half speed
+              without re-processing anything.
+            </li>
+            <li>
+              <strong>Solo each instrument</strong> on full-mix HQ runs — every
+              stem (bass, vocals, piano, other) gets its own color and per-track
+              mute and solo, so you can audit one instrument&apos;s
+              transcription in isolation.
+            </li>
+            <li>
+              <strong>Zoom and pan</strong> through even very dense
+              transcriptions — tens of thousands of notes render smoothly.
+            </li>
+          </ul>
+          <p>
+            Most free converters are download-only: you find out what the MIDI
+            sounds like after it&apos;s already in your DAW. Here you check it
+            first, adjust the preset or settings if something&apos;s off, and
+            only download when it&apos;s right.
+          </p>
+        </ToolSection>
 
         {/* The six presets were six bordered cards. They're name/description
             pairs — the dl renders them as a spec table with no boxes. */}
@@ -359,6 +411,11 @@ export default async function AudioToMidiPage() {
               <strong>Generate the MIDI.</strong> The converter analyzes the
               recording for note onsets and pitch and builds MIDI note data from
               it.
+            </li>
+            <li>
+              <strong>Preview it in the piano roll.</strong> Play the
+              transcription in the browser, slow it down, loop a section, and on
+              full-mix runs solo each stem to check every part.
             </li>
             <li>
               <strong>Download and edit.</strong> Open the .mid file in your DAW

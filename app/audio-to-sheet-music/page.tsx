@@ -31,7 +31,7 @@ import { cn } from "@/lib/utils/cn";
 
 const PAGE_TITLE = "Audio to Sheet Music Converter — Free AI MP3 to PDF";
 const PAGE_DESCRIPTION =
-  "Free AI audio to sheet music converter. Turn any song — MP3, WAV or piano — into engraved notation. Download PDF, MusicXML & MIDI. No sign-up.";
+  "Free AI audio to sheet music converter. Get a playable engraved score — press play and follow along — then download PDF, MusicXML & MIDI. No sign-up.";
 
 const OG_IMAGE = ogImage("Audio to Sheet Music", "MP3 to notation — PDF, MusicXML & MIDI", "New");
 
@@ -65,6 +65,9 @@ const webAppJsonLd = {
   offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
   featureList: [
     "AI music transcription — convert MP3, WAV, FLAC and more into engraved sheet music",
+    "Playable score — synced playback with a moving cursor and live note highlighting",
+    "Auto-scroll through every page as the score plays",
+    "Tempo slider from 50–150% anchored to the detected BPM",
     "Piano transcription powered by a solo-piano specialist AI (Transkun)",
     "Two-hand grand-staff notation for piano",
     "Download as PDF, MusicXML, MIDI, and SVG",
@@ -81,7 +84,7 @@ const PIPELINE = [
   { icon: AudioWaveform, title: "Transcribe", desc: "An AI model listens to the recording and detects every note — pitch and timing. Piano goes to a solo-piano specialist." },
   { icon: Music2, title: "Analyze", desc: "Tempo and key are detected so the notes can be quantized onto a real beat grid instead of floating in time." },
   { icon: ScrollText, title: "Notate", desc: "Notes snap to the grid, the key and time signature go in, and piano is split across two hands into a grand staff." },
-  { icon: FileText, title: "Engrave", desc: "The notation is typeset into a clean, readable score — the same engraving you see in the free preview." },
+  { icon: FileText, title: "Engrave", desc: "The notation is typeset into a clean, readable score you can play back right in the preview, with the cursor following along." },
 ];
 
 const INSTRUMENTS = [
@@ -143,6 +146,16 @@ export default async function AudioToSheetMusicPage() {
         "Piano is the best-supported case. It's transcribed by Transkun, a model that specializes in solo piano, and laid out as a two-hand grand staff. Like every automatic transcription it's an accurate first draft rather than a hand-engraved final — download the MusicXML to fine-tune it in a free editor like MuseScore.",
     },
     {
+      question: "Can I listen to the sheet music before downloading it?",
+      answer:
+        "Yes. The transcription renders as a live, playable score in the browser: press play and a cursor moves across the staff in sync with the music while each note lights up as it sounds, auto-scrolling through every page. It's a way to verify the whole transcription — bar by bar if you like — before printing the PDF or editing the MusicXML.",
+    },
+    {
+      question: "Can I slow the playback down to follow along?",
+      answer:
+        "Yes. The tempo slider runs from 50% to 150% in 1% steps, anchored to the automatically detected BPM, with a one-tap reset to 100%. Playback and notation share one timeline, so the cursor stays locked to the sound at any speed.",
+    },
+    {
       question: "What formats can I download the sheet music in?",
       answer:
         "PDF for printing and playing from, MusicXML for editing in MuseScore, Sibelius or Finale, MIDI for any DAW, and SVG as a vector image. Every successful transcription produces all four.",
@@ -201,7 +214,7 @@ export default async function AudioToSheetMusicPage() {
       <ToolPageShell
         breadcrumb={<Breadcrumb items={[{ name: "Tools", href: "/tools" }, { name: "Audio to Sheet Music" }]} />}
         title="Audio to Sheet Music Converter"
-        lede="Turn any song into printable sheet music. Upload an MP3, WAV or piano recording and AI transcribes it into engraved notation — PDF, MusicXML and MIDI, with a free preview so you see the score before you pay."
+        lede="Turn any song into playable sheet music. Upload an MP3, WAV or piano recording and AI transcribes it into a live engraved score — press play and follow along as each note lights up, then download PDF, MusicXML and MIDI."
         tool={
           sheetMusicEnabled ? (
             <AudioToSheetForm />
@@ -214,7 +227,7 @@ export default async function AudioToSheetMusicPage() {
       >
         <FeatureStrip
           features={[
-            { title: "Free preview", desc: "See the engraved score before you pay a thing." },
+            { title: "Playable score", desc: "Press play and follow along — synced cursor, live note highlighting." },
             { title: "PDF · MusicXML · MIDI", desc: "Print it, edit it in MuseScore, or open it in your DAW." },
             { title: "No subscription", desc: "Pay per song, not per month. No sign-up." },
           ]}
@@ -250,6 +263,39 @@ export default async function AudioToSheetMusicPage() {
         </section>
 
         {/* ── HOW IT WORKS ── drawn as a pipeline, not a paragraph. */}
+        <ToolSection id="playback" title="Follow the score as it plays">
+          <p>
+            The result isn&apos;t a static image — it&apos;s a live, playable
+            engraved score, the kind of synced score playback you&apos;d
+            otherwise find in paid products like MuseScore or Soundslice, free
+            in the browser. Press play and an amber cursor moves across the
+            staff in time with the music, each note lights up at the exact
+            moment it sounds, and the page auto-scrolls to follow the cursor
+            through the whole score.
+          </p>
+          <ul>
+            <li>
+              <strong>One shared timeline.</strong> Playback and notation are
+              driven by the same clock, so the cursor never drifts from the
+              sound — what you hear is what&apos;s highlighted.
+            </li>
+            <li>
+              <strong>Slow it down to read along.</strong> A tempo slider runs
+              from 50&ndash;150% in 1% steps, anchored to the automatically
+              detected BPM, with one tap back to 100%.
+            </li>
+            <li>
+              <strong>Loop and seek.</strong> Play/pause, stop, loop, and a seek
+              bar — jump straight to the passage you want to verify.
+            </li>
+            <li>
+              <strong>Check before you print.</strong> Hear every bar against
+              the notation before downloading the PDF or opening the MusicXML in
+              an editor.
+            </li>
+          </ul>
+        </ToolSection>
+
         <ToolSection id="how-it-works" title="From a recording to a score, in four stages" bleed>
           <p className="measure mb-6 leading-relaxed text-text-body">
             Nothing to configure and nothing to install. Upload a file and it moves through the same
