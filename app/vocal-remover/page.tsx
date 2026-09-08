@@ -425,6 +425,10 @@ export default async function VocalRemoverPage() {
             <Link href="/youtube-to-wav" prefetch={false}>
               YouTube to WAV converter
             </Link>{" "}
+            or{" "}
+            <Link href="/youtube-to-mp3" prefetch={false}>
+              YouTube to MP3 converter
+            </Link>{" "}
             and upload the result here, or skip the step entirely with the{" "}
             <Link href="/youtube-vocal-remover" prefetch={false}>
               YouTube Vocal Remover

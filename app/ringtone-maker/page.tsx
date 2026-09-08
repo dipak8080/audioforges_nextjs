@@ -135,6 +135,10 @@ export default async function RingtoneMakerPage() {
           <Link href="/tiktok-to-mp3" className="text-amber-400 hover:underline">
             TikTok to MP3 converter
           </Link>{" "}
+          , the{" "}
+          <Link href="/youtube-to-mp3" className="text-amber-400 hover:underline">
+            YouTube to MP3 converter
+          </Link>{" "}
           or the{" "}
           <Link href="/youtube-to-wav" className="text-amber-400 hover:underline">
             YouTube to WAV converter
@@ -247,8 +251,11 @@ export default async function RingtoneMakerPage() {
           <p>
             If the sound you want isn&apos;t a file yet, get it first:{" "}
             <Link href="/tiktok-to-mp3">TikTok to MP3</Link> pulls audio from a
-            TikTok link, and <Link href="/youtube-to-wav">YouTube to WAV</Link>{" "}
-            does the same from a YouTube video or Short. Either output uploads
+            TikTok link, and{" "}
+            <Link href="/youtube-to-mp3">YouTube to MP3</Link> or{" "}
+            <Link href="/youtube-to-wav">YouTube to WAV</Link> does the same from
+            a YouTube video or Short — MP3 for a smaller file, WAV if you want to
+            edit before trimming. Either output uploads
             straight into the ringtone maker above.{" "}
             <Link href="/guides/tiktok-sound-to-ringtone">
               Read How to Make a Ringtone from a TikTok Sound

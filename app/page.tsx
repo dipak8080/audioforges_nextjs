@@ -71,7 +71,8 @@ const WORKFLOW = [
     title: "Get the audio",
     body: "Pull a reference track, or convert what you already have.",
     links: [
-      { href: "/youtube-to-wav", label: "YouTube to WAV / MP3" },
+      { href: "/youtube-to-wav", label: "YouTube to WAV" },
+      { href: "/youtube-to-mp3", label: "YouTube to MP3" },
       { href: "/convert", label: "Format Converter" },
     ],
   },

@@ -159,9 +159,16 @@ export default function WavVsMp3GuidePage() {
           </p>
         </Prose>
 
-        <div className="mt-10 border-t border-graphite-800 pt-8">
+        <div className="mt-10 flex flex-wrap gap-3 border-t border-graphite-800 pt-8">
           <Link href="/youtube-to-wav" className={buttonStyles({ size: "lg" })}>
-            Try the YouTube to WAV Converter
+            YouTube to WAV Converter
+            <ArrowRight className="h-4 w-4" />
+          </Link>
+          <Link
+            href="/youtube-to-mp3"
+            className={buttonStyles({ size: "lg", variant: "outline" })}
+          >
+            YouTube to MP3 Converter
             <ArrowRight className="h-4 w-4" />
           </Link>
         </div>

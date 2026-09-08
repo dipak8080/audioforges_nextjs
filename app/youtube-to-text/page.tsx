@@ -137,6 +137,7 @@ export const metadata: Metadata = {
 
 const LONG_VIDEO_ROUTE = [
   { href: "/youtube-to-wav", label: "YouTube to WAV", body: "Pull the audio out of the video." },
+  { href: "/youtube-to-mp3", label: "YouTube to MP3", body: "Same audio, smaller file — up to 320kbps." },
   {
     href: "/silence-split",
     label: "Silence Splitter",
