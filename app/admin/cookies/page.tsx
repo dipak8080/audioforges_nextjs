@@ -70,6 +70,76 @@ type ExpiryStatus =
 type SlotMap = Record<string, CookieSlot>;
 type Tone = "warn" | "bad" | "muted";
 
+/**
+ * Live per-account counters from the runtime (/api/admin/cookies/health).
+ * These are traffic truth, orthogonal to the file-level expiry read: a slot
+ * can hold a pristine file that YouTube challenges on every request. Counters
+ * reset on container restart, so rates describe "since last deploy", not all
+ * time - the caption under the grid says so.
+ */
+interface TrafficAccount {
+  path: string;
+  successes: number;
+  failures: number;
+  success_rate: number | null;
+  seconds_since_success: number | null;
+  last_failure_kind: string | null;
+  last_used_via: string | null;
+  status?: string;
+}
+
+interface TrafficData {
+  uptime_seconds: number | null;
+  accounts: TrafficAccount[];
+}
+
+/** cookies.txt -> slot_1, cookies_2.txt -> slot_2, cookies_3.txt -> slot_3 */
+function trafficForSlot(traffic: TrafficData | null, slotName: string): TrafficAccount | null {
+  if (!traffic) return null;
+  const n = slotName.replace("slot_", "");
+  const file = n === "1" ? "cookies.txt" : `cookies_${n}.txt`;
+  return traffic.accounts.find((a) => a.path.endsWith(`/${file}`) || a.path === file) ?? null;
+}
+
+type TrafficTone = Tone | "good";
+
+/**
+ * Rate thresholds: >=85 healthy, 60-85 degrading, <60 refresh-today. Under 5
+ * total attempts the rate is noise (one failure reads as 0%), so it stays
+ * muted with a "low data" hint instead of shouting red at an idle backup.
+ */
+function trafficRead(a: TrafficAccount): { label: string; tone: TrafficTone; pct: number; lowData: boolean } {
+  const total = a.successes + a.failures;
+  if (total === 0) return { label: "no traffic", tone: "muted", pct: 0, lowData: true };
+  const pct = a.success_rate ?? Math.round((a.successes / total) * 1000) / 10;
+  const label = `${pct}%`;
+  if (total < 5) return { label, tone: "muted", pct, lowData: true };
+  if (pct >= 85) return { label, tone: "good", pct, lowData: false };
+  if (pct >= 60) return { label, tone: "warn", pct, lowData: false };
+  return { label, tone: "bad", pct, lowData: false };
+}
+
+function formatUptime(seconds: number | null): string {
+  if (seconds == null) return "";
+  if (seconds < 3600) return `${Math.max(1, Math.floor(seconds / 60))}m`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h`;
+  return `${Math.floor(seconds / 86400)}d`;
+}
+
+const TRAFFIC_TEXT: Record<TrafficTone, string> = {
+  good: "text-emerald-300",
+  warn: "text-amber-300",
+  bad: "text-red-300",
+  muted: "text-text-muted",
+};
+
+const TRAFFIC_BAR: Record<TrafficTone, string> = {
+  good: "bg-emerald-500/70",
+  warn: "bg-amber-500/70",
+  bad: "bg-red-500/70",
+  muted: "bg-graphite-700",
+};
+
 interface UploadResponse {
   slot?: string | number;
   expiry_status?: ExpiryStatus;
@@ -395,6 +465,7 @@ function Skeleton({ className }: { className?: string }) {
 
 export default function AdminCookiesPage() {
   const [slots, setSlots] = useState<SlotMap | null>(null);
+  const [traffic, setTraffic] = useState<TrafficData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -426,6 +497,16 @@ export default function AdminCookiesPage() {
     } finally {
       setLoading(false);
       setRefreshing(false);
+    }
+    // Traffic health rides along but never blocks the page - the file/expiry
+    // view must keep working even when /admin/status is briefly unreachable
+    // (e.g. mid-restart), so failures here just leave the traffic block off.
+    try {
+      const res = await fetch("/api/admin/cookies/health", { cache: "no-store" });
+      const data = await res.json();
+      setTraffic(res.ok ? data : null);
+    } catch {
+      setTraffic(null);
     }
   }, []);
 
@@ -569,6 +650,21 @@ export default function AdminCookiesPage() {
                 tone={brokenSlots.length > 0 ? "alarm" : "plain"}
               />
               <Pill label="Revoked" value={String(revokedCount)} tone={revokedCount > 0 ? "alarm" : "plain"} />
+              {(() => {
+                // Worst live rate among accounts with enough traffic to mean
+                // anything - the single number that says "refresh a cookie
+                // today" before users ever see a 503.
+                const meaningful = (traffic?.accounts ?? []).filter((a) => a.successes + a.failures >= 5);
+                if (meaningful.length === 0) return null;
+                const worst = Math.min(...meaningful.map((a) => trafficRead(a).pct));
+                return (
+                  <Pill
+                    label="Worst traffic"
+                    value={`${worst}%`}
+                    tone={worst < 60 ? "alarm" : "plain"}
+                  />
+                );
+              })()}
             </div>
           )}
         </div>
@@ -658,6 +754,39 @@ export default function AdminCookiesPage() {
                       {chipText(info)}
                     </span>
 
+                    {(() => {
+                      const acct = trafficForSlot(traffic, slotName);
+                      if (!acct) return null;
+                      const read = trafficRead(acct);
+                      return (
+                        <div className="rounded-lg border border-graphite-800 bg-graphite-950/40 px-2.5 py-2">
+                          <div className="flex items-baseline justify-between gap-2">
+                            <span className="text-[10px] uppercase tracking-wider text-text-subtle">Traffic</span>
+                            <span className={cn("font-mono text-[13px] font-semibold tabular-nums", TRAFFIC_TEXT[read.tone])}>
+                              {read.label}
+                              {read.lowData && read.pct > 0 && (
+                                <span className="ml-1 text-[10px] font-normal text-text-subtle">low data</span>
+                              )}
+                            </span>
+                          </div>
+                          <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-graphite-800">
+                            <div
+                              className={cn("h-full rounded-full transition-all", TRAFFIC_BAR[read.tone])}
+                              style={{ width: `${Math.max(read.pct, 2)}%` }}
+                            />
+                          </div>
+                          <div className="mt-1.5 flex items-center justify-between font-mono text-[10px] text-text-subtle">
+                            <span className="tabular-nums">
+                              {acct.successes.toLocaleString()} ok · {acct.failures.toLocaleString()} fail
+                            </span>
+                            <span className={cn("truncate", acct.last_failure_kind === "bot_check" && read.tone !== "good" && "text-amber-300")}>
+                              {acct.last_failure_kind ? `last: ${acct.last_failure_kind}` : "no failures"}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })()}
+
                     <dl className="mt-auto flex flex-col gap-1 text-[11px]">
                       {info.expires_at != null && (
                         <Row label="Expires" value={formatDate(info.expires_at)} />
@@ -697,6 +826,14 @@ export default function AdminCookiesPage() {
 
           {/* ===== upload ===== */}
           <Card className="p-4 sm:p-5" >
+          {traffic && (
+            <p className="px-1 text-[11px] leading-relaxed text-text-subtle">
+              Traffic numbers are live counters since the last restart
+              {traffic.uptime_seconds != null ? ` (${formatUptime(traffic.uptime_seconds)} ago)` : ""} — they reset on
+              every deploy. Green ≥85%, amber 60–85%, red under 60% with bot_check means re-export that account today.
+            </p>
+          )}
+
             <div ref={uploadPanelRef} className="flex flex-wrap items-center justify-between gap-2">
               <p className="text-sm font-semibold">Add cookies</p>
               <div className="flex items-center gap-2">
