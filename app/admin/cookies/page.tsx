@@ -776,7 +776,7 @@ export default function AdminCookiesPage() {
                             />
                           </div>
                           <div className="mt-1.5 flex items-center justify-between font-mono text-[10px] text-text-subtle">
-                            <span className="tabular-nums">
+                            <span className="whitespace-nowrap tabular-nums">
                               {acct.successes.toLocaleString()} ok · {acct.failures.toLocaleString()} fail
                             </span>
                             <span className={cn("truncate", acct.last_failure_kind === "bot_check" && read.tone !== "good" && "text-amber-300")}>
