@@ -177,8 +177,10 @@ export function MidiResultPlayer({ src }: { src: string }) {
     ctx.clearRect(0, 0, w, h);
 
     const ppt = pxPerTickRef.current;
+    if (!Number.isFinite(ppt) || ppt <= 0 || w <= 0 || h <= 0) return;
     const view0 = scrollRef.current;
     const view1 = view0 + w / ppt;
+    if (!Number.isFinite(view0) || !Number.isFinite(view1)) return;
     const rows = d.hiPitch - d.loPitch + 1;
     const rowH = h / rows;
     const yFor = (p: number) => h - (p - d.loPitch + 1) * rowH;
@@ -195,28 +197,34 @@ export function MidiResultPlayer({ src }: { src: string }) {
       }
     }
 
-    const beat = d.ppq;
-    const bar = beat * d.beatsPerBar;
+    const beat = Math.max(1, d.ppq);
+    const bar = beat * Math.max(1, d.beatsPerBar);
     const beatPx = beat * ppt;
     const step = beatPx > 14 ? beat : bar;
-    for (let t = Math.floor(view0 / step) * step; t <= view1; t += step) {
-      const x = (t - view0) * ppt;
-      ctx.fillStyle =
-        t % bar === 0 ? "rgba(255,255,255,0.11)" : "rgba(255,255,255,0.045)";
-      ctx.fillRect(x, 0, 1, h);
+    if (step * ppt >= 2) {
+      let guard = Math.ceil(w / (step * ppt)) + 2;
+      for (let t = Math.floor(view0 / step) * step; t <= view1 && guard > 0; t += step, guard--) {
+        const x = (t - view0) * ppt;
+        ctx.fillStyle =
+          t % bar === 0 ? "rgba(255,255,255,0.11)" : "rgba(255,255,255,0.045)";
+        ctx.fillRect(x, 0, 1, h);
+      }
     }
 
     const now = posRef.current;
     const solo = soloedRef.current;
     const mute = mutedRef.current;
     const noteH = Math.max(2, rowH - Math.min(2, rowH * 0.25));
+    const totalNotes = d.tracks.reduce((s, t) => s + t.notes.length, 0);
+    const stride = Math.max(1, Math.ceil(totalNotes / 25000));
+    const glow = totalNotes <= 6000;
 
     d.tracks.forEach((track, ti) => {
       const audible = solo.size > 0 ? solo.has(ti) : !mute.has(ti);
       ctx.globalAlpha = audible ? 1 : 0.16;
 
       let i = lowerBound(track.notes, view0 - track.maxDur);
-      for (; i < track.notes.length; i++) {
+      for (; i < track.notes.length; i += stride) {
         const n = track.notes[i];
         if (n.t > view1) break;
         if (n.t + n.d < view0) continue;
@@ -226,7 +234,7 @@ export function MidiResultPlayer({ src }: { src: string }) {
         const active = audible && playingRef.current && now >= n.t && now < n.t + n.d;
         ctx.fillStyle = active ? track.bright : track.color;
         ctx.globalAlpha = audible ? (active ? 1 : 0.42 + n.v * 0.45) : 0.16;
-        if (active) {
+        if (active && glow) {
           ctx.shadowColor = track.bright;
           ctx.shadowBlur = 7;
         }
@@ -312,13 +320,18 @@ export function MidiResultPlayer({ src }: { src: string }) {
     const resize = () => {
       const dpr = window.devicePixelRatio || 1;
       const w = wrap.clientWidth;
+      if (!w) return;
       const h = Math.min(340, Math.max(190, (d.hiPitch - d.loPitch + 1) * 6));
       canvas.width = Math.round(w * dpr);
       canvas.height = Math.round(h * dpr);
       canvas.style.width = `${w}px`;
       canvas.style.height = `${h}px`;
       minZoomRef.current = w / d.durationTicks;
-      if (!pxPerTickRef.current || pxPerTickRef.current < minZoomRef.current) {
+      if (
+        !Number.isFinite(pxPerTickRef.current) ||
+        pxPerTickRef.current <= 0 ||
+        pxPerTickRef.current < minZoomRef.current
+      ) {
         pxPerTickRef.current = minZoomRef.current;
         scrollRef.current = 0;
       }
@@ -618,15 +631,17 @@ export function MidiResultPlayer({ src }: { src: string }) {
 
       {status === "ready" && data && (
         <>
-          <canvas
-            ref={canvasRef}
-            className="w-full cursor-grab touch-none rounded-lg border border-white/10 bg-black/30 active:cursor-grabbing"
-            onPointerDown={onPointerDown}
-            onPointerMove={onPointerMove}
-            onPointerUp={onPointerUp}
-            onPointerCancel={onPointerUp}
-            onWheel={onWheel}
-          />
+          <div ref={wrapRef} className="w-full">
+            <canvas
+              ref={canvasRef}
+              className="w-full cursor-grab touch-none rounded-lg border border-white/10 bg-black/30 active:cursor-grabbing"
+              onPointerDown={onPointerDown}
+              onPointerMove={onPointerMove}
+              onPointerUp={onPointerUp}
+              onPointerCancel={onPointerUp}
+              onWheel={onWheel}
+            />
+          </div>
 
           <div className="mt-2.5 flex items-center gap-2.5">
             <button
