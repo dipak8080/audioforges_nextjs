@@ -59,6 +59,11 @@ const PALETTE: [string, string][] = [
 
 const MIN_NOTE_SEC = 0.03;
 const FOLLOW_AT = 0.72;
+const KEYS_W = 46;
+const RULER_H = 18;
+const VEL_H = 44;
+const BLACK_PC = new Set([1, 3, 6, 8, 10]);
+const NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const FOLLOW_TO = 0.28;
 
 const fmtTime = (s: number) => {
@@ -179,82 +184,253 @@ export function MidiResultPlayer({ src }: { src: string }) {
     const ppt = pxPerTickRef.current;
     if (!Number.isFinite(ppt) || ppt <= 0 || w <= 0 || h <= 0) return;
     const view0 = scrollRef.current;
-    const view1 = view0 + w / ppt;
+    const plotW = Math.max(1, w - KEYS_W);
+    const plotH = Math.max(1, h - RULER_H - VEL_H);
+    const view1 = view0 + plotW / ppt;
     if (!Number.isFinite(view0) || !Number.isFinite(view1)) return;
     const rows = d.hiPitch - d.loPitch + 1;
-    const rowH = h / rows;
-    const yFor = (p: number) => h - (p - d.loPitch + 1) * rowH;
-    const isBlack = (p: number) => [1, 3, 6, 8, 10].includes(p % 12);
+    const rowH = plotH / rows;
+    const yFor = (p: number) => RULER_H + plotH - (p - d.loPitch + 1) * rowH;
+    const xFor = (t: number) => KEYS_W + (t - view0) * ppt;
+    const isBlack = (p: number) => BLACK_PC.has(p % 12);
+
+    /* plot background + row striping */
+    ctx.fillStyle = "#111114";
+    ctx.fillRect(KEYS_W, RULER_H, plotW, plotH);
 
     for (let p = d.loPitch; p <= d.hiPitch; p++) {
+      const y = yFor(p);
       if (isBlack(p)) {
-        ctx.fillStyle = "rgba(255,255,255,0.028)";
-        ctx.fillRect(0, yFor(p), w, rowH);
+        ctx.fillStyle = "rgba(0,0,0,0.42)";
+        ctx.fillRect(KEYS_W, y, plotW, rowH);
+      } else {
+        ctx.fillStyle = "rgba(255,255,255,0.022)";
+        ctx.fillRect(KEYS_W, y, plotW, rowH);
+      }
+      if (rowH >= 4) {
+        ctx.fillStyle = "rgba(0,0,0,0.35)";
+        ctx.fillRect(KEYS_W, y + rowH - 0.5, plotW, 0.5);
       }
       if (p % 12 === 0) {
-        ctx.fillStyle = "rgba(255,255,255,0.09)";
-        ctx.fillRect(0, yFor(p) + rowH - 0.5, w, 1);
+        ctx.fillStyle = "rgba(251,191,36,0.16)";
+        ctx.fillRect(KEYS_W, y + rowH - 1, plotW, 1);
       }
     }
+
+    /* ruler strip */
+    ctx.fillStyle = "#0d0d10";
+    ctx.fillRect(0, 0, w, RULER_H);
+    ctx.fillStyle = "rgba(255,255,255,0.07)";
+    ctx.fillRect(0, RULER_H - 1, w, 1);
 
     const beat = Math.max(1, d.ppq);
     const bar = beat * Math.max(1, d.beatsPerBar);
+    const sixteenth = Math.max(1, Math.round(beat / 4));
     const beatPx = beat * ppt;
-    const step = beatPx > 14 ? beat : bar;
+    const barPx = bar * ppt;
+    const step = sixteenth * ppt >= 9 ? sixteenth : beatPx > 11 ? beat : bar;
+    const labelEvery = barPx > 44 ? bar : bar * Math.ceil(48 / Math.max(1, barPx));
+    ctx.font = "600 9px ui-monospace, monospace";
+    ctx.textBaseline = "middle";
     if (step * ppt >= 2) {
-      let guard = Math.ceil(w / (step * ppt)) + 2;
+      let guard = Math.ceil(plotW / (step * ppt)) + 2;
       for (let t = Math.floor(view0 / step) * step; t <= view1 && guard > 0; t += step, guard--) {
-        const x = (t - view0) * ppt;
-        ctx.fillStyle =
-          t % bar === 0 ? "rgba(255,255,255,0.11)" : "rgba(255,255,255,0.045)";
-        ctx.fillRect(x, 0, 1, h);
+        if (t < 0) continue;
+        const x = xFor(t);
+        const isBar = t % bar === 0;
+        const isBeat = t % beat === 0;
+        ctx.fillStyle = isBar
+          ? "rgba(255,255,255,0.14)"
+          : isBeat
+            ? "rgba(255,255,255,0.055)"
+            : "rgba(255,255,255,0.025)";
+        ctx.fillRect(x, RULER_H, 1, plotH);
+        if (isBeat) {
+          ctx.fillStyle = isBar ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.12)";
+          ctx.fillRect(x, RULER_H - (isBar ? 7 : 4), 1, isBar ? 7 : 4);
+        }
+        if (isBar && t % labelEvery === 0) {
+          ctx.fillStyle = "rgba(255,255,255,0.5)";
+          ctx.fillText(String(Math.round(t / bar) + 1), x + 4, RULER_H / 2 - 0.5);
+        }
       }
     }
 
+    /* notes */
     const now = posRef.current;
     const solo = soloedRef.current;
     const mute = mutedRef.current;
-    const noteH = Math.max(2, rowH - Math.min(2, rowH * 0.25));
+    const noteH = Math.max(2.5, rowH - Math.min(2, rowH * 0.18));
     const totalNotes = d.tracks.reduce((s, t) => s + t.notes.length, 0);
     const stride = Math.max(1, Math.ceil(totalNotes / 25000));
-    const glow = totalNotes <= 6000;
+    const fancy = totalNotes <= 6000;
+    const activePitches = new Set<number>();
+    const velNotes: { x: number; v: number; color: string; active: boolean }[] = [];
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(KEYS_W, RULER_H, plotW, plotH);
+    ctx.clip();
 
     d.tracks.forEach((track, ti) => {
       const audible = solo.size > 0 ? solo.has(ti) : !mute.has(ti);
-      ctx.globalAlpha = audible ? 1 : 0.16;
 
       let i = lowerBound(track.notes, view0 - track.maxDur);
       for (; i < track.notes.length; i += stride) {
         const n = track.notes[i];
         if (n.t > view1) break;
         if (n.t + n.d < view0) continue;
-        const x = (n.t - view0) * ppt;
-        const nw = Math.max(2, n.d * ppt - 0.5);
+        const x = xFor(n.t);
+        const nw = Math.max(2, n.d * ppt - 0.75);
         const y = yFor(n.p) + (rowH - noteH) / 2;
         const active = audible && playingRef.current && now >= n.t && now < n.t + n.d;
+        if (active) activePitches.add(n.p);
+        const r = Math.min(1.5, noteH / 3);
+        ctx.globalAlpha = audible ? (active ? 1 : 0.62 + n.v * 0.32) : 0.14;
         ctx.fillStyle = active ? track.bright : track.color;
-        ctx.globalAlpha = audible ? (active ? 1 : 0.42 + n.v * 0.45) : 0.16;
-        if (active && glow) {
+        if (active && fancy) {
           ctx.shadowColor = track.bright;
-          ctx.shadowBlur = 7;
+          ctx.shadowBlur = 5;
         }
-        roundRect(ctx, x, y, nw, noteH, Math.min(2.5, noteH / 2));
+        roundRect(ctx, x, y, nw, noteH, r);
         ctx.shadowBlur = 0;
+        if (fancy && nw >= 4 && noteH >= 4 && audible) {
+          ctx.globalAlpha = active ? 0.9 : 0.55;
+          ctx.strokeStyle = "rgba(0,0,0,0.6)";
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.roundRect(x + 0.5, y + 0.5, nw - 1, noteH - 1, r);
+          ctx.stroke();
+          ctx.globalAlpha = active ? 0.8 : 0.32;
+          ctx.fillStyle = "rgba(255,255,255,0.85)";
+          ctx.fillRect(x + 1, y + 1, Math.max(1, nw - 2), 1);
+        }
+        if (fancy && audible && noteH >= 8) {
+          const label = NAMES[n.p % 12] + (Math.floor(n.p / 12) - 1);
+          if (nw >= label.length * 5.5 + 6) {
+            ctx.globalAlpha = active ? 0.95 : 0.8;
+            ctx.fillStyle = "rgba(20,12,0,0.85)";
+            ctx.font = "700 8px ui-monospace, monospace";
+            ctx.fillText(label, x + 3, y + noteH / 2 + 0.5);
+          }
+        }
+        if (audible) velNotes.push({ x, v: n.v, color: track.color, active });
       }
     });
     ctx.globalAlpha = 1;
 
-    const px = (now - view0) * ppt;
-    if (px >= -1 && px <= w + 1) {
-      ctx.fillStyle = "rgba(251,191,36,0.9)";
-      ctx.fillRect(px, 0, 1.5, h);
+    /* playhead comet */
+    const px = xFor(now);
+    if (px >= KEYS_W - 1 && px <= w + 1) {
+      const trail = Math.min(18, px - KEYS_W);
+      if (playingRef.current && trail > 2) {
+        const grad = ctx.createLinearGradient(px - trail, 0, px, 0);
+        grad.addColorStop(0, "rgba(251,191,36,0)");
+        grad.addColorStop(1, "rgba(251,191,36,0.07)");
+        ctx.fillStyle = grad;
+        ctx.fillRect(px - trail, RULER_H, trail, plotH);
+      }
+      ctx.fillStyle = "rgba(251,191,36,0.95)";
+      ctx.fillRect(px, RULER_H, 1, plotH);
+    }
+    ctx.restore();
+
+    /* velocity lane */
+    const velTop = RULER_H + plotH;
+    ctx.fillStyle = "#0d0d10";
+    ctx.fillRect(0, velTop, w, VEL_H);
+    ctx.fillStyle = "rgba(255,255,255,0.07)";
+    ctx.fillRect(0, velTop, w, 1);
+    ctx.fillStyle = "rgba(255,255,255,0.22)";
+    ctx.font = "600 7px ui-monospace, monospace";
+    ctx.fillText("VELOCITY", 5, velTop + 8);
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(KEYS_W, velTop + 1, plotW, VEL_H - 1);
+    ctx.clip();
+    const velStride = Math.max(1, Math.ceil(velNotes.length / 3000));
+    for (let vi = 0; vi < velNotes.length; vi += velStride) {
+      const vn = velNotes[vi];
+      const stem = 5 + vn.v * (VEL_H - 13);
+      ctx.globalAlpha = vn.active ? 1 : 0.7;
+      ctx.fillStyle = vn.color;
+      ctx.fillRect(vn.x, velTop + VEL_H - stem, 1, stem);
       ctx.beginPath();
-      ctx.moveTo(px - 4.5, 0);
-      ctx.lineTo(px + 6, 0);
-      ctx.lineTo(px + 0.75, 6.5);
+      ctx.arc(vn.x + 0.5, velTop + VEL_H - stem, vn.active ? 3 : 2.2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    if (px >= KEYS_W - 1 && px <= w + 1) {
+      ctx.fillStyle = "rgba(251,191,36,0.4)";
+      ctx.fillRect(px, velTop + 1, 1, VEL_H - 1);
+    }
+    ctx.restore();
+
+    if (px >= KEYS_W - 6 && px <= w + 6) {
+      ctx.fillStyle = "rgba(251,191,36,0.95)";
+      ctx.beginPath();
+      ctx.moveTo(px - 4.5, RULER_H - 7);
+      ctx.lineTo(px + 6, RULER_H - 7);
+      ctx.lineTo(px + 0.75, RULER_H - 0.5);
       ctx.closePath();
       ctx.fill();
     }
+
+    /* piano keyboard gutter — real key geometry */
+    ctx.fillStyle = "#0c0c0f";
+    ctx.fillRect(0, RULER_H, KEYS_W, plotH);
+
+    const keyGrad = ctx.createLinearGradient(0, 0, KEYS_W, 0);
+    keyGrad.addColorStop(0, "#f3f1ec");
+    keyGrad.addColorStop(0.85, "#e6e3dc");
+    keyGrad.addColorStop(1, "#d4d0c7");
+    const litGrad = ctx.createLinearGradient(0, 0, KEYS_W, 0);
+    litGrad.addColorStop(0, "#fbbf24");
+    litGrad.addColorStop(1, "#f59e0b");
+
+    const inRange = (p: number) => p >= d.loPitch && p <= d.hiPitch;
+    for (let p = d.loPitch; p <= d.hiPitch; p++) {
+      if (isBlack(p)) continue;
+      const lit = activePitches.has(p);
+      const top = yFor(p) - (inRange(p + 1) && isBlack(p + 1) ? rowH / 2 : 0);
+      const bottom =
+        yFor(p) + rowH + (inRange(p - 1) && isBlack(p - 1) ? rowH / 2 : 0);
+      ctx.fillStyle = lit ? litGrad : keyGrad;
+      ctx.fillRect(0, top, KEYS_W - 1, bottom - top);
+      ctx.fillStyle = "rgba(0,0,0,0.35)";
+      ctx.fillRect(0, bottom - 0.5, KEYS_W - 1, 0.5);
+      const isC = p % 12 === 0;
+      if ((isC && rowH >= 3.5) || rowH >= 8) {
+        ctx.fillStyle = lit
+          ? "rgba(0,0,0,0.8)"
+          : isC
+            ? "rgba(60,55,45,0.9)"
+            : "rgba(60,55,45,0.5)";
+        ctx.font = `${isC ? 700 : 600} ${isC ? 8.5 : 7.5}px ui-monospace, monospace`;
+        ctx.textAlign = "right";
+        ctx.fillText(NAMES[p % 12] + (Math.floor(p / 12) - 1), KEYS_W - 4, (top + bottom) / 2 + 0.5);
+        ctx.textAlign = "left";
+      }
+    }
+    for (let p = d.loPitch; p <= d.hiPitch; p++) {
+      if (!isBlack(p)) continue;
+      const lit = activePitches.has(p);
+      const y = yFor(p);
+      const inset = Math.min(0.75, rowH * 0.08);
+      ctx.fillStyle = lit ? "#f59e0b" : "#141418";
+      ctx.fillRect(0, y + inset, KEYS_W * 0.58, rowH - inset * 2);
+      if (rowH >= 5) {
+        ctx.fillStyle = lit ? "rgba(255,255,255,0.35)" : "rgba(255,255,255,0.07)";
+        ctx.fillRect(KEYS_W * 0.58 - 1, y + inset, 1, rowH - inset * 2);
+      }
+    }
+    ctx.fillStyle = "rgba(0,0,0,0.55)";
+    ctx.fillRect(KEYS_W - 1, RULER_H, 1, plotH);
+    const keyShadow = ctx.createLinearGradient(KEYS_W, 0, KEYS_W + 9, 0);
+    keyShadow.addColorStop(0, "rgba(0,0,0,0.32)");
+    keyShadow.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = keyShadow;
+    ctx.fillRect(KEYS_W, RULER_H, 9, plotH);
   }, []);
 
   /* ---------- rAF loop ---------- */
@@ -269,7 +445,7 @@ export function MidiResultPlayer({ src }: { src: string }) {
         const canvas = canvasRef.current;
         if (canvas) {
           const w = canvas.width / (window.devicePixelRatio || 1);
-          const viewTicks = w / pxPerTickRef.current;
+          const viewTicks = Math.max(1, w - KEYS_W) / pxPerTickRef.current;
           if (posRef.current > scrollRef.current + viewTicks * FOLLOW_AT) {
             scrollRef.current = clampScroll(
               posRef.current - viewTicks * FOLLOW_TO,
@@ -309,6 +485,11 @@ export function MidiResultPlayer({ src }: { src: string }) {
     }
   };
 
+  useEffect(() => {
+    if (status === "ready") syncTimeUi();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status]);
+
   /* ---------- canvas sizing ---------- */
   useEffect(() => {
     if (status !== "ready") return;
@@ -321,12 +502,12 @@ export function MidiResultPlayer({ src }: { src: string }) {
       const dpr = window.devicePixelRatio || 1;
       const w = wrap.clientWidth;
       if (!w) return;
-      const h = Math.min(340, Math.max(190, (d.hiPitch - d.loPitch + 1) * 6));
+      const h = Math.min(500, Math.max(320, (d.hiPitch - d.loPitch + 1) * 10 + RULER_H + VEL_H));
       canvas.width = Math.round(w * dpr);
       canvas.height = Math.round(h * dpr);
       canvas.style.width = `${w}px`;
       canvas.style.height = `${h}px`;
-      minZoomRef.current = w / d.durationTicks;
+      minZoomRef.current = Math.max(1, w - KEYS_W) / d.durationTicks;
       if (
         !Number.isFinite(pxPerTickRef.current) ||
         pxPerTickRef.current <= 0 ||
@@ -538,14 +719,14 @@ export function MidiResultPlayer({ src }: { src: string }) {
     const canvas = canvasRef.current;
     const d = dataRef.current;
     if (!canvas || !d) return;
-    const w = canvas.width / (window.devicePixelRatio || 1);
-    const ax = anchorX ?? w / 2;
+    const plotW = Math.max(1, canvas.width / (window.devicePixelRatio || 1) - KEYS_W);
+    const ax = Math.max(0, anchorX ?? plotW / 2);
     const old = pxPerTickRef.current;
     const anchorTick = scrollRef.current + ax / old;
-    const maxZoom = w / (d.ppq * d.beatsPerBar);
+    const maxZoom = plotW / (d.ppq * d.beatsPerBar);
     const next = Math.min(maxZoom, Math.max(minZoomRef.current, old * factor));
     pxPerTickRef.current = next;
-    scrollRef.current = clampScroll(anchorTick - ax / next, d, w / next);
+    scrollRef.current = clampScroll(anchorTick - ax / next, d, plotW / next);
     dirtyRef.current = true;
   };
 
@@ -565,11 +746,11 @@ export function MidiResultPlayer({ src }: { src: string }) {
     p.x = e.clientX;
     if (Math.abs(e.clientX - p.startX) > 4) p.panned = true;
     if (p.panned) {
-      const w = canvas.width / (window.devicePixelRatio || 1);
+      const plotW = Math.max(1, canvas.width / (window.devicePixelRatio || 1) - KEYS_W);
       scrollRef.current = clampScroll(
         scrollRef.current - dx / pxPerTickRef.current,
         d,
-        w / pxPerTickRef.current
+        plotW / pxPerTickRef.current
       );
       dirtyRef.current = true;
     }
@@ -580,7 +761,9 @@ export function MidiResultPlayer({ src }: { src: string }) {
     pointer.current = null;
     if (!p || p.panned) return;
     const rect = (e.target as HTMLElement).getBoundingClientRect();
-    seekTo(scrollRef.current + (e.clientX - rect.left) / pxPerTickRef.current);
+    const localX = e.clientX - rect.left - KEYS_W;
+    if (localX < 0) return;
+    seekTo(scrollRef.current + localX / pxPerTickRef.current);
   };
 
   const onWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
@@ -589,14 +772,14 @@ export function MidiResultPlayer({ src }: { src: string }) {
     if (!canvas || !d) return;
     if (e.ctrlKey || e.metaKey) {
       const rect = canvas.getBoundingClientRect();
-      zoomBy(e.deltaY < 0 ? 1.18 : 1 / 1.18, e.clientX - rect.left);
+      zoomBy(e.deltaY < 0 ? 1.18 : 1 / 1.18, e.clientX - rect.left - KEYS_W);
     } else {
       const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
-      const w = canvas.width / (window.devicePixelRatio || 1);
+      const plotW = Math.max(1, canvas.width / (window.devicePixelRatio || 1) - KEYS_W);
       scrollRef.current = clampScroll(
         scrollRef.current + delta / pxPerTickRef.current,
         d,
-        w / pxPerTickRef.current
+        plotW / pxPerTickRef.current
       );
       dirtyRef.current = true;
     }
