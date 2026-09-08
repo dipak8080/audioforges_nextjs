@@ -127,13 +127,17 @@ export default function EmbedPage() {
             your visitors. The widget sets no tracking cookies of its own.
           </p>
 
-          <h2>Want a different tool embedded?</h2>
+          <h2>Two widgets, same terms</h2>
           <p>
-            Key and BPM is the first widget. If a{" "}
-            <Link href="/audio-to-midi">audio-to-MIDI</Link> or{" "}
-            <Link href="/stems">stem splitter</Link> embed would suit your readers
-            better, say so — those are next, and knowing who wants them decides the
-            order.
+            <Link href="/key-finder">Key &amp; BPM</Link> and{" "}
+            <Link href="/audio-to-midi">audio-to-MIDI</Link> are both embeddable —
+            switch between them in the code block above. MIDI conversion takes
+            longer to run, so give that one a taller frame.
+          </p>
+          <p>
+            If a <Link href="/stems">stem splitter</Link> embed would suit your
+            readers better, say so — it&apos;s next, and knowing who wants it
+            decides the order.
           </p>
         </Prose>
       </main>
