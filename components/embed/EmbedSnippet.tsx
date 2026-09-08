@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { SITE_URL } from "@/lib/constants";
 
 const SNIPPET = `<iframe src="${SITE_URL}/embed/key-finder"
-  width="100%" height="420" style="border:none;max-width:520px"
+  width="100%" height="330" style="border:none;max-width:520px"
   title="Free key and BPM finder by AudioForges"
   loading="lazy"></iframe>`;
 

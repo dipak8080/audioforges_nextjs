@@ -91,7 +91,7 @@ export default function EmbedPage() {
               src="/embed/key-finder"
               title="AudioForges key and BPM finder"
               width="100%"
-              height="420"
+              height="330"
               style={{ border: "none", display: "block" }}
               loading="lazy"
             />
