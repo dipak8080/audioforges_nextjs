@@ -314,6 +314,13 @@ interface JobToolFormProps {
    * nothing to show for itself otherwise.
    */
   renderResult?: (jobId: string) => ReactNode;
+  /**
+   * Suppresses the Ko-fi support block. Set on the /embed widgets: they render
+   * inside someone else's article, where a donation ask for a third party is
+   * the fastest way to get the embed pulled. The widget's own attribution link
+   * is the only AudioForges pitch that belongs there.
+   */
+  hideSupport?: boolean;
 }
 
 /* ------------------------------------------------------------------ */
@@ -346,6 +353,7 @@ export function JobToolForm({
   hidePreview = false,
   metered = false,
   renderResult,
+  hideSupport = false,
 }: JobToolFormProps) {
   const [file, setFile] = useState<File | null>(null);
   const [status, setStatus] = useState<UiState>("idle");
@@ -795,7 +803,7 @@ export function JobToolForm({
 
             {/* Asking for a tip right after charging someone a credit is a bad
                 look. A free run is still free, so it keeps the block. */}
-            {!chargedRun && <SupportBlock />}
+            {!chargedRun && !hideSupport && <SupportBlock />}
 
             <Button variant="outline" size="md" className="w-full" onClick={handleReset}>
               <RotateCcw />
@@ -839,7 +847,7 @@ export function JobToolForm({
               worst timing on the site. And a coffee ask directly under a
               buy-credits upsell is two money asks stacked — suppress it there.
             */}
-            {status === "error" && !showRateLimitUpsell && <SupportBlock />}
+            {status === "error" && !showRateLimitUpsell && !hideSupport && <SupportBlock />}
           </Section>
         )}
       </FormShell>

@@ -19,6 +19,7 @@ export function EmbedAudioToMidi() {
         pollIntervalMs={3000}
         downloadFilename="mid"
         hidePreview
+        hideSupport
         stages={[
           { at: 0, label: "Reading the audio" },
           { at: 8, label: "Detecting notes" },
