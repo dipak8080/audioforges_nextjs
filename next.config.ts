@@ -17,6 +17,28 @@ const nextConfig: NextConfig = {
    * permanent: true emits a 308, which browsers and search engines cache
    * indefinitely. Correct here — this move is not coming back.
    */
+  /**
+   * Framing is denied everywhere except /embed/*, which exists to be put in
+   * an iframe on other people's sites. Without the sitewide default the tool
+   * pages could be framed by anyone; without the /embed exception the widget
+   * could not be embedded at all.
+   */
+  async headers() {
+    return [
+      {
+        source: "/embed/:path*",
+        headers: [{ key: "Content-Security-Policy", value: "frame-ancestors *" }],
+      },
+      {
+        source: "/((?!embed).*)",
+        headers: [
+          { key: "X-Frame-Options", value: "SAMEORIGIN" },
+          { key: "Content-Security-Policy", value: "frame-ancestors 'self'" },
+        ],
+      },
+    ];
+  },
+
   async redirects() {
     return [
       {
