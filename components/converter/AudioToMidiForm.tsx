@@ -19,7 +19,8 @@ import { cn } from "@/lib/utils/cn";
 import { useCredits } from "@/components/credits/CreditProvider";
 import { FreeTierBadge } from "@/components/credits/FreeTierBadge";
 import type { MeteredToolKey } from "@/lib/types/credits";
-import { getAudioToMidiHqResult, type MidiHqResult } from "@/lib/api/railway";
+import { getAudioToMidiHqResult, getJobDownloadUrl, type MidiHqResult } from "@/lib/api/railway";
+import { MidiResultPlayer } from "@/components/converter/MidiResultPlayer";
 
 /**
  * TWO ENGINES, NOT TWO QUALITY LEVELS.
@@ -983,7 +984,15 @@ export function AudioToMidiForm({ hqAvailable = false }: { hqAvailable?: boolean
       // Sends af_sid so a balance can be seen and spent. False on the free
       // route, which returns no billing block at all.
       metered={isHq}
-      renderResult={isHq ? (jobId) => <MidiHqResultSummary key={jobId} jobId={jobId} /> : undefined}
+      renderResult={(jobId) => (
+        <>
+          <MidiResultPlayer
+            key={jobId}
+            src={getJobDownloadUrl(isHq ? "audio-to-midi-hq" : "audio-to-midi", jobId)}
+          />
+          {isHq && <MidiHqResultSummary jobId={jobId} />}
+        </>
+      )}
       fileAccept="audio/*,.mp3,.wav,.m4a,.aac,.ogg,.flac,.aiff,.opus,.webm"
       submitLabel={isHq ? "Convert with high accuracy" : TOOL_COPY.submitLabel}
       toolLabel={TOOL_COPY.toolLabel}
