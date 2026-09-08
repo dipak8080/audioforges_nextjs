@@ -60,7 +60,8 @@ export function SheetResultPlayer({
   const loopRef = useRef(false);
   const tempoRef = useRef(100);
   const seekingRef = useRef(false);
-  const litRef = useRef<{ el: SVGElement | HTMLElement }[]>([]);
+  const litRef = useRef<{ el: SVGElement | HTMLElement; fill: string; stroke: string }[]>([]);
+  const overlayRef = useRef<HTMLDivElement | null>(null);
   const baseBpmRef = useRef(Math.min(400, Math.max(20, tempoBpm || 120)));
   const [baseBpm, setBaseBpm] = useState(baseBpmRef.current);
 
@@ -213,24 +214,51 @@ export function SheetResultPlayer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
 
+  /* OSMD's own cursor img is created with z-index -2 — behind the white sheet.
+     We hide it and drive our own overlay div from the coordinates OSMD keeps
+     computing on it. The overlay is plain DOM we fully control. */
   const styleCursor = (osmd: OSMD) => {
-    const el = osmd.cursor?.cursorElement as HTMLElement | undefined;
-    if (!el) return;
-    el.style.zIndex = "5";
-    el.style.pointerEvents = "none";
+    const el = osmd.cursor?.cursorElement as HTMLImageElement | undefined;
+    if (!el || !el.parentElement) return;
+    el.style.display = "none";
+    let overlay = overlayRef.current;
+    if (!overlay || overlay.parentElement !== el.parentElement) {
+      overlay?.remove();
+      overlay = document.createElement("div");
+      overlay.style.position = "absolute";
+      overlay.style.zIndex = "10";
+      overlay.style.pointerEvents = "none";
+      overlay.style.background = "rgba(245, 158, 11, 0.28)";
+      overlay.style.borderLeft = "2px solid rgba(245, 158, 11, 0.95)";
+      overlay.style.borderRadius = "2px";
+      overlay.style.boxShadow = "0 0 10px rgba(245, 158, 11, 0.35)";
+      overlay.style.transition = "top 60ms linear, left 60ms linear";
+      el.parentElement.appendChild(overlay);
+      overlayRef.current = overlay;
+    }
+    positionOverlay(osmd);
+  };
+
+  const positionOverlay = (osmd: OSMD) => {
+    const el = osmd.cursor?.cursorElement as HTMLImageElement | undefined;
+    const overlay = overlayRef.current;
+    if (!el || !overlay) return;
+    overlay.style.top = el.style.top;
+    overlay.style.left = el.style.left;
+    overlay.style.width = `${el.width || 12}px`;
+    overlay.style.height = `${el.height || 60}px`;
   };
 
   const clearHighlights = () => {
-    for (const { el } of litRef.current) {
-      el.style.fill = "";
-      el.style.stroke = "";
-      el.style.filter = "";
+    for (const { el, fill, stroke } of litRef.current) {
+      el.style.fill = fill;
+      el.style.stroke = stroke;
     }
     litRef.current = [];
   };
 
-  /* Paint the noteheads under the cursor amber — live SVG styling, no
-     re-render. Any OSMD internals access is best-effort. */
+  /* VexFlow sets fill/stroke ATTRIBUTES on note paths; inherited style on the
+     group loses to those. Inline style per element wins — so paint each one. */
   const highlightUnderCursor = () => {
     const osmd = osmdRef.current;
     if (!osmd) return;
@@ -241,9 +269,17 @@ export function SheetResultPlayer({
           gNote as unknown as { getSVGGElement?: () => SVGElement | undefined }
         ).getSVGGElement?.();
         if (!g) continue;
-        g.style.fill = "#f59e0b";
-        g.style.stroke = "#f59e0b";
-        litRef.current.push({ el: g });
+        const nodes: (SVGElement | HTMLElement)[] = [
+          g,
+          ...(Array.from(g.querySelectorAll("path, rect, ellipse, text")) as SVGElement[]),
+        ];
+        for (const node of nodes) {
+          litRef.current.push({ el: node, fill: node.style.fill, stroke: node.style.stroke });
+          if (node.getAttribute("fill") !== "none") node.style.fill = "#f59e0b";
+          if (node.getAttribute("stroke") && node.getAttribute("stroke") !== "none") {
+            node.style.stroke = "#f59e0b";
+          }
+        }
       }
     } catch {
       /* highlighting is decoration — never let it break playback */
@@ -264,13 +300,14 @@ export function SheetResultPlayer({
     }
     if (moved) {
       stepIndexRef.current = i;
+      positionOverlay(osmd);
       highlightUnderCursor();
       followCursor();
     }
   };
 
   const followCursor = () => {
-    const el = osmdRef.current?.cursor?.cursorElement;
+    const el = overlayRef.current;
     const box = scrollRef.current;
     if (!el || !box) return;
     const top = el.offsetTop;
@@ -285,6 +322,7 @@ export function SheetResultPlayer({
     osmd.cursor.reset();
     stepIndexRef.current = 0;
     clearHighlights();
+    positionOverlay(osmd);
   };
 
   const syncTimeUi = () => {
@@ -424,6 +462,8 @@ export function SheetResultPlayer({
     /* Cursor can only walk forward — rewind means reset then fast-forward. */
     if (t < (stepsRef.current[stepIndexRef.current] ?? 0)) resetCursor();
     advanceCursorTo(t);
+    const osmd = osmdRef.current;
+    if (osmd) positionOverlay(osmd);
     followCursor();
     syncTimeUi();
   };
