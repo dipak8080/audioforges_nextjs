@@ -7,6 +7,7 @@ import { ToolPageShell } from "@/components/layout/ToolPageShell";
 import { Breadcrumb } from "@/components/layout/Breadcrumb";
 import { ToolSection } from "@/components/ui/ToolSection";
 import { FeatureStrip } from "@/components/ui/FeatureStrip";
+import { StemCompare } from "@/components/credits/StemCompare";
 import { Prose } from "@/components/ui/Prose";
 import { RelatedToolsGrid } from "@/components/tools/RelatedToolsGrid";
 import { ToolVideo } from "@/components/media/ToolVideo";
@@ -60,9 +61,16 @@ import { ogForTool } from "@/lib/og";
   lalal.ai and Moises on a 106K term. That is an authority problem, and no
   wording change solves it. This edit closes a real gap; it is not a fix.
 */
+
+/** Same 41 seconds of the same track through both tiers, level-matched — the
+ *  clips already proving the claim on /pricing. Shared files, so the demo can
+ *  never drift from what the tiers actually produce. */
+const DEMO_STANDARD = "/audio/demo-vocals-standard.wav";
+const DEMO_STUDIO = "/audio/demo-vocals-studio.wav";
+
 const PAGE_TITLE = "Free AI Vocal Remover – Remove Vocals & Voice Online";
 const PAGE_DESCRIPTION =
-  "Free AI vocal remover. Remove vocals from a song online to get an instrumental or acapella — MP3, WAV, FLAC, AAC. No sign-up, no watermark.";
+  "Free AI vocal remover and free LALAL.AI alternative. Remove vocals from a song online to get an instrumental or acapella — MP3, WAV, FLAC, AAC. No sign-up, no watermark.";
 
 const OG_IMAGE = ogForTool("vocal-remover", "Free AI Vocal Remover");
 
@@ -198,6 +206,26 @@ export default async function VocalRemoverPage() {
   */
 
   const faqs: FAQItem[] = [
+    {
+      question: "Is there a free alternative to LALAL.AI?",
+      answer:
+        "Yes. AudioForges separates full-length tracks free with no account — LALAL.AI's free tier is a preview, with full results behind paid processing minutes. For the highest quality, Studio Quality runs MelBand RoFormer, the top-ranked open-source vocal separation model on public benchmarks, for a single credit per job rather than a subscription.",
+    },
+    {
+      question: "Why do some free vocal removers sound watery or hollow?",
+      answer:
+        "Cheap tools use phase or center-channel tricks — subtracting one stereo channel from the other — which removes anything panned center, including bass and drums, and leaves a hollow, underwater sound. Real AI source separation, like the htdemucs and RoFormer models here, reconstructs each source instead of subtracting channels, which is why the instrumental keeps its punch.",
+    },
+    {
+      question: "Is this really free, or is there a catch?",
+      answer:
+        "The standard tier is genuinely free: full-length output, no watermark, no account, rate-limited per IP so it stays available for everyone. Credits exist only for the GPU-heavy Studio Quality tier, priced per job — no subscription, and they never expire. Every model we run is named on this page so you can verify the claims.",
+    },
+    {
+      question: "Which AI models power the separation?",
+      answer:
+        "Standard runs htdemucs, the published Hybrid Transformer Demucs. Studio Quality runs MelBand RoFormer — an open-source band-split transformer whose vocal-separation scores top the public benchmarks this field is measured on. Both are verifiable published models, not something wrapped and renamed.",
+    },
     {
       question: "How long does vocal removal take?",
       answer:
@@ -343,7 +371,31 @@ export default async function VocalRemoverPage() {
           ]}
         />
 
-        <ToolSection id="what-you-get" title="What you get">
+
+        {/* The proof, up front: the only claim on this page a reader can
+            check with their ears instead of taking on trust. Same clips as
+            /pricing — one source of truth for what the tiers sound like. */}
+        {separationHqEnabled && (
+          <ToolSection id="hear-the-difference" title="Hear the difference">
+            <p>
+              Standard and Studio Quality, on the same song. Switch while it plays — both versions stay at the same
+              playhead, so you hear the same bar twice back to back. Listen for
+              vocal bleed in the quiet passages and the watery, underwater
+              artifacts on sustained notes.
+            </p>
+            <StemCompare
+              standardSrc={DEMO_STANDARD}
+              studioSrc={DEMO_STUDIO}
+              stemLabel="Vocals"
+              trackLabel="Dense mix, long reverb tail"
+            />
+            <p className="text-xs text-text-subtle">
+              Music: Culture Code — Make Me Move (feat. Karra) [NCS Release]
+            </p>
+          </ToolSection>
+        )}
+
+                <ToolSection id="what-you-get" title="What you get">
           <dl>
             {WHAT_YOU_GET.map((item) => (
               <Fragment key={item.name}>
@@ -379,8 +431,8 @@ export default async function VocalRemoverPage() {
             <dd>None of it</dd>
           </dl>
           <p>
-            That last row is worth reading twice if you work at 48 kHz. Demucs
-            operates at 44.1 kHz in stereo internally, so the output rate and
+            That last row is worth reading twice if you work at 48 kHz. The
+            separation pipeline runs at 44.1 kHz in stereo internally, so the output rate and
             channel count are fixed no matter what you upload — a 48 kHz file
             comes back at 44.1 kHz, a mono file comes back as two channels, and a
             24-bit file comes back at 16-bit. That is how the model pipeline works
@@ -390,12 +442,12 @@ export default async function VocalRemoverPage() {
           </p>
           <p>
             You can also verify the models: standard runs <strong>htdemucs</strong>{" "}
-            at 0.25 overlap, Studio Quality runs <strong>htdemucs_ft</strong> —
-            four fine-tuned instances, ensembled — at 0.5. Higher overlap means
-            more redundant computation across chunk boundaries, which is where the
-            artifacts on longer tracks tend to show up. Between the ensemble and
-            the overlap, Studio Quality is roughly five times the compute of
-            standard, which is where the extra minute goes.
+            at 0.25 overlap. Studio Quality runs <strong>MelBand RoFormer</strong>{" "}
+            — a band-split transformer whose open weights sit at the top of the
+            public vocal-separation benchmarks. It is a different architecture,
+            not the same model run harder, and the difference is what you hear:
+            less bleed, fewer watery artifacts, and that is where the extra
+            minute goes.
           </p>
         </ToolSection>
 
@@ -483,18 +535,20 @@ export default async function VocalRemoverPage() {
           <p>
             The model is <strong>htdemucs</strong> — the published Hybrid
             Transformer Demucs, not something wrapped and renamed. Studio Quality
-            runs <strong>htdemucs_ft</strong>, a &quot;bag of four&quot;: four
-            instances of the same architecture, each fine-tuned toward one stem,
-            then ensembled. That is where the extra minute goes and why the stems
-            come out cleaner.
+            runs <strong>MelBand RoFormer</strong>, an open-source band-split
+            transformer whose vocal-separation scores top the public benchmarks
+            this field is measured on. Different architecture, audibly cleaner
+            split — that is what the credit buys.
           </p>
           <p>
             Both stems come back as <strong>WAV</strong>. One thing worth saying
-            because it&apos;s counter-intuitive: asking for two stems instead of
-            four doesn&apos;t make this cheaper to run. The model separates all
-            four sources internally either way and sums three of them into the
-            instrumental — vocal removal is the same amount of work as a full stem
-            split, just with different files kept.
+            because it&apos;s counter-intuitive: on the standard tier, asking
+            for two stems instead of four doesn&apos;t make this cheaper to run.
+            htdemucs separates all four sources internally either way and sums
+            three of them into the instrumental — vocal removal is the same
+            amount of work as a full stem split, just with different files kept.
+            Studio Quality is the exception: RoFormer separates vocals from
+            everything else directly, which is part of why it is so clean.
           </p>
           <p>
             Want the fuller breakdown of how this compares to older methods and
@@ -535,7 +589,7 @@ export default async function VocalRemoverPage() {
                   <tr>
                     <td className="px-4 py-3 font-medium text-text-subtle">Model</td>
                     <td className="px-4 py-3 font-mono">htdemucs</td>
-                    <td className="px-4 py-3 font-mono text-text-primary">htdemucs_ft</td>
+                    <td className="px-4 py-3 font-mono text-text-primary">MelBand RoFormer</td>
                   </tr>
                   <tr>
                     <td className="px-4 py-3 font-medium text-text-subtle">Separation quality</td>
@@ -660,6 +714,100 @@ export default async function VocalRemoverPage() {
             processed through this tool.
           </p>
         </section>
+
+
+        {/*
+          THE COMPARISON. Written the day Studio Quality moved to MelBand
+          RoFormer — the first day this page could invite a side-by-side
+          without flinching. Rules: every cell verifiable on the competitor's
+          own public pages, no superiority claim anywhere ("best" is what every
+          mediocre tool claims, so readers price it at zero), and the challenge
+          block does the persuading — nobody who would lose an A/B invites one.
+        */}
+        <ToolSection id="free-alternative" title="A free alternative to paid vocal removers">
+          <p>
+            Most tools in this category charge for what this page does free:
+            LALAL.AI sells packages of processing minutes and keeps full-length
+            results behind a paid account, and plenty of &quot;free&quot;
+            removers cap the length, watermark the output, or quietly downgrade
+            the quality. AudioForges&apos; standard tier is the full tool —
+            whole tracks, real source separation, no account — and the paid
+            tier is a single credit per job, not a subscription.
+          </p>
+          <div className="mt-6 overflow-x-auto rounded-xl border border-graphite-800">
+            <table className="w-full text-left text-sm text-text-muted">
+              <thead className="bg-graphite-900">
+                <tr>
+                  <th className="w-1/4 px-4 py-3">
+                    <span className="sr-only">Comparison</span>
+                  </th>
+                  <th className="px-4 py-3 font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-amber-400">
+                    AudioForges
+                  </th>
+                  <th className="px-4 py-3 font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-text-subtle">
+                    LALAL.AI
+                  </th>
+                  <th className="px-4 py-3 font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-text-subtle">
+                    Vocalremover.org
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-graphite-800">
+                <tr>
+                  <td className="px-4 py-3 font-medium text-text-subtle">Price</td>
+                  <td className="px-4 py-3 text-text-primary">
+                    Free tier, full-length output. Studio Quality is pay-per-job
+                    credits — no subscription, credits never expire.
+                  </td>
+                  <td className="px-4 py-3">Paid packages of processing minutes</td>
+                  <td className="px-4 py-3">Free</td>
+                </tr>
+                <tr>
+                  <td className="px-4 py-3 font-medium text-text-subtle">Full-length results without paying</td>
+                  <td className="px-4 py-3 text-text-primary">Yes</td>
+                  <td className="px-4 py-3">Preview only — full tracks are paid</td>
+                  <td className="px-4 py-3">Yes</td>
+                </tr>
+                <tr>
+                  <td className="px-4 py-3 font-medium text-text-subtle">Account required</td>
+                  <td className="px-4 py-3 text-text-primary">No</td>
+                  <td className="px-4 py-3">Yes, for full results</td>
+                  <td className="px-4 py-3">No</td>
+                </tr>
+                <tr>
+                  <td className="px-4 py-3 font-medium text-text-subtle">Separation models</td>
+                  <td className="px-4 py-3 text-text-primary">
+                    Named, open-source, verifiable — htdemucs and MelBand RoFormer
+                  </td>
+                  <td className="px-4 py-3">Named, closed-source</td>
+                  <td className="px-4 py-3">Not stated</td>
+                </tr>
+                <tr>
+                  <td className="px-4 py-3 font-medium text-text-subtle">Output spec published</td>
+                  <td className="px-4 py-3 text-text-primary">Yes — see the spec section above</td>
+                  <td className="px-4 py-3">Partially</td>
+                  <td className="px-4 py-3">Not stated</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p className="mt-3 text-xs text-text-subtle">
+            Competitor details reflect their public pages at the time of writing
+            and may change. No superiority claim is made where none can be
+            verified — that&apos;s what the demo above and your own ears are for.
+          </p>
+          <div className="mt-6 rounded-xl border border-amber-500/30 bg-amber-500/[0.06] p-5">
+            <p className="font-medium text-text-primary">
+              Don&apos;t take our word for it.
+            </p>
+            <p className="mt-1.5 text-sm">
+              Run the same song through any paid tool&apos;s preview and through
+              AudioForges, then trust your ears. Same track, same section — your
+              call. That&apos;s the whole comparison that matters, and it costs
+              you nothing to run it.
+            </p>
+          </div>
+        </ToolSection>
 
         <FAQSection faqs={faqs} />
       </ToolPageShell>
