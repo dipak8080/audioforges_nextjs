@@ -7,7 +7,6 @@ import { ToolPageShell } from "@/components/layout/ToolPageShell";
 import { Breadcrumb } from "@/components/layout/Breadcrumb";
 import { ToolSection } from "@/components/ui/ToolSection";
 import { FeatureStrip } from "@/components/ui/FeatureStrip";
-import { StemCompare } from "@/components/credits/StemCompare";
 import { Prose } from "@/components/ui/Prose";
 import { RelatedToolsGrid } from "@/components/tools/RelatedToolsGrid";
 import { ToolVideo } from "@/components/media/ToolVideo";
@@ -18,21 +17,14 @@ import { getDurationLabel } from "@/lib/data/tool-limits";
 import { getFeatureFlags } from "@/lib/api/railway";
 import { ogForTool } from "@/lib/og";
 
-
-/** Same 41 seconds of the same track through both tiers, level-matched — the
- *  clips already proving the claim on /pricing. Shared files, so the demo can
- *  never drift from what the tiers actually produce. */
-const DEMO_STANDARD = "/audio/demo-vocals-standard.wav";
-const DEMO_STUDIO = "/audio/demo-vocals-studio.wav";
-
-const PAGE_TITLE = "Free YouTube Vocal Remover";
+const PAGE_TITLE = "YouTube Vocal Remover – Free Instrumental & Acapella";
 const PAGE_DESCRIPTION =
-  "Extract vocals from YouTube videos free with AI — a no-signup alternative to paid vocal removers. Get isolated vocals and instrumental tracks free, with no sign-up.";
+  "Remove vocals from any YouTube video free. Paste a link and get a clean instrumental and an isolated acapella — no download, no sign-up, no watermark.";
 
 const OG_IMAGE = ogForTool("youtube-vocal-remover", "Free YouTube Vocal Remover");
 
 export const metadata: Metadata = {
-  title: PAGE_TITLE,
+  title: { absolute: PAGE_TITLE },
   description: PAGE_DESCRIPTION,
   alternates: { canonical: `${SITE_URL}/youtube-vocal-remover` },
   openGraph: {
@@ -126,21 +118,6 @@ export default async function YouTubeVocalRemoverPage() {
   const { separationHqEnabled } = await getFeatureFlags();
 
   const faqs: FAQItem[] = [
-    {
-      question: "How do I get an acapella from a YouTube video for free?",
-      answer:
-        "Paste the video link above and run the separation — the vocals stem is the acapella, downloadable at full length as a WAV with no account and no watermark. For the cleanest result on dense mixes, Studio Quality runs MelBand RoFormer, the top-ranked open-source vocal model on public benchmarks.",
-    },
-    {
-      question: "Is this a free alternative to paid vocal removers for YouTube?",
-      answer:
-        "Yes. The standard tier processes full videos free with no sign-up — most paid tools sell processing minutes and require creating an account to download results. The paid Studio Quality tier here is a single credit per job, not a subscription.",
-    },
-    {
-      question: "Which AI models power the separation?",
-      answer:
-        "Standard runs htdemucs, the published Hybrid Transformer Demucs. Studio Quality runs MelBand RoFormer — an open-source band-split transformer whose vocal-separation scores top the public benchmarks this field is measured on. Both are verifiable published models, not something wrapped and renamed.",
-    },
     {
       question: "What is a YouTube vocal remover?",
       answer:
@@ -256,31 +233,7 @@ export default async function YouTubeVocalRemoverPage() {
           ]}
         />
 
-
-        {/* The proof, up front: the only claim on this page a reader can
-            check with their ears instead of taking on trust. Same clips as
-            /pricing — one source of truth for what the tiers sound like. */}
-        {separationHqEnabled && (
-          <ToolSection id="hear-the-difference" title="Hear the difference">
-            <p>
-              Standard and Studio Quality, on the same song. Switch while it plays — both versions stay at the same
-              playhead, so you hear the same bar twice back to back. Listen for
-              vocal bleed in the quiet passages and the watery, underwater
-              artifacts on sustained notes.
-            </p>
-            <StemCompare
-              standardSrc={DEMO_STANDARD}
-              studioSrc={DEMO_STUDIO}
-              stemLabel="Vocals"
-              trackLabel="Dense mix, long reverb tail"
-            />
-            <p className="text-xs text-text-subtle">
-              Music: Culture Code — Make Me Move (feat. Karra) [NCS Release]
-            </p>
-          </ToolSection>
-        )}
-
-                <ToolSection id="how-to" title="How to remove vocals from a YouTube video">
+        <ToolSection id="how-to" title="How to remove vocals from a YouTube video">
           <ol>
             <li>
               Paste a YouTube video, Shorts, or youtu.be link — up to{" "}
@@ -472,28 +425,6 @@ export default async function YouTubeVocalRemoverPage() {
             audio processed through this tool.
           </p>
         </section>
-
-
-        <ToolSection id="free-alternative" title="A free alternative to paid tools">
-          <p>
-            Paid vocal removers charge per processing minute and most need the
-            audio uploaded as a file — which for a YouTube video means finding
-            a downloader first. Here you paste the link, the standard tier is
-            free at full length with no account, and the models doing the work
-            are named and open-source so the quality claims can be checked.
-          </p>
-          <div className="mt-6 rounded-xl border border-amber-500/30 bg-amber-500/[0.06] p-5">
-            <p className="font-medium text-text-primary">
-              Don&apos;t take our word for it.
-            </p>
-            <p className="mt-1.5 text-sm">
-              Run the same song through any paid tool&apos;s preview and through
-              AudioForges, then trust your ears. Same track, same section — your
-              call. That&apos;s the whole comparison that matters, and it costs
-              you nothing to run it.
-            </p>
-          </div>
-        </ToolSection>
 
         <FAQSection faqs={faqs} />
       </ToolPageShell>
