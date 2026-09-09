@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Mic, MicOff, AlertTriangle, ChevronUp, ChevronDown, Check } from "lucide-react";
+import { Mic, MicOff, AlertTriangle, ChevronUp, ChevronDown, Check, Volume2, Link2, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 
 type TunerState = "idle" | "requesting" | "listening" | "denied" | "unsupported";
@@ -9,15 +9,12 @@ type TunerState = "idle" | "requesting" | "listening" | "denied" | "unsupported"
 const NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 
 // How often (ms) detected pitch values are pushed into React state. The
-// actual detection runs every animation frame (as fast as the browser
-// allows) for responsiveness, but rendering on every frame would be
-// wasted work - decoupling detection rate from render rate via a ref +
-// interval keeps the UI smooth without re-rendering 60x/second.
+// actual detection runs every animation frame for responsiveness; the UI
+// re-renders on a slower interval via a ref handoff.
 const RENDER_INTERVAL_MS = 80;
 
 // Below this RMS amplitude, treat the signal as silence rather than
-// guessing a pitch from noise floor / room hum - avoids the note display
-// flickering to a random note when nothing is actually being played.
+// guessing a pitch from noise floor / room hum.
 const SILENCE_RMS_THRESHOLD = 0.01;
 
 const REF_PITCH_MIN = 415;
@@ -25,12 +22,19 @@ const REF_PITCH_MAX = 466;
 const REF_PITCH_DEFAULT = 440;
 const REF_PITCH_PRESETS = [415, 440, 442, 443, 444];
 
-// How many recent readings feed the stability check, and how tight
-// they must cluster (in cents) to count as "locked" — this is what
-// turns a jittery live reading into something you can trust enough to
-// actually stop turning the tuning peg.
+// Stability lock: recent readings must cluster this tightly (cents) to
+// count as "locked" — a jittery reading never marks a string done.
 const STABILITY_WINDOW = 8;
 const STABILITY_CENTS_THRESHOLD = 3;
+
+// Above this many cents over the target, the user is likely an octave
+// off and still tightening — the classic way beginners snap strings.
+const SNAP_WARNING_CENTS = 700;
+const IN_TUNE_CENTS = 5;
+
+// After this many silent render ticks in bass mode, surface the
+// low-string mic hint (~2.4s at 80ms per tick).
+const LOW_STRING_HINT_TICKS = 30;
 
 interface PitchResult {
   frequency: number;
@@ -39,13 +43,79 @@ interface PitchResult {
   cents: number;
 }
 
-// Standard autocorrelation-based pitch detector (the ACF2+ approach
-// widely used for real-time browser pitch detection). Operates on
-// time-domain samples rather than the FFT/frequency-domain output,
-// since autocorrelation is considerably more accurate than picking the
-// loudest FFT bin for finding a signal's true fundamental frequency -
-// FFT bin resolution is too coarse at typical buffer sizes to
-// distinguish, say, 440Hz from 442Hz cleanly.
+interface StringTarget {
+  midi: number;
+  label: string;
+}
+
+interface Tuning {
+  id: string;
+  label: string;
+  midis: number[];
+}
+
+interface Instrument {
+  id: string;
+  label: string;
+  tunings: Tuning[];
+}
+
+// String pitches are stored as MIDI numbers (A4 = 69) so the reference
+// pitch transposes every target: freq = ref * 2^((midi - 69) / 12).
+const INSTRUMENTS: Instrument[] = [
+  {
+    id: "guitar",
+    label: "Guitar",
+    tunings: [
+      { id: "standard", label: "Standard", midis: [40, 45, 50, 55, 59, 64] },
+      { id: "drop-d", label: "Drop D", midis: [38, 45, 50, 55, 59, 64] },
+      { id: "half-step", label: "Half-step down", midis: [39, 44, 49, 54, 58, 63] },
+      { id: "open-g", label: "Open G", midis: [38, 43, 50, 55, 59, 62] },
+      { id: "dadgad", label: "DADGAD", midis: [38, 45, 50, 55, 57, 62] },
+    ],
+  },
+  {
+    id: "bass",
+    label: "Bass",
+    tunings: [
+      { id: "4-string", label: "4-string", midis: [28, 33, 38, 43] },
+      { id: "5-string", label: "5-string", midis: [23, 28, 33, 38, 43] },
+    ],
+  },
+  { id: "ukulele", label: "Ukulele", tunings: [{ id: "standard", label: "Standard", midis: [67, 60, 64, 69] }] },
+  { id: "violin", label: "Violin", tunings: [{ id: "standard", label: "Standard", midis: [55, 62, 69, 76] }] },
+  { id: "viola", label: "Viola", tunings: [{ id: "standard", label: "Standard", midis: [48, 55, 62, 69] }] },
+  { id: "cello", label: "Cello", tunings: [{ id: "standard", label: "Standard", midis: [36, 43, 50, 57] }] },
+  { id: "mandolin", label: "Mandolin", tunings: [{ id: "standard", label: "Standard", midis: [55, 62, 69, 76] }] },
+];
+
+export interface TunerInitialSettings {
+  instrument?: string;
+  tuning?: string;
+  referencePitch?: number;
+}
+
+interface TunerFormProps {
+  initialSettings?: TunerInitialSettings;
+}
+
+function midiToLabel(midi: number): string {
+  const noteIndex = ((midi % 12) + 12) % 12;
+  const octave = Math.floor(midi / 12) - 1;
+  return `${NOTE_NAMES[noteIndex]}${octave}`;
+}
+
+function midiToFrequency(midi: number, referencePitch: number): number {
+  return referencePitch * Math.pow(2, (midi - 69) / 12);
+}
+
+function centsBetween(frequency: number, targetFrequency: number): number {
+  return 1200 * Math.log2(frequency / targetFrequency);
+}
+
+// Standard autocorrelation-based pitch detector (ACF2+). Time-domain
+// autocorrelation resolves the fundamental far more precisely than
+// picking the loudest FFT bin at typical buffer sizes.
 function autoCorrelate(buffer: Float32Array, sampleRate: number): number {
   const SIZE = buffer.length;
 
@@ -54,8 +124,6 @@ function autoCorrelate(buffer: Float32Array, sampleRate: number): number {
   rms = Math.sqrt(rms / SIZE);
   if (rms < SILENCE_RMS_THRESHOLD) return -1;
 
-  // Trim leading/trailing near-silence so autocorrelation isn't thrown
-  // off by quiet padding at the buffer's edges.
   let r1 = 0;
   let r2 = SIZE - 1;
   const threshold = 0.2;
@@ -119,25 +187,106 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
 
-export function TunerForm() {
+function ModeChip({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={cn(
+        "rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors",
+        active
+          ? "border-amber-500/60 bg-amber-500/10 text-amber-400"
+          : "border-graphite-700 bg-graphite-850 text-text-muted hover:text-text-primary"
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+export function TunerForm({ initialSettings }: TunerFormProps) {
+  const s = initialSettings ?? {};
+
   const [state, setState] = useState<TunerState>("idle");
   const [pitch, setPitch] = useState<PitchResult | null>(null);
   const [smoothedCents, setSmoothedCents] = useState(0);
   const [isLocked, setIsLocked] = useState(false);
-  const [referencePitch, setReferencePitch] = useState(REF_PITCH_DEFAULT);
+  const [referencePitch, setReferencePitch] = useState(() =>
+    s.referencePitch && s.referencePitch >= REF_PITCH_MIN && s.referencePitch <= REF_PITCH_MAX
+      ? s.referencePitch
+      : REF_PITCH_DEFAULT
+  );
+
+  const initialInstrument = INSTRUMENTS.find((i) => i.id === s.instrument) ?? null;
+  const [instrumentId, setInstrumentId] = useState<string | null>(initialInstrument?.id ?? null);
+  const [tuningId, setTuningId] = useState<string>(() => {
+    if (initialInstrument) {
+      const t = initialInstrument.tunings.find((t) => t.id === s.tuning);
+      return (t ?? initialInstrument.tunings[0]).id;
+    }
+    return "standard";
+  });
+  const [manualString, setManualString] = useState<number | null>(null);
+  const [autoString, setAutoString] = useState<number | null>(null);
+  const [doneStrings, setDoneStrings] = useState<boolean[]>(() => {
+    if (!initialInstrument) return [];
+    const t = initialInstrument.tunings.find((t) => t.id === s.tuning) ?? initialInstrument.tunings[0];
+    return new Array(t.midis.length).fill(false);
+  });
+  const [autoAdvance, setAutoAdvance] = useState(true);
+  const [targetCents, setTargetCents] = useState<number | null>(null);
+  const [showLowStringHint, setShowLowStringHint] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
+
+  const instrument = INSTRUMENTS.find((i) => i.id === instrumentId) ?? null;
+  const tuning = instrument ? (instrument.tunings.find((t) => t.id === tuningId) ?? instrument.tunings[0]) : null;
+  const strings: StringTarget[] = tuning ? tuning.midis.map((midi) => ({ midi, label: midiToLabel(midi) })) : [];
 
   const audioCtxRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const playbackCtxRef = useRef<AudioContext | null>(null);
   const rafRef = useRef<number | null>(null);
-  const renderTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const latestPitchRef = useRef<PitchResult | null>(null);
+  const latestFrequencyRef = useRef<number>(-1);
   const referencePitchRef = useRef(referencePitch);
   const centsHistoryRef = useRef<number[]>([]);
+  const silentTicksRef = useRef(0);
+  const wakeLockRef = useRef<WakeLockSentinel | null>(null);
+
+  const manualStringRef = useRef(manualString);
+  const doneStringsRef = useRef(doneStrings);
+  const autoAdvanceRef = useRef(autoAdvance);
+  const stringsRef = useRef(strings);
+  const instrumentIdRef = useRef(instrumentId);
 
   useEffect(() => {
     referencePitchRef.current = referencePitch;
   }, [referencePitch]);
+  useEffect(() => {
+    manualStringRef.current = manualString;
+  }, [manualString]);
+  useEffect(() => {
+    doneStringsRef.current = doneStrings;
+  }, [doneStrings]);
+  useEffect(() => {
+    autoAdvanceRef.current = autoAdvance;
+  }, [autoAdvance]);
+  useEffect(() => {
+    stringsRef.current = strings;
+  });
+  useEffect(() => {
+    instrumentIdRef.current = instrumentId;
+  }, [instrumentId]);
 
   useEffect(() => {
     if (typeof window !== "undefined" && !navigator.mediaDevices?.getUserMedia) {
@@ -145,30 +294,46 @@ export function TunerForm() {
     }
   }, []);
 
+  const requestWakeLock = useCallback(async () => {
+    try {
+      if ("wakeLock" in navigator) {
+        wakeLockRef.current = await navigator.wakeLock.request("screen");
+      }
+    } catch {
+      // Best-effort.
+    }
+  }, []);
+
+  const releaseWakeLock = useCallback(() => {
+    wakeLockRef.current?.release().catch(() => {});
+    wakeLockRef.current = null;
+  }, []);
+
   const stop = useCallback(() => {
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    if (renderTimerRef.current) clearInterval(renderTimerRef.current);
     rafRef.current = null;
-    renderTimerRef.current = null;
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
     audioCtxRef.current?.close();
     audioCtxRef.current = null;
     analyserRef.current = null;
     latestPitchRef.current = null;
+    latestFrequencyRef.current = -1;
     centsHistoryRef.current = [];
+    silentTicksRef.current = 0;
+    releaseWakeLock();
     setPitch(null);
     setIsLocked(false);
+    setTargetCents(null);
+    setAutoString(null);
+    setShowLowStringHint(false);
     setState("idle");
-  }, []);
+  }, [releaseWakeLock]);
 
   /**
-   * The rAF loop reschedules itself, which it can't do by naming itself: a
-   * value referenced inside its own initializer is something the React
-   * Compiler can't reason about, and it responded by skipping optimisation of
-   * this entire component. One indirection through a ref — declared BEFORE the
-   * callback, assigned in an effect rather than during render — removes the
-   * self-reference without changing the detection rate.
+   * The rAF loop reschedules itself via a ref rather than by naming itself —
+   * a self-referencing initializer defeats the React Compiler. Declared
+   * BEFORE the callback, assigned in an effect.
    */
   const detectLoopRef = useRef<() => void>(() => {});
 
@@ -181,6 +346,7 @@ export function TunerForm() {
     analyser.getFloatTimeDomainData(buffer);
     const frequency = autoCorrelate(buffer, ctx.sampleRate);
 
+    latestFrequencyRef.current = frequency;
     latestPitchRef.current =
       frequency > 0 ? { frequency, ...frequencyToPitch(frequency, referencePitchRef.current) } : null;
 
@@ -191,39 +357,108 @@ export function TunerForm() {
     detectLoopRef.current = detectLoop;
   }, [detectLoop]);
 
-  // Declared after `stop` so it isn't reaching a value from further up with a
-  // suppressed dependency. `stop` is useCallback([]) and therefore stable, so
-  // this still runs its cleanup only on unmount.
   useEffect(() => () => stop(), [stop]);
 
-  // Render tick: pulls the latest detection, smooths the needle position
-  // (raw per-frame cents are jittery even when the actual note is
-  // steady — a light exponential ease makes the needle read as settling
-  // rather than vibrating), and tracks a short rolling history to decide
-  // whether the pitch has actually "locked" rather than just briefly
-  // passing through in-tune.
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === "visible" && state === "listening" && !wakeLockRef.current) {
+        requestWakeLock();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, [state, requestWakeLock]);
+
+  // Render tick. Chromatic mode measures against the nearest chromatic
+  // note; instrument mode measures against the active string's target
+  // (manual selection wins over auto-detect). The needle is smoothed,
+  // and the stability window decides when a string counts as done.
   useEffect(() => {
     if (state !== "listening") return;
     const id = setInterval(() => {
       const latest = latestPitchRef.current;
+      const frequency = latestFrequencyRef.current;
+      const currentStrings = stringsRef.current;
+      const isInstrumentMode = instrumentIdRef.current !== null && currentStrings.length > 0;
+
       setPitch(latest);
 
-      const targetCents = latest?.cents ?? 0;
-      setSmoothedCents((prev) => (latest ? prev + (targetCents - prev) * 0.35 : 0));
-
-      if (latest) {
-        const history = [...centsHistoryRef.current, latest.cents].slice(-STABILITY_WINDOW);
-        centsHistoryRef.current = history;
-        if (history.length >= STABILITY_WINDOW) {
-          const spread = Math.max(...history) - Math.min(...history);
-          setIsLocked(spread <= STABILITY_CENTS_THRESHOLD && Math.abs(latest.cents) <= 5);
-        } else {
-          setIsLocked(false);
+      if (latest === null || frequency <= 0) {
+        silentTicksRef.current += 1;
+        if (instrumentIdRef.current === "bass" && silentTicksRef.current >= LOW_STRING_HINT_TICKS) {
+          setShowLowStringHint(true);
         }
-      } else {
         centsHistoryRef.current = [];
         setIsLocked(false);
+        setSmoothedCents(0);
+        setTargetCents(null);
+        return;
       }
+
+      silentTicksRef.current = 0;
+      setShowLowStringHint(false);
+
+      let cents: number;
+      if (isInstrumentMode) {
+        const ref = referencePitchRef.current;
+        let stringIndex: number;
+        if (manualStringRef.current !== null && manualStringRef.current < currentStrings.length) {
+          stringIndex = manualStringRef.current;
+        } else {
+          let best = 0;
+          let bestDist = Infinity;
+          currentStrings.forEach((str, i) => {
+            const dist = Math.abs(centsBetween(frequency, midiToFrequency(str.midi, ref)));
+            if (dist < bestDist) {
+              bestDist = dist;
+              best = i;
+            }
+          });
+          stringIndex = best;
+          setAutoString(best);
+        }
+        cents = centsBetween(frequency, midiToFrequency(currentStrings[stringIndex].midi, referencePitchRef.current));
+        setTargetCents(cents);
+
+        const history = [...centsHistoryRef.current, cents].slice(-STABILITY_WINDOW);
+        centsHistoryRef.current = history;
+        const locked =
+          history.length >= STABILITY_WINDOW &&
+          Math.max(...history) - Math.min(...history) <= STABILITY_CENTS_THRESHOLD &&
+          Math.abs(cents) <= IN_TUNE_CENTS;
+        setIsLocked(locked);
+
+        if (locked && !doneStringsRef.current[stringIndex]) {
+          const nextDone = [...doneStringsRef.current];
+          nextDone[stringIndex] = true;
+          doneStringsRef.current = nextDone;
+          setDoneStrings(nextDone);
+          if (autoAdvanceRef.current) {
+            const total = currentStrings.length;
+            for (let step = 1; step <= total; step++) {
+              const candidate = (stringIndex + step) % total;
+              if (!nextDone[candidate]) {
+                setManualString(candidate);
+                centsHistoryRef.current = [];
+                break;
+              }
+            }
+          }
+        }
+      } else {
+        cents = latest.cents;
+        setTargetCents(null);
+        const history = [...centsHistoryRef.current, cents].slice(-STABILITY_WINDOW);
+        centsHistoryRef.current = history;
+        setIsLocked(
+          history.length >= STABILITY_WINDOW &&
+            Math.max(...history) - Math.min(...history) <= STABILITY_CENTS_THRESHOLD &&
+            Math.abs(cents) <= IN_TUNE_CENTS
+        );
+      }
+
+      const needleTarget = clamp(cents, -60, 60);
+      setSmoothedCents((prev) => prev + (needleTarget - prev) * 0.35);
     }, RENDER_INTERVAL_MS);
     return () => clearInterval(id);
   }, [state]);
@@ -246,19 +481,115 @@ export function TunerForm() {
       audioCtxRef.current = ctx;
       analyserRef.current = analyser;
       centsHistoryRef.current = [];
+      silentTicksRef.current = 0;
 
       rafRef.current = requestAnimationFrame(detectLoop);
+      requestWakeLock();
       setState("listening");
     } catch (err) {
       console.error("Microphone access error:", err);
       setState("denied");
     }
-  }, [detectLoop]);
+  }, [detectLoop, requestWakeLock]);
 
   const toggle = () => {
     if (state === "listening") stop();
     else start();
   };
+
+  // Synthesized reference tone — a soft sine with a gentle release, so
+  // users can tune by ear when the mic can't hear a low string.
+  const playTargetTone = useCallback((midi: number) => {
+    const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    if (!playbackCtxRef.current || playbackCtxRef.current.state === "closed") {
+      playbackCtxRef.current = new Ctx();
+    }
+    const ctx = playbackCtxRef.current;
+    ctx.resume();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = "sine";
+    osc.frequency.value = midiToFrequency(midi, referencePitchRef.current);
+    const now = ctx.currentTime;
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.25, now + 0.02);
+    gain.gain.setValueAtTime(0.25, now + 1.0);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 1.6);
+    osc.start(now);
+    osc.stop(now + 1.7);
+  }, []);
+
+  useEffect(
+    () => () => {
+      playbackCtxRef.current?.close().catch(() => {});
+      playbackCtxRef.current = null;
+    },
+    []
+  );
+
+  const resetForStrings = (count: number) => {
+    setDoneStrings(new Array(count).fill(false));
+    setManualString(null);
+    setAutoString(null);
+    setTargetCents(null);
+    centsHistoryRef.current = [];
+  };
+
+  const selectInstrument = (id: string | null) => {
+    setInstrumentId(id);
+    if (id) {
+      const inst = INSTRUMENTS.find((i) => i.id === id);
+      if (inst) {
+        setTuningId(inst.tunings[0].id);
+        resetForStrings(inst.tunings[0].midis.length);
+        return;
+      }
+    }
+    resetForStrings(0);
+  };
+
+  const selectTuning = (t: Tuning) => {
+    setTuningId(t.id);
+    resetForStrings(t.midis.length);
+  };
+
+  const tapString = (index: number) => {
+    if (doneStrings[index]) {
+      const next = [...doneStrings];
+      next[index] = false;
+      setDoneStrings(next);
+    }
+    setManualString(index);
+    centsHistoryRef.current = [];
+  };
+
+  const resetProgress = () => {
+    setDoneStrings(new Array(strings.length).fill(false));
+    setManualString(null);
+    centsHistoryRef.current = [];
+  };
+
+  const copyShareLink = useCallback(async () => {
+    const params = new URLSearchParams();
+    if (instrumentId) {
+      params.set("i", instrumentId);
+      const inst = INSTRUMENTS.find((x) => x.id === instrumentId);
+      if (inst && inst.tunings.length > 1) params.set("t", tuningId);
+    }
+    if (referencePitch !== REF_PITCH_DEFAULT) params.set("ref", String(referencePitch));
+
+    const query = params.toString();
+    const url = `${window.location.origin}/tuner${query ? `?${query}` : ""}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    } catch {
+      window.prompt("Copy this tuning link:", url);
+    }
+  }, [instrumentId, tuningId, referencePitch]);
 
   if (state === "unsupported") {
     return (
@@ -273,19 +604,160 @@ export function TunerForm() {
     );
   }
 
-  const isInTune = pitch !== null && Math.abs(smoothedCents) <= 5;
-  const isClose = pitch !== null && Math.abs(smoothedCents) <= 15;
+  const isInstrumentMode = instrument !== null && strings.length > 0;
+  const activeString = manualString ?? autoString;
+  const activeTarget = isInstrumentMode && activeString !== null && activeString < strings.length ? strings[activeString] : null;
+  const displayCents = isInstrumentMode ? targetCents : pitch?.cents ?? null;
+
+  const isInTune = displayCents !== null && Math.abs(displayCents) <= IN_TUNE_CENTS;
+  const isClose = displayCents !== null && Math.abs(displayCents) <= 15;
+  const wayTooHigh = isInstrumentMode && targetCents !== null && targetCents >= SNAP_WARNING_CENTS;
+  const wayTooLow = isInstrumentMode && targetCents !== null && targetCents <= -SNAP_WARNING_CENTS;
   const tone = !pitch ? "text-graphite-600" : isInTune ? "text-teal-400" : isClose ? "text-amber-400" : "text-red-400";
   const needlePercent = clamp(50 + smoothedCents, 2, 98);
 
+  const allDone = isInstrumentMode && doneStrings.length > 0 && doneStrings.every(Boolean);
+  const anyDone = doneStrings.some(Boolean);
+
+  let action: { text: string; className: string } | null = null;
+  if (state === "listening" && pitch) {
+    if (isInstrumentMode && activeTarget) {
+      if (wayTooHigh) {
+        action = { text: `Much too high — stop tightening! You may be an octave above ${activeTarget.label}.`, className: "text-red-400" };
+      } else if (wayTooLow) {
+        action = { text: `Much too low — check you're playing the right string for ${activeTarget.label}.`, className: "text-red-400" };
+      } else if (isInTune) {
+        action = { text: "In tune ✓", className: "text-teal-400" };
+      } else if (displayCents !== null && displayCents < 0) {
+        action = { text: "Tighten slowly ↑", className: "text-amber-400" };
+      } else if (displayCents !== null) {
+        action = { text: "Loosen slightly ↓", className: "text-amber-400" };
+      }
+    } else if (isInTune) {
+      action = { text: "In tune ✓", className: "text-teal-400" };
+    }
+  }
+
   return (
-    <div className="space-y-8 rounded-2xl border border-graphite-800 bg-graphite-900 p-6 sm:p-8">
+    <div className="space-y-7 rounded-2xl border border-graphite-800 bg-graphite-900 p-6 sm:p-8">
       {state === "denied" && (
         <div className="flex items-center gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3">
           <AlertTriangle className="h-4 w-4 shrink-0 text-red-500" />
           <span className="text-sm text-text-primary">
             Microphone access was denied or unavailable. Check your browser&apos;s site permissions and try again.
           </span>
+        </div>
+      )}
+
+      {/* Mode selector — Chromatic (default) or an instrument's strings */}
+      <div className="space-y-2.5">
+        <div className="flex flex-wrap justify-center gap-1.5">
+          <ModeChip active={instrumentId === null} onClick={() => selectInstrument(null)}>
+            Chromatic
+          </ModeChip>
+          {INSTRUMENTS.map((inst) => (
+            <ModeChip key={inst.id} active={instrumentId === inst.id} onClick={() => selectInstrument(inst.id)}>
+              {inst.label}
+            </ModeChip>
+          ))}
+        </div>
+        {instrument && instrument.tunings.length > 1 && (
+          <div className="flex flex-wrap justify-center gap-1.5">
+            {instrument.tunings.map((t) => (
+              <ModeChip key={t.id} active={tuningId === t.id} onClick={() => selectTuning(t)}>
+                {t.label}
+              </ModeChip>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* String row — auto-highlighted, tappable, with done states and
+          per-string reference tones */}
+      {isInstrumentMode && (
+        <div className="space-y-2">
+          <div className="flex flex-wrap justify-center gap-2">
+            {strings.map((str, i) => {
+              const isActive = activeString === i;
+              const isManual = manualString === i;
+              const done = doneStrings[i];
+              return (
+                <div key={`${str.midi}-${i}`} className="flex flex-col items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => tapString(i)}
+                    aria-label={`String ${i + 1}, ${str.label}${done ? ", in tune" : ""}`}
+                    aria-pressed={isManual}
+                    className={cn(
+                      "relative flex h-12 w-12 items-center justify-center rounded-xl border font-mono text-sm font-semibold transition-all",
+                      done
+                        ? "border-teal-400/60 bg-teal-400/10 text-teal-400"
+                        : isActive
+                          ? "border-amber-500 bg-amber-500/15 text-amber-400"
+                          : "border-graphite-700 bg-graphite-850 text-text-muted hover:text-text-primary",
+                      isActive && !done && "scale-105"
+                    )}
+                  >
+                    {str.label}
+                    {done && <Check className="absolute -right-1.5 -top-1.5 h-4 w-4 rounded-full bg-graphite-900 p-0.5 text-teal-400" />}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => playTargetTone(str.midi)}
+                    aria-label={`Play ${str.label} reference tone`}
+                    className="flex h-6 w-6 items-center justify-center rounded-md text-text-subtle transition-colors hover:bg-graphite-800 hover:text-amber-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40"
+                  >
+                    <Volume2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="flex items-center justify-center gap-2 text-[11px]">
+            {manualString !== null && (
+              <button
+                type="button"
+                onClick={() => {
+                  setManualString(null);
+                  centsHistoryRef.current = [];
+                }}
+                className="rounded-md border border-graphite-700 bg-graphite-850 px-2 py-1 font-medium text-text-muted transition-colors hover:text-text-primary"
+              >
+                Auto-detect string
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setAutoAdvance((v) => !v)}
+              aria-pressed={autoAdvance}
+              className={cn(
+                "rounded-md border px-2 py-1 font-medium transition-colors",
+                autoAdvance
+                  ? "border-amber-500/60 bg-amber-500/10 text-amber-400"
+                  : "border-graphite-700 bg-graphite-850 text-text-muted hover:text-text-primary"
+              )}
+            >
+              Auto-advance {autoAdvance ? "on" : "off"}
+            </button>
+            {anyDone && (
+              <button
+                type="button"
+                onClick={resetProgress}
+                className="flex items-center gap-1 rounded-md border border-graphite-700 bg-graphite-850 px-2 py-1 font-medium text-text-muted transition-colors hover:text-text-primary"
+              >
+                <RotateCcw className="h-3 w-3" />
+                Reset
+              </button>
+            )}
+          </div>
+
+          {allDone && (
+            <div className="flex items-center justify-center gap-2 rounded-lg border border-teal-400/25 bg-teal-400/[0.07] px-3.5 py-2 text-xs text-teal-400">
+              <Check className="h-3.5 w-3.5 shrink-0" />
+              All strings in tune — you&apos;re ready to play.
+            </div>
+          )}
         </div>
       )}
 
@@ -303,20 +775,22 @@ export function TunerForm() {
           )}
         </div>
         <p className="font-mono text-xs tabular-nums text-text-subtle">
-          {pitch
-            ? `${pitch.frequency.toFixed(1)} Hz`
-            : state === "listening"
-              ? "Listening…"
-              : "Play a note"}
+          {activeTarget
+            ? `Target: ${activeTarget.label} · ${midiToFrequency(activeTarget.midi, referencePitch).toFixed(1)} Hz${
+                pitch ? ` · playing ${pitch.frequency.toFixed(1)} Hz` : ""
+              }`
+            : pitch
+              ? `${pitch.frequency.toFixed(1)} Hz`
+              : state === "listening"
+                ? "Listening…"
+                : "Play a note"}
         </p>
       </div>
 
       {/* Meter — shaded in-tune band, real tick marks, smoothed needle */}
       <div className="space-y-1.5">
         <div className="relative h-4 overflow-hidden rounded-full bg-graphite-800">
-          {/* ±5 cent in-tune zone, shaded directly on the track */}
           <div className="absolute inset-y-0 bg-teal-400/15" style={{ left: `${50 - 5}%`, width: "10%" }} />
-          {/* Tick marks at -50/-25/0/+25/+50 */}
           {[-50, -25, 0, 25, 50].map((c) => (
             <div key={c} className="absolute top-0 h-full w-px bg-graphite-950/40" style={{ left: `${50 + c / 2}%` }} />
           ))}
@@ -332,7 +806,21 @@ export function TunerForm() {
         </div>
       </div>
 
-      {/* Reference pitch — the thing that was hardcoded to 440 before */}
+      {/* Plain-language instruction — what to physically do next */}
+      {action && (
+        <p className={cn("text-center text-sm font-medium", action.className)} role="status" aria-live="polite">
+          {action.text}
+        </p>
+      )}
+
+      {showLowStringHint && (
+        <p className="text-center text-[11px] text-text-subtle">
+          Low bass strings are hard for laptop mics — try playing the 12th-fret harmonic, or use the string&apos;s reference tone to tune by
+          ear.
+        </p>
+      )}
+
+      {/* Reference pitch — transposes every string target too */}
       <div className="flex items-center justify-between gap-3 rounded-lg border border-graphite-800 bg-graphite-850/60 px-3.5 py-2.5">
         <span className="text-xs text-text-muted">Reference pitch (A4)</span>
         <div className="flex items-center gap-2">
@@ -400,6 +888,17 @@ export function TunerForm() {
         {state === "listening" ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
         {state === "requesting" ? "Requesting microphone…" : state === "listening" ? "Stop" : "Start tuning"}
       </button>
+
+      <div className="flex justify-end">
+        <button
+          type="button"
+          onClick={copyShareLink}
+          className="flex items-center gap-1.5 rounded-md border border-graphite-700 bg-graphite-850 px-2.5 py-1.5 text-[11px] font-medium text-text-muted transition-colors hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40"
+        >
+          {linkCopied ? <Check className="h-3.5 w-3.5 text-teal-400" /> : <Link2 className="h-3.5 w-3.5" />}
+          {linkCopied ? "Copied" : "Copy tuning link"}
+        </button>
+      </div>
     </div>
   );
 }

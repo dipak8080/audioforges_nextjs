@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Fragment } from "react";
-import { TunerForm } from "@/components/browser/TunerForm";
+import { TunerForm, type TunerInitialSettings } from "@/components/browser/TunerForm";
 import { FAQSection } from "@/components/faq/FAQSection";
 import { ToolPageShell } from "@/components/layout/ToolPageShell";
 import { Breadcrumb } from "@/components/layout/Breadcrumb";
@@ -51,11 +51,17 @@ const webAppJsonLd = {
   operatingSystem: "Any",
   offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
   featureList: [
-    "Free online guitar tuner",
+    "Free online guitar tuner with string-by-string mode",
     "Chromatic tuner for all 12 notes",
+    "Instrument presets: guitar, bass, ukulele, violin, viola, cello, mandolin",
+    "Alternate guitar tunings: Drop D, Half-step down, Open G, DADGAD — all free",
+    "Auto-detects which string you're playing and tells you to tighten or loosen",
+    "Warns before you over-tighten and snap a string",
+    "Auto-advances to the next string and tracks tuning progress",
+    "Per-string reference tones for tuning by ear",
     "Real-time microphone pitch detection",
-    "Tune guitar, bass, ukulele, violin, viola, cello, and other instruments",
-    "Sharp and flat cents indicator",
+    "Adjustable reference pitch (415–466 Hz) that transposes all string targets",
+    "Shareable tuning links",
     "Works directly in the browser",
     "No download or sign-up required",
   ],
@@ -75,8 +81,9 @@ const GUITAR_STRINGS: [string, string, string][] = [
 const ALT_TUNINGS: [string, string][] = [
   ["Standard", "E A D G B E"],
   ["Drop D", "D A D G B E"],
-  ["D Standard", "D G C F A D"],
+  ["Half-step down", "Eb Ab Db Gb Bb Eb"],
   ["Open G", "D G D G B D"],
+  ["DADGAD", "D A D G A D"],
 ];
 
 const faqs = [
@@ -111,6 +118,26 @@ const faqs = [
       "Yes. Because it detects chromatic pitch rather than a fixed set of guitar strings, it can be used with bass, ukulele, violin, and other pitched instruments.",
   },
   {
+    question: "How do I know which string I'm tuning?",
+    answer:
+      "Pick your instrument and the tuner shows every string as a button. It auto-detects which string you're playing and highlights it, then tells you in plain words whether to tighten or loosen. You can also tap any string to tune it specifically.",
+  },
+  {
+    question: "Can it stop me from over-tightening a string?",
+    answer:
+      "Yes. If the detected pitch is far above the selected string's target — the classic sign of tuning an octave too high — the tuner warns you to stop tightening before the string snaps.",
+  },
+  {
+    question: "Does it support alternate tunings like Drop D?",
+    answer:
+      "Yes — Drop D, Half-step down, Open G, and DADGAD for guitar, plus 4- and 5-string bass, all free. The reference pitch selector transposes every string target too.",
+  },
+  {
+    question: "Can I hear what a string should sound like?",
+    answer:
+      "Yes. Each string has a small speaker button that plays its exact target pitch, so you can tune by ear when the microphone struggles — useful for low bass strings on laptop mics.",
+  },
+  {
     question: "Why isn't it detecting anything?",
     answer:
       "Make sure microphone access was granted, play a single sustained note rather than a chord (the detector is built for one pitch at a time), and reduce background noise if possible.",
@@ -122,8 +149,35 @@ const faqs = [
   },
 ];
 
-export default function TunerPage() {
+/** Share-link params are public and hand-editable — validated, not trusted.
+ *  Anything malformed falls back to the chromatic default. */
+const INSTRUMENT_IDS = ["guitar", "bass", "ukulele", "violin", "viola", "cello", "mandolin"] as const;
+const TUNING_IDS = ["standard", "drop-d", "half-step", "open-g", "dadgad", "4-string", "5-string"] as const;
+
+function parseChoice<T extends string>(raw: string | undefined, allowed: readonly T[]): T | undefined {
+  return allowed.includes(raw as T) ? (raw as T) : undefined;
+}
+
+function parseRefPitch(raw: string | undefined): number | undefined {
+  if (!raw) return undefined;
+  const value = Number.parseInt(raw, 10);
+  if (!Number.isFinite(value)) return undefined;
+  if (value < 415 || value > 466) return undefined;
+  return value;
+}
+
+interface TunerPageProps {
+  searchParams: Promise<{ i?: string; t?: string; ref?: string }>;
+}
+
+export default async function TunerPage({ searchParams }: TunerPageProps) {
   const relatedTools = getRelatedTools("tuner", 5);
+  const params = await searchParams;
+  const initialSettings: TunerInitialSettings = {
+    instrument: parseChoice(params.i, INSTRUMENT_IDS),
+    tuning: parseChoice(params.t, TUNING_IDS),
+    referencePitch: parseRefPitch(params.ref),
+  };
 
   return (
     <>
@@ -135,7 +189,7 @@ export default function TunerPage() {
         }
         title="Free Online Guitar Tuner & Chromatic Tuner"
         lede="Tune guitar, bass, ukulele, violin, or any instrument with your microphone, in real time."
-        tool={<TunerForm />}
+        tool={<TunerForm initialSettings={initialSettings} />}
       >
         <FeatureStrip
           features={[
