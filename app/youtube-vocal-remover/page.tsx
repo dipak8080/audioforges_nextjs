@@ -25,14 +25,14 @@ import { ogForTool } from "@/lib/og";
 const DEMO_STANDARD = "/audio/demo-vocals-standard.wav";
 const DEMO_STUDIO = "/audio/demo-vocals-studio.wav";
 
-const PAGE_TITLE = "Free YouTube Vocal Remover";
+const PAGE_TITLE = "YouTube Vocal Remover – Free Instrumental & Acapella";
 const PAGE_DESCRIPTION =
-  "Extract vocals from YouTube videos free with AI — a no-signup alternative to paid vocal removers. Get isolated vocals and instrumental tracks free, with no sign-up.";
+  "Remove vocals from any YouTube video free. Paste a link and get a clean instrumental and an isolated acapella — no download, no sign-up, no watermark.";
 
 const OG_IMAGE = ogForTool("youtube-vocal-remover", "Free YouTube Vocal Remover");
 
 export const metadata: Metadata = {
-  title: PAGE_TITLE,
+  title: { absolute: PAGE_TITLE },
   description: PAGE_DESCRIPTION,
   alternates: { canonical: `${SITE_URL}/youtube-vocal-remover` },
   openGraph: {

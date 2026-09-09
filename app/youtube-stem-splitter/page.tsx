@@ -32,7 +32,7 @@ const PAGE_DESCRIPTION =
 const OG_IMAGE = ogForTool("youtube-stem-splitter", "Free YouTube Stem Splitter");
 
 export const metadata: Metadata = {
-  title: PAGE_TITLE,
+  title: { absolute: PAGE_TITLE },
   description: PAGE_DESCRIPTION,
   alternates: { canonical: `${SITE_URL}/youtube-stem-splitter` },
   openGraph: {
