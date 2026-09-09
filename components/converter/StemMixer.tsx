@@ -275,7 +275,9 @@ export function StemMixer({ stems, onDownload, onDownloadAll, sourceTitle }: Ste
 
   const seekTo = useCallback(
     (t: number) => {
-      const clamped = Math.max(0, Math.min(t, duration || t));
+      let clamped = Math.max(0, Math.min(t, duration || t));
+      const lp = loopRef.current;
+      if (lp && clamped >= lp.b) clamped = lp.a;
       if (playingRef.current) {
         startPlaybackAt(clamped);
       } else {
@@ -367,8 +369,17 @@ export function StemMixer({ stems, onDownload, onDownloadAll, sourceTitle }: Ste
   /* ── keyboard ── */
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement)?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      const el = e.target as HTMLElement | null;
+      const tag = el?.tagName;
+      if (
+        tag === "INPUT" ||
+        tag === "TEXTAREA" ||
+        tag === "SELECT" ||
+        tag === "BUTTON" ||
+        el?.isContentEditable ||
+        el?.closest?.("button")
+      )
+        return;
       if (e.code === "Space") {
         e.preventDefault();
         togglePlay();
