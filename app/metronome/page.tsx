@@ -294,6 +294,45 @@ export default async function MetronomePage({ searchParams }: MetronomePageProps
           </p>
         </ToolSection>
 
+        <ToolSection id="practice-modes" title="Practice modes: silent bars, speed trainer, subdivisions">
+          <p>
+            <strong>Silent bars</strong> play a set number of bars out loud, then
+            mute for a set number while the beat lights keep running. You hold the
+            tempo yourself and find out whether you drifted when the click returns.
+            It is the standard exercise for building internal time rather than
+            leaning on the metronome, and teachers usually set it at three bars
+            played to one muted, tightening to 1:1 as it gets easier.
+          </p>
+          <p>
+            The <strong>speed trainer</strong> raises the tempo for you as you
+            play. Set how many BPM to add, how many bars to hold each tempo, and
+            a target — then work a difficult passage from a slow, accurate tempo
+            up to speed without stopping to change the number. At the target it
+            either holds or loops back to your starting tempo for another pass.
+          </p>
+          <p>
+            <strong>Subdivisions</strong> add eighths, triplets or sixteenths
+            between the main beats, at a quieter, higher pitch so the downbeat
+            accent still leads. Useful for swung passages, compound time, and any
+            exercise where the notes fall between the beats you can hear.
+          </p>
+        </ToolSection>
+
+        <ToolSection id="share-practice-settings" title="Share a practice setup with a link">
+          <p>
+            Every setting on this page — tempo, beats per measure, subdivision,
+            silent-bar pattern and speed-trainer steps — can be copied as a single
+            link with the &ldquo;Copy practice link&rdquo; button. Open that link
+            and the metronome loads configured exactly as you left it.
+          </p>
+          <p>
+            Teachers use this to send students a specific exercise rather than a
+            list of instructions: one link that opens at 76 BPM in 3/4 with three
+            bars played and one muted. It also works as a bookmark for a routine
+            you come back to, and nobody needs an account at either end.
+          </p>
+        </ToolSection>
+
         <ToolSection id="no-drift" title="Why this metronome doesn't drift">
           <p>
             Many simple online metronomes use a basic JavaScript timer to trigger
