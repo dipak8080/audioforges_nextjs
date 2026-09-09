@@ -13,14 +13,14 @@ import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
 import { ogForTool } from "@/lib/og";
 
-const PAGE_TITLE = "Free Online Guitar Tuner & Chromatic Tuner";
+const PAGE_TITLE = "Online Guitar Tuner — Free Chromatic Tuner";
 const PAGE_DESCRIPTION =
-  "Free online guitar and chromatic tuner. Tune guitar, bass, ukulele, violin, and more with your microphone in real time.";
+  "Free online tuner for guitar, bass, ukulele, violin and more. String-by-string or chromatic, with Drop D, Open G and DADGAD. No app, no sign-up.";
 
 const OG_IMAGE = ogForTool("tuner", "Free Online Guitar Tuner");
 
 export const metadata: Metadata = {
-  title: PAGE_TITLE,
+  title: { absolute: PAGE_TITLE },
   description: PAGE_DESCRIPTION,
   alternates: { canonical: `${SITE_URL}/tuner` },
   openGraph: {
