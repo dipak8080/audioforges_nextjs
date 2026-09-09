@@ -7,6 +7,7 @@ import { ToolPageShell } from "@/components/layout/ToolPageShell";
 import { Breadcrumb } from "@/components/layout/Breadcrumb";
 import { ToolSection } from "@/components/ui/ToolSection";
 import { FeatureStrip } from "@/components/ui/FeatureStrip";
+import { StemCompare } from "@/components/credits/StemCompare";
 import { Prose } from "@/components/ui/Prose";
 import { RelatedToolsGrid } from "@/components/tools/RelatedToolsGrid";
 import { ToolVideo } from "@/components/media/ToolVideo";
@@ -17,14 +18,21 @@ import { getDurationLabel } from "@/lib/data/tool-limits";
 import { getFeatureFlags } from "@/lib/api/railway";
 import { ogForTool } from "@/lib/og";
 
+
+/** Same 41 seconds of the same track through both tiers, level-matched — the
+ *  clips already proving the claim on /pricing. Shared files, so the demo can
+ *  never drift from what the tiers actually produce. */
+const DEMO_STANDARD = "/audio/demo-vocals-standard.wav";
+const DEMO_STUDIO = "/audio/demo-vocals-studio.wav";
+
 const PAGE_TITLE = "YouTube Stem Splitter – Split Songs Into Stems";
 const PAGE_DESCRIPTION =
-  "Split any YouTube song into vocals, drums, bass and other stems. Paste a link, get four separate tracks — free, no download, no sign-up, no watermark.";
+  "Split YouTube songs into stems free — vocals, drums, bass, and other with AI. Free, no sign-up, no download required.";
 
 const OG_IMAGE = ogForTool("youtube-stem-splitter", "Free YouTube Stem Splitter");
 
 export const metadata: Metadata = {
-  title: { absolute: PAGE_TITLE },
+  title: PAGE_TITLE,
   description: PAGE_DESCRIPTION,
   alternates: { canonical: `${SITE_URL}/youtube-stem-splitter` },
   openGraph: {
@@ -117,6 +125,21 @@ export default async function YouTubeStemSplitterPage() {
   const { separationHqEnabled } = await getFeatureFlags();
 
   const faqs: FAQItem[] = [
+    {
+      question: "How do I split a YouTube song into stems for free?",
+      answer:
+        "Paste the link above — the standard tier returns full-length vocals, drums, bass, and other stems as WAV files with no account and no watermark. Studio Quality upgrades the split with MelBand RoFormer, the top-ranked open-source vocal model on public benchmarks, for one credit.",
+    },
+    {
+      question: "Is this a free alternative to paid stem splitters?",
+      answer:
+        "Yes. Most stem splitters sell monthly minutes or per-stem pricing; this one splits full tracks free and charges a single credit only for the GPU-heavy Studio Quality tier — no subscription, and credits never expire.",
+    },
+    {
+      question: "Which AI models power the separation?",
+      answer:
+        "Standard runs htdemucs, the published Hybrid Transformer Demucs. Studio Quality runs MelBand RoFormer — an open-source band-split transformer whose vocal-separation scores top the public benchmarks this field is measured on. Both are verifiable published models, not something wrapped and renamed.",
+    },
     {
       question: "What is a YouTube stem splitter?",
       answer:
@@ -232,7 +255,31 @@ export default async function YouTubeStemSplitterPage() {
           ]}
         />
 
-        <ToolSection id="how-to" title="How to split a YouTube video into stems">
+
+        {/* The proof, up front: the only claim on this page a reader can
+            check with their ears instead of taking on trust. Same clips as
+            /pricing — one source of truth for what the tiers sound like. */}
+        {separationHqEnabled && (
+          <ToolSection id="hear-the-difference" title="Hear the difference">
+            <p>
+              The vocal stem, from both tiers, on the same song. Switch while it plays — both versions stay at the same
+              playhead, so you hear the same bar twice back to back. Listen for
+              vocal bleed in the quiet passages and the watery, underwater
+              artifacts on sustained notes.
+            </p>
+            <StemCompare
+              standardSrc={DEMO_STANDARD}
+              studioSrc={DEMO_STUDIO}
+              stemLabel="Vocals"
+              trackLabel="Dense mix, long reverb tail"
+            />
+            <p className="text-xs text-text-subtle">
+              Music: Culture Code — Make Me Move (feat. Karra) [NCS Release]
+            </p>
+          </ToolSection>
+        )}
+
+                <ToolSection id="how-to" title="How to split a YouTube video into stems">
           <ol>
             <li>
               Paste a YouTube video, Shorts, or youtu.be link — up to{" "}
@@ -451,6 +498,28 @@ export default async function YouTubeStemSplitterPage() {
             audio processed through this tool.
           </p>
         </section>
+
+
+        <ToolSection id="free-alternative" title="A free alternative to paid tools">
+          <p>
+            Splitting a YouTube song with a paid tool means downloading the
+            audio, uploading it, and paying per processing minute. Here you
+            paste the link and the standard four-stem split is free at full
+            length with no account. The models are named and open-source —
+            check the claims instead of trusting them.
+          </p>
+          <div className="mt-6 rounded-xl border border-amber-500/30 bg-amber-500/[0.06] p-5">
+            <p className="font-medium text-text-primary">
+              Don&apos;t take our word for it.
+            </p>
+            <p className="mt-1.5 text-sm">
+              Run the same song through any paid tool&apos;s preview and through
+              AudioForges, then trust your ears. Same track, same section — your
+              call. That&apos;s the whole comparison that matters, and it costs
+              you nothing to run it.
+            </p>
+          </div>
+        </ToolSection>
 
         <FAQSection faqs={faqs} />
       </ToolPageShell>
