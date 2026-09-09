@@ -1,29 +1,21 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Play, Square, Minus, Plus, ArrowRightCircle } from "lucide-react";
+import { Play, Square, Minus, Plus, ArrowRightCircle, Link2, Check } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils/cn";
 
 const BPM_MIN = 30;
 const BPM_MAX = 300;
 const BEATS_PER_MEASURE_OPTIONS = [2, 3, 4, 5, 6, 7, 8];
+const BAR_COUNT_OPTIONS = [1, 2, 3, 4];
 
-// Standard "look-ahead" scheduler pattern for Web Audio timing. A plain
-// setInterval/setTimeout loop drifts over time because JS timers aren't
-// sample-accurate - instead, a cheap timer runs frequently (every 25ms)
-// and, each time it fires, schedules any beats that fall within the next
-// SCHEDULE_AHEAD_SECONDS into the ACTUAL AudioContext clock (which IS
-// sample-accurate). The audio itself is scheduled ahead of when it's
-// needed; only the decision of "is it time to schedule the next batch"
-// uses a regular (imprecise) timer, which is fine since it only affects
-// when scheduling happens, not when playback happens.
+// Look-ahead scheduler: a cheap 25ms timer schedules upcoming ticks against
+// the sample-accurate AudioContext clock, so JS timer jitter never reaches
+// the audio. See /guides/why-online-metronomes-drift.
 const SCHEDULE_AHEAD_SECONDS = 0.1;
 const SCHEDULER_INTERVAL_MS = 25;
 
-// Classical tempo markings — turns a bare number into the vocabulary
-// musicians actually think in ("that's an Allegro") the same way the
-// pitch shifter maps semitones onto piano keys and interval names.
 const TEMPO_MARKS: { max: number; name: string }[] = [
   { max: 45, name: "Grave" },
   { max: 60, name: "Largo" },
@@ -41,14 +33,32 @@ function tempoNameFor(bpm: number): string {
   return TEMPO_MARKS.find((m) => bpm <= m.max)?.name ?? "Prestissimo";
 }
 
-const GENRE_PRESETS = [
-  { label: "Ballad", bpm: 70 },
-  { label: "Hip-Hop", bpm: 90 },
-  { label: "Pop", bpm: 100 },
-  { label: "House", bpm: 128 },
-  { label: "Techno", bpm: 140 },
-  { label: "D&B", bpm: 174 },
+// Each preset BPM sits inside the matching tempoNameFor() range, so the
+// button label and the live readout always agree.
+const TEMPO_PRESETS = [
+  { label: "Largo", bpm: 50 },
+  { label: "Adagio", bpm: 70 },
+  { label: "Andante", bpm: 90 },
+  { label: "Moderato", bpm: 110 },
+  { label: "Allegro", bpm: 140 },
+  { label: "Presto", bpm: 180 },
 ];
+
+const SUBDIVISION_OPTIONS = [
+  { value: 1, label: "Quarter", glyph: "\u2669" },
+  { value: 2, label: "Eighths", glyph: "\u266B" },
+  { value: 3, label: "Triplets", glyph: "3" },
+  { value: 4, label: "Sixteenths", glyph: "\u266C" },
+];
+
+const SOUND_OPTIONS = [
+  { value: "beep", label: "Beep" },
+  { value: "wood", label: "Wood" },
+  { value: "tick", label: "Tick" },
+] as const;
+
+type ClickSound = (typeof SOUND_OPTIONS)[number]["value"];
+type TrainerMode = "hold" | "loop";
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
@@ -57,10 +67,27 @@ function clamp(value: number, min: number, max: number): number {
 interface ScheduledBeat {
   time: number;
   beatIndex: number;
+  muted: boolean;
+  cycleBar: number;
+}
+
+export interface MetronomeInitialSettings {
+  beats?: number;
+  subdivision?: number;
+  mutePlayed?: number;
+  muteMuted?: number;
+  muteOn?: boolean;
+  trainerOn?: boolean;
+  trainerIncrement?: number;
+  trainerBars?: number;
+  trainerTarget?: number;
+  trainerMode?: TrainerMode;
+  sound?: ClickSound;
 }
 
 interface MetronomeFormProps {
   initialBpm?: number;
+  initialSettings?: MetronomeInitialSettings;
 }
 
 /* ------------------------------------------------------------------ */
@@ -162,32 +189,164 @@ function BpmMeter({
 }
 
 /* ------------------------------------------------------------------ */
+/* Small shared controls                                                */
+/* ------------------------------------------------------------------ */
+
+function ChipButton({
+  active,
+  onClick,
+  children,
+  className,
+  ariaLabel,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+  className?: string;
+  ariaLabel?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={ariaLabel}
+      aria-pressed={active}
+      className={cn(
+        "rounded-lg border font-mono text-sm font-semibold transition-colors",
+        active
+          ? "border-amber-500/60 bg-amber-500/10 text-amber-400"
+          : "border-graphite-700 bg-graphite-850 text-text-muted hover:text-text-primary",
+        className
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+function ToggleChip({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={cn(
+        "shrink-0 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors",
+        active
+          ? "border-amber-500/60 bg-amber-500/10 text-amber-400"
+          : "border-graphite-700 bg-graphite-850 text-text-muted hover:text-text-primary"
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+function SmallNumberInput({
+  value,
+  min,
+  max,
+  onChange,
+  ariaLabel,
+}: {
+  value: number;
+  min: number;
+  max: number;
+  onChange: (v: number) => void;
+  ariaLabel: string;
+}) {
+  return (
+    <input
+      type="number"
+      min={min}
+      max={max}
+      value={value}
+      onChange={(e) => onChange(clamp(Number(e.target.value) || min, min, max))}
+      aria-label={ariaLabel}
+      className="w-16 rounded-lg border border-graphite-700 bg-graphite-850 px-2 py-1.5 text-center font-mono text-sm font-semibold text-text-primary [appearance:textfield] focus:border-amber-500/60 focus:outline-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+    />
+  );
+}
+
+function formatElapsed(totalSeconds: number): string {
+  const m = Math.floor(totalSeconds / 60);
+  const s = totalSeconds % 60;
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
+/* ------------------------------------------------------------------ */
 /* Form                                                                 */
 /* ------------------------------------------------------------------ */
 
-export function MetronomeForm({ initialBpm }: MetronomeFormProps) {
-  const cameFromTapTempo = Boolean(initialBpm && initialBpm >= BPM_MIN && initialBpm <= BPM_MAX);
+export function MetronomeForm({ initialBpm, initialSettings }: MetronomeFormProps) {
+  const s = initialSettings ?? {};
+  const hasShareParams = Object.values(s).some((v) => v !== undefined);
+  const cameFromTapTempo = Boolean(initialBpm && initialBpm >= BPM_MIN && initialBpm <= BPM_MAX) && !hasShareParams;
 
   const [bpm, setBpm] = useState(() =>
     initialBpm && initialBpm >= BPM_MIN && initialBpm <= BPM_MAX ? initialBpm : 120
   );
-  const [beatsPerMeasure, setBeatsPerMeasure] = useState(4);
+  const [beatsPerMeasure, setBeatsPerMeasure] = useState(() => s.beats ?? 4);
   const [isPlaying, setIsPlaying] = useState(false);
   const [activeBeat, setActiveBeat] = useState<number | null>(null);
   const [volume, setVolume] = useState(0.7);
   const [accentEnabled, setAccentEnabled] = useState(true);
+  const [sound, setSound] = useState<ClickSound>(() => s.sound ?? "beep");
+  const [subdivision, setSubdivision] = useState(() => s.subdivision ?? 1);
+
+  const [muteOn, setMuteOn] = useState(() => s.muteOn ?? false);
+  const [playedBars, setPlayedBars] = useState(() => s.mutePlayed ?? 3);
+  const [mutedBars, setMutedBars] = useState(() => s.muteMuted ?? 1);
+  const [inMutedBar, setInMutedBar] = useState(false);
+  const [cycleBarDisplay, setCycleBarDisplay] = useState(0);
+
+  const [trainerOn, setTrainerOn] = useState(() => s.trainerOn ?? false);
+  const [trainerIncrement, setTrainerIncrement] = useState(() => s.trainerIncrement ?? 4);
+  const [trainerBars, setTrainerBars] = useState(() => s.trainerBars ?? 4);
+  const [trainerTarget, setTrainerTarget] = useState(() => s.trainerTarget ?? 160);
+  const [trainerMode, setTrainerMode] = useState<TrainerMode>(() => s.trainerMode ?? "hold");
+  const [trainerBarsLeft, setTrainerBarsLeft] = useState<number | null>(null);
+  const [trainerAtTarget, setTrainerAtTarget] = useState(false);
+
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [linkCopied, setLinkCopied] = useState(false);
 
   const audioCtxRef = useRef<AudioContext | null>(null);
   const schedulerTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const sessionTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const nextNoteTimeRef = useRef(0);
   const currentBeatRef = useRef(0);
+  const currentSubRef = useRef(0);
+  const barCounterRef = useRef(0);
+  const trainerBarsElapsedRef = useRef(0);
+  const trainerStartBpmRef = useRef(120);
   const scheduledBeatsRef = useRef<ScheduledBeat[]>([]);
   const rafRef = useRef<number | null>(null);
+  const wakeLockRef = useRef<WakeLockSentinel | null>(null);
 
   const bpmRef = useRef(bpm);
   const beatsPerMeasureRef = useRef(beatsPerMeasure);
   const volumeRef = useRef(volume);
   const accentEnabledRef = useRef(accentEnabled);
+  const soundRef = useRef(sound);
+  const subdivisionRef = useRef(subdivision);
+  const muteOnRef = useRef(muteOn);
+  const playedBarsRef = useRef(playedBars);
+  const mutedBarsRef = useRef(mutedBars);
+  const trainerOnRef = useRef(trainerOn);
+  const trainerIncrementRef = useRef(trainerIncrement);
+  const trainerBarsRef = useRef(trainerBars);
+  const trainerTargetRef = useRef(trainerTarget);
+  const trainerModeRef = useRef(trainerMode);
+
   useEffect(() => {
     bpmRef.current = bpm;
   }, [bpm]);
@@ -200,28 +359,81 @@ export function MetronomeForm({ initialBpm }: MetronomeFormProps) {
   useEffect(() => {
     accentEnabledRef.current = accentEnabled;
   }, [accentEnabled]);
+  useEffect(() => {
+    soundRef.current = sound;
+  }, [sound]);
+  useEffect(() => {
+    subdivisionRef.current = subdivision;
+  }, [subdivision]);
+  useEffect(() => {
+    muteOnRef.current = muteOn;
+  }, [muteOn]);
+  useEffect(() => {
+    playedBarsRef.current = playedBars;
+  }, [playedBars]);
+  useEffect(() => {
+    mutedBarsRef.current = mutedBars;
+  }, [mutedBars]);
+  useEffect(() => {
+    trainerOnRef.current = trainerOn;
+  }, [trainerOn]);
+  useEffect(() => {
+    trainerIncrementRef.current = trainerIncrement;
+  }, [trainerIncrement]);
+  useEffect(() => {
+    trainerBarsRef.current = trainerBars;
+  }, [trainerBars]);
+  useEffect(() => {
+    trainerTargetRef.current = trainerTarget;
+  }, [trainerTarget]);
+  useEffect(() => {
+    trainerModeRef.current = trainerMode;
+  }, [trainerMode]);
 
-  // Generates a click programmatically (a short sine burst with a fast
-  // decay envelope) rather than loading an audio file - the accented
-  // downbeat gets a higher pitch and slightly louder volume, matching
-  // how a real metronome distinguishes beat 1.
-  const playClick = useCallback((time: number, isAccent: boolean) => {
+  // Every click is synthesized — no samples. Sound choice sets waveform and
+  // base pitch; subdivision ticks are quieter, higher, and shorter so the
+  // main beat and accented downbeat stay dominant.
+  const playClick = useCallback((time: number, isAccent: boolean, isSub: boolean) => {
     const ctx = audioCtxRef.current;
     if (!ctx) return;
 
-    const accent = isAccent && accentEnabledRef.current;
+    const accent = isAccent && accentEnabledRef.current && !isSub;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.connect(gain);
     gain.connect(ctx.destination);
 
-    osc.frequency.value = accent ? 1400 : 1000;
-    const peak = (accent ? 0.35 : 0.22) * volumeRef.current;
+    let baseFreq: number;
+    let decay: number;
+    switch (soundRef.current) {
+      case "wood":
+        osc.type = "triangle";
+        baseFreq = accent ? 990 : 630;
+        decay = 0.035;
+        break;
+      case "tick":
+        osc.type = "square";
+        baseFreq = accent ? 2300 : 1800;
+        decay = 0.02;
+        break;
+      default:
+        osc.type = "sine";
+        baseFreq = accent ? 1400 : 1000;
+        decay = 0.05;
+    }
+
+    osc.frequency.value = isSub ? baseFreq * 1.7 : baseFreq;
+    let peak = (accent ? 0.35 : 0.22) * volumeRef.current;
+    if (soundRef.current === "tick") peak *= 0.7;
+    if (isSub) {
+      peak *= 0.4;
+      decay *= 0.6;
+    }
     gain.gain.setValueAtTime(Math.max(peak, 0.0001), time);
-    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.05);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + decay);
 
     osc.start(time);
-    osc.stop(time + 0.06);
+    osc.stop(time + decay + 0.01);
   }, []);
 
   const scheduler = useCallback(() => {
@@ -229,29 +441,64 @@ export function MetronomeForm({ initialBpm }: MetronomeFormProps) {
     if (!ctx) return;
 
     while (nextNoteTimeRef.current < ctx.currentTime + SCHEDULE_AHEAD_SECONDS) {
+      const beats = beatsPerMeasureRef.current;
+      const sub = subdivisionRef.current;
       const beatIndex = currentBeatRef.current;
-      playClick(nextNoteTimeRef.current, beatIndex === 0);
-      scheduledBeatsRef.current.push({ time: nextNoteTimeRef.current, beatIndex });
+      const subIndex = currentSubRef.current;
 
-      const secondsPerBeat = 60 / bpmRef.current;
-      nextNoteTimeRef.current += secondsPerBeat;
-      currentBeatRef.current = (beatIndex + 1) % beatsPerMeasureRef.current;
+      const cycle = playedBarsRef.current + mutedBarsRef.current;
+      const cycleBar = barCounterRef.current % cycle;
+      const muted = muteOnRef.current && cycleBar >= playedBarsRef.current;
+
+      if (!muted) {
+        playClick(nextNoteTimeRef.current, beatIndex === 0 && subIndex === 0, subIndex > 0);
+      }
+      if (subIndex === 0) {
+        scheduledBeatsRef.current.push({ time: nextNoteTimeRef.current, beatIndex, muted, cycleBar });
+      }
+
+      nextNoteTimeRef.current += 60 / bpmRef.current / sub;
+
+      let nextSub = subIndex + 1;
+      if (nextSub >= sub) {
+        nextSub = 0;
+        let nextBeat = beatIndex + 1;
+        if (nextBeat >= beats) {
+          nextBeat = 0;
+          barCounterRef.current += 1;
+
+          if (trainerOnRef.current) {
+            trainerBarsElapsedRef.current += 1;
+            if (trainerBarsElapsedRef.current >= trainerBarsRef.current) {
+              trainerBarsElapsedRef.current = 0;
+              const target = clamp(trainerTargetRef.current, BPM_MIN, BPM_MAX);
+              if (bpmRef.current < target) {
+                const next = Math.min(bpmRef.current + trainerIncrementRef.current, target);
+                bpmRef.current = next;
+                setBpm(next);
+              } else if (trainerModeRef.current === "loop" && trainerStartBpmRef.current < target) {
+                bpmRef.current = trainerStartBpmRef.current;
+                setBpm(trainerStartBpmRef.current);
+              }
+            }
+          }
+        }
+        currentBeatRef.current = nextBeat;
+      }
+      currentSubRef.current = nextSub;
     }
   }, [playClick]);
 
   /**
-   * The rAF loop reschedules itself, which it can't do by naming itself: a
-   * value referenced inside its own initializer is something the React
-   * Compiler can't reason about, and it responded by skipping optimisation of
-   * this entire component. One indirection through a ref — declared BEFORE the
-   * callback, assigned in an effect rather than during render — removes the
-   * self-reference without changing the timing.
+   * The rAF loop reschedules itself via a ref rather than by naming itself —
+   * a self-referencing initializer defeats the React Compiler. Declared
+   * BEFORE the callback, assigned in an effect.
    */
   const visualLoopRef = useRef<() => void>(() => {});
 
-  // Drives the visual beat indicator off the SAME scheduled times used
-  // for audio, rather than a separate timer - keeps the flash visually
-  // locked to what's actually audible instead of drifting from it.
+  // Visuals are driven off the SAME scheduled times as the audio, so what
+  // you see stays locked to what you hear — including during silent bars,
+  // where the dots keep running for self-checking.
   const visualLoop = useCallback(() => {
     const ctx = audioCtxRef.current;
     if (!ctx) return;
@@ -259,7 +506,16 @@ export function MetronomeForm({ initialBpm }: MetronomeFormProps) {
     const now = ctx.currentTime;
     while (scheduledBeatsRef.current.length > 0 && scheduledBeatsRef.current[0].time < now) {
       const beat = scheduledBeatsRef.current.shift();
-      if (beat) setActiveBeat(beat.beatIndex);
+      if (beat) {
+        setActiveBeat(beat.beatIndex);
+        setInMutedBar(beat.muted);
+        setCycleBarDisplay(beat.cycleBar);
+        if (beat.beatIndex === 0 && trainerOnRef.current) {
+          const atTarget = bpmRef.current >= clamp(trainerTargetRef.current, BPM_MIN, BPM_MAX);
+          setTrainerAtTarget(atTarget);
+          setTrainerBarsLeft(atTarget ? null : trainerBarsRef.current - trainerBarsElapsedRef.current);
+        }
+      }
     }
 
     rafRef.current = requestAnimationFrame(() => visualLoopRef.current());
@@ -269,24 +525,54 @@ export function MetronomeForm({ initialBpm }: MetronomeFormProps) {
     visualLoopRef.current = visualLoop;
   }, [visualLoop]);
 
+  const requestWakeLock = useCallback(async () => {
+    try {
+      if ("wakeLock" in navigator) {
+        wakeLockRef.current = await navigator.wakeLock.request("screen");
+      }
+    } catch {
+      // Best-effort; some browsers/battery states deny it.
+    }
+  }, []);
+
+  const releaseWakeLock = useCallback(() => {
+    wakeLockRef.current?.release().catch(() => {});
+    wakeLockRef.current = null;
+  }, []);
+
   const start = useCallback(() => {
     const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
     const ctx = new Ctx();
     audioCtxRef.current = ctx;
 
     currentBeatRef.current = 0;
+    currentSubRef.current = 0;
+    barCounterRef.current = 0;
+    trainerBarsElapsedRef.current = 0;
+    trainerStartBpmRef.current = bpmRef.current;
     nextNoteTimeRef.current = ctx.currentTime + 0.05;
     scheduledBeatsRef.current = [];
 
     schedulerTimerRef.current = setInterval(scheduler, SCHEDULER_INTERVAL_MS);
     rafRef.current = requestAnimationFrame(visualLoop);
+
+    setElapsedSeconds(0);
+    sessionTimerRef.current = setInterval(() => setElapsedSeconds((v) => v + 1), 1000);
+
+    setTrainerAtTarget(false);
+    setTrainerBarsLeft(trainerOnRef.current ? trainerBarsRef.current : null);
+    requestWakeLock();
     setIsPlaying(true);
-  }, [scheduler, visualLoop]);
+  }, [scheduler, visualLoop, requestWakeLock]);
 
   const stop = useCallback(() => {
     if (schedulerTimerRef.current) {
       clearInterval(schedulerTimerRef.current);
       schedulerTimerRef.current = null;
+    }
+    if (sessionTimerRef.current) {
+      clearInterval(sessionTimerRef.current);
+      sessionTimerRef.current = null;
     }
     if (rafRef.current) {
       cancelAnimationFrame(rafRef.current);
@@ -295,14 +581,25 @@ export function MetronomeForm({ initialBpm }: MetronomeFormProps) {
     audioCtxRef.current?.close();
     audioCtxRef.current = null;
     scheduledBeatsRef.current = [];
+    releaseWakeLock();
     setIsPlaying(false);
     setActiveBeat(null);
-  }, []);
+    setInMutedBar(false);
+    setTrainerBarsLeft(null);
+  }, [releaseWakeLock]);
 
-  // Declared after `stop` so it isn't reaching a value from further down the
-  // file. `stop` is useCallback([]) and therefore stable, so this still runs
-  // its cleanup only on unmount.
   useEffect(() => () => stop(), [stop]);
+
+  // Browsers drop the wake lock when the tab is hidden; reacquire on return.
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === "visible" && isPlaying && !wakeLockRef.current) {
+        requestWakeLock();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, [isPlaying, requestWakeLock]);
 
   const toggle = useCallback(() => {
     if (isPlaying) stop();
@@ -313,9 +610,6 @@ export function MetronomeForm({ initialBpm }: MetronomeFormProps) {
     setBpm((b) => clamp(b + delta, BPM_MIN, BPM_MAX));
   };
 
-  // Space to start/stop, arrow keys to nudge tempo (Shift for ±5) —
-  // skipped while focus is inside a text/number input so this doesn't
-  // steal keystrokes from the BPM field below.
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
@@ -336,12 +630,47 @@ export function MetronomeForm({ initialBpm }: MetronomeFormProps) {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [toggle]);
 
+  const copyShareLink = useCallback(async () => {
+    const params = new URLSearchParams();
+    params.set("bpm", String(bpm));
+    params.set("beats", String(beatsPerMeasure));
+    if (subdivision !== 1) params.set("sub", String(subdivision));
+    if (muteOn) {
+      params.set("mp", String(playedBars));
+      params.set("mm", String(mutedBars));
+    }
+    if (trainerOn) {
+      params.set("ti", String(trainerIncrement));
+      params.set("tb", String(trainerBars));
+      params.set("tt", String(trainerTarget));
+      params.set("tm", trainerMode);
+    }
+    if (sound !== "beep") params.set("snd", sound);
+
+    const url = `${window.location.origin}/metronome?${params.toString()}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    } catch {
+      window.prompt("Copy this practice link:", url);
+    }
+  }, [bpm, beatsPerMeasure, subdivision, muteOn, playedBars, mutedBars, trainerOn, trainerIncrement, trainerBars, trainerTarget, trainerMode, sound]);
+
+  const muteCycle = playedBars + mutedBars;
+
   return (
     <div className="space-y-8 rounded-2xl border border-graphite-800 bg-graphite-900 p-6 sm:p-8">
       {cameFromTapTempo && (
         <div className="flex items-center gap-2 rounded-lg border border-teal-400/25 bg-teal-400/[0.07] px-3.5 py-2 text-xs text-teal-400">
           <ArrowRightCircle className="h-3.5 w-3.5 shrink-0" aria-hidden />
           Loaded {initialBpm} BPM from the tap tempo tool
+        </div>
+      )}
+      {hasShareParams && (
+        <div className="flex items-center gap-2 rounded-lg border border-teal-400/25 bg-teal-400/[0.07] px-3.5 py-2 text-xs text-teal-400">
+          <Link2 className="h-3.5 w-3.5 shrink-0" aria-hidden />
+          Practice settings loaded from a shared link
         </div>
       )}
 
@@ -382,7 +711,7 @@ export function MetronomeForm({ initialBpm }: MetronomeFormProps) {
         </div>
 
         <div className="flex flex-wrap justify-center gap-1.5 pt-1">
-          {GENRE_PRESETS.map((preset) => (
+          {TEMPO_PRESETS.map((preset) => (
             <button
               key={preset.label}
               type="button"
@@ -400,51 +729,175 @@ export function MetronomeForm({ initialBpm }: MetronomeFormProps) {
         </div>
       </div>
 
-      {/* Beat indicator — bigger, numbered, with a real pulse instead of
-          a flat color swap. */}
-      <div className="flex justify-center gap-2.5" role="status" aria-label={`Beat ${(activeBeat ?? 0) + 1} of ${beatsPerMeasure}`}>
-        {Array.from({ length: beatsPerMeasure }).map((_, i) => {
-          const active = activeBeat === i;
-          const isDownbeat = i === 0;
-          return (
-            <span
-              key={i}
-              className={cn(
-                "flex h-8 w-8 items-center justify-center rounded-full border font-mono text-xs transition-all duration-75",
-                active
-                  ? cn("scale-125 border-transparent", isDownbeat ? "bg-amber-500 text-graphite-950" : "bg-teal-400 text-graphite-950")
-                  : "border-graphite-700 bg-graphite-850 text-text-subtle"
-              )}
-            >
-              {i + 1}
-            </span>
-          );
-        })}
+      {/* Dots keep pulsing (dimmed) during silent bars so the user can
+          check their internal tempo against the visual. */}
+      <div className="space-y-2">
+        <div
+          className="flex justify-center gap-2.5"
+          role="status"
+          aria-label={`Beat ${(activeBeat ?? 0) + 1} of ${beatsPerMeasure}${inMutedBar ? ", silent bar" : ""}`}
+        >
+          {Array.from({ length: beatsPerMeasure }).map((_, i) => {
+            const active = activeBeat === i;
+            const isDownbeat = i === 0;
+            return (
+              <span
+                key={i}
+                className={cn(
+                  "flex h-8 w-8 items-center justify-center rounded-full border font-mono text-xs transition-all duration-75",
+                  active
+                    ? inMutedBar
+                      ? "scale-125 border-amber-500/40 bg-graphite-700 text-text-muted"
+                      : cn("scale-125 border-transparent", isDownbeat ? "bg-amber-500 text-graphite-950" : "bg-teal-400 text-graphite-950")
+                    : "border-graphite-700 bg-graphite-850 text-text-subtle"
+                )}
+              >
+                {i + 1}
+              </span>
+            );
+          })}
+        </div>
+
+        {isPlaying && (muteOn || trainerOn) && (
+          <p className="text-center font-mono text-[11px] text-text-subtle" aria-live="polite">
+            {muteOn && (
+              <span className={cn(inMutedBar && "text-amber-400")}>
+                Bar {cycleBarDisplay + 1}/{muteCycle}
+                {inMutedBar ? " · silent" : ""}
+              </span>
+            )}
+            {muteOn && trainerOn && <span> · </span>}
+            {trainerOn &&
+              (trainerAtTarget ? (
+                <span className="text-teal-400">At target{trainerMode === "loop" ? " · looping back" : ""}</span>
+              ) : trainerBarsLeft !== null ? (
+                <span>
+                  +{trainerIncrement} BPM in {trainerBarsLeft} {trainerBarsLeft === 1 ? "bar" : "bars"}
+                </span>
+              ) : null)}
+          </p>
+        )}
       </div>
 
       <div className="space-y-2">
         <label className="block text-center text-sm font-medium text-text-primary">Beats per measure</label>
         <div className="flex flex-wrap justify-center gap-2">
           {BEATS_PER_MEASURE_OPTIONS.map((n) => (
-            <button
-              key={n}
-              type="button"
-              onClick={() => setBeatsPerMeasure(n)}
-              className={cn(
-                "h-10 w-10 rounded-lg border text-sm font-mono font-semibold transition-colors",
-                beatsPerMeasure === n
-                  ? "border-amber-500/60 bg-amber-500/10 text-amber-400"
-                  : "border-graphite-700 bg-graphite-850 text-text-muted hover:text-text-primary"
-              )}
-            >
+            <ChipButton key={n} active={beatsPerMeasure === n} onClick={() => setBeatsPerMeasure(n)} className="h-10 w-10">
               {n}
-            </button>
+            </ChipButton>
           ))}
         </div>
       </div>
 
-      <div className="flex items-center gap-4">
-        <div className="flex flex-1 items-center gap-2">
+      <div className="space-y-2">
+        <label className="block text-center text-sm font-medium text-text-primary">Subdivision</label>
+        <div className="flex flex-wrap justify-center gap-2">
+          {SUBDIVISION_OPTIONS.map((opt) => (
+            <ChipButton
+              key={opt.value}
+              active={subdivision === opt.value}
+              onClick={() => setSubdivision(opt.value)}
+              className="px-3 py-2 text-xs"
+              ariaLabel={opt.label}
+            >
+              <span aria-hidden className="mr-1.5">
+                {opt.glyph}
+              </span>
+              {opt.label}
+            </ChipButton>
+          ))}
+        </div>
+      </div>
+
+      {/* Practice tools — off by default, controls expand inline when on. */}
+      <div className="space-y-3 rounded-xl border border-graphite-800 bg-graphite-850/50 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span className="text-sm font-medium text-text-primary">Silent bars</span>
+          <ToggleChip active={muteOn} onClick={() => setMuteOn((v) => !v)}>
+            {muteOn ? "On" : "Off"}
+          </ToggleChip>
+        </div>
+        {muteOn && (
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-text-muted">Play</span>
+              <div className="flex gap-1.5">
+                {BAR_COUNT_OPTIONS.map((n) => (
+                  <ChipButton
+                    key={n}
+                    active={playedBars === n}
+                    onClick={() => setPlayedBars(n)}
+                    className="h-8 w-8 text-xs"
+                    ariaLabel={`Play ${n} bars`}
+                  >
+                    {n}
+                  </ChipButton>
+                ))}
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-text-muted">Mute</span>
+              <div className="flex gap-1.5">
+                {BAR_COUNT_OPTIONS.map((n) => (
+                  <ChipButton
+                    key={n}
+                    active={mutedBars === n}
+                    onClick={() => setMutedBars(n)}
+                    className="h-8 w-8 text-xs"
+                    ariaLabel={`Mute ${n} bars`}
+                  >
+                    {n}
+                  </ChipButton>
+                ))}
+              </div>
+            </div>
+            <p className="w-full text-[11px] text-text-subtle">
+              Plays {playedBars} {playedBars === 1 ? "bar" : "bars"}, mutes {mutedBars} — the dots keep running so you can check your internal
+              tempo.
+            </p>
+          </div>
+        )}
+
+        <div className="border-t border-graphite-800" />
+
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span className="text-sm font-medium text-text-primary">Speed trainer</span>
+          <ToggleChip active={trainerOn} onClick={() => setTrainerOn((v) => !v)}>
+            {trainerOn ? "On" : "Off"}
+          </ToggleChip>
+        </div>
+        {trainerOn && (
+          <div className="flex flex-wrap items-end gap-x-5 gap-y-3">
+            <div className="space-y-1">
+              <span className="block text-xs text-text-muted">+BPM per step</span>
+              <SmallNumberInput value={trainerIncrement} min={1} max={20} onChange={setTrainerIncrement} ariaLabel="BPM increment per step" />
+            </div>
+            <div className="space-y-1">
+              <span className="block text-xs text-text-muted">Every N bars</span>
+              <SmallNumberInput value={trainerBars} min={1} max={8} onChange={setTrainerBars} ariaLabel="Bars per step" />
+            </div>
+            <div className="space-y-1">
+              <span className="block text-xs text-text-muted">Target BPM</span>
+              <SmallNumberInput value={trainerTarget} min={BPM_MIN} max={BPM_MAX} onChange={setTrainerTarget} ariaLabel="Target BPM" />
+            </div>
+            <div className="space-y-1">
+              <span className="block text-xs text-text-muted">At target</span>
+              <div className="flex gap-1.5">
+                <ChipButton active={trainerMode === "hold"} onClick={() => setTrainerMode("hold")} className="px-2.5 py-1.5 text-xs">
+                  Hold
+                </ChipButton>
+                <ChipButton active={trainerMode === "loop"} onClick={() => setTrainerMode("loop")} className="px-2.5 py-1.5 text-xs">
+                  Loop
+                </ChipButton>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-4">
+        <div className="flex min-w-[180px] flex-1 items-center gap-2">
           <label htmlFor="metronome-volume" className="shrink-0 text-xs text-text-muted">
             Volume
           </label>
@@ -459,28 +912,38 @@ export function MetronomeForm({ initialBpm }: MetronomeFormProps) {
             className="h-1 flex-1 cursor-pointer appearance-none rounded-full bg-graphite-700 accent-amber-500"
           />
         </div>
-        <button
-          type="button"
-          onClick={() => setAccentEnabled((v) => !v)}
-          className={cn(
-            "shrink-0 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors",
-            accentEnabled
-              ? "border-amber-500/60 bg-amber-500/10 text-amber-400"
-              : "border-graphite-700 bg-graphite-850 text-text-muted hover:text-text-primary"
-          )}
-        >
+        <div className="flex gap-1.5">
+          {SOUND_OPTIONS.map((opt) => (
+            <ChipButton key={opt.value} active={sound === opt.value} onClick={() => setSound(opt.value)} className="px-2.5 py-1.5 text-xs">
+              {opt.label}
+            </ChipButton>
+          ))}
+        </div>
+        <ToggleChip active={accentEnabled} onClick={() => setAccentEnabled((v) => !v)}>
           Accent {accentEnabled ? "on" : "off"}
-        </button>
+        </ToggleChip>
       </div>
 
-      <Button variant="primary" size="lg" className="w-full" onClick={toggle}>
-        {isPlaying ? <Square className="h-5 w-5" fill="currentColor" /> : <Play className="h-5 w-5" fill="currentColor" />}
-        {isPlaying ? "Stop" : "Start"}
-      </Button>
+      <div className="space-y-3">
+        <Button variant="primary" size="lg" className="w-full" onClick={toggle}>
+          {isPlaying ? <Square className="h-5 w-5" fill="currentColor" /> : <Play className="h-5 w-5" fill="currentColor" />}
+          {isPlaying ? "Stop" : "Start"}
+        </Button>
 
-      <p className="text-center text-[11px] text-text-subtle">
-        Space to start/stop · ↑/↓ to adjust tempo (Shift for ±5)
-      </p>
+        <div className="flex items-center justify-between text-[11px] text-text-subtle">
+          <span className="font-mono">{isPlaying ? `Practiced ${formatElapsed(elapsedSeconds)}` : "\u00A0"}</span>
+          <button
+            type="button"
+            onClick={copyShareLink}
+            className="flex items-center gap-1.5 rounded-md border border-graphite-700 bg-graphite-850 px-2.5 py-1.5 font-medium text-text-muted transition-colors hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40"
+          >
+            {linkCopied ? <Check className="h-3.5 w-3.5 text-teal-400" /> : <Link2 className="h-3.5 w-3.5" />}
+            {linkCopied ? "Copied" : "Copy practice link"}
+          </button>
+        </div>
+      </div>
+
+      <p className="text-center text-[11px] text-text-subtle">Space to start/stop · ↑/↓ to adjust tempo (Shift for ±5)</p>
     </div>
   );
 }

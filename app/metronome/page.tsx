@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { MetronomeForm } from "@/components/browser/MetronomeForm";
+import { MetronomeForm, type MetronomeInitialSettings } from "@/components/browser/MetronomeForm";
 import { FAQSection } from "@/components/faq/FAQSection";
 import { ToolPageShell } from "@/components/layout/ToolPageShell";
 import { Breadcrumb } from "@/components/layout/Breadcrumb";
@@ -78,6 +78,11 @@ const webAppJsonLd = {
   featureList: [
     `Adjustable BPM from ${MIN_BPM} to ${MAX_BPM}`,
     "Configurable time signature with an accented downbeat",
+    "Subdivisions: eighths, triplets, and sixteenths",
+    "Silent-bar practice mode with a visual beat that keeps running",
+    "Speed trainer that raises the tempo automatically",
+    "Classical tempo presets from Largo to Presto",
+    "Shareable practice-settings links",
     "Scheduled against the audio clock to avoid drift",
     "No sign-up required",
   ],
@@ -114,6 +119,21 @@ const faqs = [
     answer: "Yes — completely free, no sign-up, no ads, no limits.",
   },
   {
+    question: "What is silent-bar practice?",
+    answer:
+      "The metronome plays a set number of bars out loud, then mutes for a set number of bars while the visual beat keeps running. If you're still in time when the sound comes back, your internal tempo is solid — a standard exercise for building timing without depending on the click.",
+  },
+  {
+    question: "How does the speed trainer work?",
+    answer:
+      "Set a BPM increment, how many bars to play at each tempo, and a target BPM. The metronome raises the tempo automatically as you play — without stopping or glitching — until it reaches the target, where it either holds or loops back to your starting tempo.",
+  },
+  {
+    question: "Can it play subdivisions like triplets?",
+    answer:
+      "Yes — choose eighths, triplets, or sixteenths and the metronome plays quieter, higher-pitched ticks between the main beats, keeping the accented downbeat intact.",
+  },
+  {
     question: "Is there a tool to figure out a song's BPM instead of setting one?",
     answer:
       "Yes — the BPM Tapper lets you tap along to a beat and calculates the tempo for you.",
@@ -143,14 +163,59 @@ function parseBpm(raw: string | undefined): number | undefined {
   return value;
 }
 
+/** Share-link params follow the same rule as `?bpm=`: public, hand-editable,
+ *  validated rather than trusted. Anything malformed or out of range is
+ *  silently dropped and the form falls back to its default. */
+function parseIntIn(raw: string | undefined, min: number, max: number): number | undefined {
+  if (!raw) return undefined;
+  const value = Number.parseInt(raw, 10);
+  if (!Number.isFinite(value)) return undefined;
+  if (value < min || value > max) return undefined;
+  return value;
+}
+
+function parseChoice<T extends string>(raw: string | undefined, allowed: readonly T[]): T | undefined {
+  return allowed.includes(raw as T) ? (raw as T) : undefined;
+}
+
+interface MetronomeSearchParams {
+  bpm?: string;
+  beats?: string;
+  sub?: string;
+  mp?: string;
+  mm?: string;
+  ti?: string;
+  tb?: string;
+  tt?: string;
+  tm?: string;
+  snd?: string;
+}
+
 interface MetronomePageProps {
-  searchParams: Promise<{ bpm?: string }>;
+  searchParams: Promise<MetronomeSearchParams>;
 }
 
 export default async function MetronomePage({ searchParams }: MetronomePageProps) {
   const relatedTools = getRelatedTools("metronome", 5);
-  const { bpm } = await searchParams;
-  const initialBpm = parseBpm(bpm);
+  const params = await searchParams;
+  const initialBpm = parseBpm(params.bpm);
+
+  const mutePlayed = parseIntIn(params.mp, 1, 4);
+  const muteMuted = parseIntIn(params.mm, 1, 4);
+  const trainerIncrement = parseIntIn(params.ti, 1, 20);
+  const initialSettings: MetronomeInitialSettings = {
+    beats: parseIntIn(params.beats, 2, 8),
+    subdivision: parseIntIn(params.sub, 1, 4),
+    mutePlayed,
+    muteMuted,
+    muteOn: mutePlayed !== undefined && muteMuted !== undefined ? true : undefined,
+    trainerOn: trainerIncrement !== undefined ? true : undefined,
+    trainerIncrement,
+    trainerBars: parseIntIn(params.tb, 1, 8),
+    trainerTarget: parseIntIn(params.tt, MIN_BPM, MAX_BPM),
+    trainerMode: parseChoice(params.tm, ["hold", "loop"] as const),
+    sound: parseChoice(params.snd, ["beep", "wood", "tick"] as const),
+  };
 
   return (
     <>
@@ -162,7 +227,7 @@ export default async function MetronomePage({ searchParams }: MetronomePageProps
         }
         title="Free Online Metronome"
         lede="Adjustable BPM and time signature, right in your browser, free, no sign-up, no app."
-        tool={<MetronomeForm initialBpm={initialBpm} />}
+        tool={<MetronomeForm initialBpm={initialBpm} initialSettings={initialSettings} />}
       >
         <FeatureStrip
           features={[
@@ -173,6 +238,10 @@ export default async function MetronomePage({ searchParams }: MetronomePageProps
             {
               title: "No drift",
               desc: "Scheduled against your browser's audio clock, not a basic timer.",
+            },
+            {
+              title: "Practice tools",
+              desc: "Silent bars, speed trainer, and subdivisions built in.",
             },
             { title: "No sign-up", desc: "No account, no ads, no limits." },
           ]}
