@@ -7,6 +7,7 @@ import {
   CooldownBar,
   ErrorPanel,
   FormShell,
+  MixerTeaser,
   Section,
   ValidationNote,
   WorkingPanel,
@@ -644,6 +645,7 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
         failed={isFailed}
         complete={isComplete}
         footer={footer}
+        breakoutOnComplete
       >
         {/* SOURCE — the file, and anything wrong with it. */}
         {!isComplete && (
@@ -660,7 +662,27 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
               {/* An error about the file belongs beside the file, not below
                   two unrelated controls. */}
               {validationError && <ValidationNote message={validationError} />}
+
+              <MixerTeaser />
             </div>
+          </Section>
+        )}
+
+        {/* WORKING */}
+        {isBusy && (
+          <Section>
+            <WorkingPanel
+              stageLabel={stageLabel}
+              stages={stages}
+              stageIndex={stageIndex}
+              showStageList={status === "processing"}
+              elapsedSeconds={elapsedSeconds}
+              progress={easedProgress(elapsedSeconds, jobQuality === "hq" ? 40 : 12)}
+              expectedRange={activeSpec.time}
+              chargedRun={chargedRun}
+              onCancel={handleCancel}
+              waveform={<Waveform />}
+            />
           </Section>
         )}
 
@@ -713,24 +735,6 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
                 </ToggleRow>
               )}
             </div>
-          </Section>
-        )}
-
-        {/* WORKING */}
-        {isBusy && (
-          <Section>
-            <WorkingPanel
-              stageLabel={stageLabel}
-              stages={stages}
-              stageIndex={stageIndex}
-              showStageList={status === "processing"}
-              elapsedSeconds={elapsedSeconds}
-              progress={easedProgress(elapsedSeconds, jobQuality === "hq" ? 40 : 12)}
-              expectedRange={activeSpec.time}
-              chargedRun={chargedRun}
-              onCancel={handleCancel}
-              waveform={<Waveform />}
-            />
           </Section>
         )}
 

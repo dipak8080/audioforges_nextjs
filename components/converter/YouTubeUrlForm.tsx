@@ -39,6 +39,7 @@ import {
   type PollTiming,
   type ProcessingStage,
   type UiState,
+  MixerTeaser,
 } from "@/components/tools/JobFormKit";
 
 export type { ProcessingStage };
@@ -89,6 +90,10 @@ function Thumbnail({ id, className }: { id: string; className?: string }) {
 
 interface YouTubeUrlFormProps {
   endpoint: string;
+  /** Expand the card to DAW width on the result step (separation tools). */
+  breakoutOnComplete?: boolean;
+  /** Show the Forge Mixer promise strip under the URL input. */
+  showMixerTeaser?: boolean;
   onSubmit: (url: string) => Promise<JobSubmitResponse>;
   pollIntervalMs?: number;
   submitLabel: string;
@@ -113,6 +118,8 @@ interface YouTubeUrlFormProps {
 
 export function YouTubeUrlForm({
   endpoint,
+  breakoutOnComplete = false,
+  showMixerTeaser = false,
   onSubmit,
   pollIntervalMs = 4000,
   submitLabel,
@@ -478,6 +485,7 @@ export function YouTubeUrlForm({
         busy={isBusy}
         failed={isFailed}
         complete={status === "complete"}
+        breakoutOnComplete={breakoutOnComplete}
         footer={
           status !== "complete" ? (
             <>
@@ -595,6 +603,8 @@ export function YouTubeUrlForm({
                 <CheckCircle2 className="h-4 w-4 shrink-0 text-teal-400" aria-hidden />
               </div>
             )}
+
+            {showMixerTeaser && <MixerTeaser />}
           </Section>
         )}
 

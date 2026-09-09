@@ -314,6 +314,8 @@ export function YouTubeStemForm({ hqAvailable = false }: YouTubeStemFormProps) {
 
   return (
     <YouTubeUrlForm
+        breakoutOnComplete
+        showMixerTeaser
       endpoint="youtube/stems"
       onSubmit={(url) => submitYoutubeStems(url, effectiveQuality)}
       // Credits wiring. `meteredToolKey` reflects the CURRENT selection, so it's

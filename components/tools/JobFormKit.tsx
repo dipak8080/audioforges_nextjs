@@ -18,7 +18,7 @@
  */
 
 import { useEffect, useState, type ReactNode } from "react";
-import { AlertTriangle, Check, Loader2 } from "lucide-react";
+import { AlertTriangle, Check, Loader2, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { ApiError } from "@/lib/api/railway";
 
@@ -287,6 +287,7 @@ export function FormShell({
   complete,
   children,
   footer,
+  breakoutOnComplete = false,
   allowOverflow = false,
 }: {
   toolLabel: string;
@@ -301,6 +302,10 @@ export function FormShell({
    *  the same place in every state, rather than being the last item in
    *  whichever stack happens to be rendered. */
   footer?: ReactNode;
+  /** On the result step, the card expands past the page's 3xl column to DAW
+   *  width (centered breakout) so wide result players get real room. Idle and
+   *  working states stay in the normal column, identical to every other tool. */
+  breakoutOnComplete?: boolean;
   /**
    * Drops `overflow-hidden` from the card.
    *
@@ -327,7 +332,10 @@ export function FormShell({
         "rounded-2xl border border-graphite-800 bg-graphite-900 shadow-xl shadow-black/20",
         // See allowOverflow: clipping is right for every form EXCEPT the one
         // with a popover and a sticky player inside it.
-        !allowOverflow && "overflow-hidden"
+        !allowOverflow && "overflow-hidden",
+        breakoutOnComplete &&
+          complete &&
+          "lg:relative lg:left-1/2 lg:w-[min(72rem,calc(100vw-3rem))] lg:-translate-x-1/2"
       )}
     >
       <style dangerouslySetInnerHTML={{ __html: KIT_STYLES }} />
@@ -383,6 +391,22 @@ export function FormShell({
 
 export function Section({ className, children }: { className?: string; children: ReactNode }) {
   return <section className={cn("p-5 sm:p-8", className)}>{children}</section>;
+}
+
+/** Slim strip under a separation form's dropzone: promises the Forge Mixer
+ *  result experience without hijacking the layout before a job exists. */
+export function MixerTeaser() {
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-xl border border-graphite-800 bg-graphite-950/40 px-3.5 py-2.5">
+      <span className="flex items-center gap-1.5 font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-500/90">
+        <Sparkles className="h-3 w-3" aria-hidden />
+        Forge Mixer
+      </span>
+      <span className="text-xs text-text-subtle">
+        Result opens in a full mixer — mute · solo · volume · pan · A–B loop · export your mix
+      </span>
+    </div>
+  );
 }
 
 /* ------------------------------------------------------------------ */

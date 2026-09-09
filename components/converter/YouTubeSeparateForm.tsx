@@ -278,6 +278,8 @@ export function YouTubeSeparateForm({ hqAvailable = false }: YouTubeSeparateForm
 
   return (
     <YouTubeUrlForm
+        breakoutOnComplete
+        showMixerTeaser
       endpoint="youtube/separate"
       onSubmit={(url) => submitYoutubeSeparate(url, effectiveQuality)}
       // Credits wiring. `meteredToolKey` reflects the CURRENT selection, so it's

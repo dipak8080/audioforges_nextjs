@@ -62,6 +62,7 @@ import {
   type PollTiming,
   type ProcessingStage,
   type UiState,
+  MixerTeaser,
 } from "@/components/tools/JobFormKit";
 
 export type { ProcessingStage };
@@ -239,6 +240,8 @@ interface MultiOutputToolFormProps {
   /** "mixer" renders the multi-lane StemMixer instead of the row list +
    *  single player. Default "list" keeps silence-split and others unchanged. */
   resultView?: "list" | "mixer";
+  /** Expand the card to DAW width on the result step (separation tools). */
+  breakoutOnComplete?: boolean;
   maxSubmitRetries?: number;
   /**
    * OPT-IN CREDITS WIRING.
@@ -287,6 +290,7 @@ export function MultiOutputToolForm({
   formatOutputName = defaultFormatOutputName,
   getOutputIcon = defaultOutputIcon,
   resultView = "list",
+  breakoutOnComplete = false,
   maxSubmitRetries = 1,
   meteredToolKey = null,
   upgradeFamily,
@@ -673,6 +677,7 @@ export function MultiOutputToolForm({
         busy={isBusy}
         failed={isFailed}
         complete={status === "complete"}
+        breakoutOnComplete={breakoutOnComplete}
         footer={
         /* Hidden until there's a file, rather than shown disabled — a full-width
            h-12 slab at 40% opacity carries the weight of the primary action
@@ -715,6 +720,7 @@ export function MultiOutputToolForm({
           {/* An error about the file belongs beside the file, not below the
               tool's controls. */}
           {validationError && <ValidationNote message={validationError} />}
+          {resultView === "mixer" && <MixerTeaser />}
         </Section>
       )}
 
