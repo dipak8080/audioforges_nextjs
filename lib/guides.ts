@@ -351,6 +351,15 @@ export const guides: Guide[] = [
     category: "production",
   },
   {
+    slug: "samplab-alternatives",
+    title: "Samplab Alternatives After the Shutdown",
+    description:
+      "Samplab's hosted service ends 17 September 2026. What to export before then, and the free and paid replacements for audio-to-MIDI, stems and note editing.",
+    publishedDate: "2026-09-09",
+    updatedDate: "2026-09-09",
+    category: "production",
+  },
+  {
     slug: "songscription-alternatives-free",
     title: "Free Songscription Alternatives Compared",
     description:

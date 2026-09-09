@@ -443,7 +443,11 @@ export default async function AudioToMidiPage() {
             <Link href="/guides/how-audio-to-midi-transcription-works">
               How Audio to MIDI Transcription Works
             </Link>
-            .
+            . Moving over from Samplab before it shuts down on 17 September?{" "}
+            <Link href="/guides/samplab-alternatives">
+              This guide covers what to export first
+            </Link>{" "}
+            and which tools replace which part of it.
           </p>
         </ToolSection>
 
