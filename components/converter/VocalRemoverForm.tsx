@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Mic2, Download, Sparkles, Music4, Bell, BellOff, RotateCcw } from "lucide-react";
-import { Button, buttonStyles } from "@/components/ui/Button";
+import { Mic2, Sparkles, Music4, Bell, BellOff, RotateCcw } from "lucide-react";
+import { Button } from "@/components/ui/Button";
 import {
   CooldownBar,
   ErrorPanel,
@@ -26,14 +26,14 @@ import {
   ControlField,
   Hint,
   OptionCards,
-  Segmented,
   ToggleRow,
   type CardOption,
 } from "@/components/converter/ToolControls";
 import { FileDropZone } from "@/components/ui/FileDropZone";
 import { Waveform } from "@/components/ui/Waveform";
 import { validateAudioFile } from "@/lib/utils/validation";
-import { AudioPlayer } from "@/components/ui/AudioPlayer";
+import { StemMixer } from "@/components/converter/StemMixer";
+import { triggerDownload, triggerDownloadsStaggered } from "@/lib/utils/download";
 import {
   submitSeparation,
   getSeparationStatus,
@@ -205,7 +205,6 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
   const [error, setError] = useState<FormError | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
   const [resultTitle, setResultTitle] = useState<string | null>(null);
-  const [activeStem, setActiveStem] = useState<StemType>("vocals");
 
   const [quality, setQuality] = useState<SeparationQuality>("standard");
   /**
@@ -532,7 +531,6 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
       setJobId(newJobId);
       setJobQuality("hq");
       setResultTitle(null);
-      setActiveStem("vocals");
       setElapsedSeconds(0);
       setError(null);
       if (upgradeBilling !== undefined) {
@@ -556,7 +554,6 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
     setError(null);
     setJobId(null);
     setResultTitle(null);
-    setActiveStem("vocals");
     setElapsedSeconds(0);
     setJobQuality("standard");
     setBilling(null);
@@ -748,24 +745,31 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
                 tag={jobQuality === "hq" ? <StudioQualityTag /> : undefined}
               />
 
-              <Segmented
-                label="Stem"
-                value={activeStem}
-                onChange={setActiveStem}
-                options={[
-                  { value: "vocals", label: "Vocals", icon: <Mic2 className="h-4 w-4" aria-hidden /> },
-                  {
-                    value: "instrumental",
-                    label: "Instrumental",
-                    icon: <Music4 className="h-4 w-4" aria-hidden />,
-                  },
-                ]}
+              <StemMixer
+                key={jobId}
+                stems={(["vocals", "instrumental"] as StemType[]).map((name) => ({
+                  name: name === "vocals" ? "Vocals" : "Instrumental",
+                  url: getSeparationPreviewUrl(jobId, name),
+                  icon:
+                    name === "vocals" ? (
+                      <Mic2 className="h-4 w-4" aria-hidden />
+                    ) : (
+                      <Music4 className="h-4 w-4" aria-hidden />
+                    ),
+                }))}
+                onDownload={(display) => {
+                  const raw: StemType = display === "Vocals" ? "vocals" : "instrumental";
+                  triggerDownload(getSeparationDownloadUrl(jobId, raw));
+                }}
+                onDownloadAll={() =>
+                  triggerDownloadsStaggered(
+                    (["vocals", "instrumental"] as StemType[]).map((n) =>
+                      getSeparationDownloadUrl(jobId, n)
+                    )
+                  )
+                }
+                sourceTitle={resultTitle}
               />
-
-              {/* Keyed per stem so the player remounts on a new source. The
-                  envelope cache in waveform.ts means switching back and forth
-                  no longer re-decodes the file each time. */}
-              <AudioPlayer key={activeStem} src={getSeparationPreviewUrl(jobId, activeStem)} />
 
               {/* Directly under the player, above Download. The user has just
                   heard the bleed in their own track — this is the only moment
@@ -775,17 +779,6 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
               {jobQuality === "standard" && (
                 <UpgradeToHqCard family="separate" jobId={jobId} onUpgraded={handleUpgraded} />
               )}
-
-              {/* Stays an <a> — a real download URL, so middle-click and
-                  open-in-new-tab keep working. */}
-              <a
-                href={getSeparationDownloadUrl(jobId, activeStem)}
-                download
-                className={buttonStyles({ variant: "primary", size: "lg", className: "w-full" })}
-              >
-                <Download />
-                Download {activeStem}
-              </a>
 
               <CreditReceipt billing={billing} />
 

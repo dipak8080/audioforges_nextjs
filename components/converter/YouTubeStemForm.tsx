@@ -2,19 +2,18 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
-  Download,
   Mic2,
   Drum,
   Guitar,
   Music2,
   AudioLines,
-  Play,
   Sparkles,
   Bell,
   BellOff,
 } from "lucide-react";
 import { YouTubeUrlForm } from "@/components/converter/YouTubeUrlForm";
-import { AudioPlayer } from "@/components/ui/AudioPlayer";
+import { StemMixer } from "@/components/converter/StemMixer";
+import { triggerDownload, triggerDownloadsStaggered } from "@/lib/utils/download";
 import {
   ControlField,
   Hint,
@@ -30,7 +29,6 @@ import {
   type SeparationQuality,
 } from "@/lib/api/railway";
 import { getRateLimitLabel } from "@/lib/data/rate-limits";
-import { cn } from "@/lib/utils/cn";
 import { useCredits } from "@/components/credits/CreditProvider";
 import { AlwaysFreeTag, FreeTierBadge } from "@/components/credits/FreeTierBadge";
 import type { MeteredToolKey } from "@/lib/types/credits";
@@ -177,22 +175,17 @@ function formatStemName(name: string): string {
  * the per-stem downloads. The header — verb, title, thumbnail, elapsed time,
  * Studio Quality tag — is YouTubeUrlForm's, and this used to draw a second one.
  */
-function StemsResult({ jobId }: { jobId: string }) {
+function StemsResult({ jobId, title }: { jobId: string; title: string | null }) {
   const [stems, setStems] = useState<string[]>([]);
-  const [activeStem, setActiveStem] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // The component is keyed on jobId by its caller, so a new job mounts fresh
-    // and there is no stale error to clear — which also keeps a synchronous
-    // setState out of this effect body.
     let cancelled = false;
     (async () => {
       try {
         const result = await getYoutubeStemsStatus(jobId);
         if (cancelled) return;
         setStems(result.outputs);
-        setActiveStem(result.outputs[0] ?? null);
       } catch {
         if (!cancelled) setError("Could not load the stem list.");
       }
@@ -206,72 +199,21 @@ function StemsResult({ jobId }: { jobId: string }) {
   if (stems.length === 0) return <p className="text-sm text-text-muted">Loading stems…</p>;
 
   return (
-    <div className="space-y-4">
-      <div
-        role="group"
-        aria-label="Stems"
-        className="divide-y divide-graphite-800 overflow-hidden rounded-xl border border-graphite-700"
-      >
-        {stems.map((name) => {
-          const isActive = activeStem === name;
-          return (
-            <div
-              key={name}
-              className={cn(
-                "flex items-center gap-3 px-3 py-2.5 transition-colors",
-                isActive ? "bg-amber-500/5" : "hover:bg-graphite-850/60"
-              )}
-            >
-              <button
-                type="button"
-                onClick={() => setActiveStem(name)}
-                // The selected stem was signalled by amber text and a swapped
-                // icon — both invisible to a screen reader. aria-pressed is
-                // what makes "which one is playing" answerable without sight.
-                aria-pressed={isActive}
-                className="flex min-w-0 flex-1 items-center gap-3 rounded-md text-left outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70"
-              >
-                <span
-                  className={cn(
-                    "flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors",
-                    isActive ? "bg-amber-500 text-graphite-950" : "bg-graphite-800 text-text-muted"
-                  )}
-                >
-                  {isActive ? (
-                    <Play className="h-3.5 w-3.5" fill="currentColor" aria-hidden />
-                  ) : (
-                    stemIcon(name)
-                  )}
-                </span>
-                <span
-                  className={cn(
-                    "truncate text-sm font-medium",
-                    isActive ? "text-amber-400" : "text-text-primary"
-                  )}
-                >
-                  {formatStemName(name)}
-                </span>
-              </button>
-
-              {/* Stays an <a> — a real download URL, so middle-click and
-                  open-in-new-tab keep working. */}
-              <a
-                href={getYoutubeStemsDownloadUrl(jobId, name)}
-                download
-                aria-label={`Download ${formatStemName(name)}`}
-                className="shrink-0 rounded-lg p-2 text-text-muted outline-none transition-colors hover:bg-graphite-800 hover:text-amber-400 focus-visible:ring-2 focus-visible:ring-amber-400/70"
-              >
-                <Download className="h-4 w-4" aria-hidden />
-              </a>
-            </div>
-          );
-        })}
-      </div>
-
-      {activeStem && (
-        <AudioPlayer key={activeStem} src={getYoutubeStemsPreviewUrl(jobId, activeStem)} />
-      )}
-    </div>
+    <StemMixer
+      stems={stems.map((name) => ({
+        name: formatStemName(name),
+        url: getYoutubeStemsPreviewUrl(jobId, name),
+        icon: stemIcon(name),
+      }))}
+      onDownload={(display) => {
+        const raw = stems.find((n) => formatStemName(n) === display) ?? display;
+        triggerDownload(getYoutubeStemsDownloadUrl(jobId, raw));
+      }}
+      onDownloadAll={() =>
+        triggerDownloadsStaggered(stems.map((n) => getYoutubeStemsDownloadUrl(jobId, n)))
+      }
+      sourceTitle={title}
+    />
   );
 }
 
@@ -457,7 +399,7 @@ export function YouTubeStemForm({ hqAvailable = false }: YouTubeStemFormProps) {
           )}
         </div>
       )}
-      renderComplete={(jobId) => <StemsResult key={jobId} jobId={jobId} />}
+      renderComplete={(jobId, title) => <StemsResult key={jobId} jobId={jobId} title={title} />}
     />
   );
 }

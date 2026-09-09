@@ -1,15 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Download, Mic2, Music4, Sparkles, Bell, BellOff } from "lucide-react";
+import { Mic2, Music4, Sparkles, Bell, BellOff } from "lucide-react";
 import { YouTubeUrlForm } from "@/components/converter/YouTubeUrlForm";
-import { AudioPlayer } from "@/components/ui/AudioPlayer";
-import { buttonStyles } from "@/components/ui/Button";
+import { StemMixer } from "@/components/converter/StemMixer";
+import { triggerDownload, triggerDownloadsStaggered } from "@/lib/utils/download";
 import {
   ControlField,
   Hint,
   OptionCards,
-  Segmented,
   ToggleRow,
   type CardOption,
 } from "@/components/converter/ToolControls";
@@ -150,48 +149,35 @@ const HQ_STAGES = [
   { at: 90, label: "Rendering vocals and instrumental" },
 ];
 
-const STEM_OPTIONS = [
-  { value: "vocals" as const, label: "Vocals", icon: <Mic2 className="h-4 w-4" aria-hidden /> },
-  {
-    value: "instrumental" as const,
-    label: "Instrumental",
-    icon: <Music4 className="h-4 w-4" aria-hidden />,
-  },
-];
 
 /**
  * Only what sits BELOW the kit's result header: the stem switch, the player and
  * the download. The header itself — verb, title, thumbnail, elapsed time,
  * Studio Quality tag — is YouTubeUrlForm's, and this used to draw a second one.
  */
-function SeparateResult({ jobId }: { jobId: string }) {
-  const [activeStem, setActiveStem] = useState<StemType>("vocals");
-
+function SeparateResult({ jobId, title }: { jobId: string; title: string | null }) {
+  const stems: StemType[] = ["vocals", "instrumental"];
   return (
-    <div className="space-y-4">
-      <Segmented
-        label="Stem"
-        value={activeStem}
-        onChange={setActiveStem}
-        options={STEM_OPTIONS}
-      />
-
-      {/* Keyed per stem so the player remounts on a new source. The envelope
-          cache in waveform.ts means switching back and forth no longer
-          re-decodes the file each time. */}
-      <AudioPlayer key={activeStem} src={getYoutubeSeparatePreviewUrl(jobId, activeStem)} />
-
-      {/* Stays an <a> — a real download URL, so middle-click and open-in-new-tab
-          keep working. Borrows the Button styles rather than repeating them. */}
-      <a
-        href={getYoutubeSeparateDownloadUrl(jobId, activeStem)}
-        download
-        className={buttonStyles({ variant: "primary", size: "lg", className: "w-full" })}
-      >
-        <Download />
-        Download {activeStem}
-      </a>
-    </div>
+    <StemMixer
+      stems={stems.map((name) => ({
+        name: name === "vocals" ? "Vocals" : "Instrumental",
+        url: getYoutubeSeparatePreviewUrl(jobId, name),
+        icon:
+          name === "vocals" ? (
+            <Mic2 className="h-4 w-4" aria-hidden />
+          ) : (
+            <Music4 className="h-4 w-4" aria-hidden />
+          ),
+      }))}
+      onDownload={(display) => {
+        const raw: StemType = display === "Vocals" ? "vocals" : "instrumental";
+        triggerDownload(getYoutubeSeparateDownloadUrl(jobId, raw));
+      }}
+      onDownloadAll={() =>
+        triggerDownloadsStaggered(stems.map((n) => getYoutubeSeparateDownloadUrl(jobId, n)))
+      }
+      sourceTitle={title}
+    />
   );
 }
 
@@ -377,7 +363,7 @@ export function YouTubeSeparateForm({ hqAvailable = false }: YouTubeSeparateForm
           )}
         </div>
       )}
-      renderComplete={(jobId) => <SeparateResult jobId={jobId} />}
+      renderComplete={(jobId, title) => <SeparateResult key={jobId} jobId={jobId} title={title} />}
     />
   );
 }

@@ -276,6 +276,7 @@ export function StemsForm({ hqAvailable = false }: StemsFormProps) {
   return (
     <MultiOutputToolForm
       endpoint="stems"
+      resultView="mixer"
       queryParam="stem"
       onSubmit={(file) => submitStems(file, effectiveQuality)}
       // Credits wiring. `meteredToolKey` reflects the CURRENT selection, so it's

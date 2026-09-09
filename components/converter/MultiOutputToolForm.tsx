@@ -19,6 +19,8 @@ import { Button, buttonStyles } from "@/components/ui/Button";
 import { FileDropZone } from "@/components/ui/FileDropZone";
 import { Waveform } from "@/components/ui/Waveform";
 import { AudioPlayer } from "@/components/ui/AudioPlayer";
+import { StemMixer } from "@/components/converter/StemMixer";
+import { triggerDownload, triggerDownloadsStaggered } from "@/lib/utils/download";
 import { SupportBlock } from "@/components/ui/SupportBlock";
 import { useCreditGate } from "@/components/credits/useCreditGate";
 import { useCredits } from "@/components/credits/CreditProvider";
@@ -234,6 +236,9 @@ interface MultiOutputToolFormProps {
   formatOutputName?: (name: string) => string;
   /** Overrides the default per-row icon for a given output name. */
   getOutputIcon?: (name: string) => ReactNode;
+  /** "mixer" renders the multi-lane StemMixer instead of the row list +
+   *  single player. Default "list" keeps silence-split and others unchanged. */
+  resultView?: "list" | "mixer";
   maxSubmitRetries?: number;
   /**
    * OPT-IN CREDITS WIRING.
@@ -281,6 +286,7 @@ export function MultiOutputToolForm({
   rateLimitMessage,
   formatOutputName = defaultFormatOutputName,
   getOutputIcon = defaultOutputIcon,
+  resultView = "list",
   maxSubmitRetries = 1,
   meteredToolKey = null,
   upgradeFamily,
@@ -758,7 +764,26 @@ export function MultiOutputToolForm({
             clicking a row swaps its src rather than mounting a player per
             output.
           */}
-          {outputs.length > 0 && (
+          {resultView === "mixer" && outputs.length > 0 && (
+            <StemMixer
+              stems={outputs.map((name) => ({
+                name: formatOutputName(name),
+                url: getMultiOutputPreviewUrl(endpoint, jobId, name, queryParam),
+              }))}
+              onDownload={(display) => {
+                const raw = outputs.find((n) => formatOutputName(n) === display) ?? display;
+                triggerDownload(getMultiOutputDownloadUrl(endpoint, jobId, raw, queryParam));
+              }}
+              onDownloadAll={() =>
+                triggerDownloadsStaggered(
+                  outputs.map((n) => getMultiOutputDownloadUrl(endpoint, jobId, n, queryParam))
+                )
+              }
+              sourceTitle={resultTitle}
+            />
+          )}
+
+          {resultView === "list" && outputs.length > 0 && (
             <div
               role="group"
               aria-label="Outputs"
@@ -829,7 +854,7 @@ export function MultiOutputToolForm({
             </div>
           )}
 
-          {activeOutput && (
+          {resultView === "list" && activeOutput && (
             <AudioPlayer
               key={activeOutput}
               src={getMultiOutputPreviewUrl(endpoint, jobId, activeOutput, queryParam)}
