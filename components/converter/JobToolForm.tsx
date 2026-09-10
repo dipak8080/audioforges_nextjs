@@ -190,6 +190,8 @@ function humanizeError(raw: string): FormError {
 interface JobToolFormProps {
   /** Backend route segment, e.g. "convert", "trim", "volume" */
   endpoint: string;
+  /** Expand the card to DAW width on the result step (wide result players). */
+  breakoutOnComplete?: boolean;
   /** Accept string for the file input, e.g. "audio/*,.mp3,.wav" */
   fileAccept?: string;
   /**
@@ -313,7 +315,7 @@ interface JobToolFormProps {
    * for a tool whose output can't be previewed as audio and therefore has
    * nothing to show for itself otherwise.
    */
-  renderResult?: (jobId: string) => ReactNode;
+  renderResult?: (jobId: string, file: File | null) => ReactNode;
   /**
    * Suppresses the Ko-fi support block. Set on the /embed widgets: they render
    * inside someone else's article, where a donation ask for a third party is
@@ -329,6 +331,7 @@ interface JobToolFormProps {
 
 export function JobToolForm({
   endpoint,
+  breakoutOnComplete = false,
   fileAccept = "audio/*,.mp3,.wav,.m4a,.aac,.ogg,.flac,.aiff",
   fileHint,
   validateFile = validateAudioFile,
@@ -698,6 +701,7 @@ export function JobToolForm({
         busy={isBusy}
         failed={isFailed}
         complete={status === "complete"}
+        breakoutOnComplete={breakoutOnComplete}
         footer={
           /* Hidden until there's a file, rather than shown disabled. A
              full-width h-12 slab at 40% opacity carries the same physical weight
@@ -797,7 +801,7 @@ export function JobToolForm({
             {/* Anything the tool wants to say about its own output. For a result
                 that can't be played back, this is the only evidence the run
                 produced what it promised. */}
-            {renderResult?.(jobId)}
+            {renderResult?.(jobId, file)}
 
             <CreditReceipt billing={billing} />
 

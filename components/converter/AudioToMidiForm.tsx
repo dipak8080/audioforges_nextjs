@@ -969,6 +969,7 @@ export function AudioToMidiForm({ hqAvailable = false }: { hqAvailable?: boolean
 
   return (
     <JobToolForm
+      breakoutOnComplete
       // Different ROUTE, not a quality flag — the two tiers are different
       // models with different parameter sets.
       //
@@ -984,11 +985,12 @@ export function AudioToMidiForm({ hqAvailable = false }: { hqAvailable?: boolean
       // Sends af_sid so a balance can be seen and spent. False on the free
       // route, which returns no billing block at all.
       metered={isHq}
-      renderResult={(jobId) => (
+      renderResult={(jobId, file) => (
         <>
           <MidiResultPlayer
             key={jobId}
             src={getJobDownloadUrl(isHq ? "audio-to-midi-hq" : "audio-to-midi", jobId)}
+            sourceFile={file}
           />
           {isHq && <MidiHqResultSummary jobId={jobId} />}
         </>
