@@ -5,8 +5,11 @@ import { FAQSection } from "@/components/faq/FAQSection";
 import { ToolPageShell } from "@/components/layout/ToolPageShell";
 import { Breadcrumb } from "@/components/layout/Breadcrumb";
 import { ToolSection } from "@/components/ui/ToolSection";
-import { FeatureStrip } from "@/components/ui/FeatureStrip";
+import { Prose } from "@/components/ui/Prose";
 import { RelatedToolsGrid } from "@/components/tools/RelatedToolsGrid";
+import { ProofStrip } from "@/components/tools/ProofStrip";
+import { CompareTable } from "@/components/tools/CompareTable";
+import { PageByline } from "@/components/tools/PageByline";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
 import { ogForTool } from "@/lib/og";
@@ -46,6 +49,8 @@ const PAGE_TITLE = "Background Noise Remover – Free Audio Noise Reduction";
 const PAGE_DESCRIPTION =
   "Free background noise remover. Remove hiss, hum, fan noise and static from MP3, WAV, FLAC and more — online, no sign-up, no watermark.";
 
+const UPDATED = "2026-09-10";
+
 const OG_IMAGE = ogForTool("noise-remove", "Free Background Noise Remover");
 
 export const metadata: Metadata = {
@@ -82,6 +87,7 @@ const webAppJsonLd = {
     "Audio Cleaner",
   ],
   url: `${SITE_URL}/noise-remove`,
+  dateModified: UPDATED,
   applicationCategory: "MultimediaApplication",
   operatingSystem: "Any",
   offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
@@ -127,10 +133,6 @@ export default async function NoiseRemovePage() {
         "For speech-only recordings, the Voice Cleaner's fixed speech-tuned preset (rumble cut, denoise, loudness normalize) generally works better. Use this tool when you want direct control over reduction strength, or for music and non-speech audio.",
     },
     {
-      question: "Is this really free?",
-      answer: "Yes — completely free, no sign-up, no watermark on the output.",
-    },
-    {
       question: "What formats are supported, and is there a size limit?",
       answer:
         durationCap === null
@@ -144,100 +146,89 @@ export default async function NoiseRemovePage() {
     {
       question: "Should I denoise before or after boosting volume?",
       answer:
-        "Denoise first, then boost volume. Boosting first raises the noise right along with everything else, which just means the denoiser has more to remove — cleaning it up before adjusting levels gives a clearer result.",
+        "Denoise first, then boost volume. Boosting first raises the noise right along with everything else, which just means the denoiser has more to remove, cleaning it up before adjusting levels gives a clearer result.",
     },
   ];
+  const limitLabel =
+    durationCap === null ? `${limits.maxUploadMb}MB per upload` : `${limits.maxUploadMb}MB and ${durationLabel(durationCap)}`;
 
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(webAppJsonLd) }} />
 
       <ToolPageShell
-        breadcrumb={
-          <Breadcrumb items={[{ name: "Tools", href: "/tools" }, { name: "Noise Remover" }]} />
-        }
+        breadcrumb={<Breadcrumb items={[{ name: "Tools", href: "/tools" }, { name: "Noise Remover" }]} />}
+        meta={["No account", "Strength you control", "Not an AI model, and says so"]}
         title="Free Background Noise Remover"
-        lede="Strip background hiss, hum, and static from any recording, free, no sign-up, no watermark."
+        lede="Take hiss, hum and steady background noise out of a recording, with a strength slider that tells you when you are pushing it too far. Free, no sign-up."
         tool={<NoiseRemoveForm />}
       >
-        <FeatureStrip
-          features={[
-            { title: "Adjustable", desc: "Control exactly how aggressive the cleanup is." },
-            { title: "Works on anything", desc: "Music, speech, or field recordings." },
+        <ProofStrip
+          proofs={[
             {
-              title: "No sign-up",
-              desc:
-                durationCap === null
-                  ? `No account, no email, no watermark. Up to ${limits.maxUploadMb}MB per file.`
-                  : `No account, no email, no watermark. Up to ${limits.maxUploadMb}MB and ${durationLabel(durationCap)}.`,
+              label: "What it is",
+              value: "ffmpeg noise reduction, not a neural model",
+              note: "Good at steady noise: hiss, hum, fan, room tone. It cannot separate a voice from another voice or from music.",
+            },
+            {
+              label: "Control",
+              value: "Strength 1 to 97, default 12",
+              note: "The slider warns as you enter the range where the wanted audio starts to warble. Raise it only if noise is still audible.",
+            },
+            {
+              label: "Limits",
+              value: limitLabel,
+              note: `${formatList}. Output keeps your format. Uploads are deleted on completion.`,
             },
           ]}
         />
 
-        <ToolSection id="how-to" title="How to remove background noise from audio">
-          <ol>
-            <li>Upload an {formatList} file.</li>
-            <li>Leave the reduction strength at its default, or adjust it manually.</li>
-            <li>Run the denoiser.</li>
-            <li>Download the cleaned-up result.</li>
-          </ol>
+        <ToolSection id="which" title="Which cleaner for which problem" bleed>
+          <CompareTable
+            columns={["Best for", "What it actually does"]}
+            highlight={-1}
+            rows={[
+              {
+                label: "Noise Remover, this page",
+                cells: [
+                  { text: "Hiss, hum, fan, traffic, on any audio" },
+                  { state: "yes", text: "Denoise only, with a strength slider from 1 to 97" },
+                ],
+              },
+              {
+                label: "Voice Cleaner",
+                cells: [
+                  { text: "Speech: podcasts, interviews, voice memos" },
+                  { state: "partial", text: "Fixed chain, no settings: rumble cut, speech-tuned denoise, loudness normalize" },
+                ],
+              },
+              {
+                label: "Echo Remover",
+                cells: [
+                  { text: "Slap-back and mild room echo" },
+                  { state: "partial", text: "Gates trailing reflections. Not a dereverb model; heavy room reverb stays" },
+                ],
+              },
+            ]}
+            footnote="Steady noise is the easy case for all three. Intermittent noise, crosstalk and music under speech are the hard cases, and none of these tools claims them."
+          />
+          <Prose className="mt-5">
+            <p>
+              Speech only, and you would rather not think about a slider? <Link href="/voice-clean">Voice Cleaner</Link>{" "}
+              runs a fixed chain built for that. Echo rather than noise?{" "}
+              <Link href="/echo-remove">Echo Remover</Link>.
+            </p>
+          </Prose>
         </ToolSection>
 
-        <ToolSection id="what-it-handles" title="What kind of noise this handles">
-          <p>
-            The denoiser targets steady, consistent background noise — tape hiss,
-            fan or AC hum, electrical buzz, static, and general microphone
-            self-noise. It works by identifying frequencies where that kind of
-            noise sits consistently and reducing energy there throughout the
-            file. Noise that&apos;s intermittent or highly variable — like gusty
-            wind, a door slamming, or a dog barking — is a harder problem for any
-            denoiser, since there&apos;s no single steady frequency profile to
-            target; strength adjustments can help partially, but this isn&apos;t
-            a tool built to isolate one-off transient sounds.
-          </p>
-          <p>
-            If you&apos;re also planning to adjust the volume, denoise first —
-            boosting volume before cleanup just raises the noise right along with
-            everything else, giving the denoiser more to remove and a messier
-            starting point than cleaning it up first would.
-          </p>
-        </ToolSection>
-
-        <ToolSection id="best-uses" title="Best uses">
-          <p>
-            Podcasts and voice recordings with hiss or hum, interviews recorded
-            on a phone or in an untreated room, music demos with audible tape or
-            preamp noise, lecture recordings, and any audio pulled from a video
-            call or field recorder where background hum crept in.
-          </p>
-        </ToolSection>
-
-        <ToolSection id="vs-voice-cleaner" title="This tool vs. Voice Cleaner">
-          <p>
-            This is a general-purpose denoiser that works on any audio — music,
-            field recordings, or speech — with a strength slider you control
-            directly.
-          </p>
-          <p>
-            If your source is specifically speech (a podcast, phone recording, or
-            interview), the <Link href="/voice-clean">Voice Cleaner</Link> runs a
-            fixed chain tuned just for that — rumble cut, speech-optimized
-            denoise, and loudness normalization in one pass — and will usually
-            outperform manually tuning this tool for voice content.
-          </p>
-          <p>
-            Want the full explanation of how FFT-based denoising works and why
-            pushing strength too high causes warbling?{" "}
-            <Link href="/guides/removing-background-noise-from-recordings">
-              Read How to Remove Background Noise from Audio
-            </Link>
-            .
-          </p>
-        </ToolSection>
+        <FAQSection faqs={faqs} />
 
         <RelatedToolsGrid tools={relatedTools} />
 
-        <FAQSection faqs={faqs} />
+        <PageByline
+          updated={UPDATED}
+          legal="You are responsible for having the right to process any file you upload. AudioForges does not host or distribute the files processed here."
+        />
       </ToolPageShell>
     </>
   );
