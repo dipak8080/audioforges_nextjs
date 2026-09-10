@@ -1,16 +1,19 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Fragment } from "react";
-import { Check } from "lucide-react";
 import { StemsForm } from "@/components/converter/StemsForm";
 import { FAQSection, type FAQItem } from "@/components/faq/FAQSection";
 import { ToolPageShell } from "@/components/layout/ToolPageShell";
 import { Breadcrumb } from "@/components/layout/Breadcrumb";
 import { ToolSection } from "@/components/ui/ToolSection";
-import { FeatureStrip } from "@/components/ui/FeatureStrip";
 import { StemCompare } from "@/components/credits/StemCompare";
 import { Prose } from "@/components/ui/Prose";
 import { RelatedToolsGrid } from "@/components/tools/RelatedToolsGrid";
+import { ProofStrip } from "@/components/tools/ProofStrip";
+import { ForgeMixerCard } from "@/components/tools/ForgeMixerCard";
+import { StemUseGrid } from "@/components/tools/StemUseGrid";
+import { CompareTable } from "@/components/tools/CompareTable";
+import { StemPipelineDiagram } from "@/components/tools/StemPipelineDiagram";
+import { PageByline } from "@/components/tools/PageByline";
 import { ToolVideo } from "@/components/media/ToolVideo";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
@@ -18,24 +21,11 @@ import { getFeatureFlags } from "@/lib/api/railway";
 import { getLimits, windowFor, rateLimitLabel, durationLabel } from "@/lib/api/limits";
 import { ogForTool } from "@/lib/og";
 
-/**
- * ⚠️ DELIBERATE EXCEPTION, SAME AS /vocal-remover: the retention answer keeps
- * its prose and derives only its number. retentionSentences() would flatten it
- * into two generic lines and lose both the reason separation is the one family
- * that holds an upload, and the fact that one TTL sweep takes the upload and
- * the stems together. Derive the figure, keep the judgement.
- *
- * The two pages say this identically on purpose. They describe one backend
- * behaviour, and two descriptions of the same thing is how a privacy claim
- * ends up half-right.
- */
-
-
-/** Same 41 seconds of the same track through both tiers, level-matched — the
- *  clips already proving the claim on /pricing. Shared files, so the demo can
- *  never drift from what the tiers actually produce. */
+// Shared with /pricing and /vocal-remover: same 41 s clip through both tiers.
 const DEMO_STANDARD = "/audio/demo-vocals-standard.wav";
 const DEMO_STUDIO = "/audio/demo-vocals-studio.wav";
+
+const UPDATED = "2026-09-10";
 
 const PAGE_TITLE = "Free AI Stem Splitter – Split Songs Into Stems";
 const PAGE_DESCRIPTION =
@@ -67,97 +57,47 @@ const webAppJsonLd = {
   "@context": "https://schema.org",
   "@type": "WebApplication",
   name: "AI Stem Splitter",
+  alternateName: [
+    "Stem Splitter",
+    "AI Stem Separator",
+    "Song Splitter",
+    "Multitrack Extractor",
+    "Drum Stem Extractor",
+    "Bassline Isolator",
+  ],
   url: `${SITE_URL}/stems`,
+  dateModified: UPDATED,
   applicationCategory: "MultimediaApplication",
   operatingSystem: "Any",
+  browserRequirements: "Requires JavaScript.",
   offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
   featureList: [
+    "GPU-accelerated AI 4-stem separation: vocals, drums, bass, other",
     "Forge Mixer: multi-track stem player with per-stem mute, solo, volume and pan",
     "Mix presets, A–B loop, and in-browser WAV export of your custom balance",
-    "GPU-accelerated AI 4-stem separation: vocals, drums, bass, other",
     "No sign-up required",
     "No download or software install required",
     "Individually downloadable stems",
   ],
 };
 
-// Don't add HowTo schema — deprecated by Google, no benefit. FAQPage comes
-// from <FAQSection />, BreadcrumbList from <Breadcrumb />; don't duplicate.
-
-/** Only used in the comparison tables. teal-400, not Tailwind's emerald —
- *  teal is the success colour in the theme. */
-function CheckMark() {
-  return <Check className="h-4 w-4 text-teal-400" aria-hidden="true" />;
-}
-
-const STEMS = [
-  { name: "Vocals", desc: "Lead and backing vocals, isolated from the instrumentation around them." },
-  {
-    name: "Drums",
-    desc: "The full kit — kick, snare, hi-hats, cymbals, and other percussion — separated as one combined drum stem.",
-  },
-  { name: "Bass", desc: "Bass guitar or synth bass, covering the low end of the arrangement." },
-  {
-    name: "Other",
-    desc: "Everything that isn't vocals, drums, or bass — guitars, keys, synths, pads, strings, and any remaining instrumentation, kept together as a single stem rather than split further into individual instruments.",
-  },
-];
-
-const USE_CASES = [
-  {
-    name: "Sampling & production",
-    desc: "Pull an isolated drum loop or bassline to build a new track around.",
-  },
-  {
-    name: "Remixing",
-    desc: "Replace or rework individual elements instead of starting from a full instrumental.",
-  },
-  {
-    name: "Practice & study",
-    desc: "Isolate a bass or drum part to learn it note-for-note without the rest of the mix in the way.",
-  },
-  {
-    name: "Mashups",
-    desc: "Combine stems from different tracks — a vocal from one, drums and bass from another.",
-  },
-];
-
 export default async function StemsPage() {
   const relatedTools = getRelatedTools("stems", 5);
   const { separationHqEnabled } = await getFeatureFlags();
   const limits = await getLimits();
 
-  /*
-    Note the KEYS: "stems"/"stems_hq" are the 4-stem splitter's own endpoint
-    pair, distinct from the Vocal Remover's ("separate") and the YouTube
-    variants'. Reusing the wrong key would print another tool's allowance.
-  */
-  const standardLimitLabel = rateLimitLabel(
-    limits.rateLimits.stems ?? 6,
-    windowFor(limits, "stems")
-  );
-  const hqLimitLabel = rateLimitLabel(
-    limits.rateLimits.stems_hq ?? 2,
-    windowFor(limits, "stems_hq")
-  );
-
+  // "stems"/"stems_hq" are this tool's own keys, not the Vocal Remover's.
+  const standardLimitLabel = rateLimitLabel(limits.rateLimits.stems ?? 6, windowFor(limits, "stems"));
+  const hqLimitLabel = rateLimitLabel(limits.rateLimits.stems_hq ?? 2, windowFor(limits, "stems_hq"));
   const maxUploadLabel = `${limits.maxUploadMb}MB`;
 
-  // The number derives; the sentence around it doesn't — see the note at the
-  // top. input_seconds and output_seconds are both 7200, which is what lets
-  // the copy say "everything, by the same expiry".
+  // Number derives from /limits; the retention sentence stays hand-written and
+  // matches /vocal-remover word for word, since it describes one backend rule.
   const separationRetention = limits.retention.separation;
   const retentionWindow = durationLabel(
     separationRetention.inputSeconds ?? separationRetention.outputSeconds
   );
 
-  /*
-    Rendered from the backend list. The old hand-written array omitted AIFF
-    while MultiOutputToolForm's default fileAccept has always ended ".aiff" —
-    the tool accepted it and three places on this page said otherwise.
-    Understating what you accept costs uploads from exactly the people most
-    likely to have AIFF: anyone exporting from Logic.
-  */
   const formats = limits.allowedAudioFormats.map((f) => f.toUpperCase());
   const formatList = formats.join(", ").replace(/, ([^,]*)$/, ", or $1");
 
@@ -165,111 +105,68 @@ export default async function StemsPage() {
     {
       question: "Is there a free alternative to LALAL.AI's stem splitter?",
       answer:
-        "Yes. AudioForges splits full-length tracks into vocals, drums, bass, and other free, with no account — LALAL.AI keeps full stems behind paid processing minutes. Studio Quality upgrades the split with MelBand RoFormer, the top-ranked open-source vocal model on public benchmarks, for one credit per job.",
+        "Yes. AudioForges splits full-length tracks into vocals, drums, bass and other free, with no account. LALAL.AI keeps full stems behind paid processing minutes. Studio Quality upgrades the split for one credit per job, with no subscription.",
     },
     {
-      question: "How is this different from other free stem splitters?",
-      answer:
-        "Two things you can verify: the models are named and open-source (htdemucs standard, MelBand RoFormer + htdemucs_ft for Studio Quality), and the exact output spec is published on this page. Most tools state neither, which makes their quality claims impossible to check.",
+      question: "Are my uploaded tracks kept?",
+      answer: `For ${retentionWindow}, then everything is deleted automatically, your upload and the separated stems together, by the same expiry. That window is what lets the one-click Studio Quality re-run work without a second upload, so it applies to standard runs too. Separation is the only tool on the site that holds an upload at all; every other one deletes it the moment processing finishes. There are no accounts, so nothing is linked to you, published, or shared.`,
     },
     {
-      question: "Which AI models power the separation?",
-      answer:
-        "Standard runs htdemucs, the published Hybrid Transformer Demucs. Studio Quality runs MelBand RoFormer — an open-source band-split transformer whose vocal-separation scores top the public benchmarks this field is measured on. Both are verifiable published models, not something wrapped and renamed.",
-    },
-    {
-      question: "What is a stem splitter?",
-      answer:
-        "A stem splitter uses AI source separation to take a fully mixed song and split it back into individual parts — vocals, drums, bass, and other — without needing the original multitrack recording.",
-    },
-    {
-      question: "How long does stem separation take?",
-      answer:
-        "Usually 20 seconds to 1 minute for standard quality, depending on track length and server load. This runs real AI audio-separation processing on GPU-accelerated infrastructure, not a simple filter.",
+      question: "What formats can I upload, and is there a size limit?",
+      answer: `${formatList}, up to ${maxUploadLabel} per upload. Standard quality is limited to ${standardLimitLabel} per IP address so it stays free for everyone.`,
     },
     ...(separationHqEnabled
       ? [
           {
-            question: "What is Studio Quality mode?",
+            question: "What is Studio Quality?",
             answer:
-              "An optional higher-fidelity separation mode using a larger, ensembled AI model. It produces noticeably cleaner stems across all four tracks, at the cost of a longer processing time, typically 1 to 2 minutes instead of 20 seconds to 1 minute.",
+              "A two-stage pipeline instead of one pass. MelBand RoFormer extracts the vocal first, then htdemucs_ft splits the vocal-free instrumental into drums, bass and other. Every stem comes back cleaner because the model separating them is not fighting the voice. It takes 1 to 2 minutes instead of 20 seconds to 1 minute and costs one credit per run after the free monthly allowance.",
           },
         ]
       : []),
     {
-      question: "Is this really free?",
-      answer: `Yes, completely free. Because separation is processing-intensive, standard quality is limited to ${standardLimitLabel} per IP address to keep it available for everyone.`,
-    },
-    {
-      /*
-        Worded identically to /vocal-remover on purpose — one backend
-        behaviour, and two descriptions of the same thing is how a privacy
-        claim ends up half-right.
-
-        input_seconds 7200, output_seconds 7200 — one TTL sweep deletes the
-        upload and the stems together, so a single window covers everything.
-
-        Applies to ALL FOUR separation routes, not only Studio Quality: a
-        standard run is precisely the one someone upgrades from, so it's the
-        one that has to keep its input. And separation is the ONLY family that
-        holds an upload at all — every other tool deletes its input in
-        _run_tool_job's finally block — which makes this a deliberate exception
-        with a reason rather than a general policy.
-      */
-      question: "Are my uploaded tracks kept?",
-      answer: `For ${retentionWindow}, then everything is deleted automatically — your upload and the separated stems together, by the same expiry. That window is what lets the one-click Studio Quality re-run work without a second upload, so it applies to standard runs too, since a standard run is the one you'd upgrade from. Separation is the only tool on the site that holds an upload at all; every other one deletes it the moment processing finishes. There are no accounts, so nothing is linked to you, published, or shared.`,
-    },
-    {
-      question: "What are the four stems?",
-      answer:
-        "Vocals (lead and backing vocals), drums (the full kit), bass (bass guitar or synth bass), and other (everything else — guitars, keys, pads, synths, and anything that isn't vocals, drums, or bass).",
-    },
-    {
-      question: "Can I download each stem individually?",
-      answer:
-        "Yes — each of the four stems previews and downloads independently, so you only need to grab the ones you actually want.",
-    },
-    {
-      question: "Does it work on any genre?",
-      answer:
-        "It works across genres, but separation quality varies with how the track is mixed. Dense, heavily layered mixes are harder to untangle cleanly than sparser arrangements with clearly distinct instruments.",
-    },
-    {
-      question: "Why can AI-separated stems have artifacts?",
-      answer:
-        "Dense mixes, heavy distortion, live recordings with crowd noise, and instruments that share a similar frequency range (like bass and low guitar) are all harder for the model to cleanly separate than a clean studio recording with distinct instrumentation — this can leave faint bleed between stems.",
-    },
-    {
-      question: "What audio formats are supported, and is there a size limit?",
-      answer: `${formatList} are all supported, up to ${maxUploadLabel} per upload.`,
-    },
-    {
-      // Claimed "Everything runs in your browser". Separation runs Demucs on
-      // GPU infrastructure server-side, which this page states plainly further
-      // down — the two contradicted each other.
-      question: "Do I need to sign up or install anything?",
-      answer:
-        "No app, plugin, or account required. You upload a track through your browser, separation runs on the server, and you download the stems when it finishes. Nothing runs locally on your machine.",
-    },
-    {
       question: "Can I split a YouTube video into stems directly?",
       answer:
-        "Yes — paste a YouTube link into the YouTube Stem Splitter instead of downloading the audio first, as long as you have the right to process that content.",
+        "Yes. Paste the link into the YouTube Stem Splitter instead of downloading the audio first, as long as you have the right to process that content.",
       answerNode: (
         <>
-          Yes — paste a YouTube link into the{" "}
+          Yes. Paste the link into the{" "}
           <Link href="/youtube-stem-splitter" prefetch={false} className="text-amber-400 hover:underline">
             YouTube Stem Splitter
           </Link>{" "}
-          instead of downloading the audio first, as long as you have the right to
-          process that content.
+          instead of downloading the audio first, as long as you have the right to process that content.
         </>
       ),
     },
     {
-      question: "Does it preserve stereo sound?",
+      question: "Can I get guitar or piano on their own?",
       answer:
-        "Yes — the separation model processes and outputs stereo audio for every stem, not a mono downmix.",
+        "Not as separate stems. Guitars, keys, synths, pads and strings all land together in the other stem. If you only need the voice and the backing, the Vocal Remover returns two stems instead of four.",
+      answerNode: (
+        <>
+          Not as separate stems. Guitars, keys, synths, pads and strings all land together in the other stem. If you
+          only need the voice and the backing, the{" "}
+          <Link href="/vocal-remover" prefetch={false} className="text-amber-400 hover:underline">
+            Vocal Remover
+          </Link>{" "}
+          returns two stems instead of four.
+        </>
+      ),
+    },
+    {
+      question: "Does it work on any genre?",
+      answer:
+        "It works across genres, but the mix matters more than the genre. Dense, heavily layered arrangements are harder to untangle than sparse ones with clearly distinct instruments, and instruments sharing a frequency range, like bass and a low guitar, can bleed into each other.",
+    },
+    {
+      question: "Can I download each stem individually?",
+      answer:
+        "Yes. Each of the four stems previews and downloads on its own, so you only take the ones you want. There is also a download-all button, and Forge Mixer can export a custom balance of the four as a single WAV.",
+    },
+    {
+      question: "Does separation improve the audio quality?",
+      answer:
+        "No. It isolates what is already in the mix. It does not remaster or add fidelity the original recording never had, and every stem comes back as 16-bit 44.1 kHz stereo WAV regardless of what you upload.",
     },
   ];
 
@@ -278,579 +175,319 @@ export default async function StemsPage() {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(webAppJsonLd) }} />
 
       <ToolPageShell
-        breadcrumb={
-          <Breadcrumb items={[{ name: "Tools", href: "/tools" }, { name: "Stem Splitter" }]} />
-        }
+        breadcrumb={<Breadcrumb items={[{ name: "Tools", href: "/tools" }, { name: "Stem Splitter" }]} />}
+        meta={["No account", "No watermark", "Four full-length stems"]}
         title="Free AI Stem Splitter"
-        lede="Split a song into separate vocals, drums, bass, and other stems using AI source separation. No sign-up, no software install."
+        lede="Split a song into vocals, drums, bass and other. Four separate WAV files, no sign-up, nothing to install."
         tool={<StemsForm hqAvailable={separationHqEnabled} />}
       >
-        <FeatureStrip
-          features={[
-            { title: "4 stems", desc: "Vocals, drums, bass, and other — not just a 2-way split." },
-            // Was "Runs entirely in your browser", which is false — separation
-            // runs server-side on GPU, and this page's own "How 4-stem
-            // separation works" section says so three screens down.
+        <ProofStrip
+          proofs={[
             {
-              title: "No install",
-              desc: "Nothing to download. Upload, process, download in your browser.",
+              label: "Models",
+              value: "htdemucs, RoFormer and htdemucs_ft",
+              note: "Named so you can check them. Studio Quality runs two stages, not the same model run harder.",
             },
-            { title: "Free", desc: `No sign-up, no watermark. Up to ${maxUploadLabel} per upload.` },
+            {
+              label: "Output",
+              value: "Four 16-bit, 44.1 kHz WAVs",
+              note: "Lossless, stereo, each one downloadable on its own. Spec published below.",
+            },
+            {
+              label: "Price",
+              value: "Full tracks free, no watermark",
+              note: "No account, no preview-only tier. Rate-limited per IP so it stays free.",
+            },
           ]}
         />
 
-
-        {/* The proof, up front: the only claim on this page a reader can
-            check with their ears instead of taking on trust. Same clips as
-            /pricing — one source of truth for what the tiers sound like. */}
         {separationHqEnabled && (
           <ToolSection id="hear-the-difference" title="Hear the difference">
             <p>
-              The vocal stem, from both tiers, on the same song. Switch while it plays — both versions stay at the same
-              playhead, so you hear the same bar twice back to back. Listen for
-              vocal bleed in the quiet passages and the watery, underwater
-              artifacts on sustained notes.
+              The vocal stem from both tiers, on the same song. Click a lane to switch while it plays; the playhead
+              stays put, so you hear the same bar twice. Drag on a lane to loop the part you want to compare. The
+              vocal is the stem where the two tiers differ most, and on Studio Quality it is what the other three are
+              separated around.
             </p>
             <StemCompare
               standardSrc={DEMO_STANDARD}
               studioSrc={DEMO_STUDIO}
               stemLabel="Vocals"
               trackLabel="Dense mix, long reverb tail"
+              cues={[
+                { at: 6, label: "quiet passage" },
+                { at: 19, label: "held note" },
+                { at: 31, label: "reverb tail" },
+              ]}
             />
             <p className="text-xs text-text-subtle">
-              Music: Culture Code — Make Me Move (feat. Karra) [NCS Release]
+              Music: Culture Code, Make Me Move (feat. Karra) [NCS Release]
             </p>
           </ToolSection>
         )}
 
-                <ToolSection id="what-is-it" title="What is a stem splitter?">
-          <p>
-            A stem splitter takes a fully mixed-down song — a single audio file
-            with everything blended together — and separates it back into
-            individual parts, called stems. Normally, separate stems only exist if
-            a producer kept the original multitrack recording. AI source
-            separation gets around that: a model trained on learned
-            characteristics of what a voice, a drum kit, a bass line, and other
-            instrumentation each sound like reconstructs an approximation of those
-            separate parts from the finished mix alone. That&apos;s the same
-            underlying idea as audio source separation more broadly — it&apos;s
-            why producers, remixers, and DJs use it to get usable stems from a
-            track they only have as a finished MP3 or WAV.
-          </p>
-          <p>
-            AudioForges lets you split a song online without the original project
-            files or multitrack session. Upload a finished track and the AI
-            separates it into vocals, drums, bass, and other instrumentation that
-            you can preview and download individually.
-          </p>
-        </ToolSection>
-
-        <ToolSection id="forge-mixer" title="Forge Mixer: work with the stems before you download">
-          <p>
-            Results open in <strong>Forge Mixer</strong>, a multi-track player
-            built into the page. Each of the vocals, drums, bass and other stems gets its own lane
-            with a real waveform rendered from the decoded audio and a live
-            level meter, and every lane plays from one shared Web Audio clock so
-            the stems stay locked together — no drift, however long you listen.
-          </p>
-          <ul>
-            <li>
-              <strong>Mute, solo, volume and pan per stem.</strong> Volume runs
-              from silent to 150%, pan is full left to full right, and you can
-              solo several stems at once. Pan and per-stem volume are things a
-              download-only tool can&apos;t give you.
-            </li>
-            <li>
-              <strong>One-click mix presets</strong> — Original, Karaoke, Acapella, Drumless and Bassless — so the common
-              balances are a single tap.
-            </li>
-            <li>
-              <strong>A–B loop.</strong> Drag on the timeline to loop a section
-              with sample-accurate loop points. Useful for learning a part or
-              checking one passage of the separation closely.
-            </li>
-            <li>
-              <strong>Export your mix as a WAV.</strong> Whatever balance you set
-              — mutes, levels, pans — renders in the browser, with no server
-              round-trip and no credits used. So you can drop the drums to a whisper and export a drumless practice track, or solo the bass and drums for a play-along, without
-              touching a DAW.
-            </li>
-            <li>
-              <strong>Per-stem and download-all</strong> are still one click.
-              Playback starts as soon as the first stem is decoded; the others
-              join in sync as they arrive.
-            </li>
-          </ul>
-          <p>
-            Click or drag any waveform to seek every stem together, Space plays
-            and pauses, and the arrow keys nudge the playhead. On a phone the
-            lanes stack; on a desktop the result opens at full width.
-          </p>
-        </ToolSection>
-
-        <ToolSection id="four-stems" title="4-stem separation: vocals, drums, bass & other">
-          <p>Every upload is split into these four stems in a single pass:</p>
-          <dl>
-            {STEMS.map((s) => (
-              <Fragment key={s.name}>
-                <dt>{s.name}</dt>
-                <dd>{s.desc}</dd>
-              </Fragment>
-            ))}
-          </dl>
-        </ToolSection>
-
-        <ToolSection id="who-for" title="Who is this for?">
-          <p>
-            Producers pulling isolated drum or bass stems to sample and rebuild
-            around, remixers who need more than just an instrumental, mashup
-            artists layering elements from multiple tracks, and anyone studying an
-            arrangement instrument-by-instrument all use this tool for the same
-            underlying job — splitting a full mix into its four core components.
-          </p>
-        </ToolSection>
-
-        <ToolSection id="vs-vocal-remover" title="Stem Splitter vs. Vocal Remover" bleed>
-          <div className="overflow-x-auto rounded-xl border border-graphite-800">
-            <table className="w-full text-left text-sm text-text-muted">
-              <thead className="bg-graphite-900">
-                <tr>
-                  <th className="w-1/4 px-4 py-3">
-                    <span className="sr-only">Comparison</span>
-                  </th>
-                  {/* This page's own tool is the subject; amber says which
-                      column the reader is being asked to weigh. */}
-                  <th className="px-4 py-3 font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-amber-400">
-                    Stem Splitter
-                  </th>
-                  <th className="px-4 py-3 font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-text-subtle">
-                    Vocal Remover
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-graphite-800">
-                <tr>
-                  <td className="px-4 py-3 font-medium text-text-subtle">Vocals</td>
-                  <td className="px-4 py-3"><CheckMark /></td>
-                  <td className="px-4 py-3"><CheckMark /></td>
-                </tr>
-                <tr>
-                  <td className="px-4 py-3 font-medium text-text-subtle">Drums</td>
-                  <td className="px-4 py-3"><CheckMark /></td>
-                  <td className="px-4 py-3">Combined into instrumental</td>
-                </tr>
-                <tr>
-                  <td className="px-4 py-3 font-medium text-text-subtle">Bass</td>
-                  <td className="px-4 py-3"><CheckMark /></td>
-                  <td className="px-4 py-3">Combined into instrumental</td>
-                </tr>
-                <tr>
-                  <td className="px-4 py-3 font-medium text-text-subtle">Output</td>
-                  <td className="px-4 py-3">4 separate stems</td>
-                  <td className="px-4 py-3">2 stems (vocal + instrumental)</td>
-                </tr>
-                <tr>
-                  <td className="px-4 py-3 font-medium text-text-subtle">Best for</td>
-                  <td className="px-4 py-3">Sampling, remixing individual elements</td>
-                  <td className="px-4 py-3">Karaoke, simple instrumentals</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          <Prose className="mt-5">
+        <ToolSection id="forge-mixer" title="Mix four stems before you download" bleed>
+          <Prose className="mb-5">
             <p>
-              Just need vocals out of the way? The{" "}
-              <Link href="/vocal-remover" prefetch={false}>
-                Vocal Remover
-              </Link>{" "}
-              does the same separation and hands back one clean instrumental
-              instead of four stems to sort through. Worth knowing it isn&apos;t
-              the cheaper operation: the model separates all four sources either
-              way and sums three of them, so the only difference is which files
-              you get back.
+              Results open in Forge Mixer, a four-lane player built into this page. Every lane runs off one shared
+              clock, so they never drift however long you listen. Set a balance and export it as a WAV without
+              leaving the browser.
             </p>
           </Prose>
+          <ForgeMixerCard
+            lanes={[
+              { name: "Vocals", peaks: mixerShape(3, 0.9), active: true },
+              { name: "Drums", peaks: mixerShape(11, 1.25) },
+              { name: "Bass", peaks: mixerShape(5, 0.7) },
+              { name: "Other", peaks: mixerShape(7, 1.0) },
+            ]}
+            presets={["Karaoke", "Drums only", "Rhythm"]}
+            points={[
+              "Mute, solo, volume to 150% and full pan on every stem.",
+              "Solo the drums and bass to check a groove in isolation.",
+              "Drag on the timeline to loop a section, sample-accurate.",
+              "Export the balance you set as a WAV. Rendered locally, no credits used.",
+            ]}
+          />
         </ToolSection>
 
-        <ToolSection id="how-to" title="How to split a song into stems">
-          <ol>
-            <li>Upload an {formatList} file.</li>
-            <li>
-              AI source separation splits the track into vocals, drums, bass, and
-              other, usually 20 seconds to 1 minute, depending on length and
-              server load.
-            </li>
-            <li>Preview and download each stem individually, directly in your browser.</li>
-          </ol>
-          <p>
-            Need a track from YouTube first? Use the{" "}
-            <Link href="/youtube-stem-splitter" prefetch={false}>
-              YouTube Stem Splitter
-            </Link>{" "}
-            to skip the manual download step entirely.
-          </p>
+        <ToolSection id="what-you-get" title="Four stems, four jobs" bleed>
+          <StemUseGrid
+            outputs={[
+              { name: "Vocals", desc: "Lead and backing vocals, isolated from everything around them." },
+              { name: "Drums", desc: "The whole kit as one stem: kick, snare, hats, cymbals, percussion." },
+              { name: "Bass", desc: "Bass guitar or synth bass, the low end of the arrangement." },
+              { name: "Other", desc: "Guitars, keys, synths, pads and strings, kept together rather than split further." },
+            ]}
+            jobs={[
+              { name: "Sampling", uses: "drums, bass", desc: "Pull a clean loop or bassline to build a track around." },
+              {
+                name: "Remixing",
+                uses: "any stem",
+                desc: "Rework one element instead of starting from a full instrumental.",
+                href: "/key-finder",
+                linkLabel: "Check the key first.",
+              },
+              { name: "Learning a part", uses: "bass, drums", desc: "Isolate the part and loop it until it sticks." },
+              { name: "Mashups", uses: "vocals", desc: "A vocal from one track over drums and bass from another." },
+            ]}
+          />
         </ToolSection>
 
-        <ToolSection id="how-it-works" title="How 4-stem separation works">
-          <p>
-            This tool uses the same AI source-separation model as our{" "}
-            <Link href="/vocal-remover" prefetch={false}>
-              Vocal Remover
-            </Link>
-            , but keeps all four of the internally separated components instead of
-            combining three of them back into one instrumental track. The model
-            analyzes learned characteristics of what a voice, a drum kit, a bass
-            line, and everything else each sound like, and separates all four
-            simultaneously in a single pass, outputting full stereo audio for each
-            stem.
-          </p>
-          <p>
-            The model is <strong>htdemucs</strong> — the published Hybrid
-            Transformer Demucs, not something wrapped and renamed. Studio Quality
-            runs a two-stage pipeline: <strong>MelBand RoFormer</strong> pulls
-            the vocal out first, then <strong>htdemucs_ft</strong> splits what
-            remains into drums, bass and other. Every stem benefits — the vocal
-            from the stronger model, the rest from never having to reason about
-            vocals at all.
-          </p>
-          {/* This paragraph used to end "everything happens in your browser",
-              two sentences after saying the workload runs on our GPUs — a
-              contradiction inside one paragraph, under a heading promising to
-              explain how the tool works. */}
-          <p>
-            AudioForges processes the AI separation workload on GPU-accelerated
-            infrastructure. A single track usually takes 20 seconds to 1 minute,
-            and usage is rate-limited per IP address so it stays free and
-            available for everyone. There is no app, plugin, or account to set up
-            — you upload through the browser and the separation runs on the
-            server.
-          </p>
-          <p>
-            Want the fuller technical breakdown — why bass and drums are the
-            hardest pair to separate, and what Studio Quality actually buys you?{" "}
-            <Link href="/guides/ai-stem-separation-explained">
-              Read How AI Stem Separation Actually Works
-            </Link>
-            .
-          </p>
+        <ToolSection id="how-it-works" title="How it works, and where it fails" bleed>
+          <StemPipelineDiagram />
+          <Prose className="mt-6">
+            <p>
+              The output is fixed by the pipeline, not by your file. Every stem comes back as 16-bit, 44.1 kHz,
+              stereo WAV, about 1,411 kbps. A 48 kHz upload comes back at 44.1. A mono upload comes back as two
+              channels. This is true of every tool built on Demucs, including the ones that do not mention it.
+            </p>
+          </Prose>
+          <ul className="mt-6 grid gap-3 sm:grid-cols-3">
+            {[
+              ["Dense, layered mixes", "More sources overlapping means more bleed between stems."],
+              ["Bass against low guitar", "Instruments sharing a frequency range are the hardest pair to split."],
+              ["Live recordings", "Crowd and stage bleed leave more behind than a studio mix."],
+            ].map(([t, d]) => (
+              <li key={t} className="rounded-xl border border-graphite-800 bg-graphite-900 p-4">
+                <p className="font-medium text-text-primary">{t}</p>
+                <p className="mt-1 text-sm leading-relaxed text-text-muted">{d}</p>
+              </li>
+            ))}
+          </ul>
+          <Prose className="mt-5">
+            <p>
+              None of these break separation. Standard runs take 20 seconds to 1 minute on GPU hardware; Studio
+              Quality takes 1 to 2. Uploads accepted: {formatList}, up to {maxUploadLabel}.
+            </p>
+          </Prose>
         </ToolSection>
 
         {separationHqEnabled && (
           <ToolSection id="standard-vs-studio" title="Standard vs. Studio Quality" bleed>
-            <div className="overflow-x-auto rounded-xl border border-graphite-800">
-              <table className="w-full text-left text-sm text-text-muted">
-                <thead className="bg-graphite-900">
-                  <tr>
-                    <th className="w-1/4 px-4 py-3">
-                      <span className="sr-only">Comparison</span>
-                    </th>
-                    <th className="px-4 py-3 font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-text-subtle">
-                      Standard
-                    </th>
-                    <th className="px-4 py-3 font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-amber-400">
-                      Studio Quality
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-graphite-800">
-                  <tr>
-                    <td className="px-4 py-3 font-medium text-text-subtle">Processing time</td>
-                    <td className="px-4 py-3 font-mono tabular-nums">20 sec–1 min</td>
-                    <td className="px-4 py-3 font-mono tabular-nums text-text-primary">1–2 min</td>
-                  </tr>
-                  <tr>
-                    <td className="px-4 py-3 font-medium text-text-subtle">Model</td>
-                    <td className="px-4 py-3 font-mono">htdemucs</td>
-                    <td className="px-4 py-3 font-mono text-text-primary">RoFormer + htdemucs_ft</td>
-                  </tr>
-                  <tr>
-                    <td className="px-4 py-3 font-medium text-text-subtle">Separation quality</td>
-                    <td className="px-4 py-3">Good for most tracks</td>
-                    <td className="px-4 py-3">Clean across all four stems</td>
-                  </tr>
-                  <tr>
-                    <td className="px-4 py-3 font-medium text-text-subtle">Vocal bleed in the other stems</td>
-                    <td className="px-4 py-3">Audible on dense mixes, and on held or reverbed notes</td>
-                    <td className="px-4 py-3 text-text-primary">Gone on most material — the vocal is lifted by its own model first</td>
-                  </tr>
-                  <tr>
-                    <td className="px-4 py-3 font-medium text-text-subtle">Clicks and pops at chunk joins</td>
-                    <td className="px-4 py-3">Occasional on long tracks</td>
-                    <td className="px-4 py-3 text-text-primary">None</td>
-                  </tr>
-                  <tr>
-                    <td className="px-4 py-3 font-medium text-text-subtle">Watery, phasey artefacts</td>
-                    <td className="px-4 py-3">On cymbals, hi-hats and sibilance</td>
-                    <td className="px-4 py-3 text-text-primary">Cymbals and transients stay intact</td>
-                  </tr>
-                  <tr>
-                    {/* The Studio Quality figure is the FREE-TIER one and is
-                        labelled as such: the rule is tiered, credits raise it
-                        substantially, and a Server Component can't know which
-                        tier this visitor is on. */}
-                    <td className="px-4 py-3 font-medium text-text-subtle">Usage limit</td>
-                    <td className="px-4 py-3 font-mono tabular-nums">{standardLimitLabel}</td>
-                    <td className="px-4 py-3 font-mono tabular-nums text-text-primary">
-                      {hqLimitLabel}
-                      <span className="ml-1.5 font-sans text-[11px] normal-case text-text-subtle">
-                        on the free tier
-                      </span>
-                    </td>
-                  </tr>
-                  <tr>
-                    {/* A comparison table listing time, quality, limit and
-                        best-for but NOT price sends someone to a toggle that
-                        then says "1 CREDIT". The allowance being SHARED across
-                        the Studio Quality tools is the part people otherwise
-                        find out by surprise. */}
-                    <td className="px-4 py-3 font-medium text-text-subtle">Cost</td>
-                    <td className="px-4 py-3">Free, always</td>
-                    <td className="px-4 py-3 text-text-primary">
-                      A free allowance each month, shared with the other Studio
-                      Quality tools, then 1 credit per run
-                    </td>
-                  </tr>
-                  <tr>
-                    <td className="px-4 py-3 font-medium text-text-subtle">Best for</td>
-                    <td className="px-4 py-3">Quick previews, casual use</td>
-                    <td className="px-4 py-3">
-                      Sampling, remixing, anything going into a final mix
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            <Prose className="mt-5">
-              <p>
-                Studio Quality uses a larger, ensembled model rather than a single
-                pass, which is why it takes longer — the trade-off is worth it
-                when the stems are headed into an actual production, not just a
-                quick check.
-              </p>
-            </Prose>
+            <CompareTable
+              columns={["Standard", "Studio Quality"]}
+              highlight={1}
+              rows={[
+                {
+                  label: "Pipeline",
+                  cells: [
+                    { text: "htdemucs, one pass", mono: true },
+                    { text: "RoFormer then htdemucs_ft", mono: true },
+                  ],
+                },
+                {
+                  label: "Vocal bleed in the other stems",
+                  cells: [
+                    { state: "partial", text: "Audible on dense mixes and long reverb tails" },
+                    { state: "yes", text: "Gone on most material" },
+                  ],
+                },
+                {
+                  label: "Drums and bass definition",
+                  cells: [
+                    { state: "partial", text: "Good, some smearing on busy sections" },
+                    { state: "yes", text: "Tighter, separated with the voice already out" },
+                  ],
+                },
+                { label: "Time", cells: [{ text: "20 sec to 1 min", mono: true }, { text: "1 to 2 min", mono: true }] },
+                {
+                  label: "Limit",
+                  cells: [
+                    { text: standardLimitLabel, mono: true },
+                    { text: hqLimitLabel, mono: true, sub: "on the free tier" },
+                  ],
+                },
+                {
+                  label: "Cost",
+                  cells: [
+                    { text: "Free, always" },
+                    {
+                      text: "Free monthly allowance, then 1 credit per run",
+                      sub: "allowance shared across Studio Quality tools",
+                    },
+                  ],
+                },
+              ]}
+            />
           </ToolSection>
         )}
 
-        {/*
-          THE SPEC SECTION. The only part of this page a competitor can't copy
-          without publishing their own numbers, and the "inherited from your
-          file: none of it" row is the one that changes a producer's decision.
-        */}
-        <ToolSection id="output-spec" title="What the output actually is">
-          <dl className="codes">
-            <dt>Format</dt>
-            <dd>WAV (RIFF), 16-bit signed PCM</dd>
-
-            <dt>Bitrate</dt>
-            <dd>Lossless — about 1,411 kbps at 44.1 kHz stereo</dd>
-
-            <dt>Sample rate</dt>
-            <dd>44,100 Hz — fixed</dd>
-
-            <dt>Channels</dt>
-            <dd>2 (stereo) — fixed</dd>
-
-            <dt>Inherited from your file</dt>
-            <dd>None of it</dd>
-          </dl>
-          <p>
-            That last row is worth reading twice if you work at 48 kHz. The
-            separation pipeline runs at 44.1 kHz in stereo internally, so the output rate and
-            channel count are fixed no matter what you upload — a 48 kHz file
-            comes back at 44.1 kHz, a mono file comes back as two channels, and a
-            24-bit file comes back at 16-bit. That is how the model pipeline works
-            rather than a choice we made, and it is true of every tool built on
-            Demucs, including the ones that don&apos;t mention it. Drop a stem
-            into any editor and check.
-          </p>
-          <p>
-            You can also verify the models: standard runs <strong>htdemucs</strong>{" "}
-            at 0.25 overlap. Studio Quality is a two-stage pipeline:{" "}
-            <strong>MelBand RoFormer</strong> — a band-split transformer whose
-            open weights top the public vocal-separation benchmarks — extracts
-            the vocal first, then <strong>htdemucs_ft</strong> splits the
-            vocal-free instrumental into drums, bass and other. Separating the
-            rest with the vocal already out of the way is what makes every stem
-            cleaner, and it is where the extra minute goes.
-          </p>
-        </ToolSection>
-
-        <ToolSection id="formats" title="Supported audio formats" bleed>
-          {/* Rendered from allowed_audio_formats. The hand-written array here
-              omitted AIFF while the tool accepted it. */}
-          <div className="flex flex-wrap gap-2">
-            {formats.map((format) => (
-              <span
-                key={format}
-                className="rounded-lg border border-graphite-700 bg-graphite-850 px-3 py-1.5 font-mono text-sm font-semibold text-amber-400"
-              >
-                {format}
-              </span>
-            ))}
-          </div>
-          <Prose className="mt-5">
+        <ToolSection id="vs-vocal-remover" title="Four stems or two?" bleed>
+          <CompareTable
+            columns={["Stem Splitter", "Vocal Remover"]}
+            highlight={0}
+            rows={[
+              {
+                label: "Vocals on their own",
+                cells: [
+                  { state: "yes", text: "Yes" },
+                  { state: "yes", text: "Yes" },
+                ],
+              },
+              {
+                label: "Drums and bass separately",
+                cells: [
+                  { state: "yes", text: "Yes" },
+                  { state: "no", text: "Combined into the instrumental" },
+                ],
+              },
+              { label: "Files returned", cells: [{ text: "Four" }, { text: "Two" }] },
+              {
+                label: "Best for",
+                cells: [
+                  { text: "Sampling, remixing, learning a part" },
+                  { text: "Karaoke, acapellas, a quick instrumental" },
+                ],
+              },
+            ]}
+            footnote="Same models underneath. Standard runs the full four-way split either way and sums three stems for the Vocal Remover, so a two-stem job is no faster."
+          />
+          <Prose className="mt-4">
             <p>
-              Upload any of the formats above, up to {maxUploadLabel} per file.
-              Output stems are delivered as individually downloadable audio files.
+              Only need the voice and the backing?{" "}
+              <Link href="/vocal-remover">Use the Vocal Remover</Link> instead.
             </p>
           </Prose>
         </ToolSection>
 
-        <ToolSection id="limitations" title="Stem Splitter isn't perfect">
-          <p>
-            Separation quality depends heavily on how densely the source track is
-            mixed. Bass and low guitar can bleed into each other since they occupy
-            similar frequency ranges. Programmed drums with heavy processing
-            sometimes separate less cleanly than an acoustic kit. Live recordings
-            with crowd noise or stage bleed give the model a messier signal than a
-            controlled studio mix. None of this makes separation fail outright —
-            it just tends to leave more audible traces behind on a dense or
-            heavily processed mix than on a sparser, cleaner one.
-          </p>
-          <p>
-            GPU acceleration changes the infrastructure the separation runs on,
-            not the difficulty of the underlying problem — source quality and
-            arrangement still determine the final result.
-          </p>
-        </ToolSection>
-
-        <ToolSection id="common-uses" title="Common uses">
-          <dl>
-            {USE_CASES.map((u) => (
-              <Fragment key={u.name}>
-                <dt>{u.name}</dt>
-                <dd>{u.desc}</dd>
-              </Fragment>
-            ))}
-          </dl>
+        <ToolSection id="free-alternative" title="Compared with the paid tools" bleed>
+          <Prose className="mb-5">
+            <p>
+              Every cell below is checkable on the other sites&apos; own pages. No claim is made that cannot be
+              verified; the demo above and your ears cover the rest.
+            </p>
+          </Prose>
+          <CompareTable
+            columns={["AudioForges", "LALAL.AI", "Moises"]}
+            highlight={0}
+            rows={[
+              {
+                label: "Full-length stems without paying",
+                cells: [
+                  { state: "yes", text: "Yes" },
+                  { state: "no", text: "Preview only" },
+                  { state: "partial", text: "Limited free jobs per month" },
+                ],
+              },
+              {
+                label: "No account needed",
+                cells: [
+                  { state: "yes", text: "Yes" },
+                  { state: "no", text: "Account for full results" },
+                  { state: "no", text: "Account required" },
+                ],
+              },
+              {
+                label: "Models named",
+                cells: [
+                  { state: "yes", text: "htdemucs, RoFormer, htdemucs_ft", sub: "open-source, verifiable" },
+                  { state: "partial", text: "Named, closed-source" },
+                  { state: "unknown", text: "Not stated" },
+                ],
+              },
+              {
+                label: "Output spec published",
+                cells: [
+                  { state: "yes", text: "16-bit 44.1 kHz WAV" },
+                  { state: "partial", text: "Partially" },
+                  { state: "unknown", text: "Not stated" },
+                ],
+              },
+              {
+                label: "Mix stems in the browser",
+                cells: [
+                  { state: "yes", text: "Forge Mixer", sub: "mute, solo, pan, loop, export" },
+                  { state: "partial", text: "Preview player" },
+                  { state: "yes", text: "Built-in mixer" },
+                ],
+              },
+              {
+                label: "Paid tier",
+                cells: [
+                  { text: "1 credit per job, never expires" },
+                  { text: "Packages of processing minutes" },
+                  { text: "Monthly subscription" },
+                ],
+              },
+            ]}
+            footnote={`Competitor details reflect their public pages as of ${UPDATED} and may change.`}
+          />
+          <div className="mt-5 rounded-xl border border-amber-500/30 bg-amber-500/[0.06] p-5">
+            <p className="font-medium text-text-primary">Run the same song through both.</p>
+            <p className="mt-1.5 text-sm text-text-muted">
+              Any paid tool&apos;s preview against AudioForges, same track, same section. That is the only comparison
+              that matters and it costs nothing.
+            </p>
+          </div>
         </ToolSection>
 
         <ToolVideo slug="stems" />
 
+        <FAQSection faqs={faqs} />
+
         <RelatedToolsGrid tools={relatedTools} />
 
-        {/* h3, not h2 — a footnote under the page's content rather than a
-            section sitting in the outline beside the real ones. */}
-        <section className="rounded-xl border border-graphite-800 bg-graphite-900 p-5">
-          <h3 className="font-semibold text-text-primary">Copyright &amp; fair use</h3>
-          <p className="mt-2 text-sm leading-relaxed text-text-muted">
-            You are responsible for ensuring you have the right to process any track
-            you upload — for personal practice, content you own, or material you have
-            permission to use. AudioForges does not host or distribute the tracks
-            processed through this tool.
-          </p>
-          <p className="mt-2 text-sm leading-relaxed text-text-muted">
-            See our{" "}
-            <Link href="/about" className="text-amber-400 hover:underline">
-              About
-            </Link>
-            ,{" "}
-            <Link href="/privacy" className="text-amber-400 hover:underline">
-              Privacy
-            </Link>
-            , and{" "}
-            <Link href="/terms" className="text-amber-400 hover:underline">
-              Terms
-            </Link>{" "}
-            pages for more on how AudioForges handles uploaded files.
-          </p>
-        </section>
-
-
-        {/*
-          THE COMPARISON. Written the day Studio Quality moved to MelBand
-          RoFormer — the first day this page could invite a side-by-side
-          without flinching. Rules: every cell verifiable on the competitor's
-          own public pages, no superiority claim anywhere ("best" is what every
-          mediocre tool claims, so readers price it at zero), and the challenge
-          block does the persuading — nobody who would lose an A/B invites one.
-        */}
-        <ToolSection id="free-alternative" title="A free alternative to paid stem splitters">
-          <p>
-            Stem splitting is where paid tools charge hardest — per stem, per
-            minute, per month. Here the standard four-stem split is free at
-            full length with no account, and Studio Quality&apos;s two-stage
-            pipeline is one credit per job. The models are named and
-            open-source, so every quality claim on this page can be checked
-            rather than believed.
-          </p>
-          <div className="mt-6 overflow-x-auto rounded-xl border border-graphite-800">
-            <table className="w-full text-left text-sm text-text-muted">
-              <thead className="bg-graphite-900">
-                <tr>
-                  <th className="w-1/4 px-4 py-3">
-                    <span className="sr-only">Comparison</span>
-                  </th>
-                  <th className="px-4 py-3 font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-amber-400">
-                    AudioForges
-                  </th>
-                  <th className="px-4 py-3 font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-text-subtle">
-                    LALAL.AI
-                  </th>
-                  <th className="px-4 py-3 font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-text-subtle">
-                    Vocalremover.org
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-graphite-800">
-                <tr>
-                  <td className="px-4 py-3 font-medium text-text-subtle">Price</td>
-                  <td className="px-4 py-3 text-text-primary">
-                    Free tier, full-length output. Studio Quality is pay-per-job
-                    credits — no subscription, credits never expire.
-                  </td>
-                  <td className="px-4 py-3">Paid packages of processing minutes</td>
-                  <td className="px-4 py-3">Free</td>
-                </tr>
-                <tr>
-                  <td className="px-4 py-3 font-medium text-text-subtle">Full-length results without paying</td>
-                  <td className="px-4 py-3 text-text-primary">Yes</td>
-                  <td className="px-4 py-3">Preview only — full tracks are paid</td>
-                  <td className="px-4 py-3">Yes</td>
-                </tr>
-                <tr>
-                  <td className="px-4 py-3 font-medium text-text-subtle">Account required</td>
-                  <td className="px-4 py-3 text-text-primary">No</td>
-                  <td className="px-4 py-3">Yes, for full results</td>
-                  <td className="px-4 py-3">No</td>
-                </tr>
-                <tr>
-                  <td className="px-4 py-3 font-medium text-text-subtle">Separation models</td>
-                  <td className="px-4 py-3 text-text-primary">
-                    Named, open-source, verifiable — htdemucs and MelBand RoFormer
-                  </td>
-                  <td className="px-4 py-3">Named, closed-source</td>
-                  <td className="px-4 py-3">Not stated</td>
-                </tr>
-                <tr>
-                  <td className="px-4 py-3 font-medium text-text-subtle">Output spec published</td>
-                  <td className="px-4 py-3 text-text-primary">Yes — see the spec section above</td>
-                  <td className="px-4 py-3">Partially</td>
-                  <td className="px-4 py-3">Not stated</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          <p className="mt-3 text-xs text-text-subtle">
-            Competitor details reflect their public pages at the time of writing
-            and may change. No superiority claim is made where none can be
-            verified — that&apos;s what the demo above and your own ears are for.
-          </p>
-          <div className="mt-6 rounded-xl border border-amber-500/30 bg-amber-500/[0.06] p-5">
-            <p className="font-medium text-text-primary">
-              Don&apos;t take our word for it.
-            </p>
-            <p className="mt-1.5 text-sm">
-              Run the same song through any paid tool&apos;s preview and through
-              AudioForges, then trust your ears. Same track, same section — your
-              call. That&apos;s the whole comparison that matters, and it costs
-              you nothing to run it.
-            </p>
-          </div>
-        </ToolSection>
-
-        <FAQSection faqs={faqs} />
+        <PageByline
+          updated={UPDATED}
+          note="Studio Quality now runs a RoFormer and htdemucs_ft pipeline"
+          legal="You are responsible for having the right to process any track you upload. AudioForges does not host or distribute the tracks processed here."
+        />
       </ToolPageShell>
     </>
   );
+}
+
+/** Fixed pseudo-random lane shapes, so server and client render the same bars. */
+function mixerShape(seed: number, density: number): number[] {
+  const out: number[] = [];
+  for (let i = 0; i < 160; i++) {
+    const t = i / 160;
+    const env = 0.35 + 0.65 * Math.pow(Math.sin(t * Math.PI), 0.6);
+    const a = Math.abs(Math.sin(i * 0.61 * seed + seed));
+    const b = Math.abs(Math.cos(i * 1.37 + seed * 0.3));
+    const c = Math.abs(Math.sin(i * 3.1 + seed));
+    out.push(Math.min(1, env * (0.18 + (a * 0.5 + b * 0.35 + c * 0.15) * density)));
+  }
+  return out;
 }
