@@ -124,17 +124,17 @@ const faqs = [
   {
     question: "How long does this take?",
     answer:
-      "Usually 20 to 60 seconds — it needs to fetch the audio from YouTube before analysis can even start, so it's slower than analyzing a file you've already uploaded.",
+      "Usually 20 to 60 seconds, it needs to fetch the audio from YouTube before analysis can even start, so it's slower than analyzing a file you've already uploaded.",
   },
   {
     question: "Does this work with Shorts?",
-    answer: "Yes — standard videos, youtu.be links, and Shorts are all supported.",
+    answer: "Yes. Standard videos, youtu.be links, and Shorts are all supported.",
   },
   // Derived from tool-limits.ts — see the note above the constants for why the
   // previous hardcoded "15 minutes" was turning away videos this tool handles.
   {
     question: "Is there a video length limit?",
-    answer: `Yes — videos up to ${durationLabel} long are supported.`,
+    answer: `Yes. Videos up to ${durationLabel} long are supported.`,
   },
   {
     question: "What if the video is private, age-restricted, or region-locked?",
@@ -149,14 +149,14 @@ const faqs = [
   // Derived from rate-limits.ts. Do not hardcode this again.
   {
     question: "Is this really free?",
-    answer: `Yes, free to use — usage is limited to ${rateLimitLabel} per person, since this chains a YouTube fetch together with analysis.`,
+    answer: `Yes, free to use, usage is limited to ${rateLimitLabel} per person, since this chains a YouTube fetch together with analysis.`,
   },
   {
     question: "Can I remove the vocals from the same video too?",
-    answer: "Yes — the YouTube Vocal Remover works the same way, straight from a link.",
+    answer: "Yes. The YouTube Vocal Remover works the same way, straight from a link.",
     answerNode: (
       <>
-        Yes — the{" "}
+        Yes. The{" "}
         <Link href="/youtube-vocal-remover" className="text-amber-400 hover:underline">
           YouTube Vocal Remover
         </Link>{" "}
@@ -181,7 +181,7 @@ export default function YouTubeKeyFinderPage() {
         }
         meta={["No account", "No download step", "Accuracy published"]}
         title="Free YouTube Key & BPM Finder"
-        lede="Paste a YouTube link and get its key, BPM, and Camelot notation automatically — no download step, no sign-up."
+        lede="Paste a YouTube link and get its key, BPM, and Camelot notation automatically, no download step, no sign-up."
         tool={<YouTubeAnalyzeForm />}
       >
         <ProofStrip

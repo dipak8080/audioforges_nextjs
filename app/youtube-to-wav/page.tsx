@@ -17,7 +17,7 @@ import { getRelatedTools } from "@/lib/data/tools";
 import { getLimits, windowFor, rateLimitLabel, durationLabel } from "@/lib/api/limits";
 import { ogForTool } from "@/lib/og";
 
-const PAGE_TITLE = "Free YouTube to WAV Converter — Lossless Audio";
+const PAGE_TITLE = "Free YouTube to WAV Converter – Lossless Audio";
 const PAGE_DESCRIPTION =
   "Convert YouTube videos to lossless WAV online for free. No sign-up, no watermark, supports YouTube Shorts, and downloads high-quality audio in seconds.";
 
@@ -121,12 +121,12 @@ export default async function YouTubeToWavPage() {
   const faqs = [
     {
       question: "Is this really free?",
-      answer: `Yes — every conversion is free, with no sign-up, no watermark, and nothing to install. The fair-use limit is ${rateLimitText}, which is well past what a normal session needs.`,
+      answer: `Yes. Every conversion is free, with no sign-up, no watermark, and nothing to install. The fair-use limit is ${rateLimitText}, which is well past what a normal session needs.`,
     },
     {
       question: "What's the difference between WAV and MP3 here?",
       answer:
-        "WAV is lossless 44.1kHz audio — larger files, no compression artifacts. Use it for DJing, sampling, or editing. MP3 is 320kbps CBR — smaller files, transparent enough for casual listening.",
+        "WAV is lossless 44.1kHz audio, larger files, no compression artifacts. Use it for DJing, sampling, or editing. MP3 is 320kbps CBR, smaller files, transparent enough for casual listening.",
     },
     {
       question: "Does this work with YouTube Shorts?",
@@ -140,7 +140,7 @@ export default async function YouTubeToWavPage() {
     {
       question: "Does it work on mobile?",
       answer:
-        "Yes — the converter works in any mobile browser on iPhone or Android, no app install required.",
+        "Yes. The converter works in any mobile browser on iPhone or Android, no app install required.",
     },
     {
       question: "Is downloading YouTube audio legal?",
@@ -154,7 +154,7 @@ export default async function YouTubeToWavPage() {
     {
       question: "Does it support YouTube playlists?",
       answer:
-        "Not currently — the converter processes one video URL at a time rather than an entire playlist.",
+        "Not currently. The converter processes one video URL at a time rather than an entire playlist.",
     },
     {
       question: "Why did my conversion fail?",
@@ -179,7 +179,7 @@ export default async function YouTubeToWavPage() {
         same URL — worth saying plainly rather than leaving as "cached".
       */
       question: "Is my converted file stored?",
-      answer: `Nothing is uploaded from your device — you paste a link, and what gets stored is the converted audio, derived from a public video rather than from a file of yours. It's cached ${cacheWindow} so that a repeat request for the same video and format is served instantly, and the cache is keyed on the video and format alone, with nothing identifying you in it. That means someone else converting the same link gets the same cached file. Entries are also evicted early when the cache fills, so ${cacheDays} days is a ceiling rather than a guarantee. There are no accounts, and no record of who converted what.`,
+      answer: `Nothing is uploaded from your device, you paste a link, and what gets stored is the converted audio, derived from a public video rather than from a file of yours. It's cached ${cacheWindow} so that a repeat request for the same video and format is served instantly, and the cache is keyed on the video and format alone, with nothing identifying you in it. That means someone else converting the same link gets the same cached file. Entries are also evicted early when the cache fills, so ${cacheDays} days is a ceiling rather than a guarantee. There are no accounts, and no record of who converted what.`,
     },
     {
       question: "Can I get FLAC or AIFF instead of WAV or MP3?",
@@ -192,7 +192,7 @@ export default async function YouTubeToWavPage() {
           <Link href="/convert" prefetch={false} className="text-amber-400 hover:underline">
             Audio Converter
           </Link>
-          , which supports FLAC, AIFF, and several other formats.
+         , which supports FLAC, AIFF, and several other formats.
         </>
       ),
     },
@@ -304,7 +304,7 @@ export default async function YouTubeToWavPage() {
           <Prose>
             <p>
               WAV stores the original PCM audio with no compression, which is why
-              it&apos;s preferred for editing, sampling, and mastering —
+              it&apos;s preferred for editing, sampling, and mastering, 
               there&apos;s nothing for further processing to expose. MP3 trades
               some of that data for a much smaller file, which is the right call
               when you&apos;re just listening or sharing rather than processing
@@ -357,7 +357,7 @@ export default async function YouTubeToWavPage() {
             <p>
               If MP3 is what you actually want, the{" "}
               <Link href="/youtube-to-mp3">YouTube to MP3 converter</Link> is the
-              page for it — same converter, MP3 preselected, with file sizes and
+              page for it, same converter, MP3 preselected, with file sizes and
               an honest account of what 320kbps does and doesn&apos;t recover from
               a YouTube source. Want the full technical breakdown of why the
               choice matters for sampling and production specifically?{" "}

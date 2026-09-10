@@ -125,27 +125,27 @@ export default async function SampleRateConverterPage() {
     {
       question: "What sample rate should I use for video?",
       answer:
-        "48kHz is the broadcast and video-editing standard — matching it avoids sync or compatibility issues when the audio is going into a video project.",
+        "48kHz is the broadcast and video-editing standard, matching it avoids sync or compatibility issues when the audio is going into a video project.",
     },
     {
       question: "Should I convert 44.1kHz to 48kHz, or the other way around?",
       answer:
-        "Whichever direction matches what your destination actually requires — a video editor expecting 48kHz, or a music project expecting 44.1kHz. Neither rate is inherently better; it's a compatibility choice, not a quality one.",
+        "Whichever direction matches what your destination actually requires, a video editor expecting 48kHz, or a music project expecting 44.1kHz. Neither rate is inherently better; it's a compatibility choice, not a quality one.",
     },
     {
       question: "Does converting to a higher sample rate improve quality?",
       answer:
-        "No — converting 44.1kHz audio up to 96kHz doesn't add detail that wasn't in the original recording, it just represents the same information with more samples. Quality is set by the original recording, not by the sample rate you convert to afterward.",
+        "No. Converting 44.1kHz audio up to 96kHz doesn't add detail that wasn't in the original recording, it just represents the same information with more samples. Quality is set by the original recording, not by the sample rate you convert to afterward.",
     },
     {
       question: "Does changing sample rate reduce audio quality?",
       answer:
-        "Converting to a higher rate doesn't lose anything, but converting to a lower rate is a genuine change — fewer samples per second means less of the original signal is represented afterward, though 44.1kHz already covers the full range of normal human hearing.",
+        "Converting to a higher rate doesn't lose anything, but converting to a lower rate is a genuine change, fewer samples per second means less of the original signal is represented afterward, though 44.1kHz already covers the full range of normal human hearing.",
     },
     {
       question: "What is bit depth, and when does it apply?",
       answer:
-        "Bit depth controls how finely each sample's amplitude is measured — 16-bit is CD standard, 24-bit and 32-bit are common in production. It only applies to uncompressed WAV/AIFF files here; compressed formats like MP3 or AAC don't expose a user-facing PCM bit depth to convert.",
+        "Bit depth controls how finely each sample's amplitude is measured, 16-bit is CD standard, 24-bit and 32-bit are common in production. It only applies to uncompressed WAV/AIFF files here; compressed formats like MP3 or AAC don't expose a user-facing PCM bit depth to convert.",
     },
     {
       question: "Is there a size or length limit?",

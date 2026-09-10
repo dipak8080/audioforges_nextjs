@@ -52,7 +52,7 @@ import { ogForTool } from "@/lib/og";
  */
 const PAGE_TITLE = "TikTok to MP3 Converter – Free Audio Downloader";
 const PAGE_DESCRIPTION =
-  "Free TikTok to MP3 converter and audio downloader. Paste a TikTok link and download the sound as an MP3 in seconds — no app, no account, no watermark.";
+  "Free TikTok to MP3 converter and audio downloader. Paste a TikTok link and download the sound as an MP3 in seconds, no app, no account, no watermark.";
 
 /** From the rate-limit table rather than typed into a sentence. The FAQ used
  *  to say "30 conversions per hour" as a literal. */
@@ -95,7 +95,7 @@ const webAppJsonLd = {
   offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
   featureList: [
     "Convert TikTok videos to MP3",
-    "TikTok audio downloader — sounds and full videos as MP3",
+    "TikTok audio downloader, sounds and full videos as MP3",
     "Works with vt.tiktok.com and vm.tiktok.com share links",
     "No sign-up required",
     "No watermark",
@@ -131,7 +131,7 @@ const faqs = [
   {
     question: "How do I convert a TikTok video to MP3?",
     answer:
-      "Tap Share on the TikTok video and choose Copy link, paste that link into the converter above, then click Convert to MP3. The audio comes back as an MP3 you can play before downloading — usually within a few seconds.",
+      "Tap Share on the TikTok video and choose Copy link, paste that link into the converter above, then click Convert to MP3. The audio comes back as an MP3 you can play before downloading, usually within a few seconds.",
   },
   {
     question: "What audio quality do I get?",
@@ -143,7 +143,7 @@ const faqs = [
         own audio, which we measured at roughly 64kbps AAC, so nothing audible
         is lost in the conversion. Converters advertising 320kbps are encoding
         that same 64kbps source into a file two and a half times larger with
-        identical sound —{" "}
+        identical sound, {" "}
         <Link
           href="/guides/tiktok-audio-quality-explained"
           className="text-amber-400 hover:underline"
@@ -167,7 +167,7 @@ const faqs = [
   {
     question: "Can I download TikTok sounds as well as full videos?",
     answer:
-      "Yes — a TikTok sound and a TikTok video are the same thing from the converter's point of view. Paste the link to any public video using the sound and you get that sound as an MP3. There is no separate sounds page to visit; the audio track is what gets extracted either way.",
+      "Yes. A TikTok sound and a TikTok video are the same thing from the converter's point of view. Paste the link to any public video using the sound and you get that sound as an MP3. There is no separate sounds page to visit; the audio track is what gets extracted either way.",
   },
   {
     question: "Does it work with short vt.tiktok.com links?",

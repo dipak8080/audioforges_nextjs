@@ -47,7 +47,7 @@ import {
 */
 const PAGE_TITLE = "Stereo to Mono Converter – Free, Also Mono to Stereo";
 const PAGE_DESCRIPTION =
-  "Free online stereo to mono converter. Downmix stereo to a single channel, or duplicate mono to stereo — no sign-up, no watermark, no software to install.";
+  "Free online stereo to mono converter. Downmix stereo to a single channel, or duplicate mono to stereo, no sign-up, no watermark, no software to install.";
 
 const UPDATED = "2026-09-10";
 
@@ -125,17 +125,17 @@ export default async function MonoStereoConverterPage() {
     {
       question: "Is mono better for voice recordings?",
       answer:
-        "Often, yes — a single voice usually doesn't benefit from stereo width, and many phone systems, IVR platforms, and podcast hosts expect or prefer single-channel audio for spoken content.",
+        "Often, yes, a single voice usually doesn't benefit from stereo width, and many phone systems, IVR platforms, and podcast hosts expect or prefer single-channel audio for spoken content.",
     },
     {
       question: "Does converting stereo to mono lose left/right information?",
       answer:
-        "Yes — combining two channels into one is a real change. Any separation between the left and right channels in the original is gone in the mono result; the audio isn't damaged, but it's a genuinely different listening experience from the stereo original.",
+        "Yes. Combining two channels into one is a real change. Any separation between the left and right channels in the original is gone in the mono result; the audio isn't damaged, but it's a genuinely different listening experience from the stereo original.",
     },
     {
       question: "Does this conversion affect audio quality?",
       answer:
-        "It changes channel count, not fidelity — but stereo-to-mono is not a lossless no-op, since it genuinely discards the left/right separation that existed. Mono-to-stereo doesn't lose anything, since it's only duplicating what's already there.",
+        "It changes channel count, not fidelity, but stereo-to-mono is not a lossless no-op, since it genuinely discards the left/right separation that existed. Mono-to-stereo doesn't lose anything, since it's only duplicating what's already there.",
     },
     {
       question: "Will converting to mono make my file smaller?",

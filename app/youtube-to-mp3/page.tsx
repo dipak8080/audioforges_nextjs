@@ -75,7 +75,7 @@ import { ogForTool } from "@/lib/og";
  */
 const PAGE_TITLE = "YouTube to MP3 Converter & Downloader – Free 320kbps";
 const PAGE_DESCRIPTION =
-  "Free YouTube to MP3 converter and downloader. Paste a link, get 320kbps audio in seconds — no signup, no watermark, no app, on phone or desktop.";
+  "Free YouTube to MP3 converter and downloader. Paste a link, get 320kbps audio in seconds, no signup, no watermark, no app, on phone or desktop.";
 
 const UPDATED = "2026-09-10";
 
@@ -140,12 +140,12 @@ const faqs = [
   {
     question: "How do I convert a YouTube video to MP3?",
     answer:
-      "Copy the video URL from YouTube, paste it into the converter above, and click Convert to MP3. The file is ready in roughly 8 to 20 seconds and downloads when you click Download — nothing saves to your device before that.",
+      "Copy the video URL from YouTube, paste it into the converter above, and click Convert to MP3. The file is ready in roughly 8 to 20 seconds and downloads when you click Download, nothing saves to your device before that.",
   },
   {
     question: "Is this YouTube to MP3 converter free?",
     answer:
-      "Yes. No account, no email, no payment, and no watermark or spoken tag on the file. There's a short per-minute limit on how fast you can run conversions, which exists to keep the queue moving rather than to sell you an upgrade — there isn't one.",
+      "Yes. No account, no email, no payment, and no watermark or spoken tag on the file. There's a short per-minute limit on how fast you can run conversions, which exists to keep the queue moving rather than to sell you an upgrade, there isn't one.",
   },
   {
     question: "What bitrate is the MP3?",
@@ -155,17 +155,17 @@ const faqs = [
   {
     question: "Is 320kbps really better than 128kbps here?",
     answer:
-      "For a YouTube source, marginally — and only because the encoder has more room to work with. Anyone advertising 320kbps as if it recovers quality YouTube never sent is either mistaken or counting on you not checking. We offer it because a bigger file costs you nothing but disk space, not because it performs magic on the source.",
+      "For a YouTube source, marginally, and only because the encoder has more room to work with. Anyone advertising 320kbps as if it recovers quality YouTube never sent is either mistaken or counting on you not checking. We offer it because a bigger file costs you nothing but disk space, not because it performs magic on the source.",
   },
   {
     question: "How big is the MP3 file?",
     answer:
-      "At 320kbps, roughly 2.4MB per minute — so a four-minute song is about 9-10MB, and an hour-long podcast is about 140MB. If storage matters more than headroom, converting to WAV and re-encoding smaller elsewhere is the wrong route; just accept the 320kbps file, since it's already an order of magnitude smaller than the WAV equivalent.",
+      "At 320kbps, roughly 2.4MB per minute, so a four-minute song is about 9-10MB, and an hour-long podcast is about 140MB. If storage matters more than headroom, converting to WAV and re-encoding smaller elsewhere is the wrong route; just accept the 320kbps file, since it's already an order of magnitude smaller than the WAV equivalent.",
   },
   {
     question: "Will the MP3 play in my car stereo or on a USB stick?",
     answer:
-      "Almost certainly. MP3 is the most widely supported audio format there is — car head units, USB players, older phones and cheap MP3 players read it when they reject almost everything else. That compatibility, not audio quality, is the actual reason to pick MP3 over WAV or FLAC.",
+      "Almost certainly. MP3 is the most widely supported audio format there is, car head units, USB players, older phones and cheap MP3 players read it when they reject almost everything else. That compatibility, not audio quality, is the actual reason to pick MP3 over WAV or FLAC.",
   },
   {
     question: "Does this work on iPhone and Android?",
@@ -175,7 +175,7 @@ const faqs = [
   {
     question: "Does it support YouTube Shorts?",
     answer:
-      "Yes. Standard youtube.com/watch links, short youtu.be links and /shorts URLs all work. Playlists don't — the converter handles one video URL at a time.",
+      "Yes. Standard youtube.com/watch links, short youtu.be links and /shorts URLs all work. Playlists don't, the converter handles one video URL at a time.",
   },
   {
     question: "Why did my conversion fail?",
@@ -191,7 +191,7 @@ const faqs = [
         MP3 if the file is going onto a phone, a car stereo, or a USB stick, or
         if you just want to listen to it. WAV if it&apos;s going into a DAW, a DJ
         deck, or a sampler, because every further process you apply to a lossy
-        file works on top of decisions the encoder already made for you — use the{" "}
+        file works on top of decisions the encoder already made for you, use the{" "}
         <Link href="/youtube-to-wav" className="text-amber-400 hover:underline">
           YouTube to WAV converter
         </Link>{" "}
@@ -222,7 +222,7 @@ export default function YouTubeToMp3Page() {
         }
         meta={["No account", "No watermark", "320kbps CBR"]}
         title="YouTube to MP3 Converter"
-        lede="Convert YouTube to MP3 free at 320kbps. Paste a link, download in seconds — no signup, no watermark, no app."
+        lede="Convert YouTube to MP3 free at 320kbps. Paste a link, download in seconds, no signup, no watermark, no app."
         /* defaultFormat="mp3" — without it the form loads with WAV preselected
            and the page promises something the tool doesn't offer on arrival.
            See YouTubeConverterForm's prop. */
@@ -418,7 +418,7 @@ export default function YouTubeToMp3Page() {
             What no converter can do is change any of that. A tool advertising
             &quot;100% legal downloads&quot; is describing its own software, not
             your rights to the audio. We don&apos;t make that claim, and this
-            isn&apos;t legal advice — it&apos;s the shape of the question so you
+            isn&apos;t legal advice, it&apos;s the shape of the question so you
             can answer it for your own situation.
           </p>
         </ToolSection>

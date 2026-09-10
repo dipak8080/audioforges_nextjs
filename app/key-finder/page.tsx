@@ -40,7 +40,7 @@ import { ogForTool } from "@/lib/og";
 */
 const PAGE_TITLE = "Song Key Finder & BPM Finder – Free, No Sign-Up";
 const PAGE_DESCRIPTION =
-  "Free song key finder and BPM finder. Detect the musical key, tempo and Camelot notation of any track — MP3, WAV, FLAC, AAC, M4A, OGG or AIFF. No sign-up.";
+  "Free song key finder and BPM finder. Detect the musical key, tempo and Camelot notation of any track, MP3, WAV, FLAC, AAC, M4A, OGG or AIFF. No sign-up.";
 
 const UPDATED = "2026-09-10";
 
@@ -134,12 +134,12 @@ export default async function KeyFinderPage() {
     {
       question: "Does it analyse the whole track?",
       answer:
-        "The first three minutes. The server makes a trimmed copy, analyses that, and deletes it — which is why a nine-minute mix comes back as fast as a three-minute single. For most music that's plenty, since key and tempo are established early. It matters when a track opens with a long intro that isn't representative: trim to a section with the harmony in it and analyse that instead.",
+        "The first three minutes. The server makes a trimmed copy, analyses that, and deletes it, which is why a nine-minute mix comes back as fast as a three-minute single. For most music that's plenty, since key and tempo are established early. It matters when a track opens with a long intro that isn't representative: trim to a section with the harmony in it and analyse that instead.",
     },
     {
       question: "How long does key and BPM detection take?",
       answer:
-        "Just a few seconds for most tracks — results appear as soon as analysis finishes, no waiting in a queue.",
+        "Just a few seconds for most tracks, results appear as soon as analysis finishes, no waiting in a queue.",
     },
     {
       /*
@@ -156,12 +156,12 @@ export default async function KeyFinderPage() {
       */
       question: "Is my uploaded track stored or shared?",
       answer:
-        "No. Your file is deleted as soon as analysis finishes — including if it fails, and including the temporary trimmed copy the analyser works from. Nothing is stored afterward: the key and BPM come back directly in the response, so there's no result file and nothing with an expiry. There are no accounts, so nothing is linked to you.",
+        "No. Your file is deleted as soon as analysis finishes, including if it fails, and including the temporary trimmed copy the analyser works from. Nothing is stored afterward: the key and BPM come back directly in the response, so there's no result file and nothing with an expiry. There are no accounts, so nothing is linked to you.",
     },
     {
       question: "What affects detection accuracy?",
       answer:
-        "The first three minutes are what matter, since that's what gets analysed — so a track whose opening three minutes represent the song will read well, and one that opens with a long ambient or drum-only intro can read badly no matter how clear the rest is. If that's your track, trim to a section with the harmony in it and analyse that instead. Beyond the intro problem: consistent tempo and clear harmonic content help, while live recordings, heavy distortion, mid-track tempo changes and spoken-word audio all give the analysis less to lock onto.",
+        "The first three minutes are what matter, since that's what gets analysed, so a track whose opening three minutes represent the song will read well, and one that opens with a long ambient or drum-only intro can read badly no matter how clear the rest is. If that's your track, trim to a section with the harmony in it and analyse that instead. Beyond the intro problem: consistent tempo and clear harmonic content help, while live recordings, heavy distortion, mid-track tempo changes and spoken-word audio all give the analysis less to lock onto.",
     },
   ];
 
