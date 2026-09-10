@@ -120,6 +120,7 @@ export function AudioToSheetForm() {
 
   return (
     <JobToolForm
+      breakoutOnComplete
       // Remount when the instrument changes so nothing stale carries over,
       // matching how audio-to-midi keys on its tier.
       key={instrument}
@@ -142,7 +143,7 @@ export function AudioToSheetForm() {
       // real list; this only filters the picker dialog.
       fileAccept="audio/*,.mp3,.wav,.m4a,.aac,.ogg,.flac,.aiff,.opus,.webm"
       hidePreview
-      renderResult={(jobId) => <SheetResultPanel key={jobId} jobId={jobId} />}
+      renderResult={(jobId, file) => <SheetResultPanel key={jobId} jobId={jobId} sourceFile={file} />}
       buildExtraFields={() => ({
         instrument,
         // Only meaningful for piano; harmless elsewhere, but only send it where
@@ -217,7 +218,7 @@ const FORMAT_BUTTONS: {
   { format: "svg", label: "SVG", hint: "Vector image", icon: <FileText className="h-4 w-4" aria-hidden /> },
 ];
 
-function SheetResultPanel({ jobId }: { jobId: string }) {
+function SheetResultPanel({ jobId, sourceFile }: { jobId: string; sourceFile: File | null }) {
   const [result, setResult] = useState<SheetResult | null>(null);
   const [error, setError] = useState(false);
 
@@ -268,6 +269,8 @@ function SheetResultPanel({ jobId }: { jobId: string }) {
       <SheetResultPlayer
         musicXmlUrl={getSheetDownloadUrl(jobId, "musicxml")}
         tempoBpm={result?.tempo_bpm ?? 120}
+        sourceFile={sourceFile}
+        title={sourceFile?.name ?? null}
         fallback={
           <div className="overflow-hidden rounded-xl border border-amber-500/30 bg-white shadow-[0_8px_40px_-12px_rgba(232,162,61,0.35)]">
             <object

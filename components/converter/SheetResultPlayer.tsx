@@ -1,8 +1,28 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Pause, Play, Repeat, Square } from "lucide-react";
+import {
+  AudioLines,
+  Download,
+  Headphones,
+  Loader2,
+  Pause,
+  Play,
+  Printer,
+  Repeat,
+  Sparkles,
+  Square,
+  ZoomIn,
+  ZoomOut,
+} from "lucide-react";
 import { cn } from "@/lib/utils/cn";
+import {
+  INSTRUMENTS,
+  makeInstrument,
+  mixGains,
+  type Instrument,
+  type InstrumentKind,
+} from "@/lib/audio/instruments";
 
 type ToneModule = typeof import("tone");
 type OSMD = import("opensheetmusicdisplay").OpenSheetMusicDisplay;
@@ -12,10 +32,16 @@ type ScoreEvent = { tick: number; durTicks: number; pitches: number[]; velocity:
 type Engine = {
   Tone: ToneModule;
   transport: ReturnType<ToneModule["getTransport"]>;
-  synth: { releaseAll: () => void; dispose: () => void };
+  synth: Instrument;
+  channel: InstanceType<ToneModule["Channel"]>;
   part: { dispose: () => void };
   nodes: { dispose: () => void }[];
+  midiGain: InstanceType<ToneModule["Gain"]>;
+  origGain: InstanceType<ToneModule["Gain"]>;
+  original: InstanceType<ToneModule["Player"]> | null;
 };
+
+const ZOOMS = [0.6, 0.7, 0.8, 0.9, 1, 1.15, 1.3, 1.5];
 
 const PPQ = 480;
 const MIN_NOTE_SEC = 0.04;
@@ -34,15 +60,29 @@ export function SheetResultPlayer({
   musicXmlUrl,
   tempoBpm,
   fallback,
+  sourceFile,
+  title,
 }: {
   musicXmlUrl: string;
   tempoBpm: number;
   fallback: React.ReactNode;
+  /** The audio the score was transcribed from — enables the original A/B. */
+  sourceFile?: File | null;
+  title?: string | null;
 }) {
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [isPlaying, setIsPlaying] = useState(false);
   const [tempoPct, setTempoPct] = useState(100);
   const [loop, setLoop] = useState(false);
+  const [instrument, setInstrument] = useState<InstrumentKind>("piano");
+  const [instrumentLoading, setInstrumentLoading] = useState(false);
+  const [compare, setCompare] = useState(false);
+  const [mix, setMix] = useState(1);
+  const [originalReady, setOriginalReady] = useState(false);
+  const [metronome, setMetronome] = useState(false);
+  const [zoomIdx, setZoomIdx] = useState(4);
+  const [transpose, setTranspose] = useState(0);
+  const [busy, setBusy] = useState(false);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const hostRef = useRef<HTMLDivElement>(null);
@@ -60,6 +100,13 @@ export function SheetResultPlayer({
   const loopRef = useRef(false);
   const tempoRef = useRef(100);
   const seekingRef = useRef(false);
+  const instrumentRef = useRef<InstrumentKind>("piano");
+  const mixRef = useRef(1);
+  const compareRef = useRef(false);
+  const metroRef = useRef(false);
+  const transposeRef = useRef(0);
+  const zoomIdxRef = useRef(4);
+  const sourceUrlRef = useRef<string | null>(null);
   const litRef = useRef<{ el: SVGElement | HTMLElement; fill: string; stroke: string }[]>([]);
   const overlayRef = useRef<HTMLDivElement | null>(null);
   const baseBpmRef = useRef(Math.min(400, Math.max(20, tempoBpm || 120)));
@@ -356,21 +403,33 @@ export function SheetResultPlayer({
     transport.loopEnd = `${durationTicksRef.current}i`;
 
     const limiter = new Tone.Limiter(-1).toDestination();
-    const master = new Tone.Volume(-7).connect(limiter);
-    const synth = new Tone.PolySynth(Tone.Synth, {
-      oscillator: { type: "triangle" },
-      envelope: { attack: 0.004, decay: 0.18, sustain: 0.45, release: 0.3 },
-    });
-    synth.maxPolyphony = 48;
-    synth.connect(master);
+    const g0 = mixGains(mixRef.current, compareRef.current);
+    const midiGain = new Tone.Gain(g0.midi).connect(limiter);
+    const origGain = new Tone.Gain(g0.orig).connect(limiter);
+    const master = new Tone.Volume(-7).connect(midiGain);
+    const channel = new Tone.Channel().connect(master);
 
-    const part = new Tone.Part(
+    const eng: Engine = {
+      Tone,
+      transport,
+      synth: makeInstrument(Tone, instrumentRef.current, false, () => setInstrumentLoading(false)),
+      channel,
+      part: { dispose: () => {} },
+      nodes: [limiter, master, midiGain, origGain, channel],
+      midiGain,
+      origGain,
+      original: null,
+    };
+    setInstrumentLoading(true);
+    eng.synth.connect(channel);
+
+    eng.part = new Tone.Part(
       (time, ev: ScoreEvent) => {
         const bpmNow = transport.bpm.value;
         const durSec = Math.max(MIN_NOTE_SEC, (ev.durTicks / PPQ) * (60 / bpmNow) * 0.92);
         for (const p of ev.pitches) {
-          synth.triggerAttackRelease(
-            Tone.Frequency(p, "midi").toFrequency(),
+          eng.synth.triggerAttackRelease(
+            Tone.Frequency(p + transposeRef.current, "midi").toFrequency(),
             durSec,
             time,
             ev.velocity
@@ -380,15 +439,41 @@ export function SheetResultPlayer({
       eventsRef.current.map((ev) => [`${ev.tick}i`, ev] as [string, ScoreEvent])
     ).start(0);
 
+    const click = new Tone.MembraneSynth({
+      pitchDecay: 0.005,
+      octaves: 2,
+      envelope: { attack: 0.001, decay: 0.05, sustain: 0 },
+    }).connect(midiGain);
+    click.volume.value = -8;
+    eng.nodes.push(click);
+    transport.scheduleRepeat((time) => {
+      if (!metroRef.current) return;
+      const ticks = transport.getTicksAtTime(time);
+      const accent = Math.abs(ticks % (PPQ * 4)) < PPQ / 2;
+      click.triggerAttackRelease(accent ? "C6" : "G5", 0.03, time, accent ? 0.9 : 0.55);
+    }, "4n", 0);
+
+    if (sourceUrlRef.current) {
+      const player = new Tone.Player({
+        url: sourceUrlRef.current,
+        onload: () => setOriginalReady(true),
+      }).connect(origGain);
+      player.playbackRate = tempoRef.current / 100;
+      eng.original = player;
+    }
+
     transport.scheduleRepeat(
       () => {
         if (transport.ticks >= durationTicksRef.current - 1) {
           if (loopRef.current) {
             resetCursor();
+            posRef.current = 0;
+            startOriginal(eng);
             return;
           }
           transport.pause();
-          synth.releaseAll();
+          eng.synth.releaseAll();
+          stopOriginal(eng);
           playingRef.current = false;
           setIsPlaying(false);
           posRef.current = 0;
@@ -401,9 +486,167 @@ export function SheetResultPlayer({
       0
     );
 
-    const eng: Engine = { Tone, transport, synth, part, nodes: [limiter, master] };
     engineRef.current = eng;
     return eng;
+  };
+
+  const originalOffsetSec = () => (posRef.current / PPQ) * (60 / baseBpmRef.current);
+
+  const startOriginal = (eng: Engine) => {
+    const p = eng.original;
+    if (!p || !p.loaded) return;
+    try {
+      p.stop();
+    } catch {}
+    const off = originalOffsetSec();
+    if (off < p.buffer.duration) p.start(undefined, off);
+  };
+
+  const stopOriginal = (eng: Engine | null) => {
+    const p = eng?.original;
+    if (!p) return;
+    try {
+      p.stop();
+    } catch {}
+  };
+
+  const changeInstrument = (kind: InstrumentKind) => {
+    instrumentRef.current = kind;
+    setInstrument(kind);
+    const eng = engineRef.current;
+    if (!eng) return;
+    eng.synth.releaseAll();
+    eng.synth.dispose();
+    setInstrumentLoading(true);
+    eng.synth = makeInstrument(eng.Tone, kind, false, () => setInstrumentLoading(false));
+    eng.synth.connect(eng.channel);
+  };
+
+  const applyMix = (nextMix: number, nextCompare: boolean) => {
+    mixRef.current = nextMix;
+    compareRef.current = nextCompare;
+    setMix(nextMix);
+    setCompare(nextCompare);
+    const eng = engineRef.current;
+    if (eng) {
+      const g = mixGains(nextMix, nextCompare);
+      eng.midiGain.gain.rampTo(g.midi, 0.05);
+      eng.origGain.gain.rampTo(g.orig, 0.05);
+    }
+  };
+
+  const toggleCompare = async () => {
+    const next = !compareRef.current;
+    if (next && !engineRef.current) await ensureEngine();
+    applyMix(next ? 0.5 : 1, next);
+  };
+
+  const toggleMetronome = async () => {
+    const next = !metroRef.current;
+    metroRef.current = next;
+    setMetronome(next);
+    if (next && !engineRef.current) await ensureEngine();
+  };
+
+  /* Re-engrave (zoom / transpose) and put the cursor back where it was. */
+  const rerender = () => {
+    const osmd = osmdRef.current;
+    if (!osmd) return;
+    try {
+      clearHighlights();
+      osmd.render();
+      osmd.cursor.show();
+      osmd.cursor.reset();
+      let guard = stepsRef.current.length + 1;
+      for (let i = 0; i < stepIndexRef.current && guard-- > 0; i++) osmd.cursor.next();
+      styleCursor(osmd);
+      highlightUnderCursor();
+      positionOverlay(osmd);
+    } catch {}
+  };
+
+  const setZoom = (idx: number) => {
+    const osmd = osmdRef.current;
+    const i = Math.max(0, Math.min(ZOOMS.length - 1, idx));
+    zoomIdxRef.current = i;
+    setZoomIdx(i);
+    if (!osmd) return;
+    osmd.Zoom = ZOOMS[i];
+    rerender();
+  };
+
+  const setTransposeSemis = async (semis: number) => {
+    const osmd = osmdRef.current;
+    if (!osmd || busy) return;
+    const n = Math.max(-12, Math.min(12, semis));
+    setBusy(true);
+    try {
+      const { TransposeCalculator } = await import("opensheetmusicdisplay");
+      if (!osmd.TransposeCalculator) osmd.TransposeCalculator = new TransposeCalculator();
+      osmd.Sheet.Transpose = n;
+      osmd.updateGraphic();
+      transposeRef.current = n;
+      setTranspose(n);
+      rerender();
+    } catch {
+      /* transposition is optional — leave the score as-is */
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const scoreSvgs = () => Array.from(hostRef.current?.querySelectorAll("svg") ?? []);
+
+  const printScore = () => {
+    const svgs = scoreSvgs();
+    if (svgs.length === 0) return;
+    const win = window.open("", "_blank", "width=900,height=1200");
+    if (!win) return;
+    const markup = svgs.map((el) => el.outerHTML).join("\n");
+    const name = (title || "score").replace(/</g, "");
+    win.document.write(
+      `<!doctype html><html><head><title>${name} — AudioForges</title><style>@page{margin:14mm}body{margin:0;background:#fff}svg{display:block;width:100%;height:auto;page-break-after:always}</style></head><body>${markup}</body></html>`
+    );
+    win.document.close();
+    win.focus();
+    setTimeout(() => win.print(), 300);
+  };
+
+  const downloadPng = async () => {
+    const svgs = scoreSvgs();
+    if (svgs.length === 0) return;
+    const svg = svgs[0];
+    const bbox = svg.getBoundingClientRect();
+    const scale = 2;
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(bbox.width * scale);
+    canvas.height = Math.round(bbox.height * scale);
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    const clone = svg.cloneNode(true) as SVGSVGElement;
+    clone.setAttribute("width", String(bbox.width));
+    clone.setAttribute("height", String(bbox.height));
+    const blob = new Blob([new XMLSerializer().serializeToString(clone)], { type: "image/svg+xml" });
+    const url = URL.createObjectURL(blob);
+    const img = new Image();
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = () => reject(new Error("svg"));
+      img.src = url;
+    });
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.scale(scale, scale);
+    ctx.drawImage(img, 0, 0);
+    URL.revokeObjectURL(url);
+    canvas.toBlob((png) => {
+      if (!png) return;
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(png);
+      a.download = `${(title || "score").replace(/\.[^.]+$/, "")} (AudioForges).png`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }, "image/png");
   };
 
   useEffect(() => {
@@ -416,9 +659,23 @@ export function SheetResultPlayer({
       eng.part.dispose();
       eng.synth.dispose();
       eng.nodes.forEach((n) => n.dispose());
+      eng.original?.dispose();
       engineRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    if (!sourceFile) {
+      sourceUrlRef.current = null;
+      return;
+    }
+    const url = URL.createObjectURL(sourceFile);
+    sourceUrlRef.current = url;
+    return () => {
+      URL.revokeObjectURL(url);
+      sourceUrlRef.current = null;
+    };
+  }, [sourceFile]);
 
   /* ---------- transport actions ---------- */
   const togglePlay = async () => {
@@ -426,11 +683,13 @@ export function SheetResultPlayer({
     if (playingRef.current) {
       eng.transport.pause();
       eng.synth.releaseAll();
+      stopOriginal(eng);
       playingRef.current = false;
       setIsPlaying(false);
     } else {
       eng.transport.ticks = posRef.current;
       eng.transport.start();
+      startOriginal(eng);
       playingRef.current = true;
       setIsPlaying(true);
     }
@@ -442,6 +701,7 @@ export function SheetResultPlayer({
       eng.transport.pause();
       eng.transport.ticks = 0;
       eng.synth.releaseAll();
+      stopOriginal(eng);
     }
     playingRef.current = false;
     setIsPlaying(false);
@@ -458,6 +718,7 @@ export function SheetResultPlayer({
     if (eng) {
       eng.synth.releaseAll();
       eng.transport.ticks = t;
+      if (playingRef.current) startOriginal(eng);
     }
     /* Cursor can only walk forward — rewind means reset then fast-forward. */
     if (t < (stepsRef.current[stepIndexRef.current] ?? 0)) resetCursor();
@@ -472,7 +733,16 @@ export function SheetResultPlayer({
     tempoRef.current = pct;
     setTempoPct(pct);
     const eng = engineRef.current;
-    if (eng) eng.transport.bpm.value = baseBpmRef.current * (pct / 100);
+    if (eng) {
+      eng.transport.bpm.value = baseBpmRef.current * (pct / 100);
+      if (eng.original) {
+        eng.original.playbackRate = pct / 100;
+        if (playingRef.current) {
+          posRef.current = eng.transport.ticks;
+          startOriginal(eng);
+        }
+      }
+    }
     syncTimeUi();
   };
 
@@ -484,11 +754,99 @@ export function SheetResultPlayer({
     if (eng) eng.transport.loop = next;
   };
 
+  /* ---------- keyboard + Ctrl+wheel zoom ---------- */
+  useEffect(() => {
+    if (status !== "ready") return;
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null;
+      const tag = el?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || tag === "BUTTON" || el?.isContentEditable) return;
+      const mod = e.ctrlKey || e.metaKey;
+      if (e.code === "Space") {
+        e.preventDefault();
+        void togglePlay();
+      } else if (mod && (e.key === "=" || e.key === "+")) {
+        e.preventDefault();
+        setZoom(zoomIdxRef.current + 1);
+      } else if (mod && e.key === "-") {
+        e.preventDefault();
+        setZoom(zoomIdxRef.current - 1);
+      }
+    };
+    const box = scrollRef.current;
+    const onWheel = (e: WheelEvent) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      e.preventDefault();
+      setZoom(zoomIdxRef.current + (e.deltaY < 0 ? 1 : -1));
+    };
+    window.addEventListener("keydown", onKey);
+    box?.addEventListener("wheel", onWheel, { passive: false });
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      box?.removeEventListener("wheel", onWheel);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status]);
+
   /* ---------- render ---------- */
   if (status === "error") return <>{fallback}</>;
 
   return (
     <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="flex items-center gap-1.5 font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-500">
+          <Sparkles className="h-3.5 w-3.5" aria-hidden />
+          Forge Score
+        </span>
+        {status === "ready" && (
+          <div className="ml-auto flex flex-wrap items-center gap-1.5">
+            <div className="flex items-center overflow-hidden rounded-md border border-white/10 bg-black/20">
+              <button
+                type="button"
+                onClick={() => void setTransposeSemis(transpose - 1)}
+                disabled={busy || transpose <= -12}
+                title="Transpose down a semitone"
+                className="h-8 px-2 text-[11px] text-white/65 transition hover:bg-white/10 disabled:opacity-40"
+              >
+                −
+              </button>
+              <button
+                type="button"
+                onClick={() => void setTransposeSemis(0)}
+                title="Transpose — click to reset"
+                className={cn(
+                  "h-8 min-w-[64px] px-2 font-mono text-[11px] transition hover:bg-white/10",
+                  transpose === 0 ? "text-white/55" : "text-amber-400"
+                )}
+              >
+                {busy ? <Loader2 className="mx-auto h-3.5 w-3.5 animate-spin" /> : `${transpose > 0 ? "+" : ""}${transpose} st`}
+              </button>
+              <button
+                type="button"
+                onClick={() => void setTransposeSemis(transpose + 1)}
+                disabled={busy || transpose >= 12}
+                title="Transpose up a semitone"
+                className="h-8 px-2 text-[11px] text-white/65 transition hover:bg-white/10 disabled:opacity-40"
+              >
+                +
+              </button>
+            </div>
+            <IconBtn label="Zoom out (Ctrl −)" onClick={() => setZoom(zoomIdx - 1)} disabled={zoomIdx === 0}>
+              <ZoomOut className="h-3.5 w-3.5" />
+            </IconBtn>
+            <span className="w-9 text-center font-mono text-[10px] text-white/45">{Math.round(ZOOMS[zoomIdx] * 100)}%</span>
+            <IconBtn label="Zoom in (Ctrl +)" onClick={() => setZoom(zoomIdx + 1)} disabled={zoomIdx === ZOOMS.length - 1}>
+              <ZoomIn className="h-3.5 w-3.5" />
+            </IconBtn>
+            <IconBtn label="Print or save as PDF" onClick={printScore}>
+              <Printer className="h-3.5 w-3.5" />
+            </IconBtn>
+            <IconBtn label="Download score as PNG" onClick={() => void downloadPng()}>
+              <Download className="h-3.5 w-3.5" />
+            </IconBtn>
+          </div>
+        )}
+      </div>
       <div
         ref={scrollRef}
         className={cn(
@@ -511,7 +869,7 @@ export function SheetResultPlayer({
               type="button"
               onClick={togglePlay}
               aria-label={isPlaying ? "Pause" : "Play"}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-500 text-black transition hover:bg-amber-400 active:scale-95"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-amber-500 text-black shadow-lg shadow-amber-500/20 transition hover:bg-amber-400 active:scale-95"
             >
               {isPlaying ? (
                 <Pause className="h-4.5 w-4.5" />
@@ -519,26 +877,15 @@ export function SheetResultPlayer({
                 <Play className="ml-0.5 h-4.5 w-4.5" />
               )}
             </button>
-            <button
-              type="button"
-              aria-label="Stop"
-              onClick={stop}
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/10 text-white/60 transition hover:bg-white/10 active:scale-95"
-            >
+            <IconBtn label="Stop" onClick={stop}>
               <Square className="h-3.5 w-3.5" />
-            </button>
-            <button
-              type="button"
-              aria-label="Loop"
-              aria-pressed={loop}
-              onClick={toggleLoop}
-              className={cn(
-                "flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/10 transition hover:bg-white/10 active:scale-95",
-                loop ? "bg-amber-500/20 text-amber-400" : "text-white/60"
-              )}
-            >
+            </IconBtn>
+            <IconBtn label="Loop" onClick={toggleLoop} active={loop}>
               <Repeat className="h-3.5 w-3.5" />
-            </button>
+            </IconBtn>
+            <IconBtn label="Metronome click" onClick={() => void toggleMetronome()} active={metronome}>
+              <Headphones className="h-3.5 w-3.5" />
+            </IconBtn>
 
             <input
               ref={seekRef}
@@ -590,6 +937,90 @@ export function SheetResultPlayer({
               {Math.round(baseBpm * (tempoPct / 100))} BPM
             </span>
           </div>
+
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="mr-0.5 text-[10px] font-semibold uppercase tracking-wide text-white/40">Sound</span>
+            {INSTRUMENTS.map((inst) => (
+              <button
+                key={inst.key}
+                type="button"
+                onClick={() => changeInstrument(inst.key)}
+                aria-pressed={instrument === inst.key}
+                title={inst.key === "piano" ? "Sampled grand piano (loads on first play)" : `Play back with a ${inst.label.toLowerCase()} sound`}
+                className={cn(
+                  "rounded-full border px-2.5 py-1 text-[11px] transition-colors",
+                  instrument === inst.key
+                    ? "border-amber-500/60 bg-amber-500/10 text-amber-400"
+                    : "border-white/10 text-white/55 hover:border-white/20 hover:text-white/80"
+                )}
+              >
+                {inst.label}
+              </button>
+            ))}
+            {instrumentLoading && (
+              <span className="flex items-center gap-1 text-[11px] text-white/40">
+                <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+                loading
+              </span>
+            )}
+            {sourceFile && (
+              <button
+                type="button"
+                onClick={() => void toggleCompare()}
+                aria-pressed={compare}
+                title="Play your original audio alongside the score to check accuracy"
+                className={cn(
+                  "ml-auto flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] transition-colors",
+                  compare
+                    ? "border-teal-400/60 bg-teal-400/10 text-teal-300"
+                    : "border-white/10 text-white/55 hover:border-white/20 hover:text-white/80"
+                )}
+              >
+                <AudioLines className="h-3 w-3" aria-hidden />
+                Compare original
+              </button>
+            )}
+          </div>
+
+          {compare && (
+            <div className="flex items-center gap-2">
+              <div className="flex shrink-0 overflow-hidden rounded-full border border-white/10">
+                {[
+                  { v: 0, l: "Original" },
+                  { v: 0.5, l: "Both" },
+                  { v: 1, l: "Score" },
+                ].map((o) => (
+                  <button
+                    key={o.l}
+                    type="button"
+                    onClick={() => applyMix(o.v, true)}
+                    className={cn(
+                      "px-2.5 py-1 text-[11px] transition-colors",
+                      Math.abs(mix - o.v) < 0.02 ? "bg-teal-400/15 text-teal-300" : "text-white/55 hover:bg-white/5"
+                    )}
+                  >
+                    {o.l}
+                  </button>
+                ))}
+              </div>
+              <span className="w-14 shrink-0 text-right text-[11px] text-white/50">Original</span>
+              <input
+                type="range"
+                min={0}
+                max={100}
+                value={Math.round(mix * 100)}
+                aria-label="Crossfade between original audio and score playback"
+                className="af-sheet-range flex-1"
+                onChange={(e) => applyMix(Number(e.target.value) / 100, true)}
+              />
+              <span className="w-12 shrink-0 text-[11px] text-white/50">Score</span>
+              {!originalReady && <Loader2 className="h-3 w-3 animate-spin text-white/40" aria-hidden />}
+            </div>
+          )}
+
+          <p className="text-[10.5px] text-white/35">
+            Space play · Ctrl+scroll zoom · cursor follows the music
+          </p>
         </>
       )}
 
@@ -626,5 +1057,36 @@ export function SheetResultPlayer({
         }
       `}</style>
     </div>
+  );
+}
+
+function IconBtn({
+  label,
+  active,
+  disabled,
+  onClick,
+  children,
+}: {
+  label: string;
+  active?: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      aria-pressed={active}
+      disabled={disabled}
+      onClick={onClick}
+      className={cn(
+        "flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-white/10 bg-black/20 transition hover:bg-white/10 active:scale-95 disabled:pointer-events-none disabled:opacity-35",
+        active ? "bg-amber-500/20 text-amber-400" : "text-white/60"
+      )}
+    >
+      {children}
+    </button>
   );
 }
