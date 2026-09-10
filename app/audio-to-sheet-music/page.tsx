@@ -65,9 +65,11 @@ const webAppJsonLd = {
   offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
   featureList: [
     "AI music transcription — convert MP3, WAV, FLAC and more into engraved sheet music",
-    "Playable score — synced playback with a moving cursor and live note highlighting",
-    "Auto-scroll through every page as the score plays",
-    "Tempo slider from 50–150% anchored to the detected BPM",
+    "Forge Score: live-engraved playable score with a moving cursor and note highlighting",
+    "Compare the score against your original recording with a synced crossfade",
+    "Transpose ±12 semitones — re-engraves the notation and shifts playback together",
+    "Print, save as PDF, or download a 2× PNG of the engraved score",
+    "Loop, metronome, zoom, and a 50–150% tempo slider anchored to the detected BPM",
     "Piano transcription powered by a solo-piano specialist AI (Transkun)",
     "Two-hand grand-staff notation for piano",
     "Download as PDF, MusicXML, MIDI, and SVG",
@@ -263,37 +265,47 @@ export default async function AudioToSheetMusicPage() {
         </section>
 
         {/* ── HOW IT WORKS ── drawn as a pipeline, not a paragraph. */}
-        <ToolSection id="playback" title="Follow the score as it plays">
+        <ToolSection id="forge-score" title="Forge Score: a playable, editable score in the browser">
           <p>
-            The result isn&apos;t a static image — it&apos;s a live, playable
-            engraved score, the kind of synced score playback you&apos;d
-            otherwise find in paid products like MuseScore or Soundslice, free
-            in the browser. Press play and an amber cursor moves across the
-            staff in time with the music, each note lights up at the exact
-            moment it sounds, and the page auto-scrolls to follow the cursor
-            through the whole score.
+            The result isn&apos;t a static image. It opens in{" "}
+            <strong>Forge Score</strong>, a live-engraved score with the kind of
+            synced playback you&apos;d otherwise find in paid products like
+            MuseScore or Soundslice — free, in the browser. Press play and a
+            cursor moves across the staff with the music, each note lights up as
+            it sounds, and the page scrolls to follow. Playback is a sampled
+            grand piano, with the same five sounds as Forge Roll to switch
+            between.
           </p>
           <ul>
             <li>
-              <strong>One shared timeline.</strong> Playback and notation are
-              driven by the same clock, so the cursor never drifts from the
-              sound — what you hear is what&apos;s highlighted.
+              <strong>Compare against the original recording.</strong> Flip
+              between Original, Both and Score, or use the crossfade, and check
+              the transcription against the source by ear before you trust it.
             </li>
             <li>
-              <strong>Slow it down to read along.</strong> A tempo slider runs
-              from 50&ndash;150% in 1% steps, anchored to the automatically
-              detected BPM, with one tap back to 100%.
+              <strong>Transpose up to an octave either way.</strong> The score
+              re-engraves in the new key and playback shifts with it — useful
+              for a singer&apos;s range, or a transposing instrument.
             </li>
             <li>
-              <strong>Loop and seek.</strong> Play/pause, stop, loop, and a seek
-              bar — jump straight to the passage you want to verify.
+              <strong>Print, save as PDF, or download a PNG</strong> of the
+              engraved score at 2× resolution, straight from the viewer.
             </li>
             <li>
-              <strong>Check before you print.</strong> Hear every bar against
-              the notation before downloading the PDF or opening the MusicXML in
-              an editor.
+              <strong>Practice tools.</strong> Loop, metronome, tempo from 50 to
+              150% anchored to the detected BPM, and zoom from 60 to 150% with
+              buttons or Ctrl+scroll. Space plays and pauses.
+            </li>
+            <li>
+              <strong>One shared timeline.</strong> Notation and audio run from
+              the same clock, so the cursor never drifts from the sound.
             </li>
           </ul>
+          <p>
+            Hear every bar against the notation before you download the PDF or
+            open the MusicXML in an editor. The score opens at full width on the
+            result step.
+          </p>
         </ToolSection>
 
         <ToolSection id="how-it-works" title="From a recording to a score, in four stages" bleed>

@@ -56,8 +56,12 @@ const webAppJsonLd = {
   },
   featureList: [
     "Automatic note transcription from MP3, WAV, FLAC, M4A, AAC, OGG, AIFF, Opus, and WebM",
-    "Interactive DAW-style piano roll preview — play the MIDI in the browser before downloading",
-    "Playback controls with loop, seek, and a 50–150% tempo slider",
+    "Forge Roll: DAW-style piano roll with sampled piano playback and five switchable sounds",
+    "Compare the MIDI against your original audio with a synced crossfade",
+    "Edit notes in the browser — move, resize, add, delete — with 60 levels of undo",
+    "Quantize, transpose, and velocity tools; key detection with scale highlighting",
+    "Export the edited MIDI with tempo and track names preserved",
+    "A–B loop, metronome, scrubbing, and a 50–150% tempo slider",
     "Per-stem solo and mute on full-mix transcriptions",
     "Transcription presets for piano, vocal, bass, guitar, and fast passages",
     "Adjustable onset, frame, note-length, and frequency-range controls",
@@ -339,42 +343,63 @@ export default async function AudioToMidiPage() {
           ]}
         />
 
-        <ToolSection id="piano-roll-preview" title="Hear your MIDI before you download it">
+        <ToolSection id="forge-roll" title="Forge Roll: hear, check and edit your MIDI before you download it">
           <p>
-            Every transcription opens in a DAW-style piano roll, right in the
-            browser — the same view you&apos;d get in FL Studio or Ableton. A
-            piano keyboard runs down the side with keys lighting up in real time
-            as notes play, note names (G4, F&#9839;5) appear on each note when
-            you zoom in, and a velocity lane shows the dynamics of every
-            detected note. Sound is synthesized locally, so nothing needs
-            installing and playback works even offline once the page has loaded.
+            Every transcription opens in <strong>Forge Roll</strong>, a piano
+            roll built into the page — the FL Studio and Ableton view, in the
+            browser. A shaded keyboard runs down the side and lights up as notes
+            play, the grid is marked in bars, beats and sixteenths, and a
+            velocity lane shows the dynamics of every detected note. Playback
+            uses a sampled grand piano, with E-Piano, Pluck, Saw and Bass sounds
+            you can switch live.
           </p>
           <ul>
             <li>
-              <strong>Play MIDI online</strong> with play/pause, stop, loop, and
-              click-to-seek on a bar-numbered beat grid.
+              <strong>Compare against the original.</strong> Your uploaded audio
+              plays in sync with the MIDI. Flip between Original, Both and MIDI,
+              or ride the crossfade slider, and you can hear exactly where the
+              transcription is right and where it isn&apos;t.
             </li>
             <li>
-              <strong>Slow it down to check accuracy.</strong> A 50&ndash;150%
-              tempo slider lets you verify the transcription at half speed
-              without re-processing anything.
+              <strong>Fix notes without leaving the page.</strong> Drag a note
+              to move its pitch or timing, drag its edge to resize, double-click
+              to add one, Delete to remove it — each pitch sounds as you drag.
+              Sixty levels of undo and redo.
+            </li>
+            <li>
+              <strong>Clean up a whole transcription at once.</strong> Snap grid
+              from quarter notes to 1/32, quantize everything to it, transpose by
+              a semitone or an octave, flatten or humanize velocities.
+            </li>
+            <li>
+              <strong>Key detection with scale highlighting.</strong> The key is
+              read from the transcribed notes, in-key rows are tinted and
+              out-of-key notes flagged red, so a stray wrong note is visible at a
+              glance. Override to any of the 24 keys.
+            </li>
+            <li>
+              <strong>Export the edited MIDI.</strong> The corrected file is
+              written in the browser with tempo and track names preserved, ready
+              for any DAW.
+            </li>
+            <li>
+              <strong>Practice tools built in.</strong> Drag the ruler for an
+              A–B loop, scrub with the playhead, metronome click, tempo from
+              50 to 150% with pitch preserved. Hover any note for its pitch,
+              position, velocity and length.
             </li>
             <li>
               <strong>Solo each instrument</strong> on full-mix HQ runs — every
-              stem (bass, vocals, piano, other) gets its own color and per-track
-              mute and solo, so you can audit one instrument&apos;s
-              transcription in isolation.
-            </li>
-            <li>
-              <strong>Zoom and pan</strong> through even very dense
-              transcriptions — tens of thousands of notes render smoothly.
+              stem gets its own colour and per-track mute and solo, so you can
+              audit one instrument in isolation.
             </li>
           </ul>
           <p>
             Most free converters are download-only: you find out what the MIDI
-            sounds like after it&apos;s already in your DAW. Here you check it
-            first, adjust the preset or settings if something&apos;s off, and
-            only download when it&apos;s right.
+            sounds like once it&apos;s already in your DAW. Here you hear it,
+            compare it to the source, fix what needs fixing, and only download
+            when it&apos;s right. Zoom with Ctrl+scroll, or pinch on a phone;
+            the roll opens at full width on the result step.
           </p>
         </ToolSection>
 

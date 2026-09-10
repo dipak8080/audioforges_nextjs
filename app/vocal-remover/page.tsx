@@ -119,6 +119,8 @@ const webAppJsonLd = {
   browserRequirements: "Requires JavaScript.",
   offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
   featureList: [
+    "Forge Mixer: multi-track stem player with per-stem mute, solo, volume and pan",
+    "Mix presets, A–B loop, and in-browser WAV export of your custom balance",
     "GPU-accelerated AI vocal and instrumental separation",
     "No sign-up required",
     "No download or software install required",
@@ -413,6 +415,49 @@ export default async function VocalRemoverPage() {
           everyone else's copy implies the output follows the input, and with
           Demucs it cannot.
         */}
+        <ToolSection id="forge-mixer" title="Forge Mixer: work with the stems before you download">
+          <p>
+            Results open in <strong>Forge Mixer</strong>, a multi-track player
+            built into the page. Each of the vocal and instrumental stems gets its own lane
+            with a real waveform rendered from the decoded audio and a live
+            level meter, and every lane plays from one shared Web Audio clock so
+            the stems stay locked together — no drift, however long you listen.
+          </p>
+          <ul>
+            <li>
+              <strong>Mute, solo, volume and pan per stem.</strong> Volume runs
+              from silent to 150%, pan is full left to full right, and you can
+              solo several stems at once. Pan and per-stem volume are things a
+              download-only tool can&apos;t give you.
+            </li>
+            <li>
+              <strong>One-click mix presets</strong> — Karaoke and Acapella — so the common
+              balances are a single tap.
+            </li>
+            <li>
+              <strong>A–B loop.</strong> Drag on the timeline to loop a section
+              with sample-accurate loop points. Useful for learning a part or
+              checking one passage of the separation closely.
+            </li>
+            <li>
+              <strong>Export your mix as a WAV.</strong> Whatever balance you set
+              — mutes, levels, pans — renders in the browser, with no server
+              round-trip and no credits used. So you can mute the vocal, turn the instrumental up and export a karaoke track, without
+              touching a DAW.
+            </li>
+            <li>
+              <strong>Per-stem and download-all</strong> are still one click.
+              Playback starts as soon as the first stem is decoded; the others
+              join in sync as they arrive.
+            </li>
+          </ul>
+          <p>
+            Click or drag any waveform to seek every stem together, Space plays
+            and pauses, and the arrow keys nudge the playhead. On a phone the
+            lanes stack; on a desktop the result opens at full width.
+          </p>
+        </ToolSection>
+
         <ToolSection id="output-spec" title="What the output actually is">
           <dl className="codes">
             <dt>Format</dt>
@@ -594,7 +639,22 @@ export default async function VocalRemoverPage() {
                   <tr>
                     <td className="px-4 py-3 font-medium text-text-subtle">Separation quality</td>
                     <td className="px-4 py-3">Good for most tracks</td>
-                    <td className="px-4 py-3">Noticeably cleaner on both stems</td>
+                    <td className="px-4 py-3">Clean on both stems</td>
+                  </tr>
+                  <tr>
+                    <td className="px-4 py-3 font-medium text-text-subtle">Vocal bleed in the instrumental</td>
+                    <td className="px-4 py-3">Audible on dense mixes, and on held or heavily reverbed notes</td>
+                    <td className="px-4 py-3 text-text-primary">Gone on most material — the reverb tail leaves with the vocal</td>
+                  </tr>
+                  <tr>
+                    <td className="px-4 py-3 font-medium text-text-subtle">Clicks and pops at chunk joins</td>
+                    <td className="px-4 py-3">Occasional on long tracks</td>
+                    <td className="px-4 py-3 text-text-primary">None</td>
+                  </tr>
+                  <tr>
+                    <td className="px-4 py-3 font-medium text-text-subtle">Watery, phasey artefacts</td>
+                    <td className="px-4 py-3">On cymbals, breaths and sibilance</td>
+                    <td className="px-4 py-3 text-text-primary">Cymbals and consonants stay intact</td>
                   </tr>
                   <tr>
                     {/* The Studio Quality figure is the FREE-TIER one and is

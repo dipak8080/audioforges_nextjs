@@ -64,6 +64,8 @@ const webAppJsonLd = {
   operatingSystem: "Any",
   offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
   featureList: [
+    "Forge Mixer: multi-track stem player with per-stem mute, solo, volume and pan",
+    "Mix presets, A–B loop, and in-browser WAV export of your custom balance",
     "GPU-accelerated AI 4-stem separation from a YouTube link",
     "No manual download step",
     "Individually downloadable vocals, drums, bass, and other stems",
@@ -293,6 +295,49 @@ export default async function YouTubeStemSplitterPage() {
           </ol>
         </ToolSection>
 
+        <ToolSection id="forge-mixer" title="Forge Mixer: work with the stems before you download">
+          <p>
+            Results open in <strong>Forge Mixer</strong>, a multi-track player
+            built into the page. Each of the vocals, drums, bass and other stems gets its own lane
+            with a real waveform rendered from the decoded audio and a live
+            level meter, and every lane plays from one shared Web Audio clock so
+            the stems stay locked together — no drift, however long you listen.
+          </p>
+          <ul>
+            <li>
+              <strong>Mute, solo, volume and pan per stem.</strong> Volume runs
+              from silent to 150%, pan is full left to full right, and you can
+              solo several stems at once. Pan and per-stem volume are things a
+              download-only tool can&apos;t give you.
+            </li>
+            <li>
+              <strong>One-click mix presets</strong> — Original, Karaoke, Acapella, Drumless and Bassless — so the common
+              balances are a single tap.
+            </li>
+            <li>
+              <strong>A–B loop.</strong> Drag on the timeline to loop a section
+              with sample-accurate loop points. Useful for learning a part or
+              checking one passage of the separation closely.
+            </li>
+            <li>
+              <strong>Export your mix as a WAV.</strong> Whatever balance you set
+              — mutes, levels, pans — renders in the browser, with no server
+              round-trip and no credits used. So you can drop the drums to a whisper and export a drumless practice track, or solo the bass and drums for a play-along, without
+              touching a DAW.
+            </li>
+            <li>
+              <strong>Per-stem and download-all</strong> are still one click.
+              Playback starts as soon as the first stem is decoded; the others
+              join in sync as they arrive.
+            </li>
+          </ul>
+          <p>
+            Click or drag any waveform to seek every stem together, Space plays
+            and pauses, and the arrow keys nudge the playhead. On a phone the
+            lanes stack; on a desktop the result opens at full width.
+          </p>
+        </ToolSection>
+
         <ToolSection id="four-stems" title="What you get: the four stems">
           <dl>
             {STEMS.map((s) => (
@@ -401,7 +446,22 @@ export default async function YouTubeStemSplitterPage() {
                   <tr>
                     <td className="px-4 py-3 font-medium text-text-subtle">Separation quality</td>
                     <td className="px-4 py-3">Good for most tracks</td>
-                    <td className="px-4 py-3">Noticeably cleaner across all four stems</td>
+                    <td className="px-4 py-3">Clean across all four stems</td>
+                  </tr>
+                  <tr>
+                    <td className="px-4 py-3 font-medium text-text-subtle">Vocal bleed in the other stems</td>
+                    <td className="px-4 py-3">Audible on dense mixes, and on held or reverbed notes</td>
+                    <td className="px-4 py-3 text-text-primary">Gone on most material — the vocal is lifted by its own model first</td>
+                  </tr>
+                  <tr>
+                    <td className="px-4 py-3 font-medium text-text-subtle">Clicks and pops at chunk joins</td>
+                    <td className="px-4 py-3">Occasional on long tracks</td>
+                    <td className="px-4 py-3 text-text-primary">None</td>
+                  </tr>
+                  <tr>
+                    <td className="px-4 py-3 font-medium text-text-subtle">Watery, phasey artefacts</td>
+                    <td className="px-4 py-3">On cymbals, hi-hats and sibilance</td>
+                    <td className="px-4 py-3 text-text-primary">Cymbals and transients stay intact</td>
                   </tr>
                   <tr>
                     {/* From getRateLimitLabel — don't hardcode these two cells
