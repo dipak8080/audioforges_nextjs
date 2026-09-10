@@ -5,8 +5,11 @@ import { FAQSection } from "@/components/faq/FAQSection";
 import { ToolPageShell } from "@/components/layout/ToolPageShell";
 import { Breadcrumb } from "@/components/layout/Breadcrumb";
 import { ToolSection } from "@/components/ui/ToolSection";
-import { FeatureStrip } from "@/components/ui/FeatureStrip";
+import { Prose } from "@/components/ui/Prose";
 import { RelatedToolsGrid } from "@/components/tools/RelatedToolsGrid";
+import { ProofStrip } from "@/components/tools/ProofStrip";
+import { CompareTable } from "@/components/tools/CompareTable";
+import { PageByline } from "@/components/tools/PageByline";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { ogForTool } from "@/lib/og";
 import { getRelatedTools } from "@/lib/data/tools";
@@ -51,6 +54,8 @@ const PAGE_TITLE = "Reverse Audio Online – Free Audio Reverser";
 const PAGE_DESCRIPTION =
   "Reverse audio online free — MP3, WAV, FLAC, AAC, M4A and OGG. Play a track backwards, reverse a voice recording or try reverse singing.";
 
+const UPDATED = "2026-09-10";
+
 const OG_IMAGE = ogForTool("reverse", "Free Audio Reverser");
 
 export const metadata: Metadata = {
@@ -85,6 +90,7 @@ const webAppJsonLd = {
     "MP3 Reverser",
   ],
   url: `${SITE_URL}/reverse`,
+  dateModified: UPDATED,
   applicationCategory: "MultimediaApplication",
   operatingSystem: "Any",
   offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
@@ -111,11 +117,6 @@ export default async function ReversePage() {
 
   const faqs = [
     {
-      question: "What does reversing audio do?",
-      answer:
-        "It flips the entire file so it plays back to front — the last sound becomes the first, and vice versa.",
-    },
-    {
       question: "Does reversing reduce audio quality?",
       answer:
         "No. Reversing changes the playback order only, not the underlying audio data. Since the output stays in your original format, there's no additional quality loss beyond that format's normal characteristics.",
@@ -124,14 +125,6 @@ export default async function ReversePage() {
       question: "Can I reverse just part of a track?",
       answer:
         "This tool reverses the entire file. If you only want a section reversed, trim the clip you want first, then reverse the trimmed result.",
-    },
-    {
-      question: "Is this really free?",
-      answer: "Yes — reversing audio is free, with no sign-up and no watermark on the output.",
-    },
-    {
-      question: "What formats are supported?",
-      answer: `${formatList}. The output keeps the same format as your upload.`,
     },
     {
       question: "Is there a file size or length limit?",
@@ -150,123 +143,69 @@ export default async function ReversePage() {
         "Yes. The tool works with voice recordings, podcasts, music, sound effects, and any other supported audio file.",
     },
   ];
+  const limitLabel =
+    durationCap === null ? `${limits.maxUploadMb}MB per upload` : `${limits.maxUploadMb}MB and ${durationLabel(durationCap)}`;
 
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(webAppJsonLd) }} />
 
       <ToolPageShell
-        breadcrumb={
-          <Breadcrumb
-            items={[
-              { name: "Tools", href: "/tools" },
-              { name: "Audio Reverser" },
-            ]}
-          />
-        }
-        title="Free Audio Reverser"
-        lede="Upload a track and get it back flipped backwards, free, no sign-up, no watermark."
+        breadcrumb={<Breadcrumb items={[{ name: "Tools", href: "/tools" }, { name: "Reverse Audio" }]} />}
+        meta={["No account", "Sample-exact", "Format kept"]}
+        title="Reverse Audio"
+        lede="Play a file backwards and download it. Every sample is flipped end to end, nothing is resampled, and the output keeps your format. Free, no sign-up."
         tool={<ReverseForm />}
       >
-        <FeatureStrip
-          features={[
-            { title: "Fast", desc: "Most reversals finish in a few seconds." },
-            { title: "One click", desc: "No settings to configure — just upload." },
+        <ProofStrip
+          proofs={[
             {
-              title: "No sign-up",
-              desc:
-                durationCap === null
-                  ? `No account, no email, no watermark. Up to ${limits.maxUploadMb}MB per file.`
-                  : `No account, no email, no watermark. Up to ${limits.maxUploadMb}MB and ${durationLabel(durationCap)}.`,
+              label: "What it does",
+              value: "Flips the sample order, end to end",
+              note: "The last sample becomes the first. No decode-and-guess, no speed change, no pitch change.",
+            },
+            {
+              label: "Quality",
+              value: "Nothing lost, nothing added",
+              note: "Reversing is one of the few edits that is exactly reversible: run it twice and you have the original back.",
+            },
+            {
+              label: "Limits",
+              value: limitLabel,
+              note: `${formatList}. Uploads are deleted on completion.`,
             },
           ]}
         />
 
-        <ToolSection id="how-to" title="How to reverse an audio file">
-          <ol>
-            <li>Upload an {formatList} file.</li>
-            <li>Click Reverse — nothing to configure.</li>
-            <li>Download the reversed file, same format as your upload.</li>
-          </ol>
+        <ToolSection id="uses" title="What people reverse, and why" bleed>
+          <CompareTable
+            columns={["The effect", "How to use it"]}
+            highlight={-1}
+            rows={[
+              { label: "Reverse reverb", cells: [{ text: "A swell that builds into the note instead of trailing after it" }, { text: "Reverse the phrase, add reverb, reverse the result. Line the tail up with the downbeat" }] },
+              { label: "Reverse cymbal or riser", cells: [{ text: "The classic build into a drop" }, { text: "Reverse a crash or a held chord. Trim so the loudest point lands on beat one" }] },
+              { label: "Backwards vocal", cells: [{ text: "Texture that sounds like speech without being readable" }, { text: "Reverse a spoken line, pitch it down a few semitones, tuck it under the mix" }] },
+              { label: "Ear training and transcription", cells: [{ text: "Hearing a fast run in a new way" }, { text: "Reverse the passage, then slow it down with the tempo changer" }] },
+            ]}
+            footnote="Reversing the whole file is what this page does. To reverse one section, trim it out first, reverse the clip, then join it back."
+          />
+          <Prose className="mt-5">
+            <p>
+              <Link href="/trim">Trim</Link> the section first if you only need part of it,{" "}
+              <Link href="/tempo">slow it down</Link> to study it, and <Link href="/audio-joiner">join</Link> the
+              pieces back when you are done.
+            </p>
+          </Prose>
         </ToolSection>
 
-        <ToolSection id="why" title="Why reverse audio?">
-          <p>
-            Reversed audio is a classic production trick — reversed cymbal swells and
-            vocal chops are staples in melodic house, hip-hop, and cinematic sound
-            design. It&apos;s also handy for spotting hidden or backmasked content in a
-            recording, or just for creative sound experiments.
-          </p>
-          <p>
-            The output keeps your original file format, so a WAV stays a WAV and an
-            MP3 stays an MP3 — no extra conversion step needed.
-          </p>
-        </ToolSection>
-
-        <ToolSection id="reverse-vs-playback" title="Reverse audio vs. reverse playback">
-          <p>
-            Reversing an audio file here creates an actual new file with every
-            sample rearranged in the opposite order — something you can
-            download, share, edit, or drop straight into a DAW.
-          </p>
-          <p>
-            Reverse playback is a different thing entirely: some media
-            players can temporarily play a file backwards while
-            you&apos;re listening, without ever creating a new file — close
-            the player and there&apos;s nothing saved. This tool does the
-            former, permanently generating a reversed copy you can keep and
-            use anywhere, not just a playback trick in one app.
-          </p>
-        </ToolSection>
-
-        <ToolSection id="quality" title="Does reversing change quality?">
-          <p>
-            No. Reversing only changes the playback order of the audio — every
-            sample stays exactly as it was, just read back to front. Since the
-            output keeps your original format, there&apos;s no extra quality loss
-            beyond whatever that format&apos;s normal characteristics already are.
-            A reversed WAV is exactly as lossless as the WAV you uploaded.
-          </p>
-        </ToolSection>
-
-        <ToolSection id="common-uses" title="Common uses">
-          <p>
-            <strong>Music production:</strong> reversed cymbal swells, risers, and
-            vocal chops — staples in melodic house, hip-hop, and cinematic sound
-            design.
-          </p>
-          <p>
-            <strong>Sound design &amp; SFX:</strong> flip a recorded sound effect for
-            a distinctive texture that a forward sound simply doesn&apos;t have. Need
-            to change the speed of the reversed audio too? Run it through the{" "}
-            <Link href="/tempo">Audio Speed Changer</Link> afterward.
-          </p>
-          <p>
-            <strong>Backmasking curiosity:</strong> check a track or recording for
-            hidden or unintentional content by listening to it in reverse.
-          </p>
-          <p>
-            <strong>Creative experiments:</strong> reverse a voice memo, a field
-            recording, or anything else just to hear what it sounds like flipped.
-          </p>
-          <p>
-            Only need part of a track reversed, not the whole file? Trim the
-            section you want with the <Link href="/trim">Audio Trimmer</Link>{" "}
-            first, then reverse the trimmed clip.
-          </p>
-          <p>
-            Want the deeper explanation of how reversed swells and vocal chops
-            are actually built?{" "}
-            <Link href="/guides/reversed-audio-in-music-production">
-              Read Reversed Audio: Creative Uses in Production
-            </Link>
-            .
-          </p>
-        </ToolSection>
+        <FAQSection faqs={faqs} />
 
         <RelatedToolsGrid tools={relatedTools} />
 
-        <FAQSection faqs={faqs} />
+        <PageByline
+          updated={UPDATED}
+          legal="You are responsible for having the right to process any file you upload. AudioForges does not host or distribute the files processed here."
+        />
       </ToolPageShell>
     </>
   );
