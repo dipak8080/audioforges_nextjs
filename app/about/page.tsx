@@ -5,6 +5,7 @@ import { SITE_URL } from "@/lib/constants";
 import { getRateLimitLabel } from "@/lib/data/rate-limits";
 import { Breadcrumb } from "@/components/layout/Breadcrumb";
 import { Prose } from "@/components/ui/Prose";
+import { PageByline } from "@/components/tools/PageByline";
 import { ogImage } from "@/lib/og";
 
 /**
@@ -15,7 +16,7 @@ import { ogImage } from "@/lib/og";
  */
 const STANDARD_SEPARATION_LIMIT = getRateLimitLabel("separate") ?? "a few per hour";
 
-const PAGE_TITLE = "About AudioForges — Free Online Audio Tools";
+const PAGE_TITLE = "About AudioForges – Who Builds It and Why";
 const PAGE_DESCRIPTION =
   "Who builds AudioForges, how each tool works, and how a free audio toolkit with no ads and no accounts pays for its own servers.";
 
@@ -51,7 +52,7 @@ export const metadata: Metadata = {
  * it's funded, so it's the one worth marking up as the authoritative
  * description of the operator.
  *
- * No `founder` entry — add one only alongside a real name on the page.
+ * No `founder` entry, add one only alongside a real name on the page.
  * Structured data asserting a person the page never names is worse than
  * omitting it.
  */
@@ -66,7 +67,7 @@ const aboutJsonLd = {
     name: "AudioForges",
     url: SITE_URL,
     description:
-      "Free audio tools for music producers, DJs, musicians and creators — conversion, editing, cleanup, analysis, practice and transcription. No accounts, no ads.",
+      "Free audio tools for music producers, DJs, musicians and creators, conversion, editing, cleanup, analysis, practice and transcription. No accounts, no ads.",
     foundingDate: "2025",
   },
 };
@@ -99,13 +100,13 @@ export default function AboutPage() {
             reference track, check its key before sampling it, or get a clean
             instrumental to practice over, I ended up on some ad-plastered downloader
             site, or paying for a tool that did one thing I needed buried inside ten I
-            didn&apos;t. So I built the pieces I actually use — a YouTube-to-audio
-            converter first, then a key and BPM detector, then a vocal remover — and
+            didn&apos;t. So I built the pieces I actually use, a YouTube-to-audio
+            converter first, then a key and BPM detector, then a vocal remover, and
             put them somewhere free for anyone else running into the same problem. The
             site has since grown into a full set of{" "}
             <Link href="/tools">free audio tools</Link> covering conversion, editing,
             pitch and tempo, tuning, BPM, metronome practice, cleanup, separation and
-            transcription — but the bar for adding anything new stays the same as day
+            transcription, but the bar for adding anything new stays the same as day
             one.
           </p>
 
@@ -122,10 +123,10 @@ export default function AboutPage() {
           </p>
           <p>
             <strong>Vocal Remover</strong> uses real source-separation processing to
-            split a track into vocal and instrumental stems — not a simple
+            split a track into vocal and instrumental stems, not a simple
             center-channel filter, which only partially removes vocals and often
             damages the mix. Separation runs on GPU-accelerated infrastructure, so
-            it&apos;s rate-limited per person to keep it available for everyone —{" "}
+            it&apos;s rate-limited per person to keep it available for everyone:{" "}
             {STANDARD_SEPARATION_LIMIT} at standard quality, which is free with no
             account. Studio Quality runs a heavier model that costs real money per run;
             everyone gets free runs of it each month, and beyond that it takes{" "}
@@ -162,9 +163,9 @@ export default function AboutPage() {
             nearest note, octave, and cents sharp or flat directly in the browser.
           </p>
           <p>
-            Beyond these, the toolset covers everyday editing tasks — format
+            Beyond these, the toolset covers everyday editing tasks, format
             conversion, trimming, volume adjustment, reversing, pitch shifting, and
-            tempo changes — plus cleanup tools purpose-built for different jobs: a
+            tempo changes, plus cleanup tools purpose-built for different jobs: a
             general-purpose noise remover with adjustable strength, a one-click
             Voice Cleaner tuned specifically for speech, an echo remover for mild
             room echo, and a silence remover that strips dead air throughout a whole
@@ -177,7 +178,7 @@ export default function AboutPage() {
           <p>
             AudioForges is built and maintained by a solo developer who is also a
             music producer working in melodic house and electronic styles. Every tool
-            here exists because I needed it myself first — that&apos;s the bar for
+            here exists because I needed it myself first, that&apos;s the bar for
             adding anything new to the site.
           </p>
 
@@ -194,7 +195,7 @@ export default function AboutPage() {
             .
           </p>
           <p>
-            Almost everything here is free and stays that way — conversion,
+            Almost everything here is free and stays that way, conversion,
             editing, cleanup, analysis, practice tools, transcription, and
             standard vocal removal and stem splitting, all with full-quality
             downloads and no watermark. The tools that run on GPU time carry
@@ -202,20 +203,23 @@ export default function AboutPage() {
             can&apos;t tie up a shared machine.
           </p>
           <p>
-            The single exception is Studio Quality separation. It runs a much
-            heavier model, it costs real money every time it runs, and giving it
-            away without limit isn&apos;t something one person paying out of
-            pocket can sustain. So everyone gets free runs of it each month, and
-            past that it takes <Link href="/pricing">a credit</Link> — bought once,
-            never expiring, with nothing recurring to cancel. If a run fails, the
-            credit comes back automatically. Nothing else on the site is limited to
-            push you toward it.
+            The exceptions are the jobs that run on a GPU: Studio Quality
+            separation, high-accuracy MIDI, transcription and audio-to-sheet-music.
+            Each one costs real money every time it runs, and giving that away
+            without limit is not something one person paying out of pocket can
+            sustain. So everyone gets free runs each month, and past that it takes{" "}
+            <Link href="/pricing">credits</Link>: bought once, never expiring,
+            nothing recurring to cancel, refunded automatically if a run fails.
+            Nothing else on the site is limited to push you toward them.
           </p>
           <p>
             Questions, feedback, or a tool you wish existed?{" "}
             <Link href="/contact">Get in touch</Link>.
           </p>
         </Prose>
+        <div className="mt-12">
+          <PageByline updated="2026-09-10" note="Rewritten as the tool pages moved to named models and published limits" />
+        </div>
       </main>
     </>
   );

@@ -10,7 +10,7 @@ const PAGE_TITLE = "DMCA Policy";
 const PAGE_DESCRIPTION =
   "Read the AudioForges DMCA Policy to report copyright infringement, submit takedown notices, and learn our compliance process.";
 
-/** Update whenever the policy text changes — it's a claim about the text
+/** Update whenever the policy text changes, it's a claim about the text
  *  below it, so a stale date is worse than no date. */
 const LAST_UPDATED = "2026-07-01";
 

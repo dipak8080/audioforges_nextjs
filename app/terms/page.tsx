@@ -9,9 +9,9 @@ const PAGE_TITLE = "Terms of Service";
 const PAGE_DESCRIPTION =
   "Read the AudioForges Terms of Service, including acceptable use, copyright responsibilities, service limitations, liability, and user obligations.";
 
-/** Update whenever the terms text changes — it's a claim about the text below
+/** Update whenever the terms text changes, it's a claim about the text below
  *  it, so a stale date is worse than no date. */
-const LAST_UPDATED = "2026-08-01";
+const LAST_UPDATED = "2026-09-10";
 
 const OG_IMAGE = ogImage(
   "Terms of Service",
@@ -71,7 +71,7 @@ export default function TermsPage() {
           AudioForges provides tools to convert and analyze audio, including
           extracting audio from user-submitted video URLs. You are solely
           responsible for ensuring you have the legal right to download,
-          convert, or process any content you submit — including that it is your
+          convert, or process any content you submit, including that it is your
           own content, is royalty-free, Creative Commons licensed, public domain,
           or that you have explicit permission from the rights holder.
         </p>
@@ -82,7 +82,7 @@ export default function TermsPage() {
         <p>
           AudioForges currently does not require user accounts for most features.
           Uploaded files are processed only for the requested operation and are
-          not retained longer than necessary to complete processing — you are
+          not retained longer than necessary to complete processing, you are
           responsible for keeping your own copies of any files you upload or
           results you generate. Some processing, including AI vocal separation
           and stem splitting, runs on third-party compute infrastructure under
@@ -116,7 +116,22 @@ export default function TermsPage() {
           suspended, or discontinued at any time without prior notice.
         </p>
 
-        <h2 id="no-warranty">5. No warranty</h2>
+        <h2 id="credits">5. Credits</h2>
+        <p>
+          Some jobs take credits, sold in packs at the prices shown on the{" "}
+          <Link href="/pricing">pricing page</Link> at the time of purchase.
+          Credits do not expire. They are attached to the browser that bought
+          them and can be attached to other browsers by the email sign-in
+          described there; they cannot be transferred to another person or
+          exchanged for cash. If a credited job fails, the credits for that job
+          are returned automatically. Beyond that, purchases are not refundable
+          except where the law requires it. We may change pack sizes and
+          prices; a change never affects credits already bought. Credits may be
+          used on any tool that takes credits, including tools added after the
+          purchase.
+        </p>
+
+        <h2 id="no-warranty">6. No warranty</h2>
         <p>
           The service is provided &quot;as is&quot; without warranties of any
           kind. We do not guarantee uninterrupted availability, accuracy of
@@ -124,20 +139,20 @@ export default function TermsPage() {
           purpose.
         </p>
 
-        <h2 id="liability">6. Limitation of liability</h2>
+        <h2 id="liability">7. Limitation of liability</h2>
         <p>
           AudioForges and its operators are not liable for any damages arising
           from use of the service, including but not limited to copyright claims
           resulting from content you chose to process.
         </p>
 
-        <h2 id="changes">7. Changes to these terms</h2>
+        <h2 id="changes">8. Changes to these terms</h2>
         <p>
           We may update these terms periodically. Continued use of the site after
           changes constitutes acceptance of the updated terms.
         </p>
 
-        <h2 id="contact">8. Contact</h2>
+        <h2 id="contact">9. Contact</h2>
         <p>
           Questions about these terms? Reach out via our{" "}
           <Link href="/contact">Contact page</Link>.

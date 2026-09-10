@@ -9,9 +9,9 @@ const PAGE_TITLE = "Privacy Policy";
 const PAGE_DESCRIPTION =
   "Read the AudioForges Privacy Policy to learn how we collect, use, store, and protect your data, including cookies, analytics, and your privacy rights.";
 
-/** Update whenever the policy text changes — it's a claim about the text
+/** Update whenever the policy text changes, it's a claim about the text
  *  below it, so a stale date is worse than no date. */
-const LAST_UPDATED = "2026-08-01";
+const LAST_UPDATED = "2026-09-10";
 
 const OG_IMAGE = ogImage(
   "Privacy Policy",
@@ -90,7 +90,7 @@ export default function PrivacyPage() {
             online voice recorder, request access to your device&apos;s
             microphone. For these tools, audio is captured and processed directly
             in your browser using your device&apos;s own microphone and audio
-            APIs — it is not uploaded to AudioForges servers, recorded by us, or
+            APIs, it is not uploaded to AudioForges servers, recorded by us, or
             stored by us in any form. For the tuner, this means the microphone
             signal is analyzed locally to detect pitch in real time. For the
             voice recorder, your recording is created, played back, and
@@ -118,27 +118,48 @@ export default function PrivacyPage() {
           </dd>
         </dl>
 
-        <h2 id="advertising">3. Advertising</h2>
+        <h2 id="credits">3. Credits and payments</h2>
+        <p>
+          Some GPU-backed jobs take credits, described on the{" "}
+          <Link href="/pricing">pricing page</Link>. Credits are attached to
+          your browser, not to an account; there is no username or password.
+          When you buy a pack you give us an email address. We use it for one
+          thing: to match the payment notification from our payment processor
+          back to the browser that started the purchase, and, if you ask, to
+          send a one-time sign-in link that attaches the same credits to
+          another device. That link expires after 30 minutes. We store the
+          email, the credit balance and a record of each credited and refunded
+          job. We do not store card or bank details; those are handled entirely
+          by the processor.
+        </p>
+        <p>
+          Payments are processed by Ko-fi. Paying on Ko-fi is subject to
+          Ko-fi&apos;s own privacy policy and terms. Ko-fi tells us that a
+          payment for a given item was made and the email used; it does not
+          give us your payment details.
+        </p>
+
+        <h2 id="advertising">4. Advertising</h2>
         <p>
           We do not currently display third-party advertisements. If advertising
           is introduced in the future, this Privacy Policy will be updated to
           describe it before those services are enabled.
         </p>
 
-        <h2 id="third-parties">4. Third-party services</h2>
+        <h2 id="third-parties">5. Third-party services</h2>
         <p>
           We currently use Google Analytics to understand aggregate site usage,
           and the following providers to run the site and tools: Vercel for the
-          website, VPS Dime for general backend processing, and RunPod for the
-          GPU-accelerated compute used by our AI vocal-separation and
-          stem-splitting tools. When you use one of those separation tools, the
+          website, VPS Dime for general backend processing, RunPod for the
+          GPU-accelerated compute used by separation, transcription and
+          high-accuracy MIDI, and Ko-fi to process credit purchases. When you use one of those separation tools, the
           audio file or fetched YouTube audio is processed on RunPod&apos;s
           infrastructure for the time needed to complete that job, under the same
           no-permanent-storage handling described in Section 2. Each of these
           providers has its own privacy policy governing how they handle data.
         </p>
 
-        <h2 id="cookies">5. Cookies</h2>
+        <h2 id="cookies">6. Cookies</h2>
         <p>
           We use a small number of cookies for basic site functionality
           (&quot;essential cookies&quot;) and, via Google Analytics, cookies that
@@ -148,16 +169,16 @@ export default function PrivacyPage() {
           functionality.
         </p>
 
-        <h2 id="how-we-use-it">6. How we use your information</h2>
+        <h2 id="how-we-use-it">7. How we use your information</h2>
         <p>
           Any file or URL you submit is used solely to provide the tool
-          functionality you requested — converting, analyzing, or otherwise
+          functionality you requested, converting, analyzing, or otherwise
           processing that specific submission. We do not use submitted content
           for any other purpose. Microphone-based tools do not send audio to us
           at all, as described above.
         </p>
 
-        <h2 id="security">7. Security</h2>
+        <h2 id="security">8. Security</h2>
         <p>
           We use HTTPS encryption for data in transit, restrict server access to
           what&apos;s necessary to operate the service, and take reasonable
@@ -167,20 +188,20 @@ export default function PrivacyPage() {
           place.
         </p>
 
-        <h2 id="childrens-privacy">8. Children&apos;s privacy</h2>
+        <h2 id="childrens-privacy">9. Children&apos;s privacy</h2>
         <p>
           AudioForges is not directed toward children under 13, and we do not
           knowingly collect personal information from children.
         </p>
 
-        <h2 id="your-rights">9. Your rights</h2>
+        <h2 id="your-rights">10. Your rights</h2>
         <p>
           You may request information about data we hold or request deletion by
           contacting us at the email listed on our{" "}
           <Link href="/contact">Contact page</Link>.
         </p>
 
-        <h2 id="changes">10. Changes to this policy</h2>
+        <h2 id="changes">11. Changes to this policy</h2>
         <p>
           We may update this policy from time to time. Changes will be posted on
           this page with an updated revision date.
