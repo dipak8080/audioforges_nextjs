@@ -5,8 +5,11 @@ import { FAQSection } from "@/components/faq/FAQSection";
 import { ToolPageShell } from "@/components/layout/ToolPageShell";
 import { Breadcrumb } from "@/components/layout/Breadcrumb";
 import { ToolSection } from "@/components/ui/ToolSection";
-import { FeatureStrip } from "@/components/ui/FeatureStrip";
+import { Prose } from "@/components/ui/Prose";
 import { RelatedToolsGrid } from "@/components/tools/RelatedToolsGrid";
+import { ProofStrip } from "@/components/tools/ProofStrip";
+import { CompareTable } from "@/components/tools/CompareTable";
+import { PageByline } from "@/components/tools/PageByline";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
 import { getLimits, durationLabel, retentionSentences } from "@/lib/api/limits";
@@ -37,6 +40,8 @@ import { ogForTool } from "@/lib/og";
 const PAGE_TITLE = "Audio Joiner – Merge MP3 & Audio Files Online, Free";
 const PAGE_DESCRIPTION =
   "Free online audio joiner and MP3 merger. Combine multiple files into one track, reorder them, mix formats, pick your output. No sign-up, no watermark.";
+
+const UPDATED = "2026-09-10";
 
 const OG_IMAGE = ogForTool("audio-joiner", "Free Audio Joiner");
 
@@ -123,24 +128,15 @@ export default async function AudioJoinerPage() {
     {
       question: "Can I join files that are in different formats or sample rates?",
       answer:
-        "Yes — every file is resampled to a common sample rate (44.1kHz) before joining, so a file recorded at 48kHz followed by one at 44.1kHz still joins correctly instead of playing at the wrong speed or pitch partway through.",
+        "Yes, every file is resampled to a common sample rate (44.1kHz) before joining, so a file recorded at 48kHz followed by one at 44.1kHz still joins correctly instead of playing at the wrong speed or pitch partway through.",
     },
     {
       question: "How many files can I join at once?",
       answer:
         `Up to ${MAX_FILES} files, with a combined total of ${maxTotalSize} and up to ` +
         `${maxTotalDuration} of audio across all files together. Each individual ` +
-        `file is also capped at ${maxPerFileSize} — a single file over that is ` +
+        `file is also capped at ${maxPerFileSize}, a single file over that is ` +
         `rejected even when the combined total is well under the limit.`,
-    },
-    {
-      question: "Does the order I add files in matter?",
-      answer:
-        "The output order matches whatever order the files are arranged in on screen — use the up/down arrows next to each file to rearrange them before joining, independent of the order you originally selected or dropped them in.",
-    },
-    {
-      question: "Can I remove a file after adding it?",
-      answer: "Yes — each file in the list has its own remove button.",
     },
     {
       question: "What output formats are available?",
@@ -149,12 +145,12 @@ export default async function AudioJoinerPage() {
     {
       question: "Does joining reduce audio quality?",
       answer:
-        "Every input file is resampled to a common rate before joining, which means each file passes through a decode-and-re-encode step as part of the process — this isn't a raw splice of the original file data. In practice this has minimal audible impact, but it's not a byte-for-byte lossless passthrough even when input and output formats match.",
+        "Every input file is resampled to a common rate before joining, which means each file passes through a decode-and-re-encode step as part of the process, this isn't a raw splice of the original file data. In practice this has minimal audible impact, but it's not a byte-for-byte lossless passthrough even when input and output formats match.",
     },
     {
       question: "Will there be a gap or crossfade between files?",
       answer:
-        "Files are joined end-to-end with no gap and no crossfade — whatever silence or lack of silence exists at the boundary between two files is exactly what carries over into the merged result.",
+        "Files are joined end-to-end with no gap and no crossfade, whatever silence or lack of silence exists at the boundary between two files is exactly what carries over into the merged result.",
     },
     {
       question: "Why was my join rejected for being too long?",
@@ -180,10 +176,6 @@ export default async function AudioJoinerPage() {
       question: "Are my uploaded files kept?",
       answer: `${retention.input} ${retention.output} There are no accounts, so nothing is linked to you.`,
     },
-    {
-      question: "Is this really free?",
-      answer: "Yes — completely free, no sign-up, no watermark on the output.",
-    },
   ];
 
   return (
@@ -191,115 +183,62 @@ export default async function AudioJoinerPage() {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(webAppJsonLd) }} />
 
       <ToolPageShell
-        breadcrumb={
-          <Breadcrumb
-            items={[{ name: "Tools", href: "/tools" }, { name: "Audio Joiner" }]}
-          />
-        }
-        title="Free Audio Joiner &amp; MP3 Merger"
-        lede="Combine multiple MP3 or audio files into one track, free, no sign-up, no watermark."
+        breadcrumb={<Breadcrumb items={[{ name: "Tools", href: "/tools" }, { name: "Audio Joiner" }]} />}
+        meta={["No account", "Mixed formats welcome", "Resampled to match"]}
+        title="Audio Joiner"
+        lede="Combine several audio files into one, in the order you set. Files at different sample rates or formats are matched first, so nothing plays at the wrong speed at the seam. Free, no sign-up."
         tool={<JoinForm />}
       >
-        <FeatureStrip
-          features={[
+        <ProofStrip
+          proofs={[
             {
-              title: `Up to ${MAX_FILES} files`,
-              desc: `${maxTotalSize} combined, any mix of supported formats.`,
+              label: "Mismatched inputs",
+              value: "Every file resampled to 44.1 kHz first",
+              note: "A 48 kHz file after a 44.1 one, joined raw, plays the second at the wrong speed and pitch. Matching first is what most free joiners skip.",
             },
-            { title: "Reorderable", desc: "Set the exact playback order before joining." },
-            { title: "No sign-up", desc: "No account, no email, no watermark." },
+            {
+              label: "The join",
+              value: "Butt-joined, no gap, no crossfade",
+              note: "Files meet end to end. Add a fade to each file first if you want a soft transition.",
+            },
+            {
+              label: "Limits",
+              value: `Up to ${limits.join.maxFiles} files, ${maxTotalSize} total, ${maxTotalDuration}`,
+              note: `${maxPerFileSize} per file. ${formatList}. Uploads are deleted on completion.`,
+            },
           ]}
         />
 
-        <ToolSection id="how-to" title="How to combine audio files">
-          <ol>
-            <li>Add two or more {formatList} files.</li>
-            <li>Use the up/down arrows to set the order they should play in.</li>
-            <li>Choose an output format.</li>
-            <li>Download the single merged file.</li>
-          </ol>
+        <ToolSection id="how" title="What happens to each file" bleed>
+          <CompareTable
+            columns={["Same rate, same format", "Different rates or formats"]}
+            highlight={-1}
+            rows={[
+              { label: "Sample rate", cells: [{ state: "yes", text: "Kept as is" }, { state: "partial", text: "All resampled to 44.1 kHz so the seam plays at the right speed" }] },
+              { label: "Channels", cells: [{ state: "yes", text: "Kept as is" }, { state: "partial", text: "Matched so a mono clip does not come out half-width next to a stereo one" }] },
+              { label: "Quality", cells: [{ state: "yes", text: "Lossless if the output format is lossless" }, { state: "partial", text: "One resample on the files that needed it. Inaudible, but keep the originals" }] },
+              { label: "Order", cells: [{ text: "The order in the list. Drag to reorder before joining" }, { text: "Same" }] },
+            ]}
+            footnote="A join that is refused for length is the total duration cap, not one file. Trim the longest input and try again."
+          />
+          <Prose className="mt-5">
+            <p>
+              Soft transitions: run each file through <Link href="/fade">Fade In / Out</Link> first. Pieces of one
+              long recording: <Link href="/trim">Trim</Link> them, then join.{" "}
+              <Link href="/guides/why-you-cant-just-concatenate-audio-files">Why you cannot just concatenate audio files</Link>{" "}
+              explains the seam problem.
+            </p>
+          </Prose>
         </ToolSection>
 
-        {/* Was a bordered two-column table. Four label/value pairs is a
-            definition list, and the dl style already renders it as a spec
-            table without a box around it. */}
-        <ToolSection id="limits" title="Limits">
-          <dl className="codes">
-            <dt>Files per join</dt>
-            <dd>Up to {MAX_FILES}</dd>
-
-            <dt>Combined size</dt>
-            <dd>{maxTotalSize}</dd>
-
-            <dt>Per-file size</dt>
-            <dd>{maxPerFileSize}</dd>
-
-            <dt>Combined length</dt>
-            <dd>{maxTotalDuration}</dd>
-          </dl>
-          <p>
-            Both size limits apply independently — a single file over{" "}
-            {maxPerFileSize} is rejected even when the combined total sits
-            comfortably under {maxTotalSize}. Length is checked across all
-            files together, before any processing begins, and it&apos;s a total
-            rather than a per-file figure: ten four-minute tracks is a
-            forty-minute job however short each one looks on its own.
-          </p>
-        </ToolSection>
-
-        <ToolSection id="mismatched" title="Why mismatched files still join correctly">
-          <p>
-            Joining audio files directly is riskier than it looks — a file
-            recorded at 48kHz followed by one at 44.1kHz, played back
-            end-to-end without correction, can play the second file at the
-            wrong speed and pitch. This tool resamples every input file to a
-            common sample rate (44.1kHz) before joining, so files recorded at
-            different rates, in different source formats, still combine into
-            one correctly-playing track instead of shifting speed at the seam.
-          </p>
-          <p>
-            Want the fuller breakdown of what&apos;s actually happening when
-            mismatched files get joined, and what &quot;no gap, no crossfade&quot;
-            really means for the result?{" "}
-            <Link href="/guides/why-you-cant-just-concatenate-audio-files">
-              Read Why You Can&apos;t Just Concatenate Audio Files
-            </Link>
-            .
-          </p>
-        </ToolSection>
-
-        <ToolSection id="quality" title="What happens to audio quality during joining">
-          <p>
-            Because every input is resampled to a common rate as part of the
-            join, each file goes through a decode-and-re-encode step rather
-            than being spliced together as raw, untouched data — that&apos;s true
-            even when the input and chosen output format already match. In
-            practice the audible difference is minimal, but it&apos;s worth
-            knowing this isn&apos;t a byte-for-byte lossless passthrough, the
-            same way any format conversion involves an encoding step.
-          </p>
-        </ToolSection>
-
-        <ToolSection id="common-uses" title="Common uses">
-          <p>
-            Combining separately recorded podcast segments into one episode
-            file, merging voice memos recorded across multiple takes,
-            stitching together audio clips for a longer presentation, and
-            joining separately downloaded tracks into a single continuous
-            file.
-          </p>
-          <p>
-            Need to trim a file before adding it to the mix? Use the{" "}
-            <Link href="/trim">Audio Trimmer</Link> first. Want a smooth
-            transition between joined files rather than a hard cut? Trim each
-            clip with a short fade first using the{" "}
-            <Link href="/fade">Fade In/Out</Link> tool.
-          </p>
-        </ToolSection>
+        <FAQSection faqs={faqs} />
 
         <RelatedToolsGrid tools={relatedTools} />
 
-        <FAQSection faqs={faqs} />
+        <PageByline
+          updated={UPDATED}
+          legal="You are responsible for having the right to process any file you upload. AudioForges does not host or distribute the files processed here."
+        />
       </ToolPageShell>
     </>
   );
