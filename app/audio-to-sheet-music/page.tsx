@@ -20,7 +20,7 @@ import { ogImage } from "@/lib/og";
 
 const UPDATED = "2026-09-10";
 
-const PAGE_TITLE = "Free MP3 & Audio to Sheet Music Converter Online";
+const PAGE_TITLE = "Audio to Sheet Music Converter – Free, Online";
 const PAGE_DESCRIPTION =
   "Convert MP3, WAV or humming to sheet music free. Play the engraved score in your browser to check it, then download PDF, MusicXML & MIDI. No sign-up.";
 

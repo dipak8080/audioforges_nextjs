@@ -30,7 +30,7 @@ const UPDATED = "2026-09-10";
 
 const PAGE_TITLE = "Free AI Vocal Remover – Remove Vocals & Voice Online";
 const PAGE_DESCRIPTION =
-  "Free AI vocal remover and free LALAL.AI alternative. Remove vocals from a song online to get an instrumental or acapella — MP3, WAV, FLAC, AAC. No sign-up, no watermark.";
+  "Free AI vocal remover and LALAL.AI alternative. Remove vocals from a song to get an instrumental or acapella. MP3, WAV, FLAC, AAC. No sign-up, no watermark.";
 
 const OG_IMAGE = ogForTool("vocal-remover", "Free AI Vocal Remover");
 

@@ -29,7 +29,7 @@ const UPDATED = "2026-09-10";
 
 const PAGE_TITLE = "Free AI Stem Splitter – Split Songs Into Stems";
 const PAGE_DESCRIPTION =
-  "Free stem splitter and LALAL.AI alternative — split songs into vocals, drums, bass, and other stems with AI. Upload MP3, WAV, FLAC, M4A, AAC, OGG, or AIFF for free. No sign-up.";
+  "Free AI stem splitter and LALAL.AI alternative. Split a song into vocals, drums, bass and other stems. MP3, WAV, FLAC, M4A, AAC. No sign-up, no watermark.";
 
 const OG_IMAGE = ogForTool("stems", "Free AI Stem Splitter");
 
