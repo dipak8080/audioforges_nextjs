@@ -114,7 +114,7 @@ export default async function VocalRemoverPage() {
     {
       question: "Is there a free alternative to LALAL.AI?",
       answer:
-        "Yes. AudioForges separates full-length tracks free with no account. LALAL.AI's free tier is a preview, with full results behind paid processing minutes. For the cleanest split, Studio Quality runs MelBand RoFormer for one credit per job, with no subscription.",
+        "Yes. AudioForges separates full-length tracks free with no account. LALAL.AI's free Starter plan lets you preview a result but not download the full one, and its paid tiers are monthly subscriptions. For the cleanest split here, Studio Quality runs MelBand RoFormer at one credit per job, with no subscription and credits that never expire.",
     },
     {
       question: "Are my uploaded tracks kept?",
@@ -360,7 +360,7 @@ export default async function VocalRemoverPage() {
                 label: "Full-length result without paying",
                 cells: [
                   { state: "yes", text: "Yes" },
-                  { state: "no", text: "Preview only" },
+                  { state: "no", text: "Preview only, full download is paid" },
                   { state: "yes", text: "Yes" },
                 ],
               },
@@ -368,7 +368,7 @@ export default async function VocalRemoverPage() {
                 label: "No account needed",
                 cells: [
                   { state: "yes", text: "Yes" },
-                  { state: "no", text: "Account for full results" },
+                  { state: "no", text: "Account required for results" },
                   { state: "yes", text: "Yes" },
                 ],
               },
@@ -376,7 +376,7 @@ export default async function VocalRemoverPage() {
                 label: "Models named",
                 cells: [
                   { state: "yes", text: "htdemucs, MelBand RoFormer", sub: "open-source, verifiable" },
-                  { state: "partial", text: "Named, closed-source" },
+                  { state: "partial", text: "Andromeda engine, closed-source" },
                   { state: "unknown", text: "Not stated" },
                 ],
               },
@@ -384,7 +384,7 @@ export default async function VocalRemoverPage() {
                 label: "Output spec published",
                 cells: [
                   { state: "yes", text: "16-bit 44.1 kHz WAV" },
-                  { state: "partial", text: "Partially" },
+                  { state: "unknown", text: "Not stated" },
                   { state: "unknown", text: "Not stated" },
                 ],
               },
@@ -392,20 +392,20 @@ export default async function VocalRemoverPage() {
                 label: "Mix stems in the browser",
                 cells: [
                   { state: "yes", text: "Forge Mixer", sub: "mute, solo, pan, loop, export" },
-                  { state: "partial", text: "Preview player" },
-                  { state: "partial", text: "Preview player" },
+                  { state: "no", text: "Preview snippets only" },
+                  { state: "no", text: "Playback only" },
                 ],
               },
               {
                 label: "Paid tier",
                 cells: [
                   { text: "1 credit per job, never expires" },
-                  { text: "Packages of processing minutes" },
-                  { text: "None" },
+                  { text: "Subscription, plus one-time minute top-ups" },
+                  { text: "None, donation-funded" },
                 ],
               },
             ]}
-            footnote={`Competitor details reflect their public pages as of ${UPDATED} and may change.`}
+            footnote={`Checked against their live pages on ${UPDATED}. Details may change.`}
           />
           <div className="mt-5 rounded-xl border border-amber-500/30 bg-amber-500/[0.06] p-5">
             <p className="font-medium text-text-primary">Run the same song through both.</p>

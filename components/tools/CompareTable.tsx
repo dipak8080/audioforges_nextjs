@@ -47,6 +47,27 @@ function Mark({ state }: { state: CellState }) {
   );
 }
 
+function Value({ cell, bright }: { cell: CompareCell; bright: boolean }) {
+  return (
+    <span className={cn("flex items-start gap-2.5 leading-snug", bright ? "text-text-primary" : "text-text-muted")}>
+      {cell.state && (
+        <span className="mt-[2px]">
+          <Mark state={cell.state} />
+        </span>
+      )}
+      <span className={cn(cell.mono && "font-mono tabular-nums")}>
+        {cell.text}
+        {cell.sub && <span className="block font-sans text-[11px] text-text-subtle">{cell.sub}</span>}
+      </span>
+    </span>
+  );
+}
+
+/**
+ * Two renderings of one dataset. Below sm the grid becomes one card per
+ * column, because a three-column table at 380px is a horizontal scrollbar,
+ * which is the thing it replaced.
+ */
 export function CompareTable({
   columns,
   rows,
@@ -59,14 +80,18 @@ export function CompareTable({
   highlight?: number;
   footnote?: string;
 }) {
-  const colClass = columns.length === 2 ? "grid-cols-[minmax(7rem,1.2fr)_1fr_1fr]" : "grid-cols-[minmax(7rem,1.1fr)_1fr_1fr_1fr]";
+  const colClass =
+    columns.length === 2
+      ? "sm:grid-cols-[minmax(7rem,1.2fr)_1fr_1fr]"
+      : "sm:grid-cols-[minmax(7rem,1.1fr)_1fr_1fr_1fr]";
 
   return (
-    <div className="overflow-x-auto">
+    <div>
+      {/* Table, sm and up */}
       <div
         role="table"
         className={cn(
-          "grid min-w-[36rem] overflow-hidden rounded-xl border border-graphite-800 bg-graphite-900 text-sm",
+          "hidden overflow-hidden rounded-xl border border-graphite-800 bg-graphite-900 text-sm sm:grid",
           colClass
         )}
       >
@@ -104,28 +129,54 @@ export function CompareTable({
                 role="cell"
                 key={ci}
                 className={cn(
-                  "flex items-start gap-2.5 px-4 py-3.5 leading-snug",
+                  "px-4 py-3.5",
                   ri < rows.length - 1 && "border-b border-graphite-800",
-                  ci === highlight ? "bg-amber-500/[0.06] text-text-primary" : "text-text-muted",
-                  cell.mono && "font-mono tabular-nums"
+                  ci === highlight && "bg-amber-500/[0.06]"
                 )}
               >
-                {cell.state && (
-                  <span className="mt-[2px]">
-                    <Mark state={cell.state} />
-                  </span>
-                )}
-                <span>
-                  {cell.text}
-                  {cell.sub && (
-                    <span className="block font-sans text-[11px] text-text-subtle">{cell.sub}</span>
-                  )}
-                </span>
+                <Value cell={cell} bright={ci === highlight} />
               </div>
             ))}
           </div>
         ))}
       </div>
+
+      {/* Cards, below sm. One per column, so nothing scrolls sideways. */}
+      <div className="space-y-3 sm:hidden">
+        {columns.map((c, ci) => (
+          <div
+            key={c}
+            className={cn(
+              "overflow-hidden rounded-xl border bg-graphite-900",
+              ci === highlight ? "border-amber-500/40" : "border-graphite-800"
+            )}
+          >
+            <p
+              className={cn(
+                "border-b px-4 py-2.5 text-sm font-semibold",
+                ci === highlight
+                  ? "border-graphite-800 bg-amber-500/[0.06] text-text-primary"
+                  : "border-graphite-800 text-text-muted"
+              )}
+            >
+              {c}
+            </p>
+            <dl className="divide-y divide-graphite-800 text-sm">
+              {rows.map((r) => (
+                <div key={r.label} className="flex items-start justify-between gap-4 px-4 py-3">
+                  <dt className="shrink-0 basis-[42%] text-text-subtle">{r.label}</dt>
+                  <dd className="flex-1 text-right">
+                    <span className="inline-flex text-left">
+                      <Value cell={r.cells[ci]} bright={ci === highlight} />
+                    </span>
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        ))}
+      </div>
+
       {footnote && <p className="mt-3 text-xs text-text-subtle">{footnote}</p>}
     </div>
   );

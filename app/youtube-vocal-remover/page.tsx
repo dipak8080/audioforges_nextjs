@@ -1,15 +1,18 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Fragment } from "react";
 import { YouTubeSeparateForm } from "@/components/converter/YouTubeSeparateForm";
 import { FAQSection, type FAQItem } from "@/components/faq/FAQSection";
 import { ToolPageShell } from "@/components/layout/ToolPageShell";
 import { Breadcrumb } from "@/components/layout/Breadcrumb";
 import { ToolSection } from "@/components/ui/ToolSection";
-import { FeatureStrip } from "@/components/ui/FeatureStrip";
 import { StemCompare } from "@/components/credits/StemCompare";
 import { Prose } from "@/components/ui/Prose";
 import { RelatedToolsGrid } from "@/components/tools/RelatedToolsGrid";
+import { ProofStrip } from "@/components/tools/ProofStrip";
+import { ForgeMixerCard } from "@/components/tools/ForgeMixerCard";
+import { StemUseGrid } from "@/components/tools/StemUseGrid";
+import { CompareTable } from "@/components/tools/CompareTable";
+import { PageByline } from "@/components/tools/PageByline";
 import { ToolVideo } from "@/components/media/ToolVideo";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
@@ -18,12 +21,10 @@ import { getDurationLabel } from "@/lib/data/tool-limits";
 import { getFeatureFlags } from "@/lib/api/railway";
 import { ogForTool } from "@/lib/og";
 
-
-/** Same 41 seconds of the same track through both tiers, level-matched — the
- *  clips already proving the claim on /pricing. Shared files, so the demo can
- *  never drift from what the tiers actually produce. */
 const DEMO_STANDARD = "/audio/demo-vocals-standard.wav";
 const DEMO_STUDIO = "/audio/demo-vocals-studio.wav";
+
+const UPDATED = "2026-09-10";
 
 const PAGE_TITLE = "YouTube Vocal Remover – Free Instrumental & Acapella";
 const PAGE_DESCRIPTION =
@@ -51,77 +52,47 @@ export const metadata: Metadata = {
   },
 };
 
-// Every claim below is checked against actual YouTubeSeparateForm/backend
-// behaviour. GPU-accelerated is stated because separation genuinely runs on
-// GPU infrastructure; no speed or accuracy numbers are claimed, since none are
-// measured.
 const webAppJsonLd = {
   "@context": "https://schema.org",
   "@type": "WebApplication",
   name: "YouTube Vocal Remover",
+  alternateName: [
+    "YouTube Vocal Remover",
+    "YouTube Karaoke Maker",
+    "YouTube Acapella Extractor",
+    "YouTube Instrumental Extractor",
+  ],
   url: `${SITE_URL}/youtube-vocal-remover`,
+  dateModified: UPDATED,
   applicationCategory: "MultimediaApplication",
   operatingSystem: "Any",
+  browserRequirements: "Requires JavaScript.",
   offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
   featureList: [
+    "GPU-accelerated AI vocal and instrumental separation from a YouTube link",
     "Forge Mixer: multi-track stem player with per-stem mute, solo, volume and pan",
     "Mix presets, A–B loop, and in-browser WAV export of your custom balance",
-    "GPU-accelerated AI vocal and instrumental separation from a YouTube link",
     "No manual download step",
     "Separate vocal and instrumental downloads",
     "No sign-up required",
   ],
 };
 
-// Don't add HowTo schema — deprecated by Google, no benefit. FAQPage comes
-// from <FAQSection />, BreadcrumbList from <Breadcrumb />; don't duplicate.
-
-// Read from lib/data/rate-limits.ts rather than hardcoded — the same source
-// YouTubeSeparateForm.tsx uses, so the tool UI and this copy can't quietly
-// drift apart. Fallback text only fires if a key is missing or renamed.
+// From lib/data/rate-limits.ts and lib/data/tool-limits.ts, the same sources
+// YouTubeSeparateForm uses, so the tool and this copy can't drift.
 const FALLBACK_RATE_LIMIT_LABEL = "rate limited";
 const standardLimitLabel = getRateLimitLabel("youtube/separate") ?? FALLBACK_RATE_LIMIT_LABEL;
 const hqLimitLabel = getRateLimitLabel("youtube/separate-hq") ?? FALLBACK_RATE_LIMIT_LABEL;
 
-/**
- * Video length caps, from lib/data/tool-limits.ts for the same reason.
- *
- * This was not a cosmetic drift. The page previously stated a hardcoded
- * "videos longer than 15 minutes aren't supported". The real ceiling is
- * MAX_SEPARATION_DURATION_SECONDS — TEN minutes, and SIX on Studio Quality. So
- * a 14-minute video was explicitly invited by this copy, accepted, downloaded
- * in full through the paid residential proxy, and only then refused at the
- * separation step. The user waited for a fetch that could never have been
- * usable, and we paid for the bandwidth.
- *
- * The 15 almost certainly came from someone reading the DOWNLOAD cap and
- * rounding — see the "two stacked caps" note at the top of tool-limits.ts for
- * why the download number is never the one to show on a page like this.
- *
- * THE TWO FALLBACKS DIFFER ON PURPOSE. The HQ fallback used to read "10
- * minutes" — the standard figure — so a missing key would have silently
- * over-promised by four minutes on the tier with the tighter cap, and shown
- * two identical values in a table whose whole point is that they differ.
- */
+// The two fallbacks differ on purpose: Studio Quality's ceiling is the tighter
+// one, and a missing key must never over-promise on the tier with less room.
 const FALLBACK_STANDARD_DURATION = "10 minutes";
 const FALLBACK_HQ_DURATION = "6 minutes";
 const standardDurationLabel = getDurationLabel("youtube/separate") ?? FALLBACK_STANDARD_DURATION;
 const hqDurationLabel = getDurationLabel("youtube/separate-hq") ?? FALLBACK_HQ_DURATION;
-
-const WHAT_YOU_GET = [
-  {
-    name: "Vocals",
-    desc: "Lead and backing vocals, isolated from the instrumentation around them — usable as an acapella on its own.",
-  },
-  {
-    name: "Instrumental",
-    desc: "The full mix with vocals removed, ready as a karaoke backing track or a base to build a remix around.",
-  },
-  {
-    name: "Preview and download",
-    desc: "Both tracks play directly in the browser once separation finishes, and each downloads independently — grab one, the other, or both.",
-  },
-];
+// Same today. Stated separately only when they actually differ, so a row
+// reading "10 minutes / 10 minutes" never ships.
+const hqDurationDiffers = hqDurationLabel !== standardDurationLabel;
 
 export default async function YouTubeVocalRemoverPage() {
   const relatedTools = getRelatedTools("youtube-vocal-remover", 5);
@@ -129,107 +100,81 @@ export default async function YouTubeVocalRemoverPage() {
 
   const faqs: FAQItem[] = [
     {
-      question: "How do I get an acapella from a YouTube video for free?",
+      question: "How long can the video be?",
+      answer: `Up to ${standardDurationLabel}${hqDurationDiffers ? `, and ${hqDurationLabel} on Studio Quality` : " on both tiers"}. The cap is on separation, not the fetch, so a longer video is refused rather than downloaded first and rejected afterwards. Usage is limited to ${standardLimitLabel} per IP address so the tool stays free.`,
+    },
+    {
+      question: "Do I need to download the video first?",
       answer:
-        "Paste the video link above and run the separation — the vocals stem is the acapella, downloadable at full length as a WAV with no account and no watermark. For the cleanest result on dense mixes, Studio Quality runs MelBand RoFormer, the top-ranked open-source vocal model on public benchmarks.",
+        "No. That is the whole point of this page. Paste the link, the audio is fetched server-side and goes straight into separation. Nothing lands on your device until you download a stem.",
     },
     {
-      question: "Is this a free alternative to paid vocal removers for YouTube?",
+      question: "Is this different from the regular Vocal Remover?",
       answer:
-        "Yes. The standard tier processes full videos free with no sign-up — most paid tools sell processing minutes and require creating an account to download results. The paid Studio Quality tier here is a single credit per job, not a subscription.",
-    },
-    {
-      question: "Which AI models power the separation?",
-      answer:
-        "Standard runs htdemucs, the published Hybrid Transformer Demucs. Studio Quality runs MelBand RoFormer — an open-source band-split transformer whose vocal-separation scores top the public benchmarks this field is measured on. Both are verifiable published models, not something wrapped and renamed.",
-    },
-    {
-      question: "What is a YouTube vocal remover?",
-      answer:
-        "A tool that fetches the audio from a YouTube video and uses AI source separation to split it into an isolated vocal track and an instrumental, reconstructing parts that only exist mixed together in the original upload.",
-    },
-    {
-      question: "How do I remove vocals from a YouTube video?",
-      answer:
-        "Paste the video's link into the tool above. The audio is fetched and separated automatically, then the vocals and instrumental are ready to preview and download.",
-    },
-    {
-      question: "How is this different from the regular Vocal Remover?",
-      answer:
-        "The regular Vocal Remover needs an audio file already on your device. This version takes a YouTube link directly, fetching and separating the audio in one step so you skip the download-then-reupload workflow entirely.",
-    },
-    {
-      question: "How long does it take?",
-      answer:
-        "Usually 30 seconds to 1 minute for standard quality. Fetching the audio is the fast part, and the AI separation is what takes most of the time.",
-    },
-    ...(separationHqEnabled
-      ? [
-          {
-            question: "What is Studio Quality mode?",
-            answer:
-              "An optional higher-fidelity separation mode using a larger, ensembled AI model. It produces noticeably cleaner vocal and instrumental tracks, at the cost of a longer processing time, typically 1 to 2 minutes instead of 30 seconds to 1 minute.",
-          },
-        ]
-      : []),
-    {
-      question: "Can I turn a YouTube song into an acapella?",
-      answer:
-        "Yes. Paste a YouTube link and the tool separates the vocals from the instrumental. The isolated vocal track can then be previewed and downloaded as an acapella.",
-    },
-    {
-      question: "Can I make a karaoke track?",
-      answer:
-        "Yes — the instrumental has the lead vocal removed, which is the standard basis for a karaoke backing track from a YouTube song.",
-    },
-    {
-      question: "What do I get back?",
-      answer:
-        "Two separate tracks: the isolated vocals, and the instrumental with vocals removed. Each previews and downloads independently.",
-    },
-    {
-      question: "What affects separation quality?",
-      answer:
-        "How densely the source track is mixed matters most — sparser arrangements separate more cleanly than dense, heavily layered production. YouTube's own audio compression adds artifacts on top of that, which is why results vary between videos even at the same quality tier.",
-    },
-    {
-      question: "Does it work with YouTube Shorts?",
-      answer: "Yes — watch links, youtu.be links, and Shorts links are all supported.",
-    },
-    // Derived from tool-limits.ts — see the note above the constants for why
-    // the previous hardcoded "15 minutes" cost users time and us proxy
-    // bandwidth. Studio Quality has a tighter cap than standard, so when HQ is
-    // available both numbers are stated rather than just the looser one.
-    {
-      question: "Is there a video length limit?",
-      answer: separationHqEnabled
-        ? `Yes — up to ${standardDurationLabel} at standard quality, or ${hqDurationLabel} with Studio Quality, which is more intensive to process.`
-        : `Yes — videos up to ${standardDurationLabel} long are supported.`,
-    },
-    {
-      question: "What videos cannot be processed?",
-      answer:
-        "Videos that are private, age-restricted, or region-locked may not be accessible to the downloader and can't be processed as a result, since the audio has to be fetched before separation can run.",
-    },
-    {
-      question: "Can I get drums and bass separately too?",
-      answer:
-        "Yes — the YouTube Stem Splitter produces four separate stems (vocals, drums, bass, other) from the same kind of link.",
+        "Only the input. The separation, the models and the output are identical. Use this one when the track is on YouTube and the file version when it is already on your device.",
       answerNode: (
         <>
-          Yes — the{" "}
-          <Link href="/youtube-stem-splitter" className="text-amber-400 hover:underline">
-            YouTube Stem Splitter
+          Only the input. The separation, the models and the output are identical. Use this one when the track is on
+          YouTube and the{" "}
+          <Link href="/vocal-remover" prefetch={false} className="text-amber-400 hover:underline">
+            file version
           </Link>{" "}
-          produces four separate stems (vocals, drums, bass, other) from the same
-          kind of link.
+          when it is already on your device.
         </>
       ),
     },
     {
-      question: "Is this really free?",
+      question: "Why does a link take longer than uploading a file?",
       answer:
-        "Yes, completely free. Because this chains a YouTube download with GPU-accelerated AI separation, it's rate-limited per person to keep it available for everyone.",
+        "There are two stages instead of one. The audio has to be fetched from YouTube before separation can start, and the fetch is the part that varies with video length and network conditions. Separation itself takes the same time either way.",
+      answerNode: (
+        <>
+          There are two stages instead of one. The audio has to be fetched from YouTube before separation can start,
+          and the fetch is the part that varies. Separation itself takes the same time either way.{" "}
+          <Link href="/guides/how-youtube-tools-fetch-then-process" className="text-amber-400 hover:underline">
+            How the fetch stage works
+          </Link>
+          .
+        </>
+      ),
+    },
+    {
+      question: "Some links fail. Why?",
+      answer:
+        "Age-restricted, private, members-only and region-blocked videos cannot be fetched, and live streams have no finished file to pull. Very long videos are refused by the duration cap above. If a link fails, downloading the audio yourself and using the file tool usually works.",
+    },
+    ...(separationHqEnabled
+      ? [
+          {
+            question: "What is Studio Quality?",
+            answer:
+              "A second tier that runs MelBand RoFormer instead of htdemucs. Different architecture, not the same model run harder: less vocal bleed in the instrumental and fewer watery artifacts on cymbals and breaths. It takes 1 to 2 minutes instead of 20 seconds to 1 minute and costs one credit per run after the free monthly allowance.",
+          },
+        ]
+      : []),
+    {
+      question: "Can I split the video into drums and bass too?",
+      answer:
+        "Not here. This tool returns two stems, vocals and instrumental. The YouTube Stem Splitter returns four.",
+      answerNode: (
+        <>
+          Not here. This tool returns two stems, vocals and instrumental. The{" "}
+          <Link href="/youtube-stem-splitter" prefetch={false} className="text-amber-400 hover:underline">
+            YouTube Stem Splitter
+          </Link>{" "}
+          returns four.
+        </>
+      ),
+    },
+    {
+      question: "Am I allowed to do this?",
+      answer:
+        "That depends on the video and on what you do with the result. Practising over an instrumental of a song you own, or working with material you have permission to use, is a different matter from republishing someone else's recording. You are responsible for having the right to process the video you paste.",
+    },
+    {
+      question: "Does separation improve the audio quality?",
+      answer:
+        "No. It isolates what is already in the mix. YouTube audio is compressed before you ever get to it, so a stem cannot be cleaner than the source, and the output is always 16-bit 44.1 kHz stereo WAV.",
     },
   ];
 
@@ -239,323 +184,294 @@ export default async function YouTubeVocalRemoverPage() {
 
       <ToolPageShell
         breadcrumb={
-          <Breadcrumb
-            items={[{ name: "Tools", href: "/tools" }, { name: "YouTube Vocal Remover" }]}
-          />
+          <Breadcrumb items={[{ name: "Tools", href: "/tools" }, { name: "YouTube Vocal Remover" }]} />
         }
+        meta={["No account", "No download step", "Full-length WAV"]}
         title="Free YouTube Vocal Remover"
-        lede="Paste a link and get an isolated vocal track and an instrumental back. No download step, no sign-up."
+        lede="Paste a link and get the vocals and the instrumental back as two separate WAV files. No download step, no sign-up."
         tool={<YouTubeSeparateForm hqAvailable={separationHqEnabled} />}
       >
-        <FeatureStrip
-          features={[
-            { title: "No download step", desc: "Paste a link, skip the save-and-reupload." },
+        <ProofStrip
+          proofs={[
             {
-              title: "Both tracks",
-              desc: "Isolated vocals and the instrumental, downloaded separately.",
+              label: "One step",
+              value: "Link in, two stems out",
+              note: "The audio is fetched server-side. Nothing touches your device until you download a stem.",
             },
-            { title: "Free", desc: "No sign-up, no watermark, free for everyone." },
+            {
+              label: "Models",
+              value: "htdemucs and MelBand RoFormer",
+              note: "Named so you can check them. Real source separation, not a center-channel trick.",
+            },
+            {
+              label: "Length",
+              value: `Up to ${standardDurationLabel}`,
+              note: `${hqDurationDiffers ? `${hqDurationLabel} on Studio Quality. ` : ""}Checked before the fetch, so nothing is downloaded that cannot be processed.`,
+            },
           ]}
         />
 
-
-        {/* The proof, up front: the only claim on this page a reader can
-            check with their ears instead of taking on trust. Same clips as
-            /pricing — one source of truth for what the tiers sound like. */}
         {separationHqEnabled && (
           <ToolSection id="hear-the-difference" title="Hear the difference">
             <p>
-              Standard and Studio Quality, on the same song. Switch while it plays — both versions stay at the same
-              playhead, so you hear the same bar twice back to back. Listen for
-              vocal bleed in the quiet passages and the watery, underwater
-              artifacts on sustained notes.
+              The vocal stem from both tiers, on the same song. Click a lane to switch while it plays; the playhead
+              stays put, so you hear the same bar twice. Drag on a lane to loop the part you want to compare.
             </p>
             <StemCompare
               standardSrc={DEMO_STANDARD}
               studioSrc={DEMO_STUDIO}
               stemLabel="Vocals"
               trackLabel="Dense mix, long reverb tail"
+              cues={[
+                { at: 6, label: "quiet passage" },
+                { at: 19, label: "held note" },
+                { at: 31, label: "reverb tail" },
+              ]}
             />
             <p className="text-xs text-text-subtle">
-              Music: Culture Code — Make Me Move (feat. Karra) [NCS Release]
+              Music: Culture Code, Make Me Move (feat. Karra) [NCS Release]
             </p>
           </ToolSection>
         )}
 
-                <ToolSection id="how-to" title="How to remove vocals from a YouTube video">
-          <ol>
-            <li>
-              Paste a YouTube video, Shorts, or youtu.be link — up to{" "}
-              {standardDurationLabel} long.
-            </li>
-            <li>
-              The audio is fetched and separated automatically, usually 30 seconds
-              to 1 minute.
-            </li>
-            <li>Preview and download the vocals, the instrumental, or both.</li>
-          </ol>
-        </ToolSection>
-
-        <ToolSection id="forge-mixer" title="Forge Mixer: work with the stems before you download">
-          <p>
-            Results open in <strong>Forge Mixer</strong>, a multi-track player
-            built into the page. Each of the vocal and instrumental stems gets its own lane
-            with a real waveform rendered from the decoded audio and a live
-            level meter, and every lane plays from one shared Web Audio clock so
-            the stems stay locked together — no drift, however long you listen.
-          </p>
-          <ul>
-            <li>
-              <strong>Mute, solo, volume and pan per stem.</strong> Volume runs
-              from silent to 150%, pan is full left to full right, and you can
-              solo several stems at once. Pan and per-stem volume are things a
-              download-only tool can&apos;t give you.
-            </li>
-            <li>
-              <strong>One-click mix presets</strong> — Karaoke and Acapella — so the common
-              balances are a single tap.
-            </li>
-            <li>
-              <strong>A–B loop.</strong> Drag on the timeline to loop a section
-              with sample-accurate loop points. Useful for learning a part or
-              checking one passage of the separation closely.
-            </li>
-            <li>
-              <strong>Export your mix as a WAV.</strong> Whatever balance you set
-              — mutes, levels, pans — renders in the browser, with no server
-              round-trip and no credits used. So you can mute the vocal, turn the instrumental up and export a karaoke track, without
-              touching a DAW.
-            </li>
-            <li>
-              <strong>Per-stem and download-all</strong> are still one click.
-              Playback starts as soon as the first stem is decoded; the others
-              join in sync as they arrive.
-            </li>
-          </ul>
-          <p>
-            Click or drag any waveform to seek every stem together, Space plays
-            and pauses, and the arrow keys nudge the playhead. On a phone the
-            lanes stack; on a desktop the result opens at full width.
-          </p>
-        </ToolSection>
-
-        <ToolSection id="what-you-get" title="What you get">
-          <dl>
-            {WHAT_YOU_GET.map((item) => (
-              <Fragment key={item.name}>
-                <dt>{item.name}</dt>
-                <dd>{item.desc}</dd>
-              </Fragment>
+        <ToolSection id="two-stages" title="What happens after you paste the link" bleed>
+          <ol className="grid gap-3 sm:grid-cols-2">
+            {[
+              [
+                "Fetch",
+                "The audio track is pulled from YouTube server-side. This is the stage that varies with video length and how the video is served, and it is where a link fails if the video is private, age-restricted or a live stream.",
+              ],
+              [
+                "Separate",
+                "The same GPU pipeline the file tool uses. 20 seconds to 1 minute on standard, 1 to 2 on Studio Quality, then both stems open in Forge Mixer.",
+              ],
+            ].map(([t, d], i) => (
+              <li key={t} className="rounded-xl border border-graphite-800 bg-graphite-900 p-5">
+                <p className="font-mono text-[11px] text-amber-400">Stage {i + 1}</p>
+                <p className="mt-1.5 font-medium text-text-primary">{t}</p>
+                <p className="mt-1.5 text-sm leading-relaxed text-text-muted">{d}</p>
+              </li>
             ))}
-          </dl>
+          </ol>
+          <Prose className="mt-5">
+            <p>
+              Two stages is why a link takes longer than an upload, and why the length cap is checked first: a video
+              that cannot be separated is never fetched.{" "}
+              <Link href="/guides/how-youtube-tools-fetch-then-process">
+                The longer explanation of the fetch stage
+              </Link>{" "}
+              covers what happens when a video cannot be pulled at all.
+            </p>
+          </Prose>
         </ToolSection>
 
-        <ToolSection id="why-link" title="Why paste a link instead of downloading first">
-          <p>
-            The regular <Link href="/vocal-remover">Vocal Remover</Link> works from
-            a file already on your device — which normally means downloading the
-            audio with one tool, then uploading it to another. This version chains
-            both steps together, so a link is all you need. The separation itself
-            is identical; only the input method differs.
-          </p>
-          <p>
-            Curious why this takes longer than a file upload, or what happens when
-            a video can&apos;t be fetched at all?{" "}
-            <Link href="/guides/how-youtube-tools-fetch-then-process">
-              Read How AudioForges&apos; YouTube Tools Work: Fetch, Then Process
-            </Link>
-            .
-          </p>
+        <ToolSection id="forge-mixer" title="Mix the stems before you download" bleed>
+          <Prose className="mb-5">
+            <p>
+              Results open in Forge Mixer, a two-lane player built into this page. Both stems run from one shared
+              clock, so they never drift. Set a balance you like and export it as a WAV without leaving the browser.
+            </p>
+          </Prose>
+          <ForgeMixerCard
+            points={[
+              "Mute, solo, volume to 150% and full pan on each stem.",
+              "Karaoke and Acapella presets, one tap each.",
+              "Drag on the timeline to loop a section, sample-accurate.",
+              "Export the mix you set as a WAV. Rendered locally, no credits used.",
+            ]}
+          />
         </ToolSection>
 
-        <ToolSection id="how-it-works" title="How AI vocal removal works">
-          <p>
-            AI source separation estimates the vocal and instrumental parts from a
-            single mixed recording — it isn&apos;t undoing a mix with access to the
-            original multitracks, it&apos;s reconstructing an approximation of them
-            from what a voice sounds like versus an instrument. That&apos;s what
-            separates it from an old center-channel filter, which only cuts
-            whatever&apos;s panned dead-center and leaves any off-center vocal
-            element behind.
-          </p>
-          <p>
-            AudioForges processes the AI separation workload on GPU-accelerated
-            infrastructure. Fetching the audio from YouTube is the fast half of
-            this tool; separation is the slower one, and usage is rate-limited per
-            person so it stays free and available for everyone.
-          </p>
+        <ToolSection id="what-you-get" title="Two stems, four jobs" bleed>
+          <StemUseGrid
+            outputs={[
+              {
+                name: "Instrumental",
+                desc: "The video's audio with the voice removed. Drums, bass and everything else stay intact.",
+              },
+              { name: "Vocals", desc: "Lead and backing vocals on their own. Usable as an acapella as is." },
+            ]}
+            jobs={[
+              { name: "Karaoke", uses: "instrumental", desc: "Sing over the original arrangement, not a MIDI cover." },
+              {
+                name: "Remix",
+                uses: "either",
+                desc: "Build on a clean bed or a clean hook.",
+                href: "/youtube-key-finder",
+                linkLabel: "Check the key first.",
+              },
+              { name: "DJ mashup", uses: "vocals", desc: "Lay one video's acapella over another track's instrumental." },
+              { name: "Cover reference", uses: "instrumental", desc: "Hear the parts clearly without the lead in the way." },
+            ]}
+          />
         </ToolSection>
 
         {separationHqEnabled && (
           <ToolSection id="standard-vs-studio" title="Standard vs. Studio Quality" bleed>
-            <div className="overflow-x-auto rounded-xl border border-graphite-800">
-              <table className="w-full text-left text-sm text-text-muted">
-                <thead className="bg-graphite-900">
-                  <tr>
-                    <th className="w-1/4 px-4 py-3">
-                      <span className="sr-only">Comparison</span>
-                    </th>
-                    <th className="px-4 py-3 font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-text-subtle">
-                      Standard
-                    </th>
-                    <th className="px-4 py-3 font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-amber-400">
-                      Studio Quality
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-graphite-800">
-                  <tr>
-                    <td className="px-4 py-3 font-medium text-text-subtle">Processing time</td>
-                    <td className="px-4 py-3 font-mono tabular-nums">30 sec–1 min</td>
-                    <td className="px-4 py-3 font-mono tabular-nums text-text-primary">1–2 min</td>
-                  </tr>
-                  <tr>
-                    {/* From getDurationLabel. The two tiers have genuinely
-                        different caps — HQ holds the single separation slot
-                        several times longer — so this row isn't decorative.
-                        Don't hardcode it. */}
-                    <td className="px-4 py-3 font-medium text-text-subtle">Max video length</td>
-                    <td className="px-4 py-3 font-mono tabular-nums">{standardDurationLabel}</td>
-                    <td className="px-4 py-3 font-mono tabular-nums text-text-primary">
-                      {hqDurationLabel}
-                    </td>
-                  </tr>
-                  <tr>
-                    <td className="px-4 py-3 font-medium text-text-subtle">Separation quality</td>
-                    <td className="px-4 py-3">Good for most tracks</td>
-                    <td className="px-4 py-3">Clean on both stems</td>
-                  </tr>
-                  <tr>
-                    <td className="px-4 py-3 font-medium text-text-subtle">Vocal bleed in the instrumental</td>
-                    <td className="px-4 py-3">Audible on dense mixes, and on held or heavily reverbed notes</td>
-                    <td className="px-4 py-3 text-text-primary">Gone on most material — the reverb tail leaves with the vocal</td>
-                  </tr>
-                  <tr>
-                    <td className="px-4 py-3 font-medium text-text-subtle">Clicks and pops at chunk joins</td>
-                    <td className="px-4 py-3">Occasional on long tracks</td>
-                    <td className="px-4 py-3 text-text-primary">None</td>
-                  </tr>
-                  <tr>
-                    <td className="px-4 py-3 font-medium text-text-subtle">Watery, phasey artefacts</td>
-                    <td className="px-4 py-3">On cymbals, breaths and sibilance</td>
-                    <td className="px-4 py-3 text-text-primary">Cymbals and consonants stay intact</td>
-                  </tr>
-                  <tr>
-                    {/* From getRateLimitLabel — don't hardcode these two cells
-                        again. */}
-                    <td className="px-4 py-3 font-medium text-text-subtle">Usage limit</td>
-                    <td className="px-4 py-3 font-mono tabular-nums">{standardLimitLabel}</td>
-                    <td className="px-4 py-3 font-mono tabular-nums text-text-primary">
-                      {hqLimitLabel}
-                    </td>
-                  </tr>
-                  <tr>
-                    <td className="px-4 py-3 font-medium text-text-subtle">Best for</td>
-                    <td className="px-4 py-3">Quick previews, casual use</td>
-                    <td className="px-4 py-3">
-                      Sampling, remixing, anything going into a final mix
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            <Prose className="mt-5">
-              <p>
-                Studio Quality uses a larger, ensembled model rather than a single
-                pass, which is why it takes longer — the trade-off is worth it when
-                the stems are headed into an actual production, not just a quick
-                check. It also accepts a shorter video, since a single job occupies
-                the separation queue for much longer.
-              </p>
-            </Prose>
+            <CompareTable
+              columns={["Standard", "Studio Quality"]}
+              highlight={1}
+              rows={[
+                { label: "Model", cells: [{ text: "htdemucs", mono: true }, { text: "MelBand RoFormer", mono: true }] },
+                {
+                  label: "Vocal bleed in the instrumental",
+                  cells: [
+                    { state: "partial", text: "Audible on dense mixes and long reverb tails" },
+                    { state: "yes", text: "Gone on most material" },
+                  ],
+                },
+                {
+                  label: "Watery artifacts",
+                  cells: [
+                    { state: "partial", text: "On cymbals, breaths and sibilance" },
+                    { state: "yes", text: "Cymbals and consonants stay intact" },
+                  ],
+                },
+                ...(hqDurationDiffers
+                  ? [
+                      {
+                        label: "Max video length",
+                        cells: [
+                          { text: standardDurationLabel, mono: true },
+                          { text: hqDurationLabel, mono: true },
+                        ],
+                      },
+                    ]
+                  : []),
+                {
+                  label: "Limit",
+                  cells: [
+                    { text: standardLimitLabel, mono: true },
+                    { text: hqLimitLabel, mono: true, sub: "on the free tier" },
+                  ],
+                },
+                {
+                  label: "Cost",
+                  cells: [
+                    { text: "Free, always" },
+                    {
+                      text: "Free monthly allowance, then 1 credit per run",
+                      sub: "allowance shared across Studio Quality tools",
+                    },
+                  ],
+                },
+              ]}
+            />
           </ToolSection>
         )}
 
-        <ToolSection id="quality" title="Separation quality">
-          <p>
-            Results genuinely vary by song. Dense, heavily layered mixes give the
-            model more overlapping frequencies to untangle than a sparser
-            arrangement, so separation is typically cleaner on the latter. Heavy
-            reverb or effects on a vocal blur the boundary between the two stems,
-            and backing vocals stacked against a lead can end up split less cleanly
-            than a single dry vocal line would be.
-          </p>
-          <p>
-            YouTube&apos;s own audio compression adds one more variable — the
-            source here is already an encoded stream rather than a master, and
-            that&apos;s part of why the same tool can produce a noticeably cleaner
-            result on one video than another. GPU acceleration changes the
-            infrastructure this runs on, not the difficulty of the underlying
-            problem.
-          </p>
-        </ToolSection>
-
-        <ToolSection id="common-uses" title="Common uses">
-          <dl>
-            <dt>Karaoke &amp; practice</dt>
-            <dd>
-              Make a backing track from a song on YouTube to sing or play along
-              with.
-            </dd>
-
-            <dt>Remixing &amp; mashups</dt>
-            <dd>Pull an acapella from one track to lay over another&apos;s instrumental.</dd>
-
-            <dt>Arrangement analysis</dt>
-            <dd>
-              Study how a track is built by listening to its parts separately. Pair
-              it with the{" "}
-              <Link href="/youtube-key-finder">YouTube Key &amp; BPM Finder</Link>{" "}
-              to get key and tempo from the same link.
-            </dd>
-
-            <dt>DJ &amp; reference material</dt>
-            <dd>
-              Prep an instrumental or acapella for a set from a track you only have
-              as a link.
-            </dd>
-          </dl>
-        </ToolSection>
-
-        <ToolVideo slug="youtube-vocal-remover" />
-
-        <RelatedToolsGrid tools={relatedTools} />
-
-        {/* h3, not h2 — a footnote under the page's content rather than a
-            section sitting in the outline beside the real ones. */}
-        <section className="rounded-xl border border-graphite-800 bg-graphite-900 p-5">
-          <h3 className="font-semibold text-text-primary">Copyright &amp; fair use</h3>
-          <p className="mt-2 text-sm leading-relaxed text-text-muted">
-            You are responsible for ensuring you have the right to process any video
-            you submit — for personal practice, content you own, or material you have
-            permission to use. AudioForges does not host or distribute the videos or
-            audio processed through this tool.
-          </p>
-        </section>
-
-
-        <ToolSection id="free-alternative" title="A free alternative to paid tools">
-          <p>
-            Paid vocal removers charge per processing minute and most need the
-            audio uploaded as a file — which for a YouTube video means finding
-            a downloader first. Here you paste the link, the standard tier is
-            free at full length with no account, and the models doing the work
-            are named and open-source so the quality claims can be checked.
-          </p>
-          <div className="mt-6 rounded-xl border border-amber-500/30 bg-amber-500/[0.06] p-5">
-            <p className="font-medium text-text-primary">
-              Don&apos;t take our word for it.
+        <ToolSection id="limits" title="Where it struggles" bleed>
+          <ul className="grid gap-3 sm:grid-cols-3">
+            {[
+              ["Compressed source", "YouTube audio is lossy before you get to it. A stem cannot be cleaner than the video."],
+              ["Live and choir vocals", "Crowd noise and several voices at once leave more traces behind."],
+              ["Links that cannot be fetched", "Private, age-restricted, members-only, region-blocked or live videos have nothing to pull."],
+            ].map(([t, d]) => (
+              <li key={t} className="rounded-xl border border-graphite-800 bg-graphite-900 p-4">
+                <p className="font-medium text-text-primary">{t}</p>
+                <p className="mt-1 text-sm leading-relaxed text-text-muted">{d}</p>
+              </li>
+            ))}
+          </ul>
+          <Prose className="mt-5">
+            <p>
+              If a link fails, downloading the audio yourself with the{" "}
+              <Link href="/youtube-to-wav">YouTube to WAV converter</Link> and running it through the{" "}
+              <Link href="/vocal-remover">file Vocal Remover</Link> usually works.
             </p>
-            <p className="mt-1.5 text-sm">
-              Run the same song through any paid tool&apos;s preview and through
-              AudioForges, then trust your ears. Same track, same section — your
-              call. That&apos;s the whole comparison that matters, and it costs
-              you nothing to run it.
+          </Prose>
+        </ToolSection>
+
+        <ToolSection id="free-alternative" title="Compared with the paid tools" bleed>
+          <Prose className="mb-5">
+            <p>
+              Every cell below is checkable on the other sites&apos; own pages. No claim is made that cannot be
+              verified; the demo above and your ears cover the rest.
+            </p>
+          </Prose>
+          <CompareTable
+            columns={["AudioForges", "LALAL.AI", "Vocalremover.org"]}
+            highlight={0}
+            rows={[
+              {
+                label: "Takes a YouTube link directly",
+                cells: [
+                  { state: "yes", text: "Yes" },
+                  { state: "no", text: "Upload a file or video" },
+                  { state: "no", text: "Upload a file" },
+                ],
+              },
+              {
+                label: "Full-length result without paying",
+                cells: [
+                  { state: "yes", text: "Yes" },
+                  { state: "no", text: "Preview only, full download is paid" },
+                  { state: "yes", text: "Yes" },
+                ],
+              },
+              {
+                label: "No account needed",
+                cells: [
+                  { state: "yes", text: "Yes" },
+                  { state: "no", text: "Account required for results" },
+                  { state: "yes", text: "Yes" },
+                ],
+              },
+              {
+                label: "Models named",
+                cells: [
+                  { state: "yes", text: "htdemucs, MelBand RoFormer", sub: "open-source, verifiable" },
+                  { state: "partial", text: "Andromeda engine, closed-source" },
+                  { state: "unknown", text: "Not stated" },
+                ],
+              },
+              {
+                label: "Output spec published",
+                cells: [
+                  { state: "yes", text: "16-bit 44.1 kHz WAV" },
+                  { state: "unknown", text: "Not stated" },
+                  { state: "unknown", text: "Not stated" },
+                ],
+              },
+              {
+                label: "Mix stems in the browser",
+                cells: [
+                  { state: "yes", text: "Forge Mixer", sub: "mute, solo, pan, loop, export" },
+                  { state: "no", text: "Preview snippets only" },
+                  { state: "no", text: "Playback only" },
+                ],
+              },
+              {
+                label: "Paid tier",
+                cells: [
+                  { text: "1 credit per job, never expires" },
+                  { text: "Subscription, plus one-time minute top-ups" },
+                  { text: "None, donation-funded" },
+                ],
+              },
+            ]}
+            footnote={`Checked against their live pages on ${UPDATED}. Details may change.`}
+          />
+          <div className="mt-5 rounded-xl border border-amber-500/30 bg-amber-500/[0.06] p-5">
+            <p className="font-medium text-text-primary">Run the same song through both.</p>
+            <p className="mt-1.5 text-sm text-text-muted">
+              Any paid tool&apos;s preview against AudioForges, same track, same section. That is the only comparison
+              that matters and it costs nothing.
             </p>
           </div>
         </ToolSection>
 
+        <ToolVideo slug="youtube-vocal-remover" />
+
         <FAQSection faqs={faqs} />
+
+        <RelatedToolsGrid tools={relatedTools} />
+
+        <PageByline
+          updated={UPDATED}
+          note="Studio Quality now runs MelBand RoFormer"
+          legal="You are responsible for having the right to process any video you paste. AudioForges does not host or distribute the audio processed here."
+        />
       </ToolPageShell>
     </>
   );

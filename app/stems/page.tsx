@@ -105,7 +105,7 @@ export default async function StemsPage() {
     {
       question: "Is there a free alternative to LALAL.AI's stem splitter?",
       answer:
-        "Yes. AudioForges splits full-length tracks into vocals, drums, bass and other free, with no account. LALAL.AI keeps full stems behind paid processing minutes. Studio Quality upgrades the split for one credit per job, with no subscription.",
+        "Yes. AudioForges splits full-length tracks into vocals, drums, bass and other free, with no account. LALAL.AI's free Starter plan previews a result but does not let you download the full one, and its paid tiers are monthly subscriptions. Studio Quality here upgrades the split for one credit per job, with no subscription and credits that never expire.",
     },
     {
       question: "Are my uploaded tracks kept?",
@@ -399,30 +399,30 @@ export default async function StemsPage() {
             </p>
           </Prose>
           <CompareTable
-            columns={["AudioForges", "LALAL.AI", "Moises"]}
+            columns={["AudioForges", "LALAL.AI", "Vocalremover.org Splitter"]}
             highlight={0}
             rows={[
               {
                 label: "Full-length stems without paying",
                 cells: [
                   { state: "yes", text: "Yes" },
-                  { state: "no", text: "Preview only" },
-                  { state: "partial", text: "Limited free jobs per month" },
+                  { state: "no", text: "Preview only, full download is paid" },
+                  { state: "yes", text: "Yes" },
                 ],
               },
               {
                 label: "No account needed",
                 cells: [
                   { state: "yes", text: "Yes" },
-                  { state: "no", text: "Account for full results" },
-                  { state: "no", text: "Account required" },
+                  { state: "no", text: "Account required for results" },
+                  { state: "yes", text: "Yes" },
                 ],
               },
               {
                 label: "Models named",
                 cells: [
                   { state: "yes", text: "htdemucs, RoFormer, htdemucs_ft", sub: "open-source, verifiable" },
-                  { state: "partial", text: "Named, closed-source" },
+                  { state: "partial", text: "Andromeda engine, closed-source" },
                   { state: "unknown", text: "Not stated" },
                 ],
               },
@@ -430,7 +430,7 @@ export default async function StemsPage() {
                 label: "Output spec published",
                 cells: [
                   { state: "yes", text: "16-bit 44.1 kHz WAV" },
-                  { state: "partial", text: "Partially" },
+                  { state: "unknown", text: "Not stated" },
                   { state: "unknown", text: "Not stated" },
                 ],
               },
@@ -438,20 +438,20 @@ export default async function StemsPage() {
                 label: "Mix stems in the browser",
                 cells: [
                   { state: "yes", text: "Forge Mixer", sub: "mute, solo, pan, loop, export" },
-                  { state: "partial", text: "Preview player" },
-                  { state: "yes", text: "Built-in mixer" },
+                  { state: "no", text: "Preview snippets only" },
+                  { state: "partial", text: "Stem volume rebalance" },
                 ],
               },
               {
                 label: "Paid tier",
                 cells: [
                   { text: "1 credit per job, never expires" },
-                  { text: "Packages of processing minutes" },
-                  { text: "Monthly subscription" },
+                  { text: "Subscription, plus one-time minute top-ups" },
+                  { text: "None, donation-funded" },
                 ],
               },
             ]}
-            footnote={`Competitor details reflect their public pages as of ${UPDATED} and may change.`}
+            footnote={`Checked against their live pages on ${UPDATED}. Details may change.`}
           />
           <div className="mt-5 rounded-xl border border-amber-500/30 bg-amber-500/[0.06] p-5">
             <p className="font-medium text-text-primary">Run the same song through both.</p>
