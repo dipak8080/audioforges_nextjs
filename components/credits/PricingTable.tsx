@@ -6,77 +6,49 @@ import { cn } from "@/lib/utils/cn";
 import { Button, buttonStyles } from "@/components/ui/Button";
 import { useCredits } from "./CreditProvider";
 import { CreditGateModal } from "./CreditGateModal";
-import { PackRail, defaultPackKey } from "./PackRail";
 import { trackCredits } from "@/lib/analytics";
 import type { CreditPack, InsufficientCreditsPayload } from "@/lib/types/credits";
 
 /**
- * The pack selector on /pricing.
- *
- * Packs come from /credits/me via the provider — never hardcoded. Change a
+ * Packs come from /credits/me via the provider, never hardcoded. Change a
  * price in the backend config and this reflects it with no deploy.
  *
- * The rail itself is PackRail, shared with the gate modal, so /pricing and
- * the paywall cannot drift into badging different packs as best value or
- * doing the per-run maths differently.
+ * Three cards, one per pack, is the layout every pricing page a visitor has
+ * ever seen. The old segmented rail asked people to learn a control before
+ * they could read a price. The gate modal keeps its own rail; this page does
+ * not have to match it, it has to be legible at a glance.
  *
- * Buying reuses CreditGateModal with a SYNTHESIZED payload rather than
- * duplicating the email step and the trust copy. There is exactly one
- * checkout flow in this product and it lives in one file.
- *
- * ── THIS PASS ──────────────────────────────────────────────────────────
- *
- * 1. THE PAYLOAD WAS BUILT TWICE, FIELD FOR FIELD. Two functions, eight
- *    identical lines each. A field added to the type would have been added to
- *    one of them, and the bug would have shown up only on the recovery path —
- *    the one nobody tests, used by the person who has already paid.
- *
- * 2. THE SIGN-IN CONTROL WAS A BUTTON WEARING A SECTION DIVIDER. It carried
- *    `border-t` and the padding above the rule, so the top edge of the divider
- *    was inside the click target: a click in the whitespace under the fine
- *    print opened a sign-in dialog. Divider and control are separate elements
- *    now.
- *
- * 3. THE TRUST-CLAIMS COMMENT SAT ON THE WRONG ELEMENT — attached to the
- *    sign-in button rather than the list it describes, which is exactly how a
- *    later edit deletes the wrong thing.
- *
- * 4. THE LOADING STATE WAS A SPINNER IN AN EMPTY BOX. This page is the whole
- *    reason someone navigated here, and it opened as a blank panel of
- *    indeterminate height that then jumped to full content. A skeleton in the
- *    shape of the rail holds the layout still.
- *
- * 5. BOTH AMBER BUTTONS ARE `buttonStyles`. The Continue button had drifted
- *    into its own radius, its own focus ring offset, and no press state — on
- *    the primary conversion control of the pricing page.
+ * Checkout still goes through CreditGateModal, so there is exactly one
+ * checkout flow in the product.
  */
-export function PricingTable() {
+export function PricingTable({
+  studioCredits = 1,
+  sheetCredits = 0,
+}: {
+  /** Credits per Studio Quality run, for the "what it buys" line. */
+  studioCredits?: number;
+  /** Credits per sheet-music song, or 0 to hide that line. */
+  sheetCredits?: number;
+}) {
   const { me, loading, balance, freeRemaining } = useCredits();
-  const [chosenKey, setChosenKey] = useState<string | null>(null);
   const [openPayload, setOpenPayload] = useState<InsufficientCreditsPayload | null>(null);
-  /** Which step the modal opens on — "signin" for someone recovering a purchase. */
   const [openStep, setOpenStep] = useState<"packs" | "signin">("packs");
+  const [openPackKey, setOpenPackKey] = useState<string | undefined>(undefined);
 
-  // Memoized rather than `me?.packs ?? []` inline: the `?? []` allocates a
-  // fresh array on every render, invalidating every downstream useMemo.
   const packs = useMemo(() => me?.packs ?? [], [me]);
 
-  // Derived, not set in an effect, so there is no flash of an unselected rail.
-  const selectedKey =
-    chosenKey && packs.some((p) => p.key === chosenKey) ? chosenKey : defaultPackKey(packs);
-  const selected = packs.find((p) => p.key === selectedKey) ?? null;
+  const bestValueKey = useMemo(() => {
+    if (!packs.length) return null;
+    return packs.reduce((best, p) =>
+      p.price_usd / p.credits < best.price_usd / best.credits ? p : best
+    ).key;
+  }, [packs]);
 
-  /**
-   * ONE builder, for both entry points.
-   *
-   * Synthesized, not received from a 402 — this user came here deliberately
-   * rather than by hitting a limit. Same shape, so the modal neither knows nor
-   * cares which path opened it.
-   *
-   * `tool` is the flagship key because the modal keys its spec copy off it and
-   * there is no specific tool in play here. (Worth revisiting: that copy reads
-   * "one run of this track", and on /pricing there is no track.)
-   */
+  const worstPerCredit = useMemo(
+    () => (packs.length ? Math.max(...packs.map((p) => p.price_usd / p.credits)) : 0),
+    [packs]
+  );
+
   const buildPayload = useCallback((): InsufficientCreditsPayload | null => {
     if (!me) return null;
     return {
@@ -91,20 +63,11 @@ export function PricingTable() {
     };
   }, [me]);
 
-  /**
-   * Recovery, reachable WITHOUT starting a purchase.
-   *
-   * Credits live on a browser cookie, so someone who paid on a laptop and then
-   * opens the site on their phone sees a balance of zero and a pricing page —
-   * which reads as being asked to pay a second time. The sign-in link existed,
-   * but only inside the checkout flow, two clicks deep behind a buy button. The
-   * one person who must never be asked to buy again was the one who had to
-   * start buying again to find the way out.
-   */
   function openSignIn() {
     const payload = buildPayload();
     if (!payload) return;
     setOpenStep("signin");
+    setOpenPackKey(undefined);
     setOpenPayload(payload);
   }
 
@@ -112,6 +75,7 @@ export function PricingTable() {
     const payload = buildPayload();
     if (!payload) return;
     setOpenStep("packs");
+    setOpenPackKey(pack.key);
     trackCredits("credits_pack_selected", {
       pack: pack.key,
       credits: pack.credits,
@@ -122,27 +86,24 @@ export function PricingTable() {
     setOpenPayload(payload);
   }
 
-  /* The shape of what's coming, rather than a spinner in a void. This panel is
-     the reason the visit happened; opening as an empty box of indeterminate
-     height and then jumping to full content is the worst first impression it
-     can make. */
   if (loading) {
     return (
-      <div className="rounded-xl border border-graphite-800 bg-graphite-900 p-4 sm:p-5" aria-hidden>
-        <div className="mb-2.5 h-3 w-20 animate-pulse rounded bg-graphite-800 motion-reduce:animate-none" />
-        <div className="h-[86px] animate-pulse rounded-lg border border-graphite-700 bg-graphite-850/40 motion-reduce:animate-none" />
-        <div className="mt-3 h-[74px] animate-pulse rounded-lg border border-graphite-800 bg-graphite-850/40 motion-reduce:animate-none" />
-        <div className="mt-4 h-12 animate-pulse rounded-lg bg-graphite-800 motion-reduce:animate-none" />
+      <div className="grid gap-3 sm:grid-cols-3" aria-hidden>
+        {[0, 1, 2].map((i) => (
+          <div
+            key={i}
+            className="h-[260px] animate-pulse rounded-xl border border-graphite-800 bg-graphite-900 motion-reduce:animate-none"
+          />
+        ))}
       </div>
     );
   }
 
-  // Empty state says what happened and what to do, in the interface's voice.
-  if (!selected) {
+  if (!packs.length) {
     return (
       <div className="rounded-xl border border-graphite-800 bg-graphite-900 p-6">
         <p className="text-sm leading-relaxed text-text-muted">
-          Prices aren&apos;t loading right now. Reload the page — nothing has been charged and no
+          Prices aren&apos;t loading right now. Reload the page. Nothing has been charged and no
           purchase was started.
         </p>
       </div>
@@ -151,9 +112,6 @@ export function PricingTable() {
 
   return (
     <>
-      {/* What you already have, before what you could buy. Someone arriving
-          with unspent credits or free runs should see that first, or the page
-          is selling them something they're holding. */}
       {(balance > 0 || freeRemaining > 0) && (
         <div className="mb-5 flex items-center gap-2.5 rounded-xl border border-amber-500/25 bg-amber-500/5 px-4 py-3 text-sm">
           <Sparkles className="h-4 w-4 shrink-0 text-amber-400" aria-hidden />
@@ -172,65 +130,99 @@ export function PricingTable() {
                 <span className="font-medium text-amber-400">
                   {freeRemaining} free {freeRemaining === 1 ? "run" : "runs"}
                 </span>{" "}
-                left this month — no need to buy yet.
+                left this month. No need to buy yet.
               </>
             )}
           </span>
         </div>
       )}
 
-      <div className="overflow-hidden rounded-xl border border-graphite-800 bg-graphite-900 p-4 sm:p-5">
-        <PackRail packs={packs} selectedKey={selectedKey} onSelect={(p) => setChosenKey(p.key)} />
+      <div className="grid gap-3 sm:grid-cols-3">
+        {packs.map((pack) => {
+          const perCredit = pack.price_usd / pack.credits;
+          const isBest = pack.key === bestValueKey;
+          const saving = worstPerCredit ? Math.round((1 - perCredit / worstPerCredit) * 100) : 0;
+          const studioRuns = Math.floor(pack.credits / studioCredits);
+          const sheetSongs = sheetCredits ? Math.floor(pack.credits / sheetCredits) : 0;
+          return (
+            <div
+              key={pack.key}
+              className={cn(
+                "relative flex flex-col rounded-xl border bg-graphite-900 p-5",
+                isBest ? "border-amber-500/50 ring-1 ring-amber-500/20" : "border-graphite-800"
+              )}
+            >
+              {isBest && (
+                <span className="absolute -top-2.5 left-5 rounded-full bg-amber-500 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-graphite-950">
+                  Best value
+                </span>
+              )}
+              {pack.label.trim().toLowerCase() !== `${pack.credits} credits` && (
+                <p className="text-xs text-text-subtle">{pack.label}</p>
+              )}
+              <p className="flex items-baseline gap-1.5">
+                <span className="font-mono text-3xl font-semibold tabular-nums text-text-primary">
+                  {pack.credits}
+                </span>
+                <span className="text-sm text-text-muted">credits</span>
+              </p>
+              <p className="mt-3 font-mono text-xl font-semibold tabular-nums text-amber-400">
+                ${pack.price_usd.toFixed(2)}
+              </p>
+              <p className="mt-0.5 text-xs text-text-subtle">
+                ${perCredit.toFixed(2)} per credit
+                {saving >= 1 ? (
+                  <span className="ml-1.5 text-amber-400">save {saving}%</span>
+                ) : (
+                  <span className="ml-1.5 text-text-subtle/0" aria-hidden>
+                    base
+                  </span>
+                )}
+              </p>
 
-        <Button
-          variant="primary"
-          size="lg"
-          onClick={() => openCheckout(selected)}
-          className="mt-4 w-full"
+              <ul className="mb-5 mt-4 space-y-1.5 border-t border-graphite-800 pt-4 text-sm text-text-muted">
+                <li>
+                  <span className="text-text-primary">{studioRuns}</span> Studio Quality separations
+                </li>
+                {sheetSongs > 0 && (
+                  <li>
+                    or <span className="text-text-primary">{sheetSongs}</span> sheet-music songs
+                  </li>
+                )}
+                <li>Never expires</li>
+                <li>Refunded if a run fails</li>
+              </ul>
+
+              <Button
+                variant={isBest ? "primary" : "outline"}
+                size="md"
+                onClick={() => openCheckout(pack)}
+                className="mt-auto w-full"
+              >
+                Buy {pack.credits} credits
+              </Button>
+            </div>
+          );
+        })}
+      </div>
+
+      <p className="mt-4 text-center text-xs leading-relaxed text-text-subtle">
+        Next you enter an email, then pay on Ko-fi. The email is how the payment is matched back to
+        this browser. No account to create, no password.
+      </p>
+
+      <div className="mt-3 text-center">
+        <button
+          type="button"
+          onClick={openSignIn}
+          className={buttonStyles({
+            variant: "ghost",
+            size: "sm",
+            className: "text-text-muted hover:text-amber-400",
+          })}
         >
-          Continue — {selected.credits} credits for ${selected.price_usd.toFixed(2)}
-        </Button>
-
-        <p className="mt-3 text-center text-xs leading-relaxed text-text-subtle">
-          Next you&apos;ll enter an email, then pay on Ko-fi. The email is how we match the payment
-          back to this browser — there&apos;s no account to create and no password.
-        </p>
-
-        {/* The rule is a rule, not part of the control. It used to be a border
-            on the button itself, so a click in the whitespace under the fine
-            print above opened a sign-in dialog. */}
-        <div className="mt-4 border-t border-graphite-800 pt-4">
-          <button
-            type="button"
-            onClick={openSignIn}
-            className={buttonStyles({
-              variant: "ghost",
-              size: "sm",
-              className: "w-full text-text-muted hover:text-amber-400",
-            })}
-          >
-            Already bought? Sign in to use your credits here
-          </button>
-        </div>
-
-        {/* The three claims a subscription competitor structurally cannot
-            print, at the moment of decision rather than in a footnote. */}
-        <ul
-          className={cn(
-            "mt-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 border-t border-graphite-800 pt-4",
-            "font-mono text-[11px] uppercase tracking-[0.12em] text-text-subtle"
-          )}
-        >
-          <li>No subscription</li>
-          <li aria-hidden className="text-graphite-700">
-            /
-          </li>
-          <li>Never expires</li>
-          <li aria-hidden className="text-graphite-700">
-            /
-          </li>
-          <li>Failed run refunded</li>
-        </ul>
+          Already bought? Sign in to use your credits here
+        </button>
       </div>
 
       {openPayload && (
@@ -238,6 +230,7 @@ export function PricingTable() {
           payload={openPayload}
           open
           initialStep={openStep}
+          initialPackKey={openPackKey}
           onClose={() => setOpenPayload(null)}
         />
       )}

@@ -73,19 +73,23 @@ export function CompareTable({
   rows,
   highlight = 0,
   footnote,
+  gridClass,
 }: {
   columns: string[];
   rows: CompareRow[];
   /** Index of the column being weighed. Gets the amber rail and brighter text. */
   highlight?: number;
   footnote?: string;
+  /** Override the sm+ grid template, e.g. a narrow number column beside a wide text one. */
+  gridClass?: string;
 }) {
   const colClass =
-    columns.length === 1
+    gridClass ??
+    (columns.length === 1
       ? "sm:grid-cols-[minmax(9rem,1fr)_2fr]"
       : columns.length === 2
         ? "sm:grid-cols-[minmax(7rem,1.2fr)_1fr_1fr]"
-        : "sm:grid-cols-[minmax(7rem,1.1fr)_1fr_1fr_1fr]";
+        : "sm:grid-cols-[minmax(7rem,1.1fr)_1fr_1fr_1fr]");
 
   return (
     <div>
@@ -165,12 +169,10 @@ export function CompareTable({
             </p>
             <dl className="divide-y divide-graphite-800 text-sm">
               {rows.map((r) => (
-                <div key={r.label} className="flex items-start justify-between gap-4 px-4 py-3">
-                  <dt className="shrink-0 basis-[42%] text-text-subtle">{r.label}</dt>
-                  <dd className="flex-1 text-right">
-                    <span className="inline-flex text-left">
-                      <Value cell={r.cells[ci]} bright={ci === highlight} />
-                    </span>
+                <div key={r.label} className="px-4 py-3">
+                  <dt className="text-xs text-text-subtle">{r.label}</dt>
+                  <dd className="mt-1">
+                    <Value cell={r.cells[ci]} bright={ci === highlight} />
                   </dd>
                 </div>
               ))}

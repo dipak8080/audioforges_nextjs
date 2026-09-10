@@ -261,10 +261,13 @@ export function CreditGateModal({
   open,
   onClose,
   initialStep = "packs",
+  initialPackKey,
 }: {
   payload: InsufficientCreditsPayload;
   open: boolean;
   onClose: () => void;
+  /** Preselect a pack, for a Buy button that already named one. */
+  initialPackKey?: string;
   /**
    * Opens straight onto a step. "signin" exists because recovering an existing
    * purchase was buried: the only route to it was to start a NEW checkout and
@@ -274,7 +277,7 @@ export function CreditGateModal({
   initialStep?: Step;
 }) {
   const [step, setStep] = useState<Step>(initialStep);
-  const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [selectedKey, setSelectedKey] = useState<string | null>(initialPackKey ?? null);
   const [chosen, setChosen] = useState<CreditPack | null>(null);
 
   const dialogRef = useRef<HTMLDivElement>(null);
