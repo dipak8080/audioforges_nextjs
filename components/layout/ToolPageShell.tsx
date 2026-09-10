@@ -5,6 +5,7 @@ export function ToolPageShell({
   title,
   lede,
   tool,
+  meta,
   children,
   className,
 }: {
@@ -14,6 +15,8 @@ export function ToolPageShell({
   title: string;
   lede?: React.ReactNode;
   tool?: React.ReactNode;
+  /** Two or three short facts, shown as the amber line above the h1. Same treatment as /audio-to-text. */
+  meta?: string[];
   children: React.ReactNode;
   className?: string;
 }) {
@@ -24,6 +27,11 @@ export function ToolPageShell({
       {breadcrumb && <div className="mb-8">{breadcrumb}</div>}
 
       <header>
+        {meta && meta.length > 0 && (
+          <p className="mb-4 font-mono text-xs uppercase tracking-[0.16em] text-amber-500">
+            {meta.join(" · ")}
+          </p>
+        )}
         {/* Sized by title length rather than per page. Past ~30 characters
             the 6xl wraps to three lines and pushes the tool below the fold,
             which matters most on the pages people arrive at with a file
