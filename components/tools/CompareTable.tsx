@@ -81,9 +81,11 @@ export function CompareTable({
   footnote?: string;
 }) {
   const colClass =
-    columns.length === 2
-      ? "sm:grid-cols-[minmax(7rem,1.2fr)_1fr_1fr]"
-      : "sm:grid-cols-[minmax(7rem,1.1fr)_1fr_1fr_1fr]";
+    columns.length === 1
+      ? "sm:grid-cols-[minmax(9rem,1fr)_2fr]"
+      : columns.length === 2
+        ? "sm:grid-cols-[minmax(7rem,1.2fr)_1fr_1fr]"
+        : "sm:grid-cols-[minmax(7rem,1.1fr)_1fr_1fr_1fr]";
 
   return (
     <div>

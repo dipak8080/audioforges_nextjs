@@ -1,13 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Fragment } from "react";
 import { VoiceRecorderForm } from "@/components/browser/VoiceRecorderForm";
 import { FAQSection } from "@/components/faq/FAQSection";
 import { ToolPageShell } from "@/components/layout/ToolPageShell";
 import { Breadcrumb } from "@/components/layout/Breadcrumb";
 import { ToolSection } from "@/components/ui/ToolSection";
-import { FeatureStrip } from "@/components/ui/FeatureStrip";
 import { RelatedToolsGrid } from "@/components/tools/RelatedToolsGrid";
+import { Prose } from "@/components/ui/Prose";
+import { ProofStrip } from "@/components/tools/ProofStrip";
+import { CompareTable } from "@/components/tools/CompareTable";
+import { PageByline } from "@/components/tools/PageByline";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
 import { ogForTool } from "@/lib/og";
@@ -15,6 +17,8 @@ import { ogForTool } from "@/lib/og";
 const PAGE_TITLE = "Online Voice Recorder – Record and Download WAV";
 const PAGE_DESCRIPTION =
   "Record from your microphone in the browser and download it as a WAV. Free, no sign-up, and nothing is uploaded: the recording never leaves your device.";
+
+const UPDATED = "2026-09-10";
 
 const OG_IMAGE = ogForTool("voice-recorder", "Free Online Voice Recorder");
 
@@ -46,6 +50,7 @@ const webAppJsonLd = {
   "@type": "WebApplication",
   name: "Online Voice Recorder",
   url: `${SITE_URL}/voice-recorder`,
+  dateModified: UPDATED,
   applicationCategory: "MultimediaApplication",
   operatingSystem: "Any",
   offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
@@ -59,34 +64,11 @@ const webAppJsonLd = {
 
 // BreadcrumbList comes from <Breadcrumb />; FAQPage from <FAQSection />.
 
-const USE_CASES = [
-  {
-    name: "Voice memos",
-    desc: "Quickly capture a thought, reminder, or idea before it's gone.",
-  },
-  {
-    name: "Voice-over & narration",
-    desc: "Record narration for a video, presentation, or tutorial.",
-  },
-  {
-    name: "Music & singing ideas",
-    desc: "Capture a melody, vocal practice take, or songwriting idea on the spot.",
-  },
-  {
-    name: "Podcast drafts",
-    desc: "Record a rough segment before editing it properly afterward.",
-  },
-  {
-    name: "Microphone testing",
-    desc: "Check that your mic is actually working before a call, livestream, or recording session.",
-  },
-];
-
 const faqs = [
   {
     question: "Is my recording uploaded anywhere?",
     answer:
-      "No. Recording, playback, and download all happen directly in your browser using your device's own microphone and audio APIs — the audio data never leaves your computer or phone.",
+      "No. Recording, playback, the WAV conversion and both downloads happen in your browser using your device's own microphone and audio APIs. The audio never leaves your computer or phone, and the page keeps working with the internet off once it has loaded.",
   },
   {
     question: "What file format do I get?",
@@ -94,37 +76,37 @@ const faqs = [
       "Two buttons, two formats. The first downloads exactly what your browser recorded, which is WebM on Chrome, Firefox and Edge, or M4A on Safari. The second converts that to a 16-bit PCM WAV in the page and downloads it, which is the one that opens in a DAW, in Audacity, or on Windows without extra software. Both are made on your device; neither is uploaded.",
   },
   {
-    question: "Do I need to install anything?",
+    question: "Is the WAV better quality than the first download?",
     answer:
-      "No — it works in any modern browser that supports microphone access, with no app or extension required.",
+      "No. Your browser compresses the microphone signal as it records, and the WAV is a lossless container around that already-compressed audio. It is the more useful file, not a cleaner one.",
   },
   {
-    question: "Why is my microphone not working?",
+    question: "Can I get an MP3?",
     answer:
-      "Your browser needs permission to access the microphone — check your browser's site settings if you accidentally denied access, and make sure no other app is currently using the microphone exclusively.",
-  },
-  {
-    question: "Is there a recording length limit?",
-    answer:
-      "No hard limit — you can record for as long as you like, limited only by your device's available memory.",
-  },
-  {
-    question: "Can I convert my recording to MP3 afterward?",
-    answer:
-      "Yes — download the recording, then upload it to the Audio Converter to export it as MP3, WAV, or another format.",
+      "Download the WAV, then run it through the Audio Converter. That step does go through the server, so do it only if you need MP3 specifically.",
     answerNode: (
       <>
-        Yes — download the recording, then upload it to the{" "}
+        Download the WAV, then run it through the{" "}
         <Link href="/convert" className="text-amber-400 hover:underline">
           Audio Converter
-        </Link>{" "}
-        to export it as MP3, WAV, or another format.
+        </Link>
+        . That step does go through the server, so do it only if you need MP3 specifically.
       </>
     ),
   },
   {
-    question: "Is this really free?",
-    answer: "Yes — completely free, no sign-up, no watermark, no limits.",
+    question: "Why is my microphone not working?",
+    answer:
+      "The browser needs permission. If you denied it once, open the site settings for this page, switch the microphone to Allow, and reload. If it still fails, another app may hold the microphone exclusively; close it and try again.",
+  },
+  {
+    question: "Is there a recording length limit?",
+    answer:
+      "No hard limit. Recording is held in memory, so the practical ceiling is your device, and an hour of speech is well within it on any recent phone or laptop.",
+  },
+  {
+    question: "Do I need to install anything?",
+    answer: "No. Any recent Chrome, Firefox, Safari or Edge. No app, no extension, no account.",
   },
 ];
 
@@ -136,119 +118,140 @@ export default function VoiceRecorderPage() {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(webAppJsonLd) }} />
 
       <ToolPageShell
-        breadcrumb={
-          <Breadcrumb
-            items={[{ name: "Tools", href: "/tools" }, { name: "Online Voice Recorder" }]}
-          />
-        }
+        breadcrumb={<Breadcrumb items={[{ name: "Tools", href: "/tools" }, { name: "Voice Recorder" }]} />}
         meta={["No account", "Nothing uploaded", "WAV download"]}
         title="Free Online Voice Recorder"
         lede="Record from your microphone and download it as a WAV. Free, no sign-up, and the audio never leaves your browser."
         tool={<VoiceRecorderForm />}
       >
-        <FeatureStrip
-          features={[
+        <ProofStrip
+          proofs={[
             {
-              title: "Nothing uploaded",
-              desc: "Recording and playback happen entirely on your device.",
+              label: "Where it runs",
+              value: "Entirely on your device",
+              note: "The only tool on this site with no server step. It keeps working with the internet off once the page has loaded.",
             },
-            { title: "Instant download", desc: "Record, stop, and download — no processing wait." },
-            { title: "No sign-up", desc: "No account, no email, no watermark, no limits." },
+            {
+              label: "Output",
+              value: "WAV, or the browser's native file",
+              note: "16-bit PCM WAV made in the page. Opens in a DAW, Audacity, or Windows with nothing extra.",
+            },
+            {
+              label: "Limits",
+              value: "None",
+              note: "No length cap, no account, no watermark. Recording is held in memory, so your device is the ceiling.",
+            },
           ]}
         />
 
-        <ToolSection id="how-to" title="How to record audio online">
-          <ol>
-            <li>Tap the microphone button and allow microphone access when prompted.</li>
-            <li>Speak or play — recording starts immediately.</li>
-            <li>Tap stop, then play back or download your recording.</li>
-          </ol>
-        </ToolSection>
-
-        <ToolSection id="what-is-it" title="What is an online voice recorder?">
-          <p>
-            An online voice recorder lets you capture audio from your microphone
-            directly through a web browser, with no desktop software, app, or
-            install required. You open the page, grant microphone access, and start
-            recording — the same basic job a standalone recording app does, but
-            running entirely inside the browser tab you already have open.
-          </p>
-        </ToolSection>
-
-        <ToolSection id="nothing-uploaded" title="Why nothing gets uploaded">
-          <p>
-            Unlike every other tool on this site, recording doesn&apos;t need any
-            server-side processing — your browser can capture, encode, and play back
-            audio entirely on its own using built-in microphone and recording APIs.
-            That means this tool works without an internet connection after the page
-            loads, and your voice never travels anywhere beyond your own device.
-          </p>
-          <p>
-            {/* This apostrophe was raw in the original, which fails
-                react/no-unescaped-entities. `next build` doesn't run ESLint, so
-                it only surfaces on a lint run. */}
-            Want the fuller breakdown of how browser-based recording actually works
-            under the hood, and why the output format depends on which browser
-            you&apos;re using?{" "}
-            <Link href="/guides/why-your-browser-can-record-without-uploading">
-              Read Why Your Browser Can Record Audio Without Uploading It
-            </Link>
-            .
-          </p>
-        </ToolSection>
-
-        <ToolSection id="formats" title="Recording formats">
-          <p>
-            The output format depends on which browser you&apos;re using —
-            typically WebM in Chrome, Firefox, and Edge, or M4A in Safari, with OGG
-            available as a fallback on some browsers. This comes from each
-            browser&apos;s own built-in recording capability rather than a setting
-            on this page. If you need a specific format like MP3 or WAV, the{" "}
-            <Link href="/convert">Audio Converter</Link> handles that as a separate
-            step once your recording is downloaded.
-          </p>
-          <p>
-            While recording, a live level meter shows your microphone input
-            reacting in real time — that&apos;s feedback that your mic is actually
-            picking up sound, not a waveform of the saved file itself. The recorder
-            works in any recent version of Chrome, Firefox, Safari, or Edge.
-          </p>
-        </ToolSection>
-
-        <ToolSection id="permissions" title="Fixing microphone permission problems">
-          <ol>
-            <li>When your browser prompts for microphone access, select Allow.</li>
-            <li>
-              If you previously denied access, open your browser&apos;s site
-              settings for this page and change the microphone permission.
-            </li>
-            <li>Reload the page after changing the permission.</li>
-            <li>
-              Check whether another application currently has exclusive control of
-              your microphone, which can block browser access.
-            </li>
-          </ol>
-        </ToolSection>
-
-        <ToolSection id="common-uses" title="Common uses">
-          <dl>
-            {USE_CASES.map((u) => (
-              <Fragment key={u.name}>
-                <dt>{u.name}</dt>
-                <dd>{u.desc}</dd>
-              </Fragment>
+        <ToolSection id="how-to" title="Three taps" bleed>
+          <ol className="grid gap-3 sm:grid-cols-3">
+            {[
+              ["Allow the microphone", "Tap the button and choose Allow when the browser asks. The level meter moves once it is live."],
+              ["Record", "Speak or play. The meter confirms the mic is picking you up, so you are not recording silence."],
+              ["Stop and download", "Play it back, then take the native file or the WAV. Both are made on your device."],
+            ].map(([t, d], i) => (
+              <li key={t} className="rounded-xl border border-graphite-800 bg-graphite-900 p-5">
+                <p className="font-mono text-[11px] text-amber-400">Step {i + 1}</p>
+                <p className="mt-1.5 font-medium text-text-primary">{t}</p>
+                <p className="mt-1.5 text-sm leading-relaxed text-text-muted">{d}</p>
+              </li>
             ))}
-          </dl>
-          <p>
-            Need to clean up background noise afterward? Run the download through
-            the <Link href="/noise-remove">Noise Remover</Link> or{" "}
-            <Link href="/voice-clean">Voice Cleaner</Link>.
-          </p>
+          </ol>
+          <Prose className="mt-5">
+            <p>
+              Mic blocked? Open the browser&apos;s site settings for this page, set the microphone to Allow, and
+              reload. If it still fails, another app has the microphone; close it and try again.
+            </p>
+          </Prose>
         </ToolSection>
+
+        <ToolSection id="formats" title="Which download to take" bleed>
+          <CompareTable
+            columns={["Native file", "WAV"]}
+            highlight={1}
+            rows={[
+              {
+                label: "What it is",
+                cells: [
+                  { text: "WebM on Chrome, Firefox, Edge. M4A on Safari", mono: true },
+                  { text: "16-bit PCM WAV, converted in the page", mono: true },
+                ],
+              },
+              {
+                label: "Opens in a DAW or Audacity",
+                cells: [
+                  { state: "partial", text: "Sometimes. Depends on the app" },
+                  { state: "yes", text: "Always" },
+                ],
+              },
+              {
+                label: "Opens on Windows with no extra software",
+                cells: [
+                  { state: "no", text: "WebM usually does not" },
+                  { state: "yes", text: "Yes" },
+                ],
+              },
+              {
+                label: "Size",
+                cells: [
+                  { text: "Small, compressed" },
+                  { text: "About 5 MB per minute" },
+                ],
+              },
+              {
+                label: "Quality",
+                cells: [
+                  { text: "As recorded" },
+                  { text: "Identical. Same audio, lossless wrapper" },
+                ],
+              },
+            ]}
+            footnote="Neither download is uploaded. The WAV is decoded and written by the page itself."
+          />
+          <Prose className="mt-5">
+            <p>
+              Recording needs no server because the browser can capture, encode and play audio on its own.{" "}
+              <Link href="/guides/why-your-browser-can-record-without-uploading">
+                Why your browser can record without uploading
+              </Link>{" "}
+              explains how, and why the native format depends on which browser you use.
+            </p>
+          </Prose>
+        </ToolSection>
+
+        <ToolSection id="next" title="After the recording" bleed>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {[
+              ["Remove background noise", "Room hum, fan, traffic.", "/noise-remove"],
+              ["Clean up the voice", "Noise plus reverb in one pass.", "/voice-clean"],
+              ["Transcribe it", "Words with timestamps.", "/audio-to-text"],
+              ["Convert to MP3", "For sharing or a phone.", "/convert"],
+            ].map(([title, desc, href]) => (
+              <Link
+                key={href}
+                href={href}
+                prefetch={false}
+                className="group rounded-xl border border-graphite-800 bg-graphite-900 p-4 transition-colors hover:border-amber-500/40"
+              >
+                <p className="font-medium text-text-primary group-hover:text-amber-400">{title}</p>
+                <p className="mt-1 text-sm leading-relaxed text-text-muted">{desc}</p>
+              </Link>
+            ))}
+          </div>
+          <Prose className="mt-5">
+            <p>
+              Those four do go through the server, unlike this page. Voice memos, narration, singing ideas, podcast
+              drafts and mic tests all start here; take the WAV to whichever comes next.
+            </p>
+          </Prose>
+        </ToolSection>
+
+        <FAQSection faqs={faqs} />
 
         <RelatedToolsGrid tools={relatedTools} />
 
-        <FAQSection faqs={faqs} />
+        <PageByline updated={UPDATED} note="Added in-browser WAV download" />
       </ToolPageShell>
     </>
   );
