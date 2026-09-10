@@ -7,11 +7,17 @@ import { HeroConverter } from "@/components/home/HeroConverter";
 import { FAQSection, type FAQItem } from "@/components/faq/FAQSection";
 import { SectionHeading } from "@/components/ui/SectionHeading";
 import { Prose } from "@/components/ui/Prose";
+import { ProofStrip } from "@/components/tools/ProofStrip";
+import { ForgeMixerCard } from "@/components/tools/ForgeMixerCard";
+import { PianoRollCard } from "@/components/tools/PianoRollCard";
+import { EngravedScore } from "@/components/ui/EngravedScore";
+import { PageByline } from "@/components/tools/PageByline";
+import { TRANSCRIPTION_MODEL } from "@/lib/api/transcription";
 import { ogImage } from "@/lib/og";
 
 const TOOL_COUNT = getLiveTools().length;
 
-const PAGE_TITLE = "AudioForges - Free Online Audio Tools: Stems, Key, BPM & Converter";
+const PAGE_TITLE = "AudioForges – Free Audio Tools for Producers and DJs";
 const PAGE_DESCRIPTION =
   "Free online audio tools for producers and DJs. Convert, clean up, find key & BPM, transcribe to MIDI or sheet music with live previews. No sign-up.";
 
@@ -22,7 +28,7 @@ const OG_IMAGE = ogImage(
 );
 
 export const metadata: Metadata = {
-  title: PAGE_TITLE,
+  title: { absolute: PAGE_TITLE },
   description: PAGE_DESCRIPTION,
   alternates: { canonical: SITE_URL },
   openGraph: {
@@ -43,7 +49,7 @@ export const metadata: Metadata = {
 
 /**
  * PREFETCH IS SELECTIVE HERE, not blanket-disabled. The hero routes to
- * /youtube-to-wav on submit — the one route worth having ready. Everything
+ * /youtube-to-wav on submit, the one route worth having ready. Everything
  * below is a menu for someone still deciding, and stays off: ~20 routes,
  * ~80 requests, not spent.
  */
@@ -124,7 +130,7 @@ export default function HomePage() {
     name: "AudioForges",
     url: SITE_URL,
     description:
-      "Free audio tools for music producers, DJs, musicians, and creators — conversion, editing, cleanup, pitch, tempo, tuning, metronome, BPM, and transcription tools.",
+      "Free audio tools for music producers, DJs, musicians, and creators, conversion, editing, cleanup, pitch, tempo, tuning, metronome, BPM, and transcription tools.",
     sameAs: [],
   };
 
@@ -133,18 +139,18 @@ export default function HomePage() {
     "@type": "WebSite",
     name: "AudioForges",
     url: SITE_URL,
-    description: "Free, fast audio tools built for producers and DJs — no sign-up required.",
+    description: "Free, fast audio tools built for producers and DJs, no sign-up required.",
   };
 
   const faqs: FAQItem[] = [
     {
       question: "What tools does AudioForges offer?",
-      answer: `${toolCount} free audio tools covering conversion, trimming, volume, pitch and tempo, noise/echo/silence cleanup, vocal removal, key/BPM detection, instrument tuning, metronome practice, BPM tapping, and transcription with subtitle export — all with no sign-up required.`,
+      answer: `${toolCount} free audio tools covering conversion, trimming, volume, pitch and tempo, noise/echo/silence cleanup, vocal removal, key/BPM detection, instrument tuning, metronome practice, BPM tapping, and transcription with subtitle export, all with no sign-up required.`,
       answerNode: (
         <>
           {toolCount} free audio tools covering conversion, trimming, volume, pitch and tempo,
           noise/echo/silence cleanup, vocal removal, key/BPM detection, instrument tuning,
-          metronome practice, BPM tapping, and transcription with subtitle export — all with no
+          metronome practice, BPM tapping, and transcription with subtitle export, all with no
           sign-up required.{" "}
           <Link
             href="/tools"
@@ -165,38 +171,25 @@ export default function HomePage() {
     {
       question: "Are the tools actually free?",
       answer:
-        "Almost entirely. Every tool works free with no watermark, no sign-up and full-quality downloads — including vocal removal and stem splitting. The one exception is Studio Quality separation, a heavier model that costs real money per run on a GPU; everyone gets free runs of it each month, and after that it's a credit. Nothing recurring, and credits never expire. Fair-use limits apply so one person can't tie up the servers.",
+        "Almost entirely. Every tool works free with no watermark, no sign-up and full-quality downloads, including standard vocal removal and stem splitting. The exceptions are the jobs that need a GPU: Studio Quality separation, high-accuracy MIDI, transcription and sheet music. Everyone gets free runs of those each month, and after that they take credits: bought once, never expiring, refunded if a run fails. Fair-use limits apply so one person cannot tie up the servers.",
       answerNode: (
         <>
-          Almost entirely. Every tool works free with no watermark, no sign-up
-          and full-quality downloads — including vocal removal and stem
-          splitting. The one exception is Studio Quality separation, a heavier
-          model that costs real money per run on a GPU: everyone gets free runs
-          of it each month, and after that it&apos;s{" "}
-          <Link
-            href="/pricing"
-            prefetch={false}
-            className="text-amber-400 underline underline-offset-2 hover:text-amber-300"
-          >
-            a credit
+          Almost entirely. Every tool works free with no watermark, no sign-up and full-quality downloads,
+          including standard vocal removal and stem splitting. The exceptions are the jobs that need a GPU:
+          Studio Quality separation, high-accuracy MIDI, transcription and sheet music. Everyone gets free runs
+          of those each month, and after that they take{" "}
+          <Link href="/pricing" prefetch={false} className="text-amber-400 underline underline-offset-2 hover:text-amber-300">
+            credits
           </Link>
-          . Nothing recurring, and credits never expire. Fair-use limits apply
-          so one person can&apos;t tie up the servers. More on{" "}
-          <Link
-            href="/free-transcription-no-sign-up"
-            prefetch={false}
-            className="text-amber-400 underline underline-offset-2 hover:text-amber-300"
-          >
-            what &quot;free&quot; usually means elsewhere
-          </Link>
-          .
+          : bought once, never expiring, refunded if a run fails. Fair-use limits apply so one person cannot tie
+          up the servers.
         </>
       ),
     },
     {
       question: "Can I hear my MIDI or sheet music before downloading it?",
       answer:
-        "Yes. The Audio to MIDI converter opens every transcription in an interactive DAW-style piano roll — play it in the browser, slow it down to 50%, and on full-mix HQ runs solo or mute each stem. The Audio to Sheet Music tool renders a live engraved score with synced playback: a cursor follows the staff and each note lights up as it sounds, so you can verify the transcription before downloading the PDF, MusicXML, or MIDI.",
+        "Yes. The Audio to MIDI converter opens every transcription in an interactive DAW-style piano roll, play it in the browser, slow it down to 50%, and on full-mix HQ runs solo or mute each stem. The Audio to Sheet Music tool renders a live engraved score with synced playback: a cursor follows the staff and each note lights up as it sounds, so you can verify the transcription before downloading the PDF, MusicXML, or MIDI.",
       answerNode: (
         <>
           Yes. The{" "}
@@ -207,7 +200,7 @@ export default function HomePage() {
           >
             Audio to MIDI converter
           </Link>{" "}
-          opens every transcription in an interactive DAW-style piano roll — play it in the
+          opens every transcription in an interactive DAW-style piano roll, play it in the
           browser, slow it down to 50%, and on full-mix HQ runs solo or mute each stem. The{" "}
           <Link
             href="/audio-to-sheet-music"
@@ -224,7 +217,7 @@ export default function HomePage() {
     },
     {
       question: "What happens to the files I upload?",
-      // DRAFT — CHECK AGAINST THE CACHE BEFORE DEPLOY. Replace "a short
+      // DRAFT, CHECK AGAINST THE CACHE BEFORE DEPLOY. Replace "a short
       // period" with the real eviction window, and make the footer line agree.
       answer:
         "Uploads are processed and not kept as personal files. Converted results are held in a temporary cache for a short period so repeat requests for the same source don't have to be processed twice, then evicted automatically. No account is attached to anything you convert.",
@@ -261,7 +254,8 @@ export default function HomePage() {
             Free audio tools for producers, DJs and musicians
           </h1>
           <p className="mx-auto mt-5 max-w-xl text-lg leading-relaxed text-text-muted sm:text-xl">
-            Convert, analyse, clean up and take apart audio in the browser. Start by pasting a link.
+            Convert, split, analyse and clean up audio in the browser. Every model is named, every limit is
+            published, and the results play back before you download them. Start by pasting a link.
           </p>
 
           <div className="mt-9">
@@ -277,15 +271,37 @@ export default function HomePage() {
             >
               browse all {toolCount} tools
             </Link>{" "}
-            — every one takes an uploaded file too.
+            . Every one takes an uploaded file too.
           </p>
         </section>
 
-        <section className="mt-20 border-t border-graphite-800 py-14">
+        <section className="mt-16">
+          <ProofStrip
+            proofs={[
+              {
+                label: "Named models",
+                value: `htdemucs, MelBand RoFormer, Transkun, ${TRANSCRIPTION_MODEL}`,
+                note: "Separation, transcription and notation each name what they run, on the tool page, so the claims can be checked.",
+              },
+              {
+                label: "Published accuracy",
+                value: "85% exact on BPM, measured",
+                note: "Scored on a public test set and written up, including the number that is not flattering. Nobody else in the category prints one.",
+              },
+              {
+                label: "Verified comparisons",
+                value: "Every competitor cell checked, dated",
+                note: "Where a tool page compares to LALAL.AI, AnthemScore or Klangio, each cell was read off their live page that day.",
+              },
+            ]}
+          />
+        </section>
+
+        <section className="mt-16 border-t border-graphite-800 py-14">
           <SectionHeading
             eyebrow="How it fits together"
             title="Built around how the work actually goes"
-            description="Prepping a DJ set, sampling for a beat, editing a podcast — the same few steps come up every time. Each is its own focused tool here rather than one bloated app."
+            description="Prepping a DJ set, sampling for a beat, editing a podcast, the same few steps come up every time. Each is its own focused tool here rather than one bloated app."
           />
 
           {/* items-start, or a column with three links stretches the two-link
@@ -316,64 +332,50 @@ export default function HomePage() {
 
         <section className="border-t border-graphite-800 py-14">
           <SectionHeading
-            eyebrow="New"
-            title="Preview your transcription before you download it"
-            description="The most advanced free in-browser MIDI and sheet music previews we're aware of — play the result online, check it note by note, then download."
+            eyebrow="The Forge"
+            title="Check the result before you download it"
+            description="Every heavy job opens in a player built for that output: a stem mixer, a piano roll, an engraved score. You hear or read what the model produced, fix what needs fixing, and only then take the file."
           />
-
-          <div className="mt-10 grid gap-8 lg:grid-cols-2">
-            {[
-              {
-                href: "/audio-to-midi",
-                title: "Audio to MIDI with a DAW-style piano roll",
-                lead:
-                  "Hear your MIDI before you download it. The transcription opens in an FL Studio / Ableton-style piano roll right in the browser — keys light up on the keyboard as notes play, with note names and a velocity lane when you zoom in.",
-                points: [
-                  "Play MIDI online — no DAW, no plugins, no sign-up",
-                  "Slow playback to 50% to check the transcription note by note",
-                  "Full-mix HQ: solo or mute each stem — bass, vocals, piano, other",
-                  "Zoom, pan, loop, and click anywhere on the beat grid to seek",
-                ],
-                cta: "Convert audio to MIDI",
-              },
-              {
-                href: "/audio-to-sheet-music",
-                title: "Audio to sheet music you can play back",
-                lead:
-                  "Not a static image: your recording becomes a live engraved score. Press play and follow along — a cursor moves across the staff in sync with the music and each note lights up as it sounds, auto-scrolling through every page.",
-                points: [
-                  "Playable sheet music in the browser, synced to one timeline",
-                  "Tempo slider from 50–150% anchored to the detected BPM",
-                  "Verify the score before printing — cursor never drifts from the sound",
-                  "Download as PDF, MusicXML for MuseScore, MIDI for DAWs, or SVG",
-                ],
-                cta: "Convert audio to sheet music",
-              },
-            ].map((card) => (
-              <div
-                key={card.href}
-                className="rounded-xl border border-graphite-800 bg-graphite-900 p-6"
-              >
-                <h3 className="text-lg font-semibold text-text-primary">{card.title}</h3>
-                <p className="mt-2.5 text-sm leading-relaxed text-text-muted">{card.lead}</p>
-                <ul className="mt-4 space-y-2">
-                  {card.points.map((point) => (
-                    <li key={point} className="flex gap-2.5 text-sm leading-relaxed text-text-muted">
-                      <span aria-hidden="true" className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-amber-500" />
-                      {point}
+          <div className="mt-10 grid gap-6 lg:grid-cols-3">
+            <div>
+              <Link href="/vocal-remover" prefetch={false} className="group mb-3 block">
+                <span className="font-semibold text-text-primary group-hover:text-amber-400">Forge Mixer</span>
+              </Link>
+              <ForgeMixerCard
+                compact
+                points={[
+                  "Mute, solo, volume and pan per stem.",
+                  "Loop a section, export the balance as WAV.",
+                ]}
+              />
+            </div>
+            <div>
+              <Link href="/audio-to-midi" prefetch={false} className="group mb-3 block">
+                <span className="font-semibold text-text-primary group-hover:text-amber-400">Forge Roll</span>
+              </Link>
+              <PianoRollCard
+                points={[
+                  "Crossfade against the original, in sync.",
+                  "Move, resize and add notes, then export.",
+                ]}
+              />
+            </div>
+            <div>
+              <Link href="/audio-to-sheet-music" prefetch={false} className="group mb-3 block">
+                <span className="font-semibold text-text-primary group-hover:text-amber-400">Forge Score</span>
+              </Link>
+              <div className="overflow-hidden rounded-xl border border-graphite-800 bg-graphite-900">
+                <EngravedScore glow className="rounded-none border-0 shadow-none" />
+                <ul className="grid gap-y-3 border-t border-graphite-800 p-5 text-sm leading-relaxed text-text-muted">
+                  {["Cursor follows the sound, bar by bar.", "Transpose, then print or export MusicXML."].map((pt) => (
+                    <li key={pt} className="flex gap-2.5">
+                      <span className="mt-[9px] h-1 w-1 shrink-0 rounded-full bg-amber-400" aria-hidden />
+                      <span>{pt}</span>
                     </li>
                   ))}
                 </ul>
-                <Link
-                  href={card.href}
-                  prefetch={false}
-                  className="group mt-5 flex w-fit items-center gap-1 text-sm font-medium text-amber-400 transition-colors hover:text-amber-300"
-                >
-                  {card.cta}
-                  <ArrowRight className="h-3.5 w-3.5 -translate-x-1 opacity-0 transition-all duration-150 group-hover:translate-x-0 group-hover:opacity-100" />
-                </Link>
               </div>
-            ))}
+            </div>
           </div>
         </section>
 
@@ -418,16 +420,15 @@ export default function HomePage() {
             <SectionHeading eyebrow="Background" title="Why AudioForges" />
             <Prose className="mt-5">
               <p>
-                AudioForges started as a set of tools built for one producer&apos;s own workflow —
-                pulling reference audio, checking key and tempo before a session, getting clean
-                files without wading through ad-heavy downloader sites or signing up for another
-                account. It&apos;s grown into a full toolkit for conversion, editing, cleanup,
-                analysis, tuning, tempo, practice and transcription.
+                AudioForges is built by Dipak, a producer in Kathmandu, for his own sessions first:
+                pulling reference audio, checking key and tempo before a session, getting clean files
+                without an ad-heavy downloader or another account. It has grown into a full toolkit
+                for conversion, editing, cleanup, analysis, tuning, tempo, practice and transcription.
               </p>
               <p>
-                Each tool does one job: convert, analyse, clean up, tune or extract — accurately,
-                then get out of the way. If one stops meeting that bar it gets fixed or rebuilt
-                rather than left to quietly degrade.
+                Each tool does one job and says what it runs. Where a tool is ffmpeg, the page says
+                ffmpeg. Where it is a model, the model is named. Where it fails, the page says that
+                too, before you upload.
               </p>
             </Prose>
           </div>
@@ -437,11 +438,8 @@ export default function HomePage() {
           <dl className="divide-y divide-graphite-800 border-y border-graphite-800 lg:col-span-5 lg:self-start">
             {[
               ["No account", "No sign-up, no email, nothing to install."],
-              ["No paywall", "No watermark, no premium tier, no artificial limits."],
-              // "No queue" was wrong: transcription runs on a GPU worker that
-              // spins down when idle, so the first run of the day waits ~a
-              // minute — and it's the tool this claim gets tested against.
-              ["No waiting around", "Most tools finish in seconds; transcription can take a minute."],
+              ["Free core", "Standard separation, every converter and editor, no watermark. GPU jobs take credits after free runs."],
+              ["Honest about limits", "Rate limits, retention windows and failure cases are printed on every tool page, read live from the backend."],
             ].map(([term, description]) => (
               <div key={term} className="py-4">
                 <dt className="font-medium text-text-primary">{term}</dt>
@@ -453,6 +451,9 @@ export default function HomePage() {
 
         <div className="border-t border-graphite-800 py-14">
           <FAQSection eyebrow="Questions" faqs={faqs} />
+          <div className="mt-12">
+            <PageByline updated="2026-09-10" note="Every tool page rebuilt with named models, published limits and playable results" />
+          </div>
         </div>
       </main>
     </>

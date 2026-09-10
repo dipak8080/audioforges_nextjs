@@ -28,10 +28,15 @@ const DEFAULT_LANES: Lane[] = [
 
 const PLAYHEAD = 0.38;
 
-function LaneRow({ lane }: { lane: Lane }) {
+function LaneRow({ lane, compact }: { lane: Lane; compact: boolean }) {
   return (
     <div className="flex items-stretch">
-      <div className="flex w-28 shrink-0 flex-col justify-center border-r border-graphite-800 px-3 py-3 sm:w-32">
+      <div
+        className={cn(
+          "flex shrink-0 flex-col justify-center border-r border-graphite-800 px-3 py-3",
+          compact ? "w-24" : "w-28 sm:w-32"
+        )}
+      >
         <p className="text-xs font-medium text-text-primary">{lane.name}</p>
         <div className="mt-1.5 flex gap-1">
           <span className="rounded border border-graphite-700 px-1.5 text-[10px] leading-4 text-text-subtle">M</span>
@@ -60,7 +65,12 @@ function LaneRow({ lane }: { lane: Lane }) {
           ))}
         </div>
       </div>
-      <div className="hidden w-24 shrink-0 flex-col justify-center border-l border-graphite-800 px-3 sm:flex">
+      <div
+        className={cn(
+          "w-24 shrink-0 flex-col justify-center border-l border-graphite-800 px-3",
+          compact ? "hidden" : "hidden sm:flex"
+        )}
+      >
         <div className="relative h-1 rounded-full bg-graphite-700">
           <span className="absolute left-1/2 top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-graphite-500 bg-graphite-900" />
         </div>
@@ -78,11 +88,16 @@ export function ForgeMixerCard({
   lanes = DEFAULT_LANES,
   presets = ["Karaoke", "Acapella"],
   points,
+  compact = false,
 }: {
   lanes?: Lane[];
   presets?: string[];
   points: string[];
+  /** For narrow columns: shorter label gutter, no pan column, sparser ruler. */
+  compact?: boolean;
 }) {
+  const ruler = compact ? ["0:00", "1:00", "2:00", "3:00"] : ["0:00", "0:30", "1:00", "1:30", "2:00", "2:30", "3:00", "3:30"];
+  const rulerSpan = compact ? 3.7 : 7.4;
   return (
     <div className="overflow-hidden rounded-xl border border-graphite-800 bg-graphite-900">
       <div className="flex items-center justify-between border-b border-graphite-800 px-3 py-2">
@@ -109,22 +124,38 @@ export function ForgeMixerCard({
       </div>
 
       <div className="relative">
-        <div className="flex h-5 items-end border-b border-graphite-800 pl-28 text-[9px] text-text-subtle sm:pl-32" aria-hidden>
+        <div
+          className={cn(
+            "flex h-5 items-end border-b border-graphite-800 text-[9px] text-text-subtle",
+            compact ? "pl-24" : "pl-28 sm:pl-32"
+          )}
+          aria-hidden
+        >
           <div className="relative flex-1">
-            {["0:00", "0:30", "1:00", "1:30", "2:00", "2:30", "3:00", "3:30"].map((t, i) => (
-              <span key={t} className="absolute bottom-0.5 -translate-x-1/2 font-mono" style={{ left: `${(i / 7.4) * 100}%` }}>
+            {ruler.map((t, i) => (
+              <span
+                key={t}
+                className={cn("absolute bottom-0.5 font-mono", i === 0 ? "translate-x-1" : "-translate-x-1/2")}
+                style={{ left: `${(i / rulerSpan) * 100}%` }}
+              >
                 {t}
               </span>
             ))}
           </div>
-          <div className="hidden w-24 sm:block" />
+          {!compact && <div className="hidden w-24 sm:block" />}
         </div>
         <div className="divide-y divide-graphite-800">
           {lanes.map((l) => (
-            <LaneRow key={l.name} lane={l} />
+            <LaneRow key={l.name} lane={l} compact={compact} />
           ))}
         </div>
-        <div className="pointer-events-none absolute bottom-0 top-0 left-28 right-0 sm:left-32 sm:right-24" aria-hidden>
+        <div
+          className={cn(
+            "pointer-events-none absolute bottom-0 top-0 right-0",
+            compact ? "left-24" : "left-28 sm:left-32 sm:right-24"
+          )}
+          aria-hidden
+        >
           <div className="absolute inset-y-0 w-px bg-text-primary/80" style={{ left: `${PLAYHEAD * 100}%` }} />
           <div
             className="absolute inset-y-5 border-x border-amber-500/50 bg-amber-500/[0.07]"

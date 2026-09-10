@@ -8,7 +8,7 @@ import { Breadcrumb } from "@/components/layout/Breadcrumb";
 import { Prose } from "@/components/ui/Prose";
 import { ogImage } from "@/lib/og";
 
-const PAGE_TITLE = "Contact Us";
+const PAGE_TITLE = "Contact";
 const PAGE_DESCRIPTION =
   "Contact the AudioForges team for support, bug reports, feature requests, copyright inquiries, or general questions about our free audio tools.";
 
@@ -58,11 +58,12 @@ export default function ContactPage() {
 
         <header>
           <h1 className="measure-wide text-4xl font-bold leading-[1.06] tracking-[-0.02em] text-text-primary sm:text-5xl">
-            Contact us
+            Contact
           </h1>
           <p className="measure mt-5 text-lg leading-relaxed text-text-muted sm:text-xl">
-            Need help with a tool, want to report a bug, request a feature, or
-            get in touch about copyright? We&apos;d be happy to help.
+            One person builds and runs AudioForges, and one person reads this inbox. A bug, a
+            tool that gave a bad result, a purchase that did not show up, a copyright notice,
+            or a feature you keep wishing was here: write.
           </p>
         </header>
 
@@ -75,27 +76,32 @@ export default function ContactPage() {
             <Mail className="h-4 w-4" aria-hidden="true" />
           </EmailLink>
           <p className="mt-3 text-sm text-text-subtle">
-            We typically respond within 2–3 business days. Response times may be
-            longer during busy periods.
+            Replies usually take a day or two. Purchase problems get looked at first.
           </p>
         </div>
 
-        <section className="mt-14 space-y-4">
+        <section className="mt-14">
           <h2 className="measure text-2xl font-bold tracking-tight text-text-primary">
-            What you can contact us about
+            What helps me fix it fast
           </h2>
-          <Prose>
-            <ul>
-              <li>Technical issues or bugs</li>
-              <li>Feature requests and suggestions</li>
-              <li>Copyright or DMCA inquiries</li>
-              <li>Questions about our audio tools</li>
-              <li>General feedback</li>
-            </ul>
+          <div className="mt-6 grid gap-3 sm:grid-cols-2">
+            {[
+              ["A tool gave a bad result", "Which tool, the file type and length, and what you expected. If the source is public, a link to it. The models and their limits are on each tool page, so check there first in case it is a known case."],
+              ["Credits did not arrive", "The email you paid with and roughly when. That is enough to find the payment and attach it by hand."],
+              ["Something is broken", "The page, the browser, and what happened. A screenshot of any error is worth more than a description of it."],
+              ["Copyright", "Use the DMCA process rather than this address; it has the details a valid notice needs and is handled the same day."],
+            ].map(([t, d]) => (
+              <div key={t} className="rounded-xl border border-graphite-800 bg-graphite-900 p-4">
+                <p className="font-medium text-text-primary">{t}</p>
+                <p className="mt-1.5 text-sm leading-relaxed text-text-muted">{d}</p>
+              </div>
+            ))}
+          </div>
+          <Prose className="mt-6">
             <p>
-              Need to report a copyright issue? See our{" "}
-              <Link href="/dmca">DMCA Policy</Link>. Have questions about how we
-              handle data? See our <Link href="/privacy">Privacy Policy</Link>.
+              Copyright notices: <Link href="/dmca">DMCA policy</Link>. How data is handled:{" "}
+              <Link href="/privacy">privacy policy</Link>. Who is behind the site:{" "}
+              <Link href="/about">about</Link>.
             </p>
           </Prose>
         </section>
