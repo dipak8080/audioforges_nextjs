@@ -5,8 +5,12 @@ import { FAQSection } from "@/components/faq/FAQSection";
 import { ToolPageShell } from "@/components/layout/ToolPageShell";
 import { Breadcrumb } from "@/components/layout/Breadcrumb";
 import { ToolSection } from "@/components/ui/ToolSection";
-import { FeatureStrip } from "@/components/ui/FeatureStrip";
 import { RelatedToolsGrid } from "@/components/tools/RelatedToolsGrid";
+import { ProofStrip } from "@/components/tools/ProofStrip";
+import { CamelotWheel } from "@/components/tools/CamelotWheel";
+import { CompareTable } from "@/components/tools/CompareTable";
+import { PageByline } from "@/components/tools/PageByline";
+import { Prose } from "@/components/ui/Prose";
 import { ToolVideo } from "@/components/media/ToolVideo";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
@@ -37,6 +41,8 @@ import { ogForTool } from "@/lib/og";
 const PAGE_TITLE = "Song Key Finder & BPM Finder – Free, No Sign-Up";
 const PAGE_DESCRIPTION =
   "Free song key finder and BPM finder. Detect the musical key, tempo and Camelot notation of any track — MP3, WAV, FLAC, AAC, M4A, OGG or AIFF. No sign-up.";
+
+const UPDATED = "2026-09-10";
 
 const OG_IMAGE = ogForTool("key-finder", "Free Song Key & BPM Finder");
 
@@ -92,6 +98,7 @@ export default async function KeyFinderPage() {
       "Camelot Key Finder",
     ],
     url: `${SITE_URL}/key-finder`,
+    dateModified: UPDATED,
     applicationCategory: "MultimediaApplication",
     operatingSystem: "Any",
     offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
@@ -166,77 +173,72 @@ export default async function KeyFinderPage() {
         breadcrumb={
           <Breadcrumb items={[{ name: "Tools", href: "/tools" }, { name: "Key & BPM Finder" }]} />
         }
+        meta={["No account", "Nothing stored", "Accuracy published"]}
         title="Free Song Key Finder &amp; BPM Finder"
         lede="Upload any song and instantly detect its musical key and tempo, free, no sign-up, nothing to install."
         tool={<KeyFinderForm />}
       >
-        <FeatureStrip
-          features={[
-            { title: "Instant", desc: "Results in a few seconds. No queue, no waiting." },
-            { title: "Accurate", desc: "Key, BPM, and Camelot notation for confident mixing." },
+        <ProofStrip
+          proofs={[
             {
-              title: "No sign-up",
-              desc: `No account, no install. Up to ${limits.maxUploadMb}MB per file.`,
+              label: "Measured accuracy",
+              value: "85% on BPM, about 50% on key",
+              note: "Scored on the GiantSteps set and written up in full. Nobody else in this category publishes a number.",
+            },
+            {
+              label: "Nothing stored",
+              value: "Your file is deleted on completion",
+              note: "Key and BPM come back as numbers, not a file. No job row, no result to expire.",
+            },
+            {
+              label: "Output",
+              value: "Key, BPM and Camelot code",
+              note: `Reads in a few seconds. ${formatList}, up to ${limits.maxUploadMb}MB.`,
             },
           ]}
         />
 
-        <ToolSection id="how-to" title="How to find a song's key and BPM">
-          <ol>
-            <li>Upload an {formatList} file.</li>
-            <li>Analysis runs automatically — no settings to configure.</li>
-            <li>Get the detected key, BPM, and Camelot code in a few seconds.</li>
+        <ToolSection id="camelot" title="What the Camelot code is for" bleed>
+          <Prose className="mb-5">
+            <p>
+              Every result comes back with a Camelot code as well as the key name. The wheel renames the 24 keys as
+              1 to 12 plus A for minor or B for major, and puts every compatible key next to its neighbours. From
+              whatever is playing, three moves are safe: the same number with the other letter, one number up, one
+              number down.
+            </p>
+          </Prose>
+          <CamelotWheel highlight="8A" />
+          <Prose className="mt-5">
+            <p>
+              8A is A minor. 8B is C major, its relative major, built from the same notes, which is why the letter
+              swap always works. 7A and 9A are one step around the circle of fifths in each direction. Everything
+              else on the wheel will fight it to some degree.
+            </p>
+            <p>
+              Camelot codes are what Rekordbox, Serato, Traktor and Mixed In Key all display, so a code from here
+              drops straight into your library.{" "}
+              <Link href="/guides/camelot-wheel-harmonic-mixing">The full harmonic mixing guide</Link> covers
+              building a set around it, and the{" "}
+              <Link href="/guides/dj-set-prep-checklist">set prep checklist</Link> covers ordering for energy once
+              everything is tagged.
+            </p>
+          </Prose>
+        </ToolSection>
+
+        <ToolSection id="how-to" title="Three steps, nothing to configure" bleed>
+          <ol className="grid gap-3 sm:grid-cols-3">
+            {[
+              ["Upload", `Drop an ${formatList} file. Up to ${limits.maxUploadMb}MB.`],
+              ["Analyse", "Runs automatically. No settings, no queue, a few seconds."],
+              ["Read", "Key, BPM and Camelot code. Copy them into your library and the file is already gone."],
+            ].map(([t, d], i) => (
+              <li key={t} className="rounded-xl border border-graphite-800 bg-graphite-900 p-5">
+                <p className="font-mono text-[11px] text-amber-400">Step {i + 1}</p>
+                <p className="mt-1.5 font-medium text-text-primary">{t}</p>
+                <p className="mt-1.5 text-sm leading-relaxed text-text-muted">{d}</p>
+              </li>
+            ))}
           </ol>
-        </ToolSection>
-
-        <ToolSection id="why-it-matters" title="Why key and BPM matter">
-          <p>
-            Every piece of tonal music sits in a <strong>key</strong> — a home
-            note and scale the melody and chords are built around.{" "}
-            <strong>BPM</strong> is how fast the track pulses. Together,
-            they&apos;re the two numbers DJs and producers need before mixing,
-            remixing, or layering two tracks.
-          </p>
-          <p>
-            <strong>Harmonic mixing</strong> — blending tracks with compatible
-            keys — is what separates a set that flows from one that clashes.
-          </p>
-        </ToolSection>
-
-        <ToolSection id="major-minor" title="Major vs. minor keys">
-          <p>
-            A detected key is always either major or minor. Major keys generally
-            read as brighter or more resolved; minor keys read as darker or more
-            emotional. Every major key shares its exact notes with a relative
-            minor key — which is exactly why they sit at the same Camelot number
-            with a different letter (8A and 8B, for example), and why that
-            pairing is always a safe harmonic move.
-          </p>
-        </ToolSection>
-
-        <ToolSection id="camelot" title="Understanding Camelot notation">
-          <p>
-            The <strong>Camelot Wheel</strong> renames the 24 musical keys as
-            numbers 1–12 followed by &quot;A&quot; (minor) or &quot;B&quot;
-            (major). From any key, you can safely mix into the same number, the
-            next number up, or the next number down.
-          </p>
-          <p>
-            Want the full breakdown of how to use this for building a set?{" "}
-            <Link href="/guides/camelot-wheel-harmonic-mixing">
-              Read The Camelot Wheel Explained: Harmonic Mixing for DJs
-            </Link>
-            .
-          </p>
-          <p>
-            Once you&apos;ve got key and BPM tagged, the next step is grouping
-            tracks by Camelot compatibility and ordering them for energy before
-            you play.{" "}
-            <Link href="/guides/dj-set-prep-checklist">
-              Read the 6-Step DJ Set Prep Checklist
-            </Link>
-            .
-          </p>
         </ToolSection>
 
         {/*
@@ -250,54 +252,72 @@ export default async function KeyFinderPage() {
           answers depending on which half you read, and the visible section had
           the wrong one.
         */}
-        <ToolSection id="accuracy" title="What affects detection accuracy">
-          <p>
-            Only the first three minutes are analysed. The server writes a
-            trimmed copy, reads that, and deletes it — which is why a nine-minute
-            mix comes back as fast as a three-minute single, and why a longer
-            file buys nothing in accuracy.
-          </p>
-          <p>
-            That makes the opening the whole story. A track whose first three
-            minutes represent the song reads well. A track that opens with a long
-            ambient pad or a drum-only intro can read badly no matter how clear
-            the rest of it is, because the analyser never reaches the rest. If
-            that&apos;s your track, trim to a section with the harmony in it
-            using the <Link href="/trim">Audio Trimmer</Link> and analyse that
-            instead.
-          </p>
-          <p>
-            Beyond the intro: consistent tempo and clear harmonic content help,
-            while live recordings, heavy distortion, mid-track tempo changes and
-            spoken-word audio all give the analysis less to lock onto. If your
-            recording has significant background noise, running it through the{" "}
-            <Link href="/noise-remove" prefetch={false}>
-              Noise Remover
-            </Link>{" "}
-            first can improve detection.
-          </p>
-          <p>
-            How accurate is it, measured? BPM detection scores 85% exact on the
-            GiantSteps tempo set after moving to a pretrained model; key detection
-            is around 50% and is the harder problem. The full write-up — what the
-            detectors are, what failed, and how the numbers were measured — is in{" "}
-            <Link href="/guides/bpm-detection-tempocnn">
-              BPM Detection: From 42% to 85% Accuracy With a Pretrained Model
-            </Link>
-            . For the plain-language version of why a reading can come back half or
-            double, see{" "}
-            <Link href="/guides/how-key-and-bpm-detection-works">
-              how key and BPM detection works
-            </Link>
-            .
-          </p>
+        <ToolSection id="accuracy" title="How accurate it is, and when it is wrong" bleed>
+          <CompareTable
+            columns={["BPM", "Key"]}
+            highlight={0}
+            rows={[
+              {
+                label: "Detector",
+                cells: [
+                  { text: "TempoCNN, pretrained", mono: true },
+                  { text: "Essentia bgate profile", mono: true },
+                ],
+              },
+              {
+                label: "Exact match on GiantSteps",
+                cells: [
+                  { state: "yes", text: "85%", sub: "up from 42% before the model change" },
+                  { state: "partial", text: "About 50%", sub: "the harder of the two problems" },
+                ],
+              },
+              {
+                label: "Usual failure",
+                cells: [
+                  { text: "Reads half or double the real tempo" },
+                  { text: "Returns the relative major or minor" },
+                ],
+              },
+            ]}
+            footnote="Measured on the public GiantSteps set, not estimated. The method is in the write-up below."
+          />
+          <Prose className="mt-6">
+            <p>
+              Only the first three minutes are analysed. The server writes a trimmed copy, reads that, and deletes
+              it, which is why a nine-minute mix comes back as fast as a three-minute single and why a longer file
+              buys nothing in accuracy.
+            </p>
+            <p>
+              That makes the opening the whole story. A track whose first three minutes represent the song reads
+              well. A track that opens with a long ambient pad or a drum-only intro can read badly no matter how
+              clear the rest of it is, because the analyser never reaches the rest. If that is your track, trim to a
+              section with the harmony in it using the <Link href="/trim">Audio Trimmer</Link> and analyse that
+              instead.
+            </p>
+            <p>
+              Beyond the intro: consistent tempo and clear harmonic content help, while live recordings, heavy
+              distortion, mid-track tempo changes and spoken-word audio all give the analysis less to lock onto. If
+              the recording has significant background noise, the{" "}
+              <Link href="/noise-remove" prefetch={false}>Noise Remover</Link> first can improve detection.
+            </p>
+            <p>
+              The full write-up of what the detectors are, what failed and how the numbers were measured is in{" "}
+              <Link href="/guides/bpm-detection-tempocnn">
+                BPM Detection: From 42% to 85% Accuracy With a Pretrained Model
+              </Link>
+              . For the plain-language version of why a reading comes back half or double, see{" "}
+              <Link href="/guides/how-key-and-bpm-detection-works">how key and BPM detection works</Link>.
+            </p>
+          </Prose>
         </ToolSection>
 
         <ToolVideo slug="key-finder" />
 
+        <FAQSection faqs={faqs} />
+
         <RelatedToolsGrid tools={relatedTools} />
 
-        <FAQSection faqs={faqs} />
+        <PageByline updated={UPDATED} note="BPM detection moved to a pretrained TempoCNN model" />
       </ToolPageShell>
     </>
   );
