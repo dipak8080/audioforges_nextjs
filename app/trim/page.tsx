@@ -5,8 +5,11 @@ import { FAQSection } from "@/components/faq/FAQSection";
 import { ToolPageShell } from "@/components/layout/ToolPageShell";
 import { Breadcrumb } from "@/components/layout/Breadcrumb";
 import { ToolSection } from "@/components/ui/ToolSection";
-import { FeatureStrip } from "@/components/ui/FeatureStrip";
+import { Prose } from "@/components/ui/Prose";
 import { RelatedToolsGrid } from "@/components/tools/RelatedToolsGrid";
+import { ProofStrip } from "@/components/tools/ProofStrip";
+import { CompareTable } from "@/components/tools/CompareTable";
+import { PageByline } from "@/components/tools/PageByline";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { ogForTool } from "@/lib/og";
 import { getRelatedTools } from "@/lib/data/tools";
@@ -20,11 +23,11 @@ import {
 /*
   TITLE. Bing Keyword Research, three months to 30 Aug 2026:
 
-    audio trimmer   15.6K   head term — already led the old title, kept
+    audio trimmer   15.6K   head term – already led the old title, kept
 
   OPEN QUESTION, worth ten seconds in Keyword Research: "audio cutter".
   This page's own copy says people search both words for the same thing, and
-  mp3cut.net — one of the strongest sites in this space — calls its tool
+  mp3cut.net – one of the strongest sites in this space – calls its tool
   "Audio Cutter". If that term is larger than 15.6K, the lead should swap.
   Until it is measured, the measured term keeps position zero.
 
@@ -36,6 +39,8 @@ import {
 const PAGE_TITLE = "Audio Trimmer – Cut Audio Online Free, No Sign-Up";
 const PAGE_DESCRIPTION =
   "Free online audio trimmer and cutter. Cut MP3, WAV, FLAC, AAC, M4A or OGG to a precise start and end point. No sign-up, no watermark.";
+
+const UPDATED = "2026-09-10";
 
 const OG_IMAGE = ogForTool("trim", "Free Audio Trimmer");
 
@@ -65,6 +70,7 @@ const webAppJsonLd = {
   name: "Audio Trimmer",
   alternateName: ["Audio Trimmer", "Audio Cutter", "MP3 Cutter", "Cut Audio Online"],
   url: `${SITE_URL}/trim`,
+  dateModified: UPDATED,
   applicationCategory: "MultimediaApplication",
   operatingSystem: "Any",
   offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
@@ -76,7 +82,7 @@ const webAppJsonLd = {
   ],
 };
 
-// Don't add HowTo schema — deprecated by Google, no benefit. FAQPage comes
+// Don't add HowTo schema – deprecated by Google, no benefit. FAQPage comes
 // from <FAQSection />, BreadcrumbList from <Breadcrumb />; don't duplicate.
 
 // Every limit on this page comes from /limits. Don't type one in by hand —
@@ -98,12 +104,7 @@ export default async function TrimPage() {
     {
       question: "Does trimming change the audio quality?",
       answer:
-        "No — trimming just cuts the selected range and keeps your original format, with no quality loss beyond the format's normal characteristics.",
-    },
-    {
-      question: "What's the difference between trimming and cutting?",
-      answer:
-        "For this tool, they mean the same thing — selecting a start and end point and keeping only what's in between. \"Trim\" and \"cut\" are just different words people use for the same operation.",
+        "No, trimming just cuts the selected range and keeps your original format, with no quality loss beyond the format's normal characteristics.",
     },
     {
       question: "Can I remove silence throughout a track, not just the ends?",
@@ -121,10 +122,6 @@ export default async function TrimPage() {
       ),
     },
     {
-      question: "Is this really free?",
-      answer: "Yes — completely free, no sign-up, no watermark on the output.",
-    },
-    {
       question: "Is there a size or length limit?",
       answer:
         durationCap === null
@@ -137,172 +134,79 @@ export default async function TrimPage() {
         "Trim keeps the original format by design. Run the trimmed result through the Format Converter afterward if you need a different format.",
     },
     {
-      question: "Can I trim audio on my phone?",
-      answer: "Yes — it works in any mobile browser on iPhone or Android, no app install required.",
-    },
-    {
-      question: "Can I trim multiple files at once?",
-      answer: "One file at a time — there's currently no batch upload option.",
-    },
-    {
-      question: "Can I undo a trim?",
-      answer:
-        "There's no undo history — this is a stateless upload-process-download tool with nothing saved between visits. Re-upload the original file if you need to cut it differently.",
-    },
-    {
       question: "Are my uploaded files kept?",
       answer: `${retention.input} ${retention.output} There are no accounts, so nothing is linked to you.`,
     },
     {
       question: "Does trimming reduce the file size?",
       answer:
-        "Yes, proportionally to how much you cut — a shorter clip has less audio data, so the file comes out smaller than the original.",
-    },
-    {
-      question: "Does it work on stereo audio?",
-      answer:
-        "Yes — trimming only cuts the time range, so it doesn't affect channel layout. Stereo files stay stereo.",
+        "Yes, proportionally to how much you cut, a shorter clip has less audio data, so the file comes out smaller than the original.",
     },
   ];
+
+  const limitLabel =
+    durationCap === null ? `${limits.maxUploadMb}MB per upload` : `${limits.maxUploadMb}MB and ${durationLabel(durationCap)}`;
 
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(webAppJsonLd) }} />
 
       <ToolPageShell
-        breadcrumb={
-          <Breadcrumb
-            items={[
-              { name: "Tools", href: "/tools" },
-              { name: "Audio Trimmer" },
-            ]}
-          />
-        }
-        title="Free Audio Trimmer"
-        lede="Cut any audio file down to just the part you need, free, no sign-up, no watermark."
+        breadcrumb={<Breadcrumb items={[{ name: "Tools", href: "/tools" }, { name: "Audio Trimmer" }]} />}
+        meta={["No account", "Drag on the waveform", "Format kept"]}
+        title="Audio Trimmer"
+        lede="Cut a section out of an audio file by dragging across its waveform. The clip comes back in the same format you uploaded. Free, no sign-up."
         tool={<TrimForm />}
       >
-        <FeatureStrip
-          features={[
-            { title: "Precise", desc: "Drag to pick your exact start and end point." },
-            { title: "No quality loss", desc: "Output keeps your original format." },
-            { title: "No sign-up", desc: "No account, no email, no watermark." },
+        <ProofStrip
+          proofs={[
+            {
+              label: "Selection",
+              value: "Drag on the real waveform",
+              note: "The file is decoded in your browser so you can see where the sound is. Nudge either edge, or type exact times.",
+            },
+            {
+              label: "Output",
+              value: "Same format in, same format out",
+              note: "A WAV stays WAV, an MP3 stays MP3. Nothing is resampled and nothing outside the selection is touched.",
+            },
+            {
+              label: "Limits",
+              value: limitLabel,
+              note: `${formatList}. Uploads are deleted on completion.`,
+            },
           ]}
         />
 
-        <ToolSection id="why" title="Why trim audio?">
-          <p>
-            Trimming removes unwanted sections without touching playback
-            speed, pitch, or format — it&apos;s just a clean cut to exactly
-            the part you want. That covers a lot of ordinary needs: shortening
-            a clip before sharing it, cutting silence off the start or end of
-            a recording, pulling a short sample out of a longer track, or
-            preparing a file for somewhere with its own length limits.
-          </p>
+        <ToolSection id="which-tool" title="Trim, or one of the other three?" bleed>
+          <CompareTable
+            columns={["Use it when"]}
+            highlight={-1}
+            rows={[
+              { label: "Trimmer, this page", cells: [{ state: "yes", text: "You want one continuous section: a clip from a song, a memo without the dead air at either end" }] },
+              { label: "Silence Remover", cells: [{ state: "partial", text: "You want every quiet gap in the middle gone too, automatically" }] },
+              { label: "Silence Splitter", cells: [{ state: "partial", text: "You want one file per take, split wherever the audio goes quiet" }] },
+              { label: "Ringtone Maker", cells: [{ state: "partial", text: "You want a phone-ready clip with fades and the right format already applied" }] },
+            ]}
+            footnote="All four keep the audio inside the cut untouched. Trimming never lowers quality; it only removes."
+          />
+          <Prose className="mt-5">
+            <p>
+              <Link href="/silence-remove">Silence Remover</Link>, <Link href="/silence-split">Silence Splitter</Link>{" "}
+              and <Link href="/ringtone-maker">Ringtone Maker</Link> are each one click away. To change the format
+              of the clip afterwards, the <Link href="/convert">Audio Converter</Link> takes the trimmed file.
+            </p>
+          </Prose>
         </ToolSection>
 
-        <ToolSection id="how-to" title="How to trim or cut an audio file">
-          <ol>
-            <li>Upload an {formatList} file.</li>
-            <li>Drag the start marker along the timeline to where you want the clip to begin.</li>
-            <li>Drag the end marker to where you want the clip to end.</li>
-            <li>Download the trimmed clip — same format as your upload.</li>
-          </ol>
-        </ToolSection>
-
-        <ToolSection id="trim-vs-cut" title="Trim vs. cut: same thing, different word">
-          <p>
-            &quot;Trim&quot; and &quot;cut&quot; describe the same operation here —
-            selecting a start and end point and keeping only what&apos;s between
-            them. Some people search for an &quot;audio cutter,&quot; others for an
-            &quot;audio trimmer&quot;; either way, this tool does exactly that: one
-            clean cut, original format preserved.
-          </p>
-          <p>
-            Worth distinguishing from &quot;splitting,&quot; which means breaking
-            one file into several separate pieces rather than keeping a single
-            section. That&apos;s a different tool:{" "}
-            <Link href="/silence-split">Split by Silence</Link> cuts a long
-            recording into separate tracks wherever it finds a gap — useful for
-            a live set, a vinyl rip, or a batch of takes recorded in one pass.
-          </p>
-        </ToolSection>
-
-        <ToolSection id="common-uses" title="Common uses">
-          <ul>
-            <li>Cutting a podcast segment down to a shareable clip</li>
-            <li>Pulling a sample, intro, or hook from a longer track</li>
-            <li>Trimming dead air off the start or end of a voice memo</li>
-            <li>Grabbing just the chorus of a song for quick reference</li>
-            <li>Making a ringtone-length clip from a longer recording</li>
-            <li>Cutting a short section out of a field recording for a sample library</li>
-            <li>Preparing a clip for a social media post or video edit</li>
-          </ul>
-          <p>
-            Need the clip in a different format too? Trim keeps the original format
-            by design — run the result through the{" "}
-            <Link href="/convert">Format Converter</Link> afterward if you need
-            something else. Need to strip silence throughout the whole file, not
-            just cut one section? The{" "}
-            <Link href="/silence-remove">Silence Remover</Link> handles that
-            instead.
-          </p>
-          <p>
-            Want to know why a bad cut point can cause a click or pop, and how
-            lossless vs. lossy formats handle trimming differently?{" "}
-            <Link href="/guides/how-to-trim-audio-without-losing-quality">
-              Read How to Trim Audio Without Losing Quality
-            </Link>
-            .
-          </p>
-        </ToolSection>
-
-        <ToolSection id="which-tool" title="Which tool do you actually need?" bleed>
-          <div className="overflow-x-auto rounded-xl border border-graphite-800">
-            <table className="w-full text-left text-sm text-text-muted">
-              <thead className="bg-graphite-900 text-text-primary">
-                <tr>
-                  <th className="px-4 py-3 font-semibold">You want to...</th>
-                  <th className="px-4 py-3 font-semibold">Use</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-graphite-800">
-                <tr>
-                  <td className="px-4 py-3">Keep one specific section, cut the rest</td>
-                  <td className="px-4 py-3">Trim (this tool)</td>
-                </tr>
-                <tr>
-                  <td className="px-4 py-3">Strip silent gaps throughout the whole file</td>
-                  <td className="px-4 py-3">
-                    <Link href="/silence-remove" className="text-amber-400 hover:underline">
-                      Silence Remover
-                    </Link>
-                  </td>
-                </tr>
-                <tr>
-                  <td className="px-4 py-3">Break one long file into several tracks</td>
-                  <td className="px-4 py-3">
-                    <Link href="/silence-split" className="text-amber-400 hover:underline">
-                      Split by Silence
-                    </Link>
-                  </td>
-                </tr>
-                <tr>
-                  <td className="px-4 py-3">Change the file format after trimming</td>
-                  <td className="px-4 py-3">
-                    <Link href="/convert" className="text-amber-400 hover:underline">
-                      Audio Converter
-                    </Link>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </ToolSection>
+        <FAQSection faqs={faqs} />
 
         <RelatedToolsGrid tools={relatedTools} />
 
-        <FAQSection faqs={faqs} />
+        <PageByline
+          updated={UPDATED}
+          legal="You are responsible for having the right to process any file you upload. AudioForges does not host or distribute the files processed here."
+        />
       </ToolPageShell>
     </>
   );
