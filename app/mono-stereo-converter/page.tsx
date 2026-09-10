@@ -1,14 +1,16 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Fragment } from "react";
 import { ChannelsForm } from "@/components/converter/ChannelsForm";
 import { FAQSection } from "@/components/faq/FAQSection";
 import { ToolPageShell } from "@/components/layout/ToolPageShell";
 import { Breadcrumb } from "@/components/layout/Breadcrumb";
 import { ToolSection } from "@/components/ui/ToolSection";
-import { FeatureStrip } from "@/components/ui/FeatureStrip";
 import { Prose } from "@/components/ui/Prose";
 import { RelatedToolsGrid } from "@/components/tools/RelatedToolsGrid";
+import { ProofStrip } from "@/components/tools/ProofStrip";
+import { CompareTable } from "@/components/tools/CompareTable";
+import { ChannelDiagram } from "@/components/tools/ChannelDiagram";
+import { PageByline } from "@/components/tools/PageByline";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
 import { ogForTool } from "@/lib/og";
@@ -47,6 +49,8 @@ const PAGE_TITLE = "Stereo to Mono Converter – Free, Also Mono to Stereo";
 const PAGE_DESCRIPTION =
   "Free online stereo to mono converter. Downmix stereo to a single channel, or duplicate mono to stereo — no sign-up, no watermark, no software to install.";
 
+const UPDATED = "2026-09-10";
+
 const OG_IMAGE = ogForTool("mono-stereo-converter", "Free mono & stereo converter");
 
 export const metadata: Metadata = {
@@ -83,6 +87,7 @@ const webAppJsonLd = {
     "Mono Downmix Tool",
   ],
   url: `${SITE_URL}/mono-stereo-converter`,
+  dateModified: UPDATED,
   applicationCategory: "MultimediaApplication",
   operatingSystem: "Any",
   offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
@@ -97,54 +102,21 @@ const webAppJsonLd = {
 // Don't add HowTo schema — deprecated by Google, no benefit. FAQPage comes
 // from <FAQSection />, BreadcrumbList from <Breadcrumb />; don't duplicate.
 
-const USE_CASES = [
-  {
-    name: "Podcasts & voice content",
-    desc: "Converting spoken-word recordings to mono for hosts and pipelines that expect single-channel audio.",
-  },
-  {
-    name: "IVR & telephone systems",
-    desc: "Phone-based audio commonly requires mono input, regardless of how the source was originally recorded.",
-  },
-  {
-    name: "Voice-over work",
-    desc: "Preparing narration for whichever channel format a project or delivery spec requires.",
-  },
-  {
-    name: "Video editing",
-    desc: "Matching a voice track's channel format to the rest of a project's audio before syncing it to picture.",
-  },
-  {
-    name: "Music production",
-    desc: "Checking how a mix collapses to mono to catch phase or balance issues that only show up once stereo separation is removed.",
-  },
-  {
-    name: "Upload compatibility",
-    desc: "Satisfying a platform's channel-count requirement when it rejects or mishandles the format you started with.",
-  },
-];
 
-export default async function ChannelsPage() {
+export default async function MonoStereoConverterPage() {
   const relatedTools = getRelatedTools("mono-stereo-converter", 5);
-
   const limits = await getLimits();
   const durationCap = durationCapFor(limits, "mono-stereo-converter");
   const retention = retentionSentences(limits.retention.audio_tools);
 
   const formats = limits.allowedAudioFormats.map((f) => f.toUpperCase());
   const formatList = formats.join(", ").replace(/, ([^,]*)$/, ", or $1");
+  const limitLabel =
+    durationCap === null
+      ? `${limits.maxUploadMb}MB per upload`
+      : `${limits.maxUploadMb}MB and ${durationLabel(durationCap)}`;
 
   const faqs = [
-    {
-      question: "How do I convert mono to stereo?",
-      answer:
-        "Upload your mono file, choose stereo as the target, and download the result. The tool duplicates the single mono signal onto both the left and right channels.",
-    },
-    {
-      question: "How do I convert stereo to mono?",
-      answer:
-        "Upload your stereo file, choose mono as the target, and download the result. The tool combines the left and right channels into a single centered channel.",
-    },
     {
       question: "Does mono to stereo create real stereo?",
       answer:
@@ -154,11 +126,6 @@ export default async function ChannelsPage() {
       question: "Is mono better for voice recordings?",
       answer:
         "Often, yes — a single voice usually doesn't benefit from stereo width, and many phone systems, IVR platforms, and podcast hosts expect or prefer single-channel audio for spoken content.",
-    },
-    {
-      question: "Is stereo better for music?",
-      answer:
-        "Music that was recorded or mixed with genuine left/right separation — instruments panned to different sides, stereo effects — benefits from staying in stereo, since converting it to mono collapses that separation into one channel.",
     },
     {
       question: "Does converting stereo to mono lose left/right information?",
@@ -176,10 +143,6 @@ export default async function ChannelsPage() {
         "Often, since there's less channel data to store, but the exact difference depends on the output format and encoding settings rather than being a fixed, guaranteed reduction.",
     },
     {
-      question: "What audio formats are supported?",
-      answer: `${formatList}.`,
-    },
-    {
       question: "Is there a size or length limit?",
       answer:
         durationCap === null
@@ -190,10 +153,6 @@ export default async function ChannelsPage() {
       question: "Are my uploaded files kept?",
       answer: `${retention.input} ${retention.output} There are no accounts, so nothing is linked to you.`,
     },
-    {
-      question: "Is this really free?",
-      answer: "Yes — completely free, no sign-up, no watermark on the output.",
-    },
   ];
 
   return (
@@ -201,220 +160,90 @@ export default async function ChannelsPage() {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(webAppJsonLd) }} />
 
       <ToolPageShell
-        breadcrumb={
-          <Breadcrumb
-            items={[{ name: "Tools", href: "/tools" }, { name: "Mono/Stereo Converter" }]}
-          />
-        }
-        title="Free Stereo to Mono Converter"
-        lede="Downmix stereo to mono, or duplicate mono to stereo, in seconds. No sign-up, no watermark."
+        breadcrumb={<Breadcrumb items={[{ name: "Tools", href: "/tools" }, { name: "Mono / Stereo Converter" }]} />}
+        meta={["No account", "Both directions", "Honest about width"]}
+        title="Stereo to Mono Converter"
+        lede="Fold a stereo file to one channel, or copy a mono file to two. Free, no sign-up, and clear about what each direction does to the sound."
         tool={<ChannelsForm />}
       >
-        <FeatureStrip
-          features={[
-            { title: "Both directions", desc: "Mono to stereo, or stereo to mono." },
-            { title: "Any format", desc: `${formats.join(", ")}.` },
+        <ProofStrip
+          proofs={[
             {
-              title: "No sign-up",
-              desc:
-                durationCap === null
-                  ? `No account, no email, no watermark. Up to ${limits.maxUploadMb}MB per file.`
-                  : `No account, no email, no watermark. Up to ${limits.maxUploadMb}MB and ${durationLabel(durationCap)}.`,
+              label: "Stereo to mono",
+              value: "Left and right combined into one",
+              note: "Panning and width are gone for good. Check a mix this way before a client plays it on a phone speaker.",
+            },
+            {
+              label: "Mono to stereo",
+              value: "One channel, copied to both",
+              note: "Satisfies a two-channel requirement. Sounds identical. No width is invented, because there is none to find.",
+            },
+            {
+              label: "Limits",
+              value: limitLabel,
+              note: `${formatList}. Sample rate and bit depth are left alone; only the channel count changes.`,
             },
           ]}
         />
 
-        <ToolSection id="what-is-mono" title="What is mono audio?">
-          <p>
-            Mono (monaural) audio is a single audio channel. The same signal
-            plays from every speaker or earbud — there&apos;s no left/right
-            distinction, because there&apos;s only one channel to begin with.
-          </p>
+        <ToolSection id="what-happens" title="What each direction actually does" bleed>
+          <ChannelDiagram />
         </ToolSection>
 
-        <ToolSection id="what-is-stereo" title="What is stereo audio?">
-          <p>
-            Stereo audio uses two independent channels, left and right, which can
-            carry different content. That difference between the two channels is
-            what creates a sense of width and positioning — an instrument panned
-            left, another panned right, or a wide stereo effect spread across the
-            field.
-          </p>
-        </ToolSection>
-
-        <ToolSection id="comparison" title="Mono vs. stereo: what's the difference?" bleed>
-          <div className="overflow-x-auto rounded-xl border border-graphite-800">
-            <table className="w-full text-left text-sm text-text-muted">
-              <thead className="bg-graphite-900 text-text-primary">
-                <tr>
-                  <th className="px-4 py-3 font-semibold">
-                    <span className="sr-only">Comparison</span>
-                  </th>
-                  <th className="px-4 py-3 font-semibold">Mono</th>
-                  <th className="px-4 py-3 font-semibold">Stereo</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-graphite-800">
-                <tr>
-                  <td className="px-4 py-3 font-medium text-text-primary">Channels</td>
-                  <td className="px-4 py-3">1</td>
-                  <td className="px-4 py-3">2 (left + right)</td>
-                </tr>
-                <tr>
-                  <td className="px-4 py-3 font-medium text-text-primary">
-                    Left/right information
-                  </td>
-                  <td className="px-4 py-3">None — same signal everywhere</td>
-                  <td className="px-4 py-3">Can differ between channels</td>
-                </tr>
-                <tr>
-                  <td className="px-4 py-3 font-medium text-text-primary">Stereo width</td>
-                  <td className="px-4 py-3">None</td>
-                  <td className="px-4 py-3">Present when the two channels genuinely differ</td>
-                </tr>
-                <tr>
-                  <td className="px-4 py-3 font-medium text-text-primary">Common uses</td>
-                  <td className="px-4 py-3">Voice, phone systems, podcasts</td>
-                  <td className="px-4 py-3">Music, sound design, most media</td>
-                </tr>
-                <tr>
-                  <td className="px-4 py-3 font-medium text-text-primary">
-                    Reason to convert here
-                  </td>
-                  <td className="px-4 py-3">A target expects/prefers single-channel audio</td>
-                  <td className="px-4 py-3">A target requires two channels present</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </ToolSection>
-
-        <ToolSection id="mono-to-stereo" title="Mono to stereo: what happens?">
-          <p>
-            The single mono channel is duplicated onto both the left and right
-            channels. The result is technically two-channel audio, but it plays
-            back exactly as centered as the mono original — nothing new is
-            separated between the channels, because there was only one signal to
-            begin with.
-          </p>
-        </ToolSection>
-
-        <ToolSection id="stereo-to-mono" title="Stereo to mono: what happens?">
-          <p>
-            The left and right channels are combined into a single centered
-            channel. Whatever separation existed between them — instruments
-            panned to one side, a wide stereo effect — collapses into one signal.
-            This is a genuine change to how the audio sounds, not just a format
-            formality.
-          </p>
-        </ToolSection>
-
-        <ToolSection id="when-mono" title="When should you convert stereo to mono?">
-          <p>
-            When a target platform expects single-channel audio — phone systems,
-            IVR prompts, and some podcast hosts commonly do — or when the content
-            itself, like a single spoken voice, was never relying on stereo
-            separation in the first place.
-          </p>
-        </ToolSection>
-
-        <ToolSection id="when-stereo" title="When should you convert mono to stereo?">
-          <p>
-            When an upload target rejects or mishandles mono files and simply
-            requires two channels to be present, regardless of whether they carry
-            different content. This satisfies that requirement without changing
-            how the audio actually sounds.
-          </p>
-        </ToolSection>
-
-        <ToolSection id="real-stereo" title="Does mono to stereo create real stereo?">
-          <p>
-            No. Real stereo width comes from having two channels that genuinely
-            carry different content — different mic positions, panned
-            instruments, a stereo effect. Duplicating a mono signal across two
-            channels satisfies a channel-count requirement, but it doesn&apos;t
-            create anything to separate, so no width is added.
-          </p>
-          <p>
-            Want the fuller breakdown of why this distinction matters and what
-            each direction is actually doing under the hood?{" "}
-            <Link href="/guides/mono-vs-stereo-what-changes">
-              Read Mono vs. Stereo: What Actually Changes When You Convert
-            </Link>
-            . Converting to mono for a phone system or IVR? See the{" "}
-            <Link href="/guides/convert-audio-for-phone-systems-3cx-asterisk-ivr">
-              phone-system audio guide
-            </Link>{" "}
-            for the full 8kHz mono WAV workflow. Sending samples to a Digitakt
-            or another mono hardware sampler? The{" "}
-            <Link href="/guides/prepare-samples-for-sp404-digitakt-mpc">
-              hardware sampler guide
-            </Link>{" "}
-            explains why summing to mono yourself beats letting the transfer
-            tool take one channel.
-          </p>
-        </ToolSection>
-
-        <ToolSection id="quality" title="Does converting stereo to mono affect audio quality?">
-          <p>
-            Converting stereo to mono changes the channel configuration and can
-            remove left/right separation that was present in the original. The
-            result isn&apos;t necessarily lower-quality audio, but it can sound
-            different, because stereo information is being combined into one
-            channel. Whether that matters depends on the source: a mono voice
-            recording loses nothing meaningful, while a stereo music mix with
-            real left/right content will sound different once collapsed to one
-            channel.
-          </p>
-        </ToolSection>
-
-        <ToolSection id="how-to" title="How to convert between mono and stereo">
-          <ol>
-            <li>Upload an {formatList} file.</li>
-            <li>Choose mono or stereo as the target.</li>
-            <li>Download the converted file.</li>
-          </ol>
-        </ToolSection>
-
-        <ToolSection id="formats" title="Supported formats" bleed>
-          {/* Rendered from the backend's allowed_audio_formats rather than a
-              hand-written array — the mechanism that left AIFF off /stems and
-              /key-finder. */}
-          <div className="flex flex-wrap gap-2">
-            {formats.map((format) => (
-              <span
-                key={format}
-                className="rounded-lg border border-graphite-700 bg-graphite-850 px-3 py-1.5 font-mono text-sm font-semibold text-amber-400"
-              >
-                {format}
-              </span>
-            ))}
-          </div>
+        <ToolSection id="when" title="Which way, and why" bleed>
+          <CompareTable
+            columns={["Stereo to mono", "Mono to stereo"]}
+            highlight={-1}
+            rows={[
+              {
+                label: "The job",
+                cells: [
+                  { text: "Phone systems, IVR prompts, some podcast hosts, and any single voice that never used the width" },
+                  { text: "A platform or player that refuses single-channel files, or a template that expects two" },
+                ],
+              },
+              {
+                label: "What changes in the sound",
+                cells: [
+                  { state: "partial", text: "Panning and stereo effects collapse. Out-of-phase content partly cancels" },
+                  { state: "yes", text: "Nothing. Same audio, twice" },
+                ],
+              },
+              {
+                label: "File size",
+                cells: [
+                  { text: "Roughly halves for WAV and AIFF. Compressed formats shrink less" },
+                  { text: "Roughly doubles for WAV and AIFF" },
+                ],
+              },
+              {
+                label: "Reversible",
+                cells: [
+                  { state: "no", text: "No. Keep the stereo original" },
+                  { state: "yes", text: "Yes, fold it straight back" },
+                ],
+              },
+            ]}
+            footnote="Want actual stereo from a mono mix? That is a separation job, not a channel job. The Vocal Remover and Stem Splitter pull a mix apart so you can place the parts yourself."
+          />
           <Prose className="mt-5">
             <p>
-              Upload any of the formats above, up to {limits.maxUploadMb}MB per
-              file
-              {durationCap !== null ? ` and ${durationLabel(durationCap)} long` : ""}.
+              Summing to mono yourself, before a transfer or an upload, beats letting a platform do it silently on
+              the way in: you hear what collapsed and can fix the mix first.{" "}
+              <Link href="/vocal-remover">Vocal Remover</Link> and <Link href="/stems">Stem Splitter</Link> are the
+              tools for building width from a source that never had it.
             </p>
           </Prose>
         </ToolSection>
 
-        {/* Was six paragraphs each opening with a bolded category — term and
-            definition pairs. */}
-        <ToolSection id="common-uses" title="Common uses">
-          <dl>
-            {USE_CASES.map((u) => (
-              <Fragment key={u.name}>
-                <dt>{u.name}</dt>
-                <dd>{u.desc}</dd>
-              </Fragment>
-            ))}
-          </dl>
-        </ToolSection>
+        <FAQSection faqs={faqs} />
 
         <RelatedToolsGrid tools={relatedTools} />
 
-        <FAQSection faqs={faqs} />
+        <PageByline
+          updated={UPDATED}
+          legal="You are responsible for having the right to process any file you upload. AudioForges does not host or distribute the files processed here."
+        />
       </ToolPageShell>
     </>
   );
