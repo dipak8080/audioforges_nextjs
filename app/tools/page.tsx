@@ -18,7 +18,7 @@ const PAGE_DESCRIPTION = `All ${liveTools.length} free audio tools: conversion, 
 
 const OG_IMAGE = ogImage(
   "All free audio tools",
-  "Conversion, key and BPM, stems, cleanup, pitch and tempo — in the browser.",
+  "Conversion, key and BPM, stems, cleanup, pitch and tempo, in the browser.",
   `${liveTools.length} tools · No sign-up`
 );
 

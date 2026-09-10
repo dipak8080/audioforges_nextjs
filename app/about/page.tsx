@@ -176,10 +176,13 @@ export default function AboutPage() {
 
           <h2 id="who">Who&apos;s behind it</h2>
           <p>
-            AudioForges is built and maintained by a solo developer who is also a
-            music producer working in melodic house and electronic styles. Every tool
-            here exists because I needed it myself first, that&apos;s the bar for
-            adding anything new to the site.
+            AudioForges is built and maintained by Dipak, a solo developer and
+            music producer in Kathmandu, working in melodic house and electronic
+            styles. There is no team and no company behind it. Every tool here
+            exists because I needed it myself first, and that is still the bar
+            for adding anything new. The models, resamplers and filters each
+            tool runs are named on its page, so you can check the claims rather
+            than take them on trust.
           </p>
 
           <h2 id="keeping-it-free">Keeping it free</h2>
