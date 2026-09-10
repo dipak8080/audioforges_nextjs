@@ -5,9 +5,12 @@ import { FAQSection } from "@/components/faq/FAQSection";
 import { ToolPageShell } from "@/components/layout/ToolPageShell";
 import { Breadcrumb } from "@/components/layout/Breadcrumb";
 import { ToolSection } from "@/components/ui/ToolSection";
-import { FeatureStrip } from "@/components/ui/FeatureStrip";
 import { Prose } from "@/components/ui/Prose";
 import { RelatedToolsGrid } from "@/components/tools/RelatedToolsGrid";
+import { ProofStrip } from "@/components/tools/ProofStrip";
+import { CompareTable } from "@/components/tools/CompareTable";
+import { PageByline } from "@/components/tools/PageByline";
+import { BitrateChainDiagram } from "@/components/tools/BitrateChainDiagram";
 import { ToolVideo } from "@/components/media/ToolVideo";
 import { SITE_URL } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
@@ -17,6 +20,8 @@ import { ogForTool } from "@/lib/og";
 const PAGE_TITLE = "Free YouTube to WAV Converter — Lossless Audio";
 const PAGE_DESCRIPTION =
   "Convert YouTube videos to lossless WAV online for free. No sign-up, no watermark, supports YouTube Shorts, and downloads high-quality audio in seconds.";
+
+const UPDATED = "2026-09-10";
 
 const OG_IMAGE = ogForTool("youtube-to-wav", "Free YouTube to WAV Converter");
 
@@ -57,6 +62,7 @@ const webAppJsonLd = {
   "@type": "WebApplication",
   name: "YouTube to WAV Converter",
   url: `${SITE_URL}/youtube-to-wav`,
+  dateModified: UPDATED,
   applicationCategory: "MultimediaApplication",
   operatingSystem: "Any",
   offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
@@ -75,14 +81,6 @@ const webAppJsonLd = {
 // them. This page was the last one on the site still emitting it.
 //
 // FAQPage comes from <FAQSection />, BreadcrumbList from <Breadcrumb />.
-
-const FORMAT_COMPARISON = [
-  ["File size", "Large (~10MB/min)", "Small (~2.4MB/min at 320kbps)"],
-  ["Quality", "Lossless", "Compressed, transparent at 320kbps"],
-  ["Editing / sampling", "Ideal — no artifacts to expose", "Fine for reference, riskier for heavy processing"],
-  ["DJ software", "Preferred", "Workable"],
-  ["Casual listening / sharing", "Overkill on size", "Ideal"],
-];
 
 export default async function YouTubeToWavPage() {
   const relatedTools = getRelatedTools("youtube-to-wav", 5);
@@ -211,121 +209,95 @@ export default async function YouTubeToWavPage() {
         breadcrumb={
           <Breadcrumb items={[{ name: "Tools", href: "/tools" }, { name: "YouTube to WAV" }]} />
         }
+        meta={["No account", "No watermark", "Lossless WAV"]}
         title="Free YouTube to WAV Converter"
         lede="Paste a link and download lossless WAV audio in seconds. No sign-up, no watermark, no app to install."
         tool={<YouTubeConverterForm />}
       >
-        {/* The third cell carries the limits, which appeared only in the FAQ
-            before. */}
-        <FeatureStrip
-          features={[
-            { title: "Fast", desc: "Most conversions finish in 8–20 seconds." },
+        <ProofStrip
+          proofs={[
             {
-              title: "High quality",
-              desc: "Lossless WAV or 320kbps MP3 — your choice, every time.",
+              label: "Speed",
+              value: "8 to 20 seconds, typically",
+              note: `Videos up to ${maxVideoLabel}. Anything longer is rejected before conversion starts, not after the wait.`,
             },
             {
-              title: "No sign-up",
-              desc: `No account, no email, no watermark. Videos up to ${maxVideoLabel}.`,
+              label: "Output",
+              value: "Lossless WAV, or 320kbps MP3",
+              note: "Same converter either way. Pick the format on the tool above.",
+            },
+            {
+              label: "Nothing of yours is stored",
+              value: "No upload, no account",
+              note: `The converted audio is cached ${cacheWindow}, keyed on the video and format alone, with nothing identifying you in it.`,
             },
           ]}
         />
 
-        <ToolSection id="how-to" title="How to convert YouTube to WAV">
-          {/*
-            The cache sentence here used to read "cached for a short period"
-            with no figure — the exact vagueness the FAQ answer was rewritten to
-            replace. With the window derived, the page was saying "up to 30
-            days" in one place and "a short period" in another. Same constant
-            now, so they can't disagree.
-          */}
-          <p>
-            Converting a YouTube video to WAV or MP3 with AudioForges takes four
-            steps and no software install. The converter extracts the audio track
-            directly from the video URL you provide — you never need to download
-            the video itself first. Converted audio is cached {cacheWindow} so a
-            repeat request for the same video is served instantly, and nothing
-            about it is linked to you: no account, no email, no record of who
-            converted what.
-          </p>
-          <ol>
-            <li>Copy a YouTube video, Shorts, or youtu.be URL.</li>
-            <li>Paste it into the converter above.</li>
-            <li>
-              Choose WAV for lossless audio, or MP3 for a smaller file — the{" "}
-              <Link href="/youtube-to-mp3">YouTube to MP3 converter</Link> has the
-              bitrate and file-size detail if that&apos;s the one you want.
-            </li>
-            <li>Click Convert and download — usually ready in 8-20 seconds.</li>
+        <ToolSection id="how-to" title="Three steps, nothing to install" bleed>
+          <ol className="grid gap-3 sm:grid-cols-3">
+            {[
+              ["Paste the link", "Any YouTube URL, including Shorts. Copy it from the address bar or the share sheet."],
+              ["Pick a format", "WAV for lossless, MP3 for a file about a quarter the size. The rest is automatic."],
+              ["Download", `Straight to your device. Fair-use limit is ${rateLimitText}, well past a normal session.`],
+            ].map(([t, d], i) => (
+              <li key={t} className="rounded-xl border border-graphite-800 bg-graphite-900 p-5">
+                <p className="font-mono text-[11px] text-amber-400">Step {i + 1}</p>
+                <p className="mt-1.5 font-medium text-text-primary">{t}</p>
+                <p className="mt-1.5 text-sm leading-relaxed text-text-muted">{d}</p>
+              </li>
+            ))}
           </ol>
-          <p>
-            If you&apos;re not sure which format to pick: WAV is the better
-            default whenever the audio is headed into a DAW, a DJ set, or any kind
-            of editing — it hands off every bit of detail in the original
-            recording with nothing discarded. MP3 is the better choice when you
-            just want a smaller file for listening on a phone or sharing with
-            someone else, since 320kbps is transparent enough that most listeners
-            won&apos;t hear a difference from the source.
-          </p>
+          <Prose className="mt-5">
+            <p>
+              It works on any browser, phone or desktop, with nothing to install. Age-restricted, private,
+              members-only and region-blocked videos cannot be fetched, and live streams have no finished file to
+              pull, so those are the links that fail.
+            </p>
+          </Prose>
         </ToolSection>
 
-        <ToolSection id="why-wav" title="Why convert YouTube to WAV?">
-          <p>
-            WAV preserves audio without lossy compression, which is exactly what
-            matters for sampling, DJ software, music production, audio editing,
-            and archival purposes — any workflow where the audio gets processed
-            further benefits from starting with every bit of the original
-            recording intact. If you&apos;re only planning to listen back or share
-            the file as-is, MP3&apos;s much smaller size is usually the more
-            practical choice instead — the{" "}
-            <Link href="/youtube-to-mp3">YouTube to MP3 converter</Link> is set up
-            for that, at 320kbps by default.
-          </p>
+        {/*
+          THE POINT OF THIS SECTION: this is the page with the most search
+          traffic on the site, and most of it leaves with a file and never sees
+          anything else we built. These four are what people actually do with
+          YouTube audio next.
+        */}
+        <ToolSection id="next" title="What to do with the audio next" bleed>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {[
+              ["Remove the vocals", "Get an instrumental for karaoke, or the acapella on its own.", "/youtube-vocal-remover", "Skip the download step"],
+              ["Split into stems", "Vocals, drums, bass and other as four separate files.", "/youtube-stem-splitter", "Skip the download step"],
+              ["Find key and BPM", "Camelot code included, ready for your DJ library.", "/key-finder", "Upload the WAV"],
+              ["Convert to something else", "FLAC, AIFF, OGG and more, from the WAV you just made.", "/convert", "Upload the WAV"],
+            ].map(([title, desc, href, how]) => (
+              <Link
+                key={href}
+                href={href}
+                prefetch={false}
+                className="group rounded-xl border border-graphite-800 bg-graphite-900 p-4 transition-colors hover:border-amber-500/40"
+              >
+                <p className="font-medium text-text-primary group-hover:text-amber-400">{title}</p>
+                <p className="mt-1 text-sm leading-relaxed text-text-muted">{desc}</p>
+                <p className="mt-2 font-mono text-[11px] text-text-subtle">{how}</p>
+              </Link>
+            ))}
+          </div>
+          <Prose className="mt-5">
+            <p>
+              For the first two you do not need this page at all: paste the same link into those tools and they
+              fetch the audio and separate it in one go.
+            </p>
+          </Prose>
         </ToolSection>
 
-        <ToolSection id="who-for" title="Who is this for?">
-          <p>
-            This converter gets used across a range of workflows — pulling a
-            reference track before a session, backing up your own uploaded
-            content, or getting a clean clip ready for editing:
-          </p>
-          <ul>
-            <li>
-              Music producers pulling reference tracks or samples they have the
-              rights to use
-            </li>
-            <li>DJs building a set from tracks they own or have permission to use</li>
-            <li>Podcast editors extracting a clip from their own or licensed content</li>
-            <li>Video editors grabbing a clean audio bed for a project</li>
-            <li>Students and musicians studying a performance or arrangement</li>
-          </ul>
-          <p>
-            Not sure which reference tracks are actually worth pulling?{" "}
-            <Link href="/guides/finding-reference-tracks">
-              Read How to Find Reference Tracks That Actually Help
-            </Link>
-            .
-          </p>
-        </ToolSection>
-
-        <ToolSection id="about" title="About the YouTube to WAV / MP3 converter">
-          <p>
-            AudioForges&apos; YouTube converter is completely free and extracts
-            the audio track from a video URL, delivering it as a clean{" "}
-            <strong>WAV</strong> (44.1kHz, uncompressed) or <strong>MP3</strong>{" "}
-            (320kbps CBR) file. It supports standard youtube.com/watch, short
-            youtu.be, and /shorts links — one video at a time, rather than full
-            playlists, up to {maxVideoLabel} long. Both formats run on the same
-            endpoint; the{" "}
-            <Link href="/youtube-to-mp3">YouTube to MP3 converter</Link> is the
-            same tool with MP3 selected and the MP3-specific detail written out.
-          </p>
-          <p>
-            <strong>Common legitimate uses:</strong> downloading your own uploaded
-            videos, extracting audio from Creative-Commons or public-domain
-            content, saving royalty-free tracks, backing up podcasts you have
-            permission to save, and grabbing reference audio for a track you own.
-          </p>
+        <ToolSection id="what-wav-means" title="What lossless means from a YouTube source" bleed>
+          <BitrateChainDiagram
+            outputLabel="WAV, 1,411 kbps"
+            outputWidth={620}
+            ceilingNote="what arrives is what the WAV keeps, with nothing lost and nothing added"
+            caption="YouTube serves Opus at roughly 130 to 160 kbps, so no converter can hand you studio quality. What WAV does is stop the chain there: the audio is decoded once into uncompressed PCM and never compressed again. MP3 would compress it a second time. That is the whole difference, and for sampling, DJ software or anything that gets processed further, it is the one that matters."
+          />
         </ToolSection>
 
         <ToolSection id="wav-vs-mp3" title="WAV vs MP3: which should you choose?" bleed>
@@ -339,26 +311,48 @@ export default async function YouTubeToWavPage() {
               further.
             </p>
           </Prose>
-          <div className="mt-5 overflow-x-auto rounded-xl border border-graphite-800">
-            <table className="w-full text-left text-sm text-text-muted">
-              <thead className="bg-graphite-900 text-text-primary">
-                <tr>
-                  <th className="px-4 py-3 font-semibold">Feature</th>
-                  <th className="px-4 py-3 font-semibold">WAV</th>
-                  <th className="px-4 py-3 font-semibold">MP3</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-graphite-800">
-                {FORMAT_COMPARISON.map(([feature, wav, mp3]) => (
-                  <tr key={feature}>
-                    <td className="px-4 py-3">{feature}</td>
-                    <td className="px-4 py-3">{wav}</td>
-                    <td className="px-4 py-3">{mp3}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <CompareTable
+            columns={["WAV", "MP3 at 320kbps"]}
+            highlight={0}
+            rows={[
+              {
+                label: "File size",
+                cells: [
+                  { text: "About 10MB per minute", mono: true },
+                  { text: "About 2.4MB per minute", mono: true },
+                ],
+              },
+              {
+                label: "Compression",
+                cells: [
+                  { state: "yes", text: "None. Original PCM audio" },
+                  { state: "partial", text: "Lossy, transparent for listening" },
+                ],
+              },
+              {
+                label: "Editing and sampling",
+                cells: [
+                  { state: "yes", text: "Nothing for processing to expose" },
+                  { state: "partial", text: "Fine as reference, riskier under heavy processing" },
+                ],
+              },
+              {
+                label: "DJ software",
+                cells: [
+                  { state: "yes", text: "Preferred" },
+                  { state: "partial", text: "Workable" },
+                ],
+              },
+              {
+                label: "Listening and sharing",
+                cells: [
+                  { state: "partial", text: "Overkill on size" },
+                  { state: "yes", text: "Ideal" },
+                ],
+              },
+            ]}
+            footnote="Neither recovers what YouTube already compressed away. WAV keeps what arrives intact; MP3 compresses it a second time."
+          />
           <Prose className="mt-5">
             <p>
               If MP3 is what you actually want, the{" "}
@@ -381,22 +375,14 @@ export default async function YouTubeToWavPage() {
 
         <ToolVideo slug="youtube-to-wav" />
 
+        <FAQSection faqs={faqs} />
+
         <RelatedToolsGrid tools={relatedTools} />
 
-        {/* h3, not h2 — a footnote under the page's content rather than a
-            section sitting in the outline beside the real ones. */}
-        <section className="rounded-xl border border-graphite-800 bg-graphite-900 p-5">
-          <h3 className="font-semibold text-text-primary">Copyright &amp; fair use</h3>
-          <p className="mt-2 text-sm leading-relaxed text-text-muted">
-            This tool is intended for downloading content you own the rights to,
-            that is royalty-free or Creative Commons licensed, or that is in the
-            public domain. You are solely responsible for ensuring you have the
-            right to download and use any content. AudioForges does not host,
-            store, or distribute copyrighted material.
-          </p>
-        </section>
-
-        <FAQSection faqs={faqs} />
+        <PageByline
+          updated={UPDATED}
+          legal="This tool is for content you own, that is royalty-free or Creative Commons licensed, or that is in the public domain. You are responsible for having the right to download and use anything you convert. AudioForges does not host, store or distribute copyrighted material."
+        />
       </ToolPageShell>
     </>
   );

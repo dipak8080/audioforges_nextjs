@@ -12,9 +12,9 @@ import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
 import { ogForTool } from "@/lib/og";
 
-const PAGE_TITLE = "Online Voice Recorder — No Upload, No Sign-Up";
+const PAGE_TITLE = "Online Voice Recorder – Record and Download WAV";
 const PAGE_DESCRIPTION =
-  "Record audio from your microphone directly in your browser, free. Nothing is ever uploaded — your recording stays on your device. No sign-up.";
+  "Record from your microphone in the browser and download it as a WAV. Free, no sign-up, and nothing is uploaded: the recording never leaves your device.";
 
 const OG_IMAGE = ogForTool("voice-recorder", "Free Online Voice Recorder");
 
@@ -91,7 +91,7 @@ const faqs = [
   {
     question: "What file format do I get?",
     answer:
-      "Whichever format your browser's recording API supports natively — typically WebM (Chrome, Firefox, Edge) or M4A (Safari), with OGG as a fallback on some browsers. If you need a specific format like MP3 or WAV, convert the downloaded file afterward.",
+      "Two buttons, two formats. The first downloads exactly what your browser recorded, which is WebM on Chrome, Firefox and Edge, or M4A on Safari. The second converts that to a 16-bit PCM WAV in the page and downloads it, which is the one that opens in a DAW, in Audacity, or on Windows without extra software. Both are made on your device; neither is uploaded.",
   },
   {
     question: "Do I need to install anything?",
@@ -141,8 +141,9 @@ export default function VoiceRecorderPage() {
             items={[{ name: "Tools", href: "/tools" }, { name: "Online Voice Recorder" }]}
           />
         }
+        meta={["No account", "Nothing uploaded", "WAV download"]}
         title="Free Online Voice Recorder"
-        lede="Record audio from your microphone right in your browser, free, no sign-up, and nothing is ever uploaded."
+        lede="Record from your microphone and download it as a WAV. Free, no sign-up, and the audio never leaves your browser."
         tool={<VoiceRecorderForm />}
       >
         <FeatureStrip

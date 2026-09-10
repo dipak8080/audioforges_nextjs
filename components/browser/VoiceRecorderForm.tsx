@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { encodeWav } from "@/lib/audio/mix-export";
 import { Mic, Square, Play, Pause, Download, RotateCcw, AlertTriangle } from "lucide-react";
 import { Button, buttonStyles } from "@/components/ui/Button";
 
@@ -43,6 +44,8 @@ export function VoiceRecorderForm() {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [mimeType, setMimeType] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [wavBusy, setWavBusy] = useState(false);
+  const [wavError, setWavError] = useState(false);
   const [levels, setLevels] = useState<number[]>(new Array(32).fill(0.05));
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -195,6 +198,42 @@ export function VoiceRecorderForm() {
 
   const downloadFilename = mimeType ? `recording.${extensionForMimeType(mimeType)}` : "recording.webm";
 
+  /*
+    WAV EXPORT. MediaRecorder hands back whatever the browser encodes natively:
+    WebM/Opus on Chrome and Firefox, M4A on Safari. Neither opens in most DAWs
+    or in Windows without help, which is what people recording a voice memo
+    actually need next.
+
+    Decoding the blob and re-encoding with encodeWav (the same encoder Forge
+    Mixer uses) runs entirely in the page, so the "nothing is uploaded" claim
+    on this tool stays literally true. It is lossy-to-PCM, not a quality gain:
+    the WAV is a lossless container around audio Opus already compressed.
+  */
+  const handleWavExport = async () => {
+    if (!audioUrl || wavBusy) return;
+    setWavBusy(true);
+    try {
+      const raw = await (await fetch(audioUrl)).arrayBuffer();
+      const Ctx =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const ctx = new Ctx();
+      const decoded = await ctx.decodeAudioData(raw);
+      void ctx.close();
+      const blob = encodeWav(decoded);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "recording.wav";
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    } catch {
+      setWavError(true);
+    } finally {
+      setWavBusy(false);
+    }
+  };
+
   if (state === "unsupported") {
     return (
       <div className="rounded-2xl border border-graphite-800 bg-graphite-900 p-6 sm:p-8">
@@ -306,13 +345,30 @@ export function VoiceRecorderForm() {
             Download recording
           </a>
 
+          <Button
+            variant="outline"
+            size="md"
+            className="w-full"
+            onClick={handleWavExport}
+            disabled={wavBusy}
+          >
+            <Download />
+            {wavBusy ? "Converting to WAV…" : "Download as WAV"}
+          </Button>
+
+          {wavError && (
+            <p className="text-center text-xs text-red-400">
+              WAV conversion failed in this browser. The download above still works.
+            </p>
+          )}
+
           <Button variant="outline" size="md" className="w-full" onClick={handleReset}>
             <RotateCcw />
             Record another
           </Button>
 
           <p className="text-xs text-text-subtle text-center">
-            Your recording stays in your browser and is never uploaded anywhere.
+            Both downloads are made in your browser. Nothing is ever uploaded anywhere.
           </p>
         </div>
       )}

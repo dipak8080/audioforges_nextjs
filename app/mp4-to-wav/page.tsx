@@ -37,9 +37,9 @@ import { ogForTool } from "@/lib/og";
 
   `absolute` title, so " | AudioForges" isn't appended.
 */
-const PAGE_TITLE = "MP4 to WAV Converter — Free, No Sign-Up";
+const PAGE_TITLE = "MP4 to WAV Converter – Free, Keeps the Sample Rate";
 const PAGE_DESCRIPTION =
-  "Convert MP4 to WAV free online — extract a video's audio as an uncompressed WAV for editing or a DAW. No sign-up, no watermark, no app.";
+  "Extract a video's audio as 16-bit PCM WAV at the source sample rate, with no resampling and no downmix. Free, no sign-up, no watermark, no app.";
 
 const OG_IMAGE = ogForTool("mp4-to-wav", "Free MP4 to WAV converter");
 

@@ -5,9 +5,12 @@ import { FAQSection } from "@/components/faq/FAQSection";
 import { ToolPageShell } from "@/components/layout/ToolPageShell";
 import { Breadcrumb } from "@/components/layout/Breadcrumb";
 import { ToolSection } from "@/components/ui/ToolSection";
-import { FeatureStrip } from "@/components/ui/FeatureStrip";
 import { Prose } from "@/components/ui/Prose";
 import { RelatedToolsGrid } from "@/components/tools/RelatedToolsGrid";
+import { ProofStrip } from "@/components/tools/ProofStrip";
+import { CompareTable } from "@/components/tools/CompareTable";
+import { PageByline } from "@/components/tools/PageByline";
+import { BitrateChainDiagram } from "@/components/tools/BitrateChainDiagram";
 import { ToolVideo } from "@/components/media/ToolVideo";
 import { SITE_URL } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
@@ -74,6 +77,8 @@ const PAGE_TITLE = "YouTube to MP3 Converter & Downloader – Free 320kbps";
 const PAGE_DESCRIPTION =
   "Free YouTube to MP3 converter and downloader. Paste a link, get 320kbps audio in seconds — no signup, no watermark, no app, on phone or desktop.";
 
+const UPDATED = "2026-09-10";
+
 const OG_IMAGE = ogForTool("youtube-to-mp3", "YouTube to MP3 Converter");
 
 export const metadata: Metadata = {
@@ -103,6 +108,7 @@ const webAppJsonLd = {
   "@type": "WebApplication",
   name: "YouTube to MP3 Converter & Downloader",
   url: `${SITE_URL}/youtube-to-mp3`,
+  dateModified: UPDATED,
   applicationCategory: "MultimediaApplication",
   operatingSystem: "Any",
   offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
@@ -214,6 +220,7 @@ export default function YouTubeToMp3Page() {
         breadcrumb={
           <Breadcrumb items={[{ name: "Tools", href: "/tools" }, { name: "YouTube to MP3" }]} />
         }
+        meta={["No account", "No watermark", "320kbps CBR"]}
         title="YouTube to MP3 Converter"
         lede="Convert YouTube to MP3 free at 320kbps. Paste a link, download in seconds — no signup, no watermark, no app."
         /* defaultFormat="mp3" — without it the form loads with WAV preselected
@@ -221,49 +228,63 @@ export default function YouTubeToMp3Page() {
            See YouTubeConverterForm's prop. */
         tool={<YouTubeConverterForm defaultFormat="mp3" />}
       >
-        <FeatureStrip
-          features={[
+        <ProofStrip
+          proofs={[
             {
-              title: "320kbps",
-              desc: "CBR at 44.1kHz — the highest MP3 rate, with room to spare over the source.",
+              label: "Output",
+              value: "320kbps CBR at 44.1kHz",
+              note: "The highest MP3 rate, with headroom over what YouTube actually sends. See below for what that does and does not buy.",
             },
             {
-              title: "Small files",
-              desc: "About 2.4MB a minute. A four-minute track is under 10MB.",
+              label: "Size",
+              value: "About 2.4MB a minute",
+              note: "A four-minute track lands under 10MB. Fits a phone, a USB stick or a car head unit without thinking about it.",
             },
             {
-              title: "Plays anywhere",
-              desc: "Phones, car stereos, USB sticks, old MP3 players. MP3 is universal.",
+              label: "The file itself",
+              value: "One clean MP3, named after the video",
+              note: "No spoken tag over the intro, no sponsor message on the end, no bundled installer.",
             },
           ]}
         />
 
-        <ToolSection id="how-to" title="How to convert YouTube to MP3">
-          <p>
-            Converting a YouTube video to MP3 takes three steps and no software
-            install. The converter pulls the audio track straight from the URL you
-            paste — you never download the video and strip the audio out yourself,
-            and nothing reaches your device until you press Download.
-          </p>
-          <ol>
-            <li>Copy a YouTube video, Shorts, or youtu.be URL.</li>
-            <li>Paste it into the converter above — MP3 is already selected.</li>
-            <li>Click Convert, then Download when the file is ready.</li>
+        <ToolSection id="how-to" title="Three steps, nothing to install" bleed>
+          <ol className="grid gap-3 sm:grid-cols-3">
+            {[
+              ["Copy the link", "Any YouTube, Shorts or youtu.be URL, from the address bar or the share sheet."],
+              ["Paste it above", "MP3 is already selected on this page. Nothing else to set."],
+              ["Download", "The audio is pulled straight from the URL. Nothing reaches your device until you press Download."],
+            ].map(([t, d], i) => (
+              <li key={t} className="rounded-xl border border-graphite-800 bg-graphite-900 p-5">
+                <p className="font-mono text-[11px] text-amber-400">Step {i + 1}</p>
+                <p className="mt-1.5 font-medium text-text-primary">{t}</p>
+                <p className="mt-1.5 text-sm leading-relaxed text-text-muted">{d}</p>
+              </li>
+            ))}
           </ol>
-
-          <h3>On iPhone</h3>
-          <p>
-            Copy the link in the YouTube app, open this page in Safari and paste.
-            The MP3 saves into the Files app under Downloads, where the Music app,
-            VLC and most other players can reach it.
-          </p>
-
-          <h3>On Android</h3>
-          <p>
-            Same steps in Chrome or any other browser. The file lands in your
-            Downloads folder and appears automatically in any music player that
-            scans local storage.
-          </p>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <div className="rounded-xl border border-graphite-800 bg-graphite-900 p-4">
+              <p className="font-medium text-text-primary">On iPhone</p>
+              <p className="mt-1 text-sm leading-relaxed text-text-muted">
+                Copy the link in the YouTube app, open this page in Safari and paste. The MP3 saves into Files under
+                Downloads, where the Music app, VLC and most other players can reach it.
+              </p>
+            </div>
+            <div className="rounded-xl border border-graphite-800 bg-graphite-900 p-4">
+              <p className="font-medium text-text-primary">On Android</p>
+              <p className="mt-1 text-sm leading-relaxed text-text-muted">
+                Same steps in Chrome or any browser. The file lands in Downloads and appears in any music player
+                that scans local storage.
+              </p>
+            </div>
+          </div>
+          <Prose className="mt-5">
+            <p>
+              One video at a time. There is no batch mode or playlist support, and that is deliberate: bulk
+              downloaders are the ones YouTube blocks fastest, and a converter that works today is worth more than
+              one that grabs a hundred videos and then stops working entirely.
+            </p>
+          </Prose>
         </ToolSection>
 
         {/* The honest-bitrate section. Every competing page in this SERP sells
@@ -271,28 +292,24 @@ export default function YouTubeToMp3Page() {
             — Opus source, MP3 target — is the same move that differentiates
             /tiktok-to-mp3, and it's the one thing on this page nobody above us
             is willing to write. */}
-        <ToolSection id="bitrate" title="What 320kbps actually gets you">
-          <p>
-            YouTube doesn&apos;t serve lossless audio. It serves{" "}
-            <strong>Opus at roughly 130–160kbps</strong>, or AAC at similar rates
-            on older streams. That is the ceiling on what any converter can
-            possibly hand you, including this one.
-          </p>
-          <p>
-            So a 320kbps MP3 from YouTube is not recovering detail that was never
-            sent. What it does is make the re-encode free: with roughly double the
-            source&apos;s bitrate to work with, the MP3 encoder has enough headroom
-            that nothing audible is lost passing through it. That is a real benefit
-            and a modest one, and it is worth having because a larger file costs
-            you nothing but disk space.
-          </p>
-          <p>
-            What it isn&apos;t is magic. Any converter advertising 320kbps as
-            though it improves on YouTube&apos;s stream is either mistaken or
-            counting on you not checking, and checking takes about thirty seconds
-            in Audacity. We offer the rate because you asked for it, not because it
-            does something the source can support.
-          </p>
+        <ToolSection id="bitrate" title="What 320kbps actually gets you" bleed>
+          <BitrateChainDiagram
+            outputLabel="320 kbps MP3"
+            outputWidth={310}
+            caption="The bottom bar is longer than the middle one, but it cannot contain more. 320 kbps gives the MP3 encoder roughly twice the headroom it needs, so nothing audible is lost passing through it. That is the whole benefit, and it is a real one. It is not more detail than YouTube sent."
+          />
+          <Prose className="mt-5">
+            <p>
+              YouTube does not serve lossless audio. It serves Opus at roughly 130 to 160 kbps, or AAC at similar
+              rates on older streams. That is the ceiling on what any converter can hand you, including this one.
+              We offer 320 because you asked for it and because a larger file costs you nothing but disk space,
+              not because it does something the source can support.
+            </p>
+            <p>
+              Any converter advertising 320kbps as though it improves on the stream is either mistaken or counting
+              on you not checking. Checking takes about thirty seconds in Audacity.
+            </p>
+          </Prose>
         </ToolSection>
 
         <ToolSection id="file-sizes" title="MP3 file sizes, in practice" bleed>
@@ -303,26 +320,18 @@ export default function YouTubeToMp3Page() {
               stick, or a car head unit:
             </p>
           </Prose>
-          <div className="mt-5 overflow-x-auto rounded-xl border border-graphite-800">
-            <table className="w-full text-left text-sm text-text-muted">
-              <thead className="bg-graphite-900 text-text-primary">
-                <tr>
-                  <th className="px-4 py-3 font-semibold">Length</th>
-                  <th className="px-4 py-3 font-semibold">MP3 at 320kbps</th>
-                  <th className="px-4 py-3 font-semibold">Same audio as WAV</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-graphite-800">
-                {FILE_SIZES.map(([length, mp3, wav]) => (
-                  <tr key={length}>
-                    <td className="px-4 py-3 text-text-primary">{length}</td>
-                    <td className="px-4 py-3 font-mono tabular-nums">{mp3}</td>
-                    <td className="px-4 py-3 font-mono tabular-nums">{wav}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <CompareTable
+            columns={["MP3 at 320kbps", "The same audio as WAV"]}
+            highlight={0}
+            rows={FILE_SIZES.map(([length, mp3, wav]) => ({
+              label: length,
+              cells: [
+                { text: mp3, mono: true },
+                { text: wav, mono: true },
+              ],
+            }))}
+            footnote="The audio is the same. WAV costs about four times the storage, and a car stereo cannot tell the difference."
+          />
           <Prose className="mt-5">
             <p>
               The right-hand column is the practical reason most people want MP3
@@ -332,25 +341,39 @@ export default function YouTubeToMp3Page() {
           </Prose>
         </ToolSection>
 
-        <ToolSection id="when-wav" title="When to pick WAV instead">
-          <p>
-            MP3 is the right answer for listening. It stops being the right answer
-            the moment the file is going to be processed rather than played —
-            dropped into a DAW, loaded onto a DJ deck, chopped in a sampler, or
-            pitched and time-stretched. Every one of those works on top of
-            decisions the MP3 encoder already made and can&apos;t undo, and heavy
-            processing is what exposes them.
-          </p>
-          <p>
-            If that&apos;s the plan, use the{" "}
-            <Link href="/youtube-to-wav">YouTube to WAV converter</Link> instead —
-            same converter, uncompressed 44.1kHz output, and one fewer lossy step
-            between the source and your project.{" "}
-            <Link href="/guides/wav-vs-mp3-for-sampling">
-              Read WAV vs MP3 for Sampling: What Actually Changes
-            </Link>{" "}
-            for the detail.
-          </p>
+        <ToolSection id="next" title="When MP3 is the wrong choice" bleed>
+          <Prose className="mb-5">
+            <p>
+              MP3 is right for listening. It stops being right the moment the file gets processed rather than
+              played, because every edit works on top of decisions the encoder already made and cannot undo. If any
+              of these is the plan, start somewhere else.
+            </p>
+          </Prose>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {[
+              ["Sampling or DJing", "Uncompressed 44.1kHz, one fewer lossy step before your project.", "/youtube-to-wav", "Same converter, WAV"],
+              ["Remove the vocals", "An instrumental for karaoke, or the acapella on its own.", "/youtube-vocal-remover", "Paste the same link"],
+              ["Split into stems", "Vocals, drums, bass and other as four separate files.", "/youtube-stem-splitter", "Paste the same link"],
+              ["Find key and BPM", "Camelot code included, ready for your DJ library.", "/key-finder", "Upload the file"],
+            ].map(([title, desc, href, how]) => (
+              <Link
+                key={href}
+                href={href}
+                prefetch={false}
+                className="group rounded-xl border border-graphite-800 bg-graphite-900 p-4 transition-colors hover:border-amber-500/40"
+              >
+                <p className="font-medium text-text-primary group-hover:text-amber-400">{title}</p>
+                <p className="mt-1 text-sm leading-relaxed text-text-muted">{desc}</p>
+                <p className="mt-2 font-mono text-[11px] text-text-subtle">{how}</p>
+              </Link>
+            ))}
+          </div>
+          <Prose className="mt-5">
+            <p>
+              <Link href="/guides/wav-vs-mp3-for-sampling">WAV vs MP3 for Sampling</Link> covers what actually
+              changes, with the detail this summary skips.
+            </p>
+          </Prose>
         </ToolSection>
 
         {/*
@@ -369,25 +392,19 @@ export default function YouTubeToMp3Page() {
             The honest answer is that it depends on the video, not on the tool.
             Four cases are clearly fine:
           </p>
-          <ul>
-            <li>
-              <strong>Your own uploads.</strong> You hold the rights; downloading
-              your own audio is unambiguous.
-            </li>
-            <li>
-              <strong>Creative Commons video.</strong> YouTube has a CC-BY filter
-              in search tools. Check the licence on the video page and follow the
-              attribution terms.
-            </li>
-            <li>
-              <strong>Public domain material.</strong> Old recordings, government
-              footage, anything whose copyright has expired.
-            </li>
-            <li>
-              <strong>Anything you have permission for.</strong> A message from
-              the rights holder saying yes is the whole test.
-            </li>
-          </ul>
+          <div className="my-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {[
+              ["Your own uploads", "You hold the rights. Downloading your own audio is unambiguous."],
+              ["Creative Commons", "Check the licence on the video page and follow the attribution terms."],
+              ["Public domain", "Old recordings, government footage, anything whose copyright has expired."],
+              ["Explicit permission", "A message from the rights holder saying yes is the whole test."],
+            ].map(([t, d]) => (
+              <div key={t} className="rounded-xl border border-amber-500/30 bg-amber-500/[0.05] p-4">
+                <p className="font-medium text-text-primary">{t}</p>
+                <p className="mt-1 text-sm leading-relaxed text-text-muted">{d}</p>
+              </div>
+            ))}
+          </div>
           <p>
             Commercial music is the case people actually mean, and there the
             answer is no in most places: those tracks are licensed to YouTube for
@@ -406,42 +423,16 @@ export default function YouTubeToMp3Page() {
           </p>
         </ToolSection>
 
-        <ToolSection id="downloader" title="YouTube MP3 downloader — what you get">
-          <p>
-            Used as a YouTube MP3 downloader, this does the job and stops there:
-            one link in, one clean MP3 out, named after the video. No watermark, no
-            spoken tag over the intro, no sponsor message welded onto the end, and
-            no bundled installer — three of which are routine on free YouTube audio
-            downloaders and all of which make the file useless for anything but a
-            single listen.
-          </p>
-          <p>
-            There&apos;s no batch mode and no playlist support. One video at a
-            time, which is a deliberate limit rather than a missing feature: bulk
-            downloaders are the ones YouTube blocks fastest, and a converter that
-            works today is worth more than one that grabs a hundred videos until it
-            stops working entirely.
-          </p>
-        </ToolSection>
-
         <ToolVideo slug="youtube-to-mp3" />
+
+        <FAQSection faqs={faqs} />
 
         <RelatedToolsGrid tools={relatedTools} />
 
-        {/* h3, not h2 — a footnote under the page's content rather than a
-            section sitting in the outline beside the real ones. */}
-        <section className="rounded-xl border border-graphite-800 bg-graphite-900 p-5">
-          <h3 className="font-semibold text-text-primary">Copyright &amp; fair use</h3>
-          <p className="mt-2 text-sm leading-relaxed text-text-muted">
-            This tool is intended for downloading content you own the rights to,
-            that is royalty-free or Creative Commons licensed, or that is in the
-            public domain. You are solely responsible for ensuring you have the
-            right to download and use any content. AudioForges does not host,
-            store, or distribute copyrighted material.
-          </p>
-        </section>
-
-        <FAQSection faqs={faqs} />
+        <PageByline
+          updated={UPDATED}
+          legal="This tool is for content you own, that is royalty-free or Creative Commons licensed, or that is in the public domain. You are responsible for having the right to download and use anything you convert. AudioForges does not host, store or distribute copyrighted material."
+        />
       </ToolPageShell>
     </>
   );

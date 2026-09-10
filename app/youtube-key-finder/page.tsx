@@ -5,8 +5,12 @@ import { FAQSection } from "@/components/faq/FAQSection";
 import { ToolPageShell } from "@/components/layout/ToolPageShell";
 import { Breadcrumb } from "@/components/layout/Breadcrumb";
 import { ToolSection } from "@/components/ui/ToolSection";
-import { FeatureStrip } from "@/components/ui/FeatureStrip";
 import { RelatedToolsGrid } from "@/components/tools/RelatedToolsGrid";
+import { Prose } from "@/components/ui/Prose";
+import { ProofStrip } from "@/components/tools/ProofStrip";
+import { CamelotWheel } from "@/components/tools/CamelotWheel";
+import { CompareTable } from "@/components/tools/CompareTable";
+import { PageByline } from "@/components/tools/PageByline";
 import { ToolVideo } from "@/components/media/ToolVideo";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
@@ -17,6 +21,8 @@ import { ogForTool } from "@/lib/og";
 const PAGE_TITLE = "Free YouTube Key & BPM Finder";
 const PAGE_DESCRIPTION =
   "Paste a YouTube link and automatically get its musical key, BPM, and Camelot notation, free. No download, no sign-up required.";
+
+const UPDATED = "2026-09-10";
 
 const OG_IMAGE = ogForTool("youtube-key-finder", "Free YouTube Key & BPM Finder");
 
@@ -56,6 +62,7 @@ const webAppJsonLd = {
   "@type": "WebApplication",
   name: "YouTube Key & BPM Finder",
   url: `${SITE_URL}/youtube-key-finder`,
+  dateModified: UPDATED,
   applicationCategory: "MultimediaApplication",
   operatingSystem: "Any",
   offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
@@ -172,97 +179,128 @@ export default function YouTubeKeyFinderPage() {
             items={[{ name: "Tools", href: "/tools" }, { name: "YouTube Key & BPM Finder" }]}
           />
         }
+        meta={["No account", "No download step", "Accuracy published"]}
         title="Free YouTube Key & BPM Finder"
         lede="Paste a YouTube link and get its key, BPM, and Camelot notation automatically — no download step, no sign-up."
         tool={<YouTubeAnalyzeForm />}
       >
-        <FeatureStrip
-          features={[
+        <ProofStrip
+          proofs={[
             {
-              title: "No download step",
-              desc: "Paste a link, skip the manual save-and-reupload.",
+              label: "One step",
+              value: "Link in, key and BPM out",
+              note: "The audio is fetched server-side and analysed. Nothing is saved to your device.",
             },
             {
-              title: "Same detection engine",
-              desc: "Runs the same analysis as the file-based tool.",
+              label: "Measured accuracy",
+              value: "85% on BPM, about 50% on key",
+              note: "Same engine as the file tool, scored on the GiantSteps set and written up in full.",
             },
-            { title: "No sign-up", desc: "No account, no email, no watermark." },
+            {
+              label: "Length",
+              value: `Up to ${durationLabel}`,
+              note: `Only the first three minutes are analysed, so longer videos come back just as fast. ${rateLimitLabel} per IP.`,
+            },
           ]}
         />
 
-        <ToolSection id="how-to" title="How to find a YouTube video's key and BPM">
-          <ol>
-            <li>Paste a YouTube video, Shorts, or youtu.be link — up to {durationLabel} long.</li>
-            <li>The audio is fetched and analyzed automatically — no settings to configure.</li>
-            <li>View the detected key, BPM, and Camelot code.</li>
-          </ol>
+        <ToolSection id="camelot" title="What the Camelot code is for" bleed>
+          <Prose className="mb-5">
+            <p>
+              Every result comes back with a Camelot code as well as the key name. The wheel renames the 24 keys as
+              1 to 12 plus A for minor or B for major, and puts every compatible key next to its neighbours. From
+              whatever is playing, three moves are safe: the same number with the other letter, one number up, one
+              number down.
+            </p>
+          </Prose>
+          <CamelotWheel highlight="8A" />
+          <Prose className="mt-5">
+            <p>
+              Camelot codes are what Rekordbox, Serato, Traktor and Mixed In Key all display, so a code from here
+              drops straight into your library.{" "}
+              <Link href="/guides/camelot-wheel-harmonic-mixing">The full harmonic mixing guide</Link> covers
+              building a set around it.
+            </p>
+          </Prose>
         </ToolSection>
 
-        <ToolSection id="what-they-mean" title="What the key, BPM, and Camelot code mean">
-          <p>
-            <strong>Key</strong> is the track&apos;s tonal center — something like
-            A minor or C major. <strong>BPM</strong> (beats per minute) is its
-            tempo. <strong>Camelot notation</strong> translates that musical key
-            into the letter-and-number code DJs use to quickly judge which tracks
-            will mix harmonically with each other.
-          </p>
+        <ToolSection id="accuracy" title="How accurate it is, and when it is wrong" bleed>
+          <CompareTable
+            columns={["BPM", "Key"]}
+            highlight={0}
+            rows={[
+              {
+                label: "Detector",
+                cells: [
+                  { text: "TempoCNN, pretrained", mono: true },
+                  { text: "Essentia bgate profile", mono: true },
+                ],
+              },
+              {
+                label: "Exact match on GiantSteps",
+                cells: [
+                  { state: "yes", text: "85%" },
+                  { state: "partial", text: "About 50%", sub: "the harder of the two problems" },
+                ],
+              },
+              {
+                label: "Usual failure",
+                cells: [
+                  { text: "Reads half or double the real tempo" },
+                  { text: "Returns the relative major or minor" },
+                ],
+              },
+            ]}
+            footnote="Each result carries a confidence figure, and a reading is flagged lower-confidence when two independent checks disagree."
+          />
+          <Prose className="mt-6">
+            <p>
+              Only the first three minutes are analysed, so the opening is the whole story. A video that starts with
+              a long ambient intro or a drum-only build can read badly no matter how clear the rest is. YouTube audio
+              is also compressed before it reaches the analyser, which costs a little on key detection but almost
+              nothing on tempo. Live recordings, heavy effects and mid-track tempo changes give it less to lock onto.
+            </p>
+            <p>
+              The write-up of the detectors and how the numbers were measured is in{" "}
+              <Link href="/guides/bpm-detection-tempocnn">
+                BPM Detection: From 42% to 85% Accuracy With a Pretrained Model
+              </Link>
+              . For why a reading comes back half or double, see{" "}
+              <Link href="/guides/how-key-and-bpm-detection-works">how key and BPM detection works</Link>.
+            </p>
+          </Prose>
         </ToolSection>
 
-        <ToolSection id="why-link" title="Why paste a link instead of downloading first">
-          <p>
-            The regular <Link href="/key-finder">Key &amp; BPM Finder</Link> works
-            from a file already saved on your device, which usually means
-            downloading the audio first with a separate tool and re-uploading it.
-            This version chains that fetch step together with the analysis itself,
-            so a YouTube link is all you need.
-          </p>
-        </ToolSection>
-
-        <ToolSection id="accuracy" title="How accurate is the result?">
-          <p>
-            Automated key and BPM detection works well on most conventional
-            tracks, but it isn&apos;t infallible. Songs with ambiguous tonality,
-            live performances, complex or layered arrangements, heavy effects
-            processing, or a tempo that changes partway through can all produce a
-            less certain result than a straightforward studio track in 4/4 time.
-            Each result includes a confidence percentage, and the key or BPM
-            reading is flagged with a &quot;Lower confidence&quot; indicator
-            whenever two independent checks disagree with each other rather than
-            confirming the same answer.
-          </p>
-          <p>
-            Want the fuller explanation of why key and BPM readings can disagree
-            between tools, and what a lower-confidence result actually means?{" "}
-            <Link href="/guides/how-key-and-bpm-detection-works">
-              Read How Automatic Key and BPM Detection Actually Works
-            </Link>
-            . If you want the measured numbers — the same engine scores 85% exact
-            on the GiantSteps tempo set, and here&apos;s how it got there — read{" "}
-            <Link href="/guides/bpm-detection-tempocnn">
-              BPM Detection: From 42% to 85% Accuracy With a Pretrained Model
-            </Link>
-            .
-          </p>
+        <ToolSection id="next" title="Same link, next job" bleed>
+          <div className="grid gap-3 sm:grid-cols-3">
+            {[
+              ["Remove the vocals", "Instrumental or acapella from the same video.", "/youtube-vocal-remover"],
+              ["Split into stems", "Vocals, drums, bass and other, four files.", "/youtube-stem-splitter"],
+              ["Download the WAV", "If you want the audio itself, lossless.", "/youtube-to-wav"],
+            ].map(([title, desc, href]) => (
+              <Link
+                key={href}
+                href={href}
+                prefetch={false}
+                className="group rounded-xl border border-graphite-800 bg-graphite-900 p-4 transition-colors hover:border-amber-500/40"
+              >
+                <p className="font-medium text-text-primary group-hover:text-amber-400">{title}</p>
+                <p className="mt-1 text-sm leading-relaxed text-text-muted">{desc}</p>
+              </Link>
+            ))}
+          </div>
         </ToolSection>
 
         <ToolVideo slug="youtube-key-finder" />
 
+        <FAQSection faqs={faqs} />
+
         <RelatedToolsGrid tools={relatedTools} />
 
-        {/* h3, not h2 — a footnote under the page's content rather than a
-            section sitting in the outline beside the real ones. */}
-        <section className="rounded-xl border border-graphite-800 bg-graphite-900 p-5">
-          <h3 className="font-semibold text-text-primary">Copyright &amp; processing notice</h3>
-          <p className="mt-2 text-sm leading-relaxed text-text-muted">
-            You are responsible for ensuring you have the right to process any
-            video you submit — for personal use, content you own, or material you
-            have permission to use. Audio is fetched temporarily to run the
-            analysis; AudioForges does not publicly host or distribute the videos
-            or audio processed through this tool.
-          </p>
-        </section>
-
-        <FAQSection faqs={faqs} />
+        <PageByline
+          updated={UPDATED}
+          legal="You are responsible for having the right to process any video you paste. Audio is fetched temporarily to run the analysis and is not kept; AudioForges does not host or distribute the videos analysed here."
+        />
       </ToolPageShell>
     </>
   );
