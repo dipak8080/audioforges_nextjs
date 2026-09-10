@@ -195,15 +195,12 @@ export const RATE_LIMITS: Record<string, RateLimitSpec> = {
 
   // ---- YouTube / TikTok download ----
   //
-  // CORRECTED 2026-08-21: this said 15, but
-  // DOWNLOAD_RATE_LIMIT_MAX_REQUESTS in config.py is 18. Same class of
-  // bug as the audio-to-midi entry above and in the same direction —
-  // the UI under-reported the real allowance, so a user who'd made
-  // sixteen downloads was told they were over a limit they hadn't
-  // reached. Found while auditing this file against config.py for the
-  // YouTube chain split; unrelated to that change.
+  // CORRECTED 2026-09-10: DOWNLOAD_RATE_LIMIT_MAX_REQUESTS in config.py
+  // now defaults to 30 (was 18 on 2026-08-21, 15 before that). /limits is
+  // the source of truth at runtime; this is the fallback and must track
+  // config.py.
   download: {
-    limit: 18, windowSeconds: 3600, label: "18 per hour",
+    limit: 30, windowSeconds: 3600, label: "30 per hour",
     envVar: "DOWNLOAD_RATE_LIMIT_MAX_REQUESTS",
   },
   "tiktok-to-mp3": {

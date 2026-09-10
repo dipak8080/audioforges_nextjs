@@ -14,6 +14,7 @@ import { BitrateChainDiagram } from "@/components/tools/BitrateChainDiagram";
 import { ToolVideo } from "@/components/media/ToolVideo";
 import { SITE_URL } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
+import { getRateLimitLabel } from "@/lib/data/rate-limits";
 import { ogForTool } from "@/lib/og";
 
 /**
@@ -78,6 +79,8 @@ const PAGE_DESCRIPTION =
   "Free YouTube to MP3 converter and downloader. Paste a link, get 320kbps audio in seconds, no signup, no watermark, no app, on phone or desktop.";
 
 const UPDATED = "2026-09-10";
+
+const DOWNLOAD_LIMIT = getRateLimitLabel("download") ?? "30 per hour";
 
 const OG_IMAGE = ogForTool("youtube-to-mp3", "YouTube to MP3 Converter");
 
@@ -145,7 +148,7 @@ const faqs = [
   {
     question: "Is this YouTube to MP3 converter free?",
     answer:
-      "Yes. No account, no email, no payment, and no watermark or spoken tag on the file. There's a short per-minute limit on how fast you can run conversions, which exists to keep the queue moving rather than to sell you an upgrade, there isn't one.",
+      `Yes. No account, no email, no payment, and no watermark or spoken tag on the file. The fair-use limit is ${DOWNLOAD_LIMIT} per IP address, which exists to keep the queue moving rather than to sell you an upgrade; there isn't one.`,
   },
   {
     question: "What bitrate is the MP3?",

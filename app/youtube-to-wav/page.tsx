@@ -98,7 +98,7 @@ export default async function YouTubeToWavPage() {
     now, named without "transcribe" so it can't drift back.
   */
   const rateLimitText = rateLimitLabel(
-    limits.rateLimits.download ?? 18,
+    limits.rateLimits.download ?? 30,
     windowFor(limits, "download")
   );
   const maxVideoLabel = durationLabel(limits.durations.youtubeDownloadMaxSeconds);
