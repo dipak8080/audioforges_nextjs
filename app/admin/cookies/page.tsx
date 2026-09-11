@@ -86,6 +86,8 @@ interface TrafficAccount {
   last_failure_kind: string | null;
   last_used_via: string | null;
   status?: string;
+  recent_success_rate?: number | null;
+  rotation?: string;
 }
 
 interface TrafficData {
@@ -630,7 +632,7 @@ export default function AdminCookiesPage() {
             <div className="min-w-0">
               <h1 className="text-[17px] font-semibold leading-tight tracking-tight">YouTube cookies</h1>
               <p className="truncate text-[11px] text-text-subtle">
-                One Google account per slot; backups take over when the primary fails
+                One Google account per slot. Downloads rotate across healthy accounts.
               </p>
             </div>
             <div className="ml-auto">
@@ -683,8 +685,8 @@ export default function AdminCookiesPage() {
                 </span>{" "}
                 {brokenSlots.length === 1 ? "needs" : "need"} re-exporting.{" "}
                 {revokedCount > 0
-                  ? "A revoked slot was confirmed dead by an actual download attempt, not just its expiry date — re-export replaces it immediately."
-                  : "Backups only take over after the primary fails, so a dead one stays silent until you need it."}
+                  ? "A revoked slot was confirmed dead by an actual download attempt, not just its expiry date. Re-exporting replaces it immediately."
+                  : "A weak account is tried last until you replace it, so downloads keep working meanwhile."}
               </p>
             </div>
           )}
@@ -783,6 +785,11 @@ export default function AdminCookiesPage() {
                               {acct.last_failure_kind ? `last: ${acct.last_failure_kind}` : "no failures"}
                             </span>
                           </div>
+                          {acct.rotation === "demoted" && (
+                            <p className="mt-1 text-[10px] text-amber-300">
+                              Tried last: {acct.recent_success_rate ?? 0}% ok in the last 2h
+                            </p>
+                          )}
                         </div>
                       );
                     })()}
@@ -829,8 +836,8 @@ export default function AdminCookiesPage() {
           {traffic && (
             <p className="px-1 text-[11px] leading-relaxed text-text-subtle">
               Traffic numbers are live counters since the last restart
-              {traffic.uptime_seconds != null ? ` (${formatUptime(traffic.uptime_seconds)} ago)` : ""} — they reset on
-              every deploy. Green ≥85%, amber 60–85%, red under 60% with bot_check means re-export that account today.
+              {traffic.uptime_seconds != null ? ` (${formatUptime(traffic.uptime_seconds)} ago)` : ""}. They reset on
+              every deploy and when you replace a file. Green ≥85%, amber 60–85%, red under 60% with bot_check means re-export that account today.
             </p>
           )}
 
