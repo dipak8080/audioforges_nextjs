@@ -241,7 +241,11 @@ export default async function KeyFinderPage() {
               <Link href="/guides/camelot-wheel-harmonic-mixing">The full harmonic mixing guide</Link> covers
               building a set around it, and the{" "}
               <Link href="/guides/dj-set-prep-checklist">set prep checklist</Link> covers ordering for energy once
-              everything is tagged.
+              everything is tagged. Tagging a whole crate?{" "}
+              <Link href="/guides/organise-a-dj-library-by-key-and-bpm">
+                How to organise a DJ library by key and BPM
+              </Link>{" "}
+              covers filenames against tags and what to import first.
             </p>
           </Prose>
         </ToolSection>

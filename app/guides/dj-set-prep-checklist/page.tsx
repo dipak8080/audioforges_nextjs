@@ -97,7 +97,11 @@ export default function DjSetPrepGuidePage() {
             energy arc at the same time means you&apos;re solving two problems at
             once and doing both worse. Run untagged tracks through a key/BPM
             detector first so every track already has the data attached when you
-            start arranging.
+            start arranging.{" "}
+            <Link href="/guides/organise-a-dj-library-by-key-and-bpm">
+              Organising a library by key and BPM
+            </Link>{" "}
+            covers doing a whole crate in one pass.
           </p>
 
           <h2 id="step-3">

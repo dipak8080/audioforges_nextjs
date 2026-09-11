@@ -27,6 +27,15 @@ export const guides: Guide[] = [
     category: "production",
   },
   {
+    slug: "organise-a-dj-library-by-key-and-bpm",
+    title: "How to Organise a DJ Library by Key and BPM",
+    description:
+      "Tag a crate with key, BPM and Camelot codes, decide between filenames and tags, and get it into Rekordbox, Serato or Traktor without doing it twice.",
+    publishedDate: "2026-09-11",
+    updatedDate: "2026-09-11",
+    category: "dj-mixing",
+  },
+  {
     slug: "dj-set-prep-checklist",
     title: "DJ Set Prep Checklist: 6 Steps That Flow",
     description:
