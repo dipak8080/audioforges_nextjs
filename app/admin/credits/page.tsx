@@ -60,6 +60,7 @@ interface JobRow {
   est_cost_usd: number | null;
   charge_type: string | null;
   error: string | null;
+  failure_side?: "client" | "server" | null;
   created_at: string;
   ended_at: string | null;
   charge_status: string | null;
@@ -516,6 +517,12 @@ function Badge({
 
 const statusTone = (s: string): "good" | "bad" | "accent" | "muted" =>
   s === "completed" ? "good" : s === "failed" ? "bad" : s === "running" ? "accent" : "muted";
+
+// A job the input decided (too long, no notes, removed video) reads as
+// "rejected", not "failed": only our own failures get red.
+const isRejected = (r: { failure_side?: string | null }) => r.failure_side === "client";
+const jobStatus = (r: { status: string; failure_side?: string | null }) =>
+  isRejected(r) ? "rejected" : r.status;
 
 function Empty({ title, body, icon: Icon = Inbox }: { title: string; body?: string; icon?: typeof Coins }) {
   return (
@@ -1739,6 +1746,7 @@ function ReadPanel({
                   { key: "", label: "All" },
                   { key: "completed", label: "Completed" },
                   { key: "failed_all", label: "Failed" },
+                  { key: "rejected", label: "Rejected" },
                 ]}
               />
               <Select label="Charge" value={chargeType} onChange={setFilter(setChargeType)}>
@@ -1930,7 +1938,12 @@ function JobsPanel({ rows, onEmail }: { rows: JobRow[]; onEmail: (email: string)
     );
   }
 
-  const isFailed = (r: JobRow) => r.status === "failed" || r.status === "timeout" || r.status === "cancelled";
+  const isFailed = (r: JobRow) =>
+    !isRejected(r) && (r.status === "failed" || r.status === "timeout" || r.status === "cancelled");
+  const errorBox = (r: JobRow) =>
+    isRejected(r)
+      ? "border-graphite-700 bg-graphite-900/60 text-text-muted"
+      : "border-red-500/20 bg-red-500/[0.06] text-red-200";
 
   return (
     <DataScroll>
@@ -1948,10 +1961,10 @@ function JobsPanel({ rows, onEmail }: { rows: JobRow[]; onEmail: (email: string)
                   {r.email ?? "anonymous"}
                 </p>
               </div>
-              <Badge tone={statusTone(r.status)}>{r.status}</Badge>
+              <Badge tone={statusTone(jobStatus(r))}>{jobStatus(r)}</Badge>
             </div>
             {r.error && (
-              <p className="mt-2 rounded-lg border border-red-500/20 bg-red-500/[0.06] p-2 text-[11px] leading-relaxed text-red-200">
+              <p className={cn("mt-2 rounded-lg border p-2 text-[11px] leading-relaxed", errorBox(r))}>
                 {r.error}
               </p>
             )}
@@ -2012,7 +2025,7 @@ function JobsPanel({ rows, onEmail }: { rows: JobRow[]; onEmail: (email: string)
                       )}
                     </Td>
                     <Td>
-                      <Badge tone={statusTone(r.status)}>{r.status}</Badge>
+                      <Badge tone={statusTone(jobStatus(r))}>{jobStatus(r)}</Badge>
                     </Td>
                     <Td>
                       <span
@@ -2043,7 +2056,7 @@ function JobsPanel({ rows, onEmail }: { rows: JobRow[]; onEmail: (email: string)
                     <tr className="border-b border-graphite-800/60">
                       <td colSpan={8} className="bg-graphite-950/40 px-4 py-4">
                         {r.error && (
-                          <p className="mb-3 rounded-lg border border-red-500/20 bg-red-500/[0.06] p-2.5 text-[12px] leading-relaxed text-red-200">
+                          <p className={cn("mb-3 rounded-lg border p-2.5 text-[12px] leading-relaxed", errorBox(r))}>
                             {r.error}
                           </p>
                         )}

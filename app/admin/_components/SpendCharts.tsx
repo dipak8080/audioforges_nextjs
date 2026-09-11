@@ -1,4 +1,4 @@
-    "use client";
+"use client";
 
 import { useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, ChevronDown, ChevronUp } from "lucide-react";
@@ -711,6 +711,17 @@ export function SpendBoard({
                 )}
               </dd>
             </div>
+            {totals.rejected > 0 && (
+              <div title="The input could not be processed: too long, no notes or speech, removed video. Not a server failure.">
+                <dt className="text-[12px] text-text-subtle">Rejected</dt>
+                <dd className="text-lg font-semibold tabular-nums text-text-muted">
+                  {count(totals.rejected)}
+                  <span className="ml-1 text-[13px] font-normal text-text-subtle">
+                    {pct(totals.rejected, totals.jobs)}%
+                  </span>
+                </dd>
+              </div>
+            )}
             <div>
               <dt className="text-[12px] text-text-subtle">Paid with credits</dt>
               <dd className="text-lg font-semibold tabular-nums text-text-primary">{count(totals.paid)}</dd>

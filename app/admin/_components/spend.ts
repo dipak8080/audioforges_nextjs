@@ -4,6 +4,7 @@ export interface CostRow {
   jobs: number;
   completed: number;
   failed: number;
+  rejected?: number;
   input_minutes: number;
   gpu_seconds: number;
   est_cost_usd: number;
@@ -97,6 +98,7 @@ export interface ToolAgg {
   jobs: number;
   completed: number;
   failed: number;
+  rejected: number;
   paid: number;
   gpu_seconds: number;
   cost: number;
@@ -114,7 +116,7 @@ export interface SpendModel {
   tools: ToolAgg[];
   series: { key: string; label: string; color: string }[];
   days: DayPoint[];
-  totals: { cost: number; jobs: number; failed: number; paid: number; gpu_seconds: number; completed: number };
+  totals: { cost: number; jobs: number; failed: number; rejected: number; paid: number; gpu_seconds: number; completed: number };
   activeDays: number;
 }
 
@@ -137,6 +139,7 @@ export function buildSpendModel(rows: CostRow[], from: string, to: string): Spen
       jobs: 0,
       completed: 0,
       failed: 0,
+      rejected: 0,
       paid: 0,
       gpu_seconds: 0,
       cost: 0,
@@ -144,6 +147,7 @@ export function buildSpendModel(rows: CostRow[], from: string, to: string): Spen
     t.jobs += r.jobs ?? 0;
     t.completed += r.completed ?? 0;
     t.failed += r.failed ?? 0;
+    t.rejected += r.rejected ?? 0;
     t.paid += r.paid_jobs ?? 0;
     t.gpu_seconds += r.gpu_seconds ?? 0;
     t.cost += r.est_cost_usd ?? 0;
@@ -191,11 +195,12 @@ export function buildSpendModel(rows: CostRow[], from: string, to: string): Spen
       cost: a.cost + t.cost,
       jobs: a.jobs + t.jobs,
       failed: a.failed + t.failed,
+      rejected: a.rejected + t.rejected,
       paid: a.paid + t.paid,
       gpu_seconds: a.gpu_seconds + t.gpu_seconds,
       completed: a.completed + t.completed,
     }),
-    { cost: 0, jobs: 0, failed: 0, paid: 0, gpu_seconds: 0, completed: 0 }
+    { cost: 0, jobs: 0, failed: 0, rejected: 0, paid: 0, gpu_seconds: 0, completed: 0 }
   );
 
   return { tools, series, days, totals, activeDays: Math.max(allDays.length, 1) };
