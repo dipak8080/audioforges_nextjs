@@ -192,7 +192,7 @@ function tempoAlternatives(bpm: number): number[] {
 /* Output */
 
 const WINDOWS_BAD = /[\\/:*?"<>|]/g;
-const EXISTING_PREFIX = /^\d{1,2}[AB] - \d{2,3} - /i;
+const EXISTING_PREFIX = /^(?:\d{1,2}[AB]|[A-G][#b♯♭]? (?:major|minor)) - \d{2,3} - /i;
 
 function splitExt(name: string): [string, string] {
   const i = name.lastIndexOf(".");
@@ -204,9 +204,9 @@ function buildRenames(rows: Row[]): Map<string, string> {
   const used = new Set<string>();
   for (const row of rows) {
     if (row.status !== "done" || !row.result) continue;
-    const code = normCode(row.result.camelot) ?? "Unknown";
+    const key = row.result.key.replace(/\s+/g, " ").trim() || "Unknown key";
     const base = row.name.replace(EXISTING_PREFIX, "");
-    const clean = `${code} - ${Math.round(bpmOf(row))} - ${base}`
+    const clean = `${key} - ${Math.round(bpmOf(row))} - ${base}`
       .replace(WINDOWS_BAD, "")
       .replace(/[\u0000-\u001f]/g, "")
       .trim();

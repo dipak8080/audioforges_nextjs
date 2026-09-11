@@ -116,7 +116,7 @@ export default async function KeyFinderPage() {
   const faqs = [
     {
       question: "Can I analyse several tracks at once?",
-      answer: `Yes. Drop up to ${MAX_BATCH_FILES} files and they run one after another, never in parallel, so the analyser is not overloaded. Sort the results by key, BPM or a suggested mix order, then download a CSV of the results, or the original files renamed with their Camelot code and BPM in front, like 8A - 128 - Track.wav. The audio itself is not touched.`,
+      answer: `Yes. Drop up to ${MAX_BATCH_FILES} files and they run one after another, never in parallel, so the analyser is not overloaded. Sort the results by key, BPM or a suggested mix order, then download a CSV of the results, or the original files renamed with their key and BPM in front, like A minor - 128 - Track.wav. The audio itself is not touched.`,
     },
     {
       question: "What is Camelot notation?",
