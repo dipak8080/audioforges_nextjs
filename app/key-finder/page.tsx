@@ -115,6 +115,10 @@ export default async function KeyFinderPage() {
 
   const faqs = [
     {
+      question: "Can I analyse several tracks at once?",
+      answer: `Yes. Drop up to ${MAX_BATCH_FILES} files and they run one after another, never in parallel, so the analyser is not overloaded. Sort the results by Camelot or BPM, click any row for its full result, and download everything as a CSV for your library.`,
+    },
+    {
       question: "What is Camelot notation?",
       answer:
         "A numbering system for musical keys (1A–12B) that maps every key onto a wheel where neighbours are harmonically compatible. Standard on Rekordbox, Serato, Traktor and Mixed In Key.",
