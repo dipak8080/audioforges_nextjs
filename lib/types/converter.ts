@@ -73,6 +73,10 @@ export interface DownloadResponse {
    * rather than rendering "0 B" for a file that is almost certainly fine.
    */
   size_bytes?: number;
+  /** Only on a `source` response (format "webm"/"m4a"): decode at this rate. */
+  sample_rate?: number;
+  /** Seconds, only on a `source` response. */
+  duration?: number;
 
   // ---- both modes ----
   title?: string;

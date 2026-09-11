@@ -485,7 +485,7 @@ export type DownloadResponseMode = "base64" | "url";
 export async function downloadYouTubeAudio(
   url: string,
   format: OutputFormat,
-  opts: RequestOptions & { response?: DownloadResponseMode } = {}
+  opts: RequestOptions & { response?: DownloadResponseMode; source?: "opus" | "aac" } = {}
 ): Promise<DownloadResponse> {
   const body = new URLSearchParams();
   body.set("url", url);
@@ -493,6 +493,9 @@ export async function downloadYouTubeAudio(
   // Only sent when asked for. An absent field is the backend's own default,
   // so this cannot change behaviour for a caller that doesn't pass it.
   if (opts.response) body.set("response", opts.response);
+  // WAV + url mode only: the server may answer with the compressed original
+  // (format "webm"/"m4a") for the browser to turn into a WAV.
+  if (opts.source) body.set("source", opts.source);
 
   const res = await fetchWithTimeout(
     `${RAILWAY_API_BASE}/download`,

@@ -32,6 +32,7 @@ import {
 } from "@/lib/api/railway";
 import { FORMAT_OPTIONS, type OutputFormat, type ProcessingState } from "@/lib/types/converter";
 import { SupportBlock } from "@/components/ui/SupportBlock";
+import { markOpusUnsupported, pickSourceCodec, sourceToWav, type SourceCodec } from "@/lib/audio/browser-wav";
 
 /**
  * ── THIS PASS ──────────────────────────────────────────────────────────
@@ -102,6 +103,10 @@ function formatOption(value: OutputFormat) {
 }
 
 const RATE_LIMIT_LABEL = getRateLimitLabel("download");
+/** Server files up to this size are fetched once and kept in the tab, so the
+ *  waveform, playback and Download all reuse one copy. Covers every file the
+ *  player's waveform would have downloaded in full anyway (5 minutes). */
+const LOCAL_COPY_MAX_BYTES = 64 * 1024 * 1024;
 const STEPS = ["Link", "Convert", "Download"] as const;
 
 /* ------------------------------------------------------------------ */
@@ -235,8 +240,11 @@ interface VideoPreview {
 }
 
 interface ConversionResult {
-  /** Absolute, signed, one-hour link. Not a Blob — see the header note. */
+  /** Absolute, signed, one-hour link to the file on the server. */
   href: string;
+  /** blob: URL of the finished file when it lives in the tab. When set, the
+   *  player and Download use it and nothing more leaves the server. */
+  localUrl?: string;
   filename: string;
   format: OutputFormat;
   /** Unix seconds. Checked before every download rather than discovered
@@ -276,6 +284,8 @@ export function YouTubeConverterForm({ defaultFormat = "wav" }: YouTubeConverter
   const [hasDownloaded, setHasDownloaded] = useState(false);
   /** A silent re-POST is in flight because the link expired or was evicted. */
   const [refreshing, setRefreshing] = useState(false);
+  /** Overrides the timed stage label while the browser fetches or builds the file. */
+  const [localPhase, setLocalPhase] = useState<string | null>(null);
 
   const isProcessing = status === "processing";
   const isComplete = status === "complete" && result !== null;
@@ -302,8 +312,23 @@ export function YouTubeConverterForm({ defaultFormat = "wav" }: YouTubeConverter
   /* --- abort any in-flight request on unmount --------------------- */
   useEffect(() => () => abortRef.current?.abort(), []);
 
-  /* No object URL to manage any more — the result IS a URL. The whole
-     create/revoke/30-second-timer dance went with the Blob. */
+  /* Release the in-tab copy when it is replaced (new conversion, reset) or on
+     unmount. Deferred a tick so React's dev-mode effect re-run can cancel it
+     instead of revoking a URL that is still in use. */
+  const localUrl = result?.localUrl;
+  const pendingRevokeRef = useRef<{ url: string; timer: number } | null>(null);
+  useEffect(() => {
+    const pending = pendingRevokeRef.current;
+    if (pending && pending.url === localUrl) {
+      window.clearTimeout(pending.timer);
+      pendingRevokeRef.current = null;
+    }
+    return () => {
+      if (!localUrl) return;
+      const timer = window.setTimeout(() => URL.revokeObjectURL(localUrl), 0);
+      pendingRevokeRef.current = { url: localUrl, timer };
+    };
+  }, [localUrl]);
 
   /* --- move focus to the download button when a run finishes ------
      The primary action changed out from under the user, so a keyboard
@@ -429,29 +454,84 @@ export function YouTubeConverterForm({ defaultFormat = "wav" }: YouTubeConverter
   const runConversion = useCallback(
     async (signal: AbortSignal): Promise<ConversionResult> => {
       const check = validateYouTubeUrl(url.trim());
-      const payload = await downloadYouTubeAudio(check.normalizedUrl || url.trim(), format, {
-        signal,
-        response: "url",
-      });
+      const target = check.normalizedUrl || url.trim();
 
-      const href = resolveDownloadUrl(payload);
-      if (!href) {
-        // url mode asked for, base64 returned. Means the backend's flag was
-        // rolled back under us — say so plainly rather than rendering a
-        // broken player.
-        throw new Error("The server didn't return a download link.");
+      // WAV: ask for YouTube's compressed original and build the WAV here.
+      // Decode failure walks opus -> aac -> server-made WAV, one POST each.
+      let codec: SourceCodec | undefined = format === "wav" ? pickSourceCodec() : undefined;
+
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        const payload = await downloadYouTubeAudio(target, format, {
+          signal,
+          response: "url",
+          source: codec,
+        });
+
+        const href = resolveDownloadUrl(payload);
+        if (!href) {
+          // url mode asked for, base64 returned. Means the backend's flag was
+          // rolled back under us — say so plainly rather than rendering a
+          // broken player.
+          throw new Error("The server didn't return a download link.");
+        }
+
+        const rawTitle =
+          (payload.title as string) || (payload.filename as string) || preview?.title || "youtube-audio";
+        const base = {
+          href,
+          filename: `${safeFilename(rawTitle)}.${format}`,
+          format,
+          expiresAt: typeof payload.expires_at === "number" ? payload.expires_at : 0,
+        };
+        const served = typeof payload.format === "string" ? payload.format : format;
+
+        if (served === "webm" || served === "m4a") {
+          let data: ArrayBuffer;
+          try {
+            setLocalPhase("Downloading the audio");
+            const res = await fetch(inlineDownloadUrl(href), { signal });
+            if (!res.ok) throw new Error("The connection dropped while fetching the audio.");
+            data = await res.arrayBuffer();
+          } finally {
+            setLocalPhase(null);
+          }
+
+          try {
+            setLocalPhase("Building your WAV");
+            const wav = await sourceToWav(data, payload.sample_rate);
+            if (signal.aborted) throw new DOMException("Aborted", "AbortError");
+            return { ...base, localUrl: URL.createObjectURL(wav), sizeBytes: wav.size };
+          } catch (err) {
+            if (signal.aborted) throw err;
+            console.warn(`Browser could not decode ${served}, falling back`, err);
+            if (served === "webm") markOpusUnsupported();
+            codec = codec === "opus" ? "aac" : undefined;
+            continue;
+          } finally {
+            setLocalPhase(null);
+          }
+        }
+
+        const sizeBytes = typeof payload.size_bytes === "number" ? payload.size_bytes : undefined;
+        const next: ConversionResult = { ...base, sizeBytes };
+
+        if (sizeBytes !== undefined && sizeBytes <= LOCAL_COPY_MAX_BYTES) {
+          try {
+            setLocalPhase("Transferring your file");
+            const res = await fetch(inlineDownloadUrl(href), { signal });
+            if (res.ok) next.localUrl = URL.createObjectURL(await res.blob());
+          } catch (err) {
+            if (signal.aborted) throw err;
+            // Keep the signed link; the player and Download stream it as before.
+          } finally {
+            setLocalPhase(null);
+          }
+        }
+
+        return next;
       }
 
-      const rawTitle =
-        (payload.title as string) || (payload.filename as string) || preview?.title || "youtube-audio";
-
-      return {
-        href,
-        filename: `${safeFilename(rawTitle)}.${format}`,
-        format,
-        expiresAt: typeof payload.expires_at === "number" ? payload.expires_at : 0,
-        sizeBytes: typeof payload.size_bytes === "number" ? payload.size_bytes : undefined,
-      };
+      throw new Error("The conversion failed");
     },
     [url, format, preview?.title]
   );
@@ -487,7 +567,10 @@ export function YouTubeConverterForm({ defaultFormat = "wav" }: YouTubeConverter
 
     try {
       const next = await runConversion(controller.signal);
-      if (cancelledRef.current) return;
+      if (cancelledRef.current) {
+        if (next.localUrl) URL.revokeObjectURL(next.localUrl);
+        return;
+      }
       // No auto-download. The user saves it themselves, from a real click.
       setResult(next);
       setStatus("complete");
@@ -522,7 +605,7 @@ export function YouTubeConverterForm({ defaultFormat = "wav" }: YouTubeConverter
   /** Starts the browser's own download from a real click. */
   const startDownload = (target: ConversionResult) => {
     const a = document.createElement("a");
-    a.href = target.href;
+    a.href = target.localUrl ?? target.href;
     a.download = target.filename;
     a.rel = "noopener";
     document.body.appendChild(a);
@@ -551,6 +634,12 @@ export function YouTubeConverterForm({ defaultFormat = "wav" }: YouTubeConverter
    */
   const handleDownload = async () => {
     if (!result || refreshing) return;
+
+    // Already in the tab: no expiry, no eviction, no network.
+    if (result.localUrl) {
+      startDownload(result);
+      return;
+    }
 
     // Fresh and (as far as we know) present — the common path, no round trip.
     if (isFresh(result.expiresAt)) {
@@ -803,7 +892,7 @@ export function YouTubeConverterForm({ defaultFormat = "wav" }: YouTubeConverter
       {isProcessing && (
         <Section>
           <WorkingPanel
-            stageLabel={stages[stageIndex]?.label ?? "Converting"}
+            stageLabel={localPhase ?? stages[stageIndex]?.label ?? "Converting"}
             stages={stages}
             stageIndex={stageIndex}
             showStageList
@@ -867,17 +956,12 @@ export function YouTubeConverterForm({ defaultFormat = "wav" }: YouTubeConverter
               {/* The shared player, not a bespoke scrubber — it already draws
                   the DAW envelope via WaveformCanvas and brings keyboard
                   seeking, volume, speed and a decode-failure fallback with it. */}
-              {/* Same signed link, ?disposition=inline appended.
-                  FileResponse(filename=...) sets Content-Disposition:
-                  attachment, and the download button NEEDS that header — <a
-                  download> is ignored cross-origin, so it's the only thing
-                  making a click save rather than navigate. But an attachment
-                  is not playable, so the player asks for the inline variant of
-                  the same token. Range support is identical; only the header
-                  differs. */}
+              {/* The in-tab copy when there is one (no extra traffic).
+                  Otherwise the signed link with ?disposition=inline, because
+                  the attachment variant the Download button needs isn't playable. */}
               <div className="border-t border-teal-400/15 px-4 py-3">
                 <AudioPlayer
-                  src={inlineDownloadUrl(result.href)}
+                  src={result.localUrl ?? inlineDownloadUrl(result.href)}
                   onDuration={setPreviewDuration}
                   className="border-0 bg-transparent p-0"
                 />

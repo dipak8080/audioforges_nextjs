@@ -41,7 +41,7 @@ import { ogForTool } from "@/lib/og";
 */
 const PAGE_TITLE = "Song Key Finder & BPM Finder – Free, No Sign-Up";
 const PAGE_DESCRIPTION =
-  "Free song key finder and BPM finder. Detect the musical key, tempo and Camelot notation of any track, MP3, WAV, FLAC, AAC, M4A, OGG or AIFF. No sign-up.";
+  "Free key and BPM finder. Detect key, tempo and Camelot code for one track or a batch of 20, then export a CSV or the files renamed. No sign-up.";
 
 const UPDATED = "2026-09-11";
 
@@ -97,6 +97,9 @@ export default async function KeyFinderPage() {
       "BPM Detector",
       "Tempo Finder",
       "Camelot Key Finder",
+      "Batch Key Finder",
+      "Bulk BPM Analyzer",
+      "DJ Library Key Tagger",
     ],
     url: `${SITE_URL}/key-finder`,
     dateModified: UPDATED,
@@ -107,6 +110,9 @@ export default async function KeyFinderPage() {
       "Detect musical key of any song",
       "Detect BPM / tempo",
       "Camelot notation for harmonic mixing",
+      `Batch analysis of up to ${MAX_BATCH_FILES} files at once`,
+      "Export results as CSV",
+      "Download the original files renamed with their key and BPM",
       `Accepts ${formatList}`,
       "No sign-up required",
       "Nothing to install",
@@ -117,6 +123,11 @@ export default async function KeyFinderPage() {
     {
       question: "Can I analyse several tracks at once?",
       answer: `Yes. Drop up to ${MAX_BATCH_FILES} files and they run one after another, never in parallel, so the analyser is not overloaded. Sort the results by key, BPM or a suggested mix order, then download a CSV of the results, or the original files renamed with their key and BPM in front, like A minor - 128 - Track.wav. The audio itself is not touched.`,
+    },
+    {
+      question: "Can I rename my music files with the key and BPM?",
+      answer:
+        "Yes, after a batch run. The ZIP download contains your original files, byte for byte, each renamed to put the key and BPM at the front, like A minor - 128 - Track.wav. Nothing is re-encoded, so the audio is untouched. Useful if you sort a DJ crate by filename; if your software reads tags instead, use the CSV.",
     },
     {
       question: "What is Camelot notation?",
@@ -178,7 +189,7 @@ export default async function KeyFinderPage() {
         breadcrumb={
           <Breadcrumb items={[{ name: "Tools", href: "/tools" }, { name: "Key & BPM Finder" }]} />
         }
-        meta={["No account", `Up to ${MAX_BATCH_FILES} files at once`, "Accuracy published"]}
+        meta={["No account", `Batch up to ${MAX_BATCH_FILES} files`, "CSV or renamed files"]}
         title="Free Song Key Finder &amp; BPM Finder"
         lede="Upload any song and instantly detect its musical key and tempo, free, no sign-up, nothing to install."
         tool={<KeyFinderForm />}
