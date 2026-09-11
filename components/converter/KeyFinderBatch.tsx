@@ -10,8 +10,6 @@ import { getRetryAfterFallback } from "@/lib/data/rate-limits";
 import { analyzeAudioFile, isAbortError, ApiError } from "@/lib/api/railway";
 import type { AnalysisResult } from "@/lib/types/converter";
 
-export const MAX_BATCH_FILES = 20;
-
 const BUSY_RETRY_SECONDS = 10;
 const BUSY_MAX_TRIES = 3;
 

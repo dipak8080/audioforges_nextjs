@@ -25,7 +25,8 @@ import { AnalysisResultCard, toAnalysisResult } from "@/components/converter/Ana
 import { validateAudioFile } from "@/lib/utils/validation";
 import { getRetryAfterFallback } from "@/lib/data/rate-limits";
 import { analyzeAudioFile, isAbortError, ApiError } from "@/lib/api/railway";
-import { KeyFinderBatch, MAX_BATCH_FILES } from "@/components/converter/KeyFinderBatch";
+import { KeyFinderBatch } from "@/components/converter/KeyFinderBatch";
+import { MAX_BATCH_FILES } from "@/lib/data/key-finder";
 import type { AnalysisResult, ProcessingState } from "@/lib/types/converter";
 
 /**

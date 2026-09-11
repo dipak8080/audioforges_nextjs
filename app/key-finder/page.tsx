@@ -8,7 +8,7 @@ import { ToolSection } from "@/components/ui/ToolSection";
 import { RelatedToolsGrid } from "@/components/tools/RelatedToolsGrid";
 import { ProofStrip } from "@/components/tools/ProofStrip";
 import { CamelotWheel } from "@/components/tools/CamelotWheel";
-import { MAX_BATCH_FILES } from "@/components/converter/KeyFinderBatch";
+import { MAX_BATCH_FILES } from "@/lib/data/key-finder";
 import { CompareTable } from "@/components/tools/CompareTable";
 import { PageByline } from "@/components/tools/PageByline";
 import { Prose } from "@/components/ui/Prose";
