@@ -5,6 +5,7 @@ import { ListMusic, Loader2 } from "lucide-react";
 import { MultiOutputToolForm } from "@/components/converter/MultiOutputToolForm";
 import { ThresholdMeter } from "@/components/converter/ThresholdMeter";
 import { ControlField, Hint, OptionCards, Stepper, type CardOption } from "@/components/converter/ToolControls";
+import { MODE_OPTIONS, type DetectionMode } from "./silenceMode";
 import { WaveformCanvas } from "@/components/ui/WaveformCanvas";
 import { getRateLimitLabel } from "@/lib/data/rate-limits";
 import { getToolLimits } from "@/lib/data/tool-limits";
@@ -330,10 +331,12 @@ function SplitPreview({
 
 export function SilenceSplitForm() {
   const [format, setFormat] = useState("mp3");
+  const [mode, setMode] = useState<DetectionMode>("music");
   const [thresholdDb, setThresholdDb] = useState(THRESHOLD_DEFAULT);
   const [minDurationSeconds, setMinDurationSeconds] = useState(MIN_DURATION_DEFAULT);
   const [minSegmentSeconds, setMinSegmentSeconds] = useState(MIN_SEGMENT_SECONDS);
 
+  const isSpeech = mode === "speech";
   const setGap = (v: number) => setMinDurationSeconds(normalizeGap(v, minDurationSeconds));
   const setSegment = (v: number) => setMinSegmentSeconds(normalizeSegment(v, minSegmentSeconds));
 
@@ -345,6 +348,7 @@ export function SilenceSplitForm() {
         const fd = new FormData();
         fd.append("file", file);
         fd.append("target_format", format);
+        fd.append("mode", mode);
         fd.append("threshold_db", String(thresholdDb));
         fd.append("min_duration_seconds", String(minDurationSeconds));
         fd.append("min_segment_seconds", String(minSegmentSeconds));
@@ -352,13 +356,17 @@ export function SilenceSplitForm() {
       }}
       pollIntervalMs={3_000}
       toolLabel="Silence splitter"
-      toolMeta={`${thresholdDb} dB · ${minDurationSeconds.toFixed(1)}s+`}
+      toolMeta={
+        isSpeech
+          ? `Speech · ${minDurationSeconds.toFixed(1)}s+ pauses`
+          : `${thresholdDb} dB · ${minDurationSeconds.toFixed(1)}s+`
+      }
       submitLabel="Split into tracks"
       processingLabel="Detecting silence and splitting"
       expectedRange="a few seconds to a couple minutes"
       resultVerb="Split"
       stages={[
-        { at: 0, label: "Scanning for silence gaps" },
+        { at: 0, label: isSpeech ? "Detecting speech" : "Scanning for silence gaps" },
         { at: 5, label: "Cutting into segments" },
         { at: 15, label: "Encoding each track" },
         { at: 30, label: "Packaging the results" },
@@ -370,7 +378,23 @@ export function SilenceSplitForm() {
       }
       renderControls={(file, disabled) => (
         <div className="space-y-5">
-          {file ? (
+          <ControlField as="fieldset" label="How to find the split points">
+            <OptionCards
+              label="Detection mode"
+              options={MODE_OPTIONS}
+              value={mode}
+              onChange={setMode}
+              columns={2}
+              disabled={disabled}
+            />
+          </ControlField>
+
+          {isSpeech ? (
+            <p className="text-xs leading-relaxed text-text-subtle">
+              Speech is detected on the server, so there is no preview here. Music beds, applause
+              and room tone are treated as gaps. Breaths inside sentences are kept.
+            </p>
+          ) : file ? (
             <SplitPreview
               file={file}
               thresholdDb={thresholdDb}
@@ -395,25 +419,27 @@ export function SilenceSplitForm() {
             />
           </ControlField>
 
-          <ControlField
-            as="fieldset"
-            label="Silence threshold"
-            meta={<span className="text-[13px] font-semibold text-amber-400">{thresholdDb} dB</span>}
-            hint={`Lower (toward ${THRESHOLD_MIN_DB} dB) catches quieter background noise as silence too. Higher (toward ${THRESHOLD_MAX_DB} dB) only cuts near-total silence.`}
-          >
-            <ThresholdMeter
-              value={thresholdDb}
-              min={THRESHOLD_MIN_DB}
-              max={THRESHOLD_MAX_DB}
-              defaultValue={THRESHOLD_DEFAULT}
-              disabled={disabled || !file}
-              onChange={setThresholdDb}
-            />
-          </ControlField>
+          {!isSpeech && (
+            <ControlField
+              as="fieldset"
+              label="Silence threshold"
+              meta={<span className="text-[13px] font-semibold text-amber-400">{thresholdDb} dB</span>}
+              hint={`Lower (toward ${THRESHOLD_MIN_DB} dB) catches quieter background noise as silence too. Higher (toward ${THRESHOLD_MAX_DB} dB) only cuts near-total silence.`}
+            >
+              <ThresholdMeter
+                value={thresholdDb}
+                min={THRESHOLD_MIN_DB}
+                max={THRESHOLD_MAX_DB}
+                defaultValue={THRESHOLD_DEFAULT}
+                disabled={disabled || !file}
+                onChange={setThresholdDb}
+              />
+            </ControlField>
+          )}
 
           <ControlField
             as="fieldset"
-            label="Minimum gap length"
+            label={isSpeech ? "Minimum pause" : "Minimum gap length"}
             meta={
               <Stepper
                 label="Minimum gap"

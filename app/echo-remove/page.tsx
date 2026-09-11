@@ -50,7 +50,7 @@ const SOCIAL_TITLE = "Free Echo Remover – Reduce Echo & Slap-Back in Recording
 const PAGE_DESCRIPTION =
   "Remove echo from audio online, free. Cuts room echo and slap-back in voice recordings, podcasts and Zoom calls. No sign-up, no watermark.";
 
-const UPDATED = "2026-09-10";
+const UPDATED = "2026-09-11";
 
 const OG_IMAGE = ogForTool("echo-remove", "Free Echo Remover");
 
@@ -194,7 +194,7 @@ export default async function EchoRemovePage() {
                 label: "Voice Cleaner",
                 cells: [
                   { text: "Speech: podcasts, interviews, voice memos" },
-                  { state: "partial", text: "Fixed chain, no settings: rumble cut, speech-tuned denoise, loudness normalize" },
+                  { state: "partial", text: "Fixed chain, no settings: rumble cut, RNNoise neural denoise, loudness normalize" },
                 ],
               },
               {

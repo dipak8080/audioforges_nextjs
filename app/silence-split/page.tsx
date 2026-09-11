@@ -55,7 +55,7 @@ const PAGE_TITLE = "Audio Splitter – Split Audio by Silence, Free Online";
 const DESCRIPTION_SEGMENTS = getToolLimits("silence-split")?.maxOutputSegments ?? 50;
 const PAGE_DESCRIPTION = `Free online audio splitter. Split audio by silence into separate tracks at every silent gap, up to ${DESCRIPTION_SEGMENTS}. Adjustable threshold, no sign-up.`;
 
-const UPDATED = "2026-09-10";
+const UPDATED = "2026-09-11";
 
 const OG_IMAGE = ogForTool("silence-split", "Free Silence Splitter");
 
@@ -139,6 +139,7 @@ export default async function SilenceSplitPage() {
     operatingSystem: "Any",
     offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
     featureList: [
+    "Speech mode: Silero VAD voice-activity detection",
       "Automatic silence detection",
       "Adjustable silence threshold",
       "Adjustable minimum gap length",
@@ -196,7 +197,7 @@ export default async function SilenceSplitPage() {
 
       <ToolPageShell
         breadcrumb={<Breadcrumb items={[{ name: "Tools", href: "/tools" }, { name: "Silence Splitter" }]} />}
-        meta={["No account", "Preview the cut points first", `Up to ${maxSegments} tracks`]}
+        meta={["No account", "Music or speech mode", `Up to ${maxSegments} tracks`]}
         title="Split Audio by Silence"
         lede="Turn one long recording into separate files, cut wherever the audio goes quiet. See every cut point on the waveform before it runs. Free, no sign-up."
         tool={<SilenceSplitForm />}
@@ -206,12 +207,12 @@ export default async function SilenceSplitPage() {
             {
               label: "Before it runs",
               value: "Every cut point, drawn on the waveform",
-              note: "The page scans the file in your browser and shows how many tracks you will get as you move the sliders. What you see is what the run produces.",
+              note: "In Music mode the page scans the file in your browser and shows how many tracks you will get as you move the sliders. Speech mode detects on the server, so it has no preview.",
             },
             {
-              label: "Controls",
-              value: "Threshold -90 to -10 dB, gap 0.1 s and up",
-              note: `Start at -30 dB and 2 s for a vinyl side or a mix. Segments under ${minSegmentSeconds} s are dropped rather than kept as fragments.`,
+              label: "Two modes",
+              value: "Music by level, Speech by Silero VAD",
+              note: `Music finds quiet gaps with a threshold. Speech finds where someone stops talking. Segments under ${minSegmentSeconds} s are dropped rather than kept as fragments.`,
             },
             {
               label: "Limits",
@@ -221,6 +222,30 @@ export default async function SilenceSplitPage() {
           ]}
         />
 
+        <ToolSection id="modes" title="Two ways to find the gaps" bleed>
+          <CompareTable
+            columns={["How it decides", "Use it for"]}
+            highlight={-1}
+            rows={[
+              {
+                label: "Music mode",
+                cells: [
+                  { text: "By level. Anything quieter than the threshold you set counts as silence." },
+                  { text: "Vinyl and cassette rips, mixes, voice memos recorded somewhere quiet." },
+                ],
+              },
+              {
+                label: "Speech mode",
+                cells: [
+                  { text: "Silero VAD, a small model that finds where someone is talking. Level does not matter, so the threshold slider goes away." },
+                  { text: "Podcasts, interviews and narration, including over a music bed or room tone." },
+                ],
+              },
+            ]}
+            footnote="Speech mode treats music, applause and room tone as gaps, and keeps breaths inside sentences. It does not tell speakers apart, so cross-talk and quick back-and-forth will not split."
+          />
+        </ToolSection>
+
         <ToolSection id="what-splits" title="What splits cleanly, and what does not" bleed>
           <CompareTable
             columns={["Why"]}
@@ -228,9 +253,9 @@ export default async function SilenceSplitPage() {
             rows={[
               { label: "Vinyl or cassette rip", cells: [{ state: "yes", text: "Real gaps between tracks. The default settings usually find them all" }] },
               { label: "A set of voice memos in one file", cells: [{ state: "yes", text: "Pauses between takes are long and near-silent. Raise the minimum gap so pauses within a take survive" }] },
-              { label: "A podcast by speaker", cells: [{ state: "partial", text: "Only where there are real pauses. Cross-talk and quick exchanges will not split" }] },
+              { label: "A podcast, in Speech mode", cells: [{ state: "partial", text: "Splits wherever speech stops, even over a music bed or room tone. It does not tell speakers apart, so cross-talk and quick exchanges still will not split" }] },
               { label: "A DJ mix", cells: [{ state: "no", text: "Tracks are beatmatched with no silence between them. There is nothing to split on. Use the trimmer with the tracklist times instead" }] },
-              { label: "Live album with crowd noise", cells: [{ state: "no", text: "Applause is not silence. Lower the threshold toward -60 dB and expect to trim by hand" }] },
+              { label: "Live album with crowd noise", cells: [{ state: "no", text: "Music mode only, and applause is not silence. Lower the threshold toward -60 dB and expect to trim by hand. Speech mode does not help with music" }] },
             ]}
             footnote="Splitting keeps the audio inside each segment untouched. Files are named in order; there is no chapter-marker or track-title reading."
           />

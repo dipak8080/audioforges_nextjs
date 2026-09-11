@@ -138,13 +138,13 @@ export default function DeadAirGuidePage() {
 
           <h2 id="getting-started">Getting started</h2>
           <p>
-            For most podcast and voice-memo editing, the default threshold and
-            minimum gap length are a solid starting point — try them unadjusted
-            first and only tune from there if the result cuts too much or too
-            little. Our <Link href="/silence-remove">Silence Remover</Link> strips
-            gaps throughout the entire recording, not just the leading and
-            trailing edges, with both settings adjustable if the defaults
-            don&apos;t fit your material.
+            Everything above describes Music mode, which finds gaps by level. The{" "}
+            <Link href="/silence-remove">Silence Remover</Link> also has a Speech
+            mode that uses Silero VAD to find where someone stops talking instead,
+            so a music bed or room tone no longer counts as sound and the
+            threshold slider goes away. For a podcast, start there. Either mode
+            strips gaps throughout the recording, not just the leading and
+            trailing edges.
           </p>
         </Prose>
 

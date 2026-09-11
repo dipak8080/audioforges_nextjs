@@ -133,7 +133,7 @@ export default function PodcastCleanupChecklistPage() {
             Running these three steps manually with separate tools means getting
             the order right yourself every time. Our{" "}
             <Link href="/voice-clean">Voice Cleaner</Link> runs this exact chain —
-            rumble cut, speech-tuned denoise, loudness normalization — in the
+            rumble cut, RNNoise denoise, loudness normalization, in the
             correct order automatically, with nothing to configure. It&apos;s
             built specifically for speech content: podcasts, interviews, phone
             recordings, and voice memos. If you&apos;re working with music or need

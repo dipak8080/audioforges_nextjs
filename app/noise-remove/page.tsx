@@ -49,7 +49,7 @@ const PAGE_TITLE = "Background Noise Remover – Free Audio Noise Reduction";
 const PAGE_DESCRIPTION =
   "Free background noise remover. Remove hiss, hum, fan noise and static from MP3, WAV, FLAC and more — online, no sign-up, no watermark.";
 
-const UPDATED = "2026-09-10";
+const UPDATED = "2026-09-11";
 
 const OG_IMAGE = ogForTool("noise-remove", "Free Background Noise Remover");
 
@@ -199,7 +199,7 @@ export default async function NoiseRemovePage() {
                 label: "Voice Cleaner",
                 cells: [
                   { text: "Speech: podcasts, interviews, voice memos" },
-                  { state: "partial", text: "Fixed chain, no settings: rumble cut, speech-tuned denoise, loudness normalize" },
+                  { state: "partial", text: "Fixed chain, no settings: rumble cut, RNNoise neural denoise, loudness normalize" },
                 ],
               },
               {

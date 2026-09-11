@@ -150,8 +150,11 @@ export default function NoiseRemovalGuidePage() {
             Our <Link href="/noise-remove">Noise Remover</Link> gives you direct
             control over reduction strength for music and general audio. For
             speech-only recordings, the{" "}
-            <Link href="/voice-clean">Voice Cleaner</Link> runs a fixed,
-            speech-optimized chain that usually needs no manual tuning at all.
+            <Link href="/voice-clean">Voice Cleaner</Link> runs a fixed chain
+            built around RNNoise, a small neural network trained to keep a human
+            voice and remove the rest, and it needs no manual tuning at all.
+            Because it is trained on speech, it treats music as noise, so music
+            belongs in the Noise Remover.
           </p>
         </Prose>
 

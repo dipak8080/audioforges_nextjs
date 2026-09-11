@@ -47,7 +47,7 @@ const PAGE_TITLE = "Remove Silence from Audio – Free Silence Remover";
 const PAGE_DESCRIPTION =
   "Remove silence from audio online free. Cuts dead air throughout a podcast, audiobook or recording – not just the ends. No sign-up, no watermark.";
 
-const UPDATED = "2026-09-10";
+const UPDATED = "2026-09-11";
 
 const OG_IMAGE = ogForTool("silence-remove", "Free Silence Remover");
 
@@ -87,6 +87,7 @@ const webAppJsonLd = {
   operatingSystem: "Any",
   offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
   featureList: [
+    "Speech mode: Silero VAD voice-activity detection",
     "Cuts silent gaps throughout, not just leading/trailing",
     "Adjustable threshold and gap length",
     "No sign-up required",
@@ -164,7 +165,7 @@ export default async function SilenceRemovePage() {
 
       <ToolPageShell
         breadcrumb={<Breadcrumb items={[{ name: "Tools", href: "/tools" }, { name: "Silence Remover" }]} />}
-        meta={["No account", "Preview before it runs", "Whole file, not just the ends"]}
+        meta={["No account", "Music or speech mode", "Whole file, not just the ends"]}
         title="Silence Remover"
         lede="Cut every quiet gap out of a recording, not only the start and end. Set the threshold, see exactly which gaps will go, then run it. Free, no sign-up."
         tool={<SilenceRemoveForm />}
@@ -174,12 +175,12 @@ export default async function SilenceRemovePage() {
             {
               label: "Before it runs",
               value: "Every gap it will cut, drawn on the waveform",
-              note: "The page scans the file in your browser and marks the quiet ranges as you move the sliders. No guessing, no re-running.",
+              note: "In Music mode the page scans the file in your browser and marks the quiet ranges as you move the sliders. Speech mode detects on the server, so it has no preview.",
             },
             {
-              label: "Controls",
-              value: "Threshold -90 to -10 dB, gap 0.1 to 10 s",
-              note: "Defaults of -30 dB and 0.5 s suit speech. Quieter threshold catches less; longer gap leaves natural pauses alone.",
+              label: "Two modes",
+              value: "Music by level, Speech by Silero VAD",
+              note: "Music finds quiet gaps with a threshold you set. Speech finds where someone stops talking, whatever else is in the audio.",
             },
             {
               label: "Limits",
@@ -189,7 +190,31 @@ export default async function SilenceRemovePage() {
           ]}
         />
 
-        <ToolSection id="settings" title="Which setting does what" bleed>
+        <ToolSection id="modes" title="Two ways to find the gaps" bleed>
+          <CompareTable
+            columns={["How it decides", "Use it for"]}
+            highlight={-1}
+            rows={[
+              {
+                label: "Music mode",
+                cells: [
+                  { text: "By level. Anything quieter than the threshold you set counts as silence." },
+                  { text: "Vinyl and cassette rips, mixes, voice memos recorded somewhere quiet." },
+                ],
+              },
+              {
+                label: "Speech mode",
+                cells: [
+                  { text: "Silero VAD, a small model that finds where someone is talking. Level does not matter, so the threshold slider goes away." },
+                  { text: "Podcasts, interviews and narration, including over a music bed or room tone." },
+                ],
+              },
+            ]}
+            footnote="Speech mode treats music, applause and room tone as gaps, and keeps breaths inside sentences. It does not tell speakers apart, so cross-talk and quick back-and-forth will not split."
+          />
+        </ToolSection>
+
+        <ToolSection id="settings" title="Which setting does what, in Music mode" bleed>
           <CompareTable
             columns={["Raise it", "Lower it"]}
             highlight={-1}

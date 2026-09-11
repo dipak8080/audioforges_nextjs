@@ -4,12 +4,13 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, Loader2 } from "lucide-react";
 import { JobToolForm } from "@/components/converter/JobToolForm";
 import { ThresholdMeter } from "@/components/converter/ThresholdMeter";
-import { ControlField, Stepper } from "@/components/converter/ToolControls";
+import { ControlField, OptionCards, Stepper } from "@/components/converter/ToolControls";
 import { getRateLimitLabel } from "@/lib/data/rate-limits";
 import { cn } from "@/lib/utils/cn";
 import { WaveformCanvas } from "@/components/ui/WaveformCanvas";
 import { computeWaveformEnvelopeAsync, type WaveformEnvelope } from "@/lib/utils/waveform";
 import { computeDbTimelineAsync, findQuietRanges, type DbTimeline } from "@/lib/utils/silenceDetection";
+import { MODE_OPTIONS, type DetectionMode } from "./silenceMode";
 
 /**
  * ── THIS PASS ──────────────────────────────────────────────────────────
@@ -239,15 +240,17 @@ function CutPreview({
 /* ------------------------------------------------------------------ */
 
 export function SilenceRemoveForm() {
+  const [mode, setMode] = useState<DetectionMode>("music");
   const [thresholdDb, setThresholdDb] = useState(DEFAULT_THRESHOLD_DB);
   const [minDuration, setMinDuration] = useState(DEFAULT_MIN_DURATION);
+  const isSpeech = mode === "speech";
 
   return (
     <JobToolForm
       endpoint="silence-remove"
       pollIntervalMs={2500}
       toolLabel="Silence remover"
-      toolMeta={`${thresholdDb} dB · ${minDuration}s+`}
+      toolMeta={isSpeech ? `Speech · ${minDuration}s+ pauses` : `${thresholdDb} dB · ${minDuration}s+`}
       submitLabel="Remove silence"
       processingLabel="Removing silent gaps"
       expectedRange="a few seconds"
@@ -258,17 +261,20 @@ export function SilenceRemoveForm() {
           : undefined
       }
       stages={[
-        { at: 0, label: "Scanning for quiet gaps" },
+        { at: 0, label: isSpeech ? "Detecting speech" : "Scanning for quiet gaps" },
         { at: 3, label: "Cutting and stitching the audio" },
         { at: 7, label: "Writing the output file" },
       ]}
       buildExtraFields={() => ({
+        mode,
         threshold_db: String(thresholdDb),
         min_duration_seconds: String(minDuration),
       })}
       renderControls={(file, disabled) => (
         <SilenceControls
           file={file}
+          mode={mode}
+          onModeChange={setMode}
           thresholdDb={thresholdDb}
           onThresholdChange={setThresholdDb}
           minDuration={minDuration}
@@ -282,6 +288,8 @@ export function SilenceRemoveForm() {
 
 interface SilenceControlsProps {
   file: File | null;
+  mode: DetectionMode;
+  onModeChange: (next: DetectionMode) => void;
   thresholdDb: number;
   onThresholdChange: (value: number) => void;
   minDuration: number;
@@ -291,44 +299,66 @@ interface SilenceControlsProps {
 
 function SilenceControls({
   file,
+  mode,
+  onModeChange,
   thresholdDb,
   onThresholdChange,
   minDuration,
   onMinDurationChange,
   disabled,
 }: SilenceControlsProps) {
+  const isSpeech = mode === "speech";
+
   return (
     <div className="space-y-5">
-      {file ? (
+      <ControlField as="fieldset" label="How to find the gaps">
+        <OptionCards
+          label="Detection mode"
+          options={MODE_OPTIONS}
+          value={mode}
+          onChange={onModeChange}
+          columns={2}
+          disabled={disabled}
+        />
+      </ControlField>
+
+      {isSpeech ? (
+        <p className="text-xs leading-relaxed text-text-subtle">
+          Speech is detected on the server, so there is no preview here. Music beds, applause and
+          room tone are treated as gaps. Breaths inside sentences are kept.
+        </p>
+      ) : file ? (
         <CutPreview file={file} thresholdDb={thresholdDb} minDuration={minDuration} />
       ) : (
         <p className="text-xs text-text-subtle">
-          Both settings have sensible defaults — they work well for most podcast and voice-memo
+          Both settings have sensible defaults. They work well for most podcast and voice-memo
           cleanup without any adjustment. Upload a file to preview exactly what would be cut.
         </p>
       )}
 
-      <ControlField
-        as="fieldset"
-        label="Silence threshold"
-        meta={<span className="text-[13px] font-semibold text-amber-400">{thresholdDb} dB</span>}
-      >
-        <ThresholdMeter
-          value={thresholdDb}
-          min={THRESHOLD_MIN_DB}
-          max={THRESHOLD_MAX_DB}
-          defaultValue={DEFAULT_THRESHOLD_DB}
-          disabled={disabled || !file}
-          onChange={onThresholdChange}
-        />
-      </ControlField>
+      {!isSpeech && (
+        <ControlField
+          as="fieldset"
+          label="Silence threshold"
+          meta={<span className="text-[13px] font-semibold text-amber-400">{thresholdDb} dB</span>}
+        >
+          <ThresholdMeter
+            value={thresholdDb}
+            min={THRESHOLD_MIN_DB}
+            max={THRESHOLD_MAX_DB}
+            defaultValue={DEFAULT_THRESHOLD_DB}
+            disabled={disabled || !file}
+            onChange={onThresholdChange}
+          />
+        </ControlField>
+      )}
 
       <ControlField
         as="fieldset"
-        label="Minimum gap length"
+        label={isSpeech ? "Minimum pause" : "Minimum gap length"}
         meta={
           <Stepper
-            label="Minimum gap"
+            label={isSpeech ? "Minimum pause" : "Minimum gap"}
             value={minDuration}
             step={GAP_STEP}
             bigStep={GAP_STEP}
@@ -352,12 +382,12 @@ function SilenceControls({
           onChange={(e) => onMinDurationChange(Number(e.target.value))}
           disabled={disabled || !file}
           className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-graphite-700 accent-amber-500 disabled:opacity-40"
-          aria-label="Minimum silence gap duration in seconds"
+          aria-label={isSpeech ? "Minimum pause length in seconds" : "Minimum silence gap duration in seconds"}
         />
         <div className="flex justify-between text-[11px] text-text-subtle">
-          <span>{MIN_GAP_SECONDS}s — cuts short pauses</span>
+          <span>{MIN_GAP_SECONDS}s, cuts short pauses</span>
           <span>Default ({DEFAULT_MIN_DURATION}s)</span>
-          <span>{MAX_GAP_SECONDS}s — only long dead air</span>
+          <span>{MAX_GAP_SECONDS}s, only long dead air</span>
         </div>
       </ControlField>
     </div>

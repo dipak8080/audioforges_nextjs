@@ -24,7 +24,7 @@ const PAGE_TITLE = "Voice Cleaner – Clean Up Podcasts & Memos";
 const PAGE_DESCRIPTION =
   "Clean voice recordings online free. Remove background noise, hiss, hum, and low-frequency rumble from podcasts, interviews, and voice memos. No sign-up.";
 
-const UPDATED = "2026-09-10";
+const UPDATED = "2026-09-11";
 
 const OG_IMAGE = ogForTool("voice-clean", "Free Voice Cleaner");
 
@@ -59,7 +59,7 @@ const webAppJsonLd = {
   offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
   featureList: [
     "Rumble/low-end cut",
-    "Speech-tuned denoise",
+    "RNNoise neural network denoise",
     "Loudness normalization",
     "No sign-up required",
     "No watermark",
@@ -113,12 +113,12 @@ export default async function VoiceCleanPage() {
     {
       question: "Does it remove keyboard clicks or mouse clicks?",
       answer:
-        "Not reliably. This chain is built for steady background noise like hiss, hum, and rumble, short, one-off sounds like keyboard clicks don't have a consistent noise profile for it to remove, so some may still come through.",
+        "Often, at least partly. RNNoise is not limited to steady noise the way a spectral filter is: it was trained on what a voice sounds like against everything else, so one-off sounds like keyboard clicks are reduced too. Do not expect them gone entirely, especially if a click lands on top of a word.",
     },
     {
       question: "Can it remove breathing sounds?",
       answer:
-        "Not specifically, breaths are close enough to speech frequencies that a general noise-reduction chain isn't built to isolate and remove them the way it removes steady background hiss or hum.",
+        "No, and that is on purpose. RNNoise is trained to keep human voice sounds, which includes breaths and laughs. Removing them is an editing decision, not a noise problem, so it is left to you.",
     },
     {
       question: "Will it reduce audio quality?",
@@ -137,20 +137,20 @@ export default async function VoiceCleanPage() {
         breadcrumb={<Breadcrumb items={[{ name: "Tools", href: "/tools" }, { name: "Voice Cleaner" }]} />}
         meta={["No account", "One click, no settings", "Speech only"]}
         title="Free Voice Cleaner"
-        lede="One pass for a podcast, interview or voice memo: rumble cut, speech-tuned denoise, then loudness normalized. Nothing to configure. Free, no sign-up."
+        lede="One pass for a podcast, interview or voice memo: rumble cut, RNNoise denoise, then loudness normalized. Nothing to configure. Free, no sign-up."
         tool={<VoiceCleanForm />}
       >
         <ProofStrip
           proofs={[
             {
               label: "The chain",
-              value: "Rumble cut, denoise, normalize",
-              note: "Three fixed stages in one run. Low rumble and handling noise go first, then steady noise, then the level is brought to a spoken-word target.",
+              value: "Rumble cut, RNNoise, normalize",
+              note: "Three fixed stages in one run. Low rumble and handling noise go first, then RNNoise, a small neural network trained on speech, then the level is brought to a spoken-word target.",
             },
             {
               label: "Scope",
               value: "Built for speech, not music",
-              note: "The denoise is tuned to a voice. Run music through it and the settings are wrong for the material; use the Noise Remover instead.",
+              note: "RNNoise is trained to keep a human voice and remove everything else, so it treats music as noise. For music, use the Noise Remover.",
             },
             {
               label: "Limits",
@@ -176,7 +176,7 @@ export default async function VoiceCleanPage() {
                 label: "Voice Cleaner, this page",
                 cells: [
                   { text: "Speech: podcasts, interviews, voice memos" },
-                  { state: "yes", text: "Fixed chain, no settings: rumble cut, speech-tuned denoise, loudness normalize" },
+                  { state: "yes", text: "Fixed chain, no settings: rumble cut, RNNoise neural denoise, loudness normalize" },
                 ],
               },
               {

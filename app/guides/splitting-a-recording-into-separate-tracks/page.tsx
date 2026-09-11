@@ -97,9 +97,12 @@ export default function SplittingRecordingGuidePage() {
             speed: instead of you finding every boundary, the tool scans the whole
             file and treats any sufficiently long quiet stretch as a cut point.
             This works well specifically when the source material already has real
-            pauses between its natural sections — it doesn&apos;t work when
-            there&apos;s no genuine silence to find, no matter how obvious the
-            boundary might sound to a human ear.
+            pauses between its natural sections, and it does not work when there
+            is no genuine silence to find, no matter how obvious the boundary
+            might sound to a human ear. For speech, the{" "}
+            <Link href="/silence-split">Silence Splitter</Link> has a Speech mode
+            that looks for where someone stops talking rather than for quiet, so a
+            music bed or room tone stops counting as sound.
           </p>
 
           <h2 id="detection">How silence detection finds track boundaries</h2>
