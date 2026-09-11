@@ -162,6 +162,7 @@ function SeparateResult({ jobId, title }: { jobId: string; title: string | null 
       stems={stems.map((name) => ({
         name: name === "vocals" ? "Vocals" : "Instrumental",
         url: getYoutubeSeparatePreviewUrl(jobId, name),
+        downloadName: `${name}.wav`,
         icon:
           name === "vocals" ? (
             <Mic2 className="h-4 w-4" aria-hidden />

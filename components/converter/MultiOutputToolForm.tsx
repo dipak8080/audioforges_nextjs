@@ -775,6 +775,7 @@ export function MultiOutputToolForm({
               stems={outputs.map((name) => ({
                 name: formatOutputName(name),
                 url: getMultiOutputPreviewUrl(endpoint, jobId, name, queryParam),
+                downloadName: `${name}.wav`,
               }))}
               onDownload={(display) => {
                 const raw = outputs.find((n) => formatOutputName(n) === display) ?? display;

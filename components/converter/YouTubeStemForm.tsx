@@ -203,6 +203,7 @@ function StemsResult({ jobId, title }: { jobId: string; title: string | null }) 
       stems={stems.map((name) => ({
         name: formatStemName(name),
         url: getYoutubeStemsPreviewUrl(jobId, name),
+        downloadName: `${name}.wav`,
         icon: stemIcon(name),
       }))}
       onDownload={(display) => {

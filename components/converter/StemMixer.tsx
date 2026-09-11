@@ -31,6 +31,10 @@ export interface StemMixerStem {
   name: string;
   url: string;
   icon?: ReactNode;
+  /** Filename the server's download route would give this stem. When set, the
+   *  Download buttons save the copy the mixer already fetched instead of
+   *  pulling the same WAV from the server a second time. */
+  downloadName?: string;
 }
 
 export interface StemMixerProps {
@@ -101,6 +105,8 @@ export function StemMixer({ stems, onDownload, onDownloadAll, sourceTitle }: Ste
   const ctxRef = useRef<AudioContext | null>(null);
   const nodesRef = useRef<Map<string, LaneNodes>>(new Map());
   const buffersRef = useRef<Map<string, AudioBuffer>>(new Map());
+  /** Original WAV bytes per stem, kept for the Download buttons. */
+  const filesRef = useRef<Map<string, { url: string; blob: Blob }>>(new Map());
   const startCtxTimeRef = useRef(0);
   const startOffsetRef = useRef(0);
   const playingRef = useRef(false);
@@ -152,6 +158,31 @@ export function StemMixer({ stems, onDownload, onDownloadAll, sourceTitle }: Ste
     stemsRef.current = stems;
   });
   const stemsKey = stems.map((s) => `${s.name}|${s.url}`).join(";");
+
+  /** Saves the in-tab copy. False when there isn't a usable one yet. */
+  const saveLocalCopy = (stem: StemMixerStem): boolean => {
+    const file = filesRef.current.get(stem.name);
+    if (!stem.downloadName || !file || file.url !== stem.url || !/wav/i.test(file.blob.type)) return false;
+    const href = URL.createObjectURL(file.blob);
+    const a = document.createElement("a");
+    a.href = href;
+    a.download = stem.downloadName;
+    a.rel = "noopener";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.setTimeout(() => URL.revokeObjectURL(href), 60_000);
+    return true;
+  };
+
+  const downloadStem = (stem: StemMixerStem) => {
+    if (!saveLocalCopy(stem)) onDownload(stem.name);
+  };
+
+  const downloadAllStems = () => {
+    // Browsers throttle rapid multi-downloads; same 400 ms stagger as triggerDownloadsStaggered
+    stems.forEach((stem, i) => window.setTimeout(() => downloadStem(stem), i * 400));
+  };
 
   const getCtx = useCallback(() => {
     if (!ctxRef.current) {
@@ -298,9 +329,12 @@ export function StemMixer({ stems, onDownload, onDownloadAll, sourceTitle }: Ste
           const res = await fetch(stem.url);
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
           const bytes = await res.arrayBuffer();
+          // Copy before decodeAudioData, which can detach the ArrayBuffer
+          const file = new Blob([bytes], { type: res.headers.get("content-type") || "" });
           const buffer = await ctx.decodeAudioData(bytes);
           if (cancelled) return;
           buffersRef.current.set(stem.name, buffer);
+          filesRef.current.set(stem.name, { url: stem.url, blob: file });
           const { peaks } = extractPeaks(buffer, PEAK_BUCKETS);
           setLanes((prev) => {
             const next = new Map(prev);
@@ -322,6 +356,7 @@ export function StemMixer({ stems, onDownload, onDownloadAll, sourceTitle }: Ste
     }
     const nodes = nodesRef.current;
     const buffers = buffersRef.current;
+    const files = filesRef.current;
     return () => {
       cancelled = true;
       stopSources();
@@ -334,6 +369,7 @@ export function StemMixer({ stems, onDownload, onDownloadAll, sourceTitle }: Ste
       ctxRef.current = null;
       nodes.clear();
       buffers.clear();
+      files.clear();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stemsKey]);
@@ -753,7 +789,7 @@ export function StemMixer({ stems, onDownload, onDownloadAll, sourceTitle }: Ste
                 <Button
                   variant="ghost"
                   size="icon-sm"
-                  onClick={() => onDownload(stem.name)}
+                  onClick={() => downloadStem(stem)}
                   aria-label={`Download ${stem.name}`}
                 >
                   <Download className="h-4 w-4" aria-hidden />
@@ -778,7 +814,7 @@ export function StemMixer({ stems, onDownload, onDownloadAll, sourceTitle }: Ste
           Export my mix (WAV)
         </Button>
         {onDownloadAll && (
-          <Button variant="outline" size="sm" onClick={onDownloadAll}>
+          <Button variant="outline" size="sm" onClick={downloadAllStems}>
             Download all stems
           </Button>
         )}

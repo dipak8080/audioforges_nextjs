@@ -754,6 +754,7 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
                 stems={(["vocals", "instrumental"] as StemType[]).map((name) => ({
                   name: name === "vocals" ? "Vocals" : "Instrumental",
                   url: getSeparationPreviewUrl(jobId, name),
+                  downloadName: `${name}.wav`,
                   icon:
                     name === "vocals" ? (
                       <Mic2 className="h-4 w-4" aria-hidden />
