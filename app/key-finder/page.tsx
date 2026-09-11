@@ -8,6 +8,7 @@ import { ToolSection } from "@/components/ui/ToolSection";
 import { RelatedToolsGrid } from "@/components/tools/RelatedToolsGrid";
 import { ProofStrip } from "@/components/tools/ProofStrip";
 import { CamelotWheel } from "@/components/tools/CamelotWheel";
+import { MAX_BATCH_FILES } from "@/components/converter/KeyFinderBatch";
 import { CompareTable } from "@/components/tools/CompareTable";
 import { PageByline } from "@/components/tools/PageByline";
 import { Prose } from "@/components/ui/Prose";
@@ -42,7 +43,7 @@ const PAGE_TITLE = "Song Key Finder & BPM Finder – Free, No Sign-Up";
 const PAGE_DESCRIPTION =
   "Free song key finder and BPM finder. Detect the musical key, tempo and Camelot notation of any track, MP3, WAV, FLAC, AAC, M4A, OGG or AIFF. No sign-up.";
 
-const UPDATED = "2026-09-10";
+const UPDATED = "2026-09-11";
 
 const OG_IMAGE = ogForTool("key-finder", "Free Song Key & BPM Finder");
 
@@ -173,7 +174,7 @@ export default async function KeyFinderPage() {
         breadcrumb={
           <Breadcrumb items={[{ name: "Tools", href: "/tools" }, { name: "Key & BPM Finder" }]} />
         }
-        meta={["No account", "Nothing stored", "Accuracy published"]}
+        meta={["No account", `Up to ${MAX_BATCH_FILES} files at once`, "Accuracy published"]}
         title="Free Song Key Finder &amp; BPM Finder"
         lede="Upload any song and instantly detect its musical key and tempo, free, no sign-up, nothing to install."
         tool={<KeyFinderForm />}
@@ -189,6 +190,11 @@ export default async function KeyFinderPage() {
               label: "Nothing stored",
               value: "Your file is deleted on completion",
               note: "Key and BPM come back as numbers, not a file. No job row, no result to expire.",
+            },
+            {
+              label: "A folder at a time",
+              value: `Up to ${MAX_BATCH_FILES} files, one after another`,
+              note: "Drop a whole crate. Sort the results by Camelot or BPM and download them as CSV for your library.",
             },
             {
               label: "Output",

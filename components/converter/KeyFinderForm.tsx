@@ -25,6 +25,7 @@ import { AnalysisResultCard, toAnalysisResult } from "@/components/converter/Ana
 import { validateAudioFile } from "@/lib/utils/validation";
 import { getRetryAfterFallback } from "@/lib/data/rate-limits";
 import { analyzeAudioFile, isAbortError, ApiError } from "@/lib/api/railway";
+import { KeyFinderBatch, MAX_BATCH_FILES } from "@/components/converter/KeyFinderBatch";
 import type { AnalysisResult, ProcessingState } from "@/lib/types/converter";
 
 /**
@@ -91,6 +92,8 @@ export function KeyFinderForm() {
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [error, setError] = useState<FormError | null>(null);
+  const [batchFiles, setBatchFiles] = useState<File[] | null>(null);
+  const [batchNote, setBatchNote] = useState<string | null>(null);
 
   const isProcessing = status === "processing";
   const isComplete = status === "complete";
@@ -113,7 +116,7 @@ export function KeyFinderForm() {
   useEffect(() => () => abortRef.current?.abort(), []);
 
   const canAnalyze = Boolean(file) && !isProcessing && !isComplete && cooldownSeconds === 0;
-  const step: 1 | 2 | 3 = isComplete ? 3 : isProcessing ? 2 : 1;
+  const step: 1 | 2 | 3 = batchFiles ? 2 : isComplete ? 3 : isProcessing ? 2 : 1;
 
   const handleFileSelect = (selectedFile: File) => {
     setValidationError(null);
@@ -126,6 +129,32 @@ export function KeyFinderForm() {
     setResult(null);
     setStatus("idle");
     setError(null);
+  };
+
+  /** One file behaves exactly as before. Two or more switch to the queue. */
+  const handleFilesSelect = (selected: File[]) => {
+    if (selected.length <= 1) {
+      setBatchNote(null);
+      if (selected[0]) handleFileSelect(selected[0]);
+      return;
+    }
+    const kept = selected.slice(0, MAX_BATCH_FILES);
+    setBatchNote(
+      selected.length > MAX_BATCH_FILES
+        ? `${selected.length} files dropped. The first ${MAX_BATCH_FILES} were kept, which is the limit per batch.`
+        : null
+    );
+    setValidationError(null);
+    setError(null);
+    setResult(null);
+    setStatus("idle");
+    setFile(null);
+    setBatchFiles(kept);
+  };
+
+  const handleBatchReset = () => {
+    setBatchFiles(null);
+    setBatchNote(null);
   };
 
   const handleAnalyze = useCallback(async () => {
@@ -215,7 +244,7 @@ export function KeyFinderForm() {
      Hidden entirely while idle with no file: a dimmed amber fill at 40% opacity
      renders as a muddy brown bar, and there's nothing to analyse yet anyway. */
   const footer =
-    file || isComplete || isFailed ? (
+    batchFiles ? undefined : file || isComplete || isFailed ? (
       <div className="space-y-2">
         <Button
           variant={isComplete ? "outline" : "primary"}
@@ -242,7 +271,7 @@ export function KeyFinderForm() {
   return (
     <FormShell
       toolLabel="Key & BPM finder"
-      toolMeta="Camelot · cross-checked"
+      toolMeta={batchFiles ? `${batchFiles.length} files · one at a time` : "Camelot · cross-checked"}
       steps={STEPS}
       step={step}
       busy={isProcessing}
@@ -250,11 +279,21 @@ export function KeyFinderForm() {
       complete={isComplete}
       footer={footer}
     >
+      {/* BATCH */}
+      {batchFiles && (
+        <Section className="space-y-4">
+          {batchNote && <ValidationNote message={batchNote} />}
+          <KeyFinderBatch files={batchFiles} onReset={handleBatchReset} />
+        </Section>
+      )}
+
       {/* SOURCE */}
-      {!isComplete && (
+      {!batchFiles && !isComplete && (
         <Section className="space-y-4">
           <FileDropZone
             onFileSelect={handleFileSelect}
+            multiple
+            onFilesSelect={handleFilesSelect}
             currentFile={file}
             onClear={handleReset}
             disabled={isProcessing}
@@ -262,11 +301,17 @@ export function KeyFinderForm() {
           />
           {/* An error about the file belongs beside the file. */}
           {validationError && <ValidationNote message={validationError} />}
+          {!file && (
+            <p className="text-xs text-text-subtle">
+              Drop up to {MAX_BATCH_FILES} files to analyse a folder in one go. They run one after
+              another and the results download as CSV.
+            </p>
+          )}
         </Section>
       )}
 
       {/* WORKING */}
-      {isProcessing && (
+      {!batchFiles && isProcessing && (
         <Section>
           <WorkingPanel
             stageLabel={STAGES[stageIndex]?.label ?? "Analyzing"}
@@ -284,7 +329,7 @@ export function KeyFinderForm() {
       )}
 
       {/* RESULT */}
-      {isComplete && result && (
+      {!batchFiles && isComplete && result && (
         <Section>
           <div className="space-y-4" role="status" aria-live="polite">
             <AnalysisResultCard result={result} />
@@ -294,7 +339,7 @@ export function KeyFinderForm() {
       )}
 
       {/* FAILED */}
-      {isFailed && error && (
+      {!batchFiles && isFailed && error && (
         <Section>
           <div className="space-y-4">
             <ErrorPanel error={error} />

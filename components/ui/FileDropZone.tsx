@@ -16,6 +16,13 @@ export type MediaKind = "audio" | "video";
 
 interface FileDropZoneProps {
   onFileSelect: (file: File) => void;
+  /**
+   * Opt-in. Off, the zone behaves exactly as it always has: one file, through
+   * `onFileSelect`. On, the picker allows several and every dropped or picked
+   * file goes to `onFilesSelect`.
+   */
+  multiple?: boolean;
+  onFilesSelect?: (files: File[]) => void;
   currentFile: File | null;
   onClear: () => void;
   disabled?: boolean;
@@ -95,6 +102,8 @@ function formatsFromAccept(accept: string, kind: MediaKind): string {
 
 export function FileDropZone({
   onFileSelect,
+  multiple = false,
+  onFilesSelect,
   currentFile,
   onClear,
   disabled,
@@ -188,10 +197,12 @@ export function FileDropZone({
       dragDepth.current = 0;
       setIsDragging(false);
       if (disabled) return;
-      const file = e.dataTransfer.files?.[0];
-      if (file) onFileSelect(file);
+      const files = Array.from(e.dataTransfer.files ?? []);
+      if (!files.length) return;
+      if (multiple && onFilesSelect) onFilesSelect(files);
+      else onFileSelect(files[0]);
     },
-    [disabled, onFileSelect]
+    [disabled, multiple, onFileSelect, onFilesSelect]
   );
 
   const dragHandlers = {
@@ -202,8 +213,11 @@ export function FileDropZone({
   };
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) onFileSelect(file);
+    const files = Array.from(e.target.files ?? []);
+    if (files.length) {
+      if (multiple && onFilesSelect) onFilesSelect(files);
+      else onFileSelect(files[0]);
+    }
     // Reset so re-picking the same file still fires onChange.
     e.target.value = "";
   };
@@ -215,6 +229,7 @@ export function FileDropZone({
       ref={inputRef}
       type="file"
       accept={accept}
+      multiple={multiple}
       onChange={handleFileInput}
       disabled={disabled}
       className="hidden"
