@@ -199,7 +199,7 @@ export default async function KeyFinderPage() {
             {
               label: "Measured accuracy",
               value: "85% on BPM, about 50% on key",
-              note: "Scored on the GiantSteps set and written up in full. Nobody else in this category publishes a number.",
+              note: "Scored on the public GiantSteps set and written up in full. Nobody else in this category publishes a number.",
             },
             {
               label: "Nothing stored",
@@ -209,7 +209,7 @@ export default async function KeyFinderPage() {
             {
               label: "A folder at a time",
               value: `Up to ${MAX_BATCH_FILES} files, one after another`,
-              note: "Drop a whole crate. Download the results as CSV, or the same files renamed with key and BPM.",
+              note: "Drop a whole crate. Results download as a CSV, or as your files renamed with their key and BPM.",
             },
             {
               label: "Output",
