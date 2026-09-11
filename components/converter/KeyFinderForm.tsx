@@ -25,7 +25,7 @@ import { AnalysisResultCard, toAnalysisResult } from "@/components/converter/Ana
 import { validateAudioFile } from "@/lib/utils/validation";
 import { getRetryAfterFallback } from "@/lib/data/rate-limits";
 import { analyzeAudioFile, isAbortError, ApiError } from "@/lib/api/railway";
-import { KeyFinderBatch } from "@/components/converter/KeyFinderBatch";
+import { KeyFinderBatch, type BatchPhase, type BatchStatus } from "@/components/converter/KeyFinderBatch";
 import { MAX_BATCH_FILES } from "@/lib/data/key-finder";
 import type { AnalysisResult, ProcessingState } from "@/lib/types/converter";
 
@@ -95,6 +95,8 @@ export function KeyFinderForm() {
   const [error, setError] = useState<FormError | null>(null);
   const [batchFiles, setBatchFiles] = useState<File[] | null>(null);
   const [batchNote, setBatchNote] = useState<string | null>(null);
+  const [batchPhase, setBatchPhase] = useState<BatchPhase>("ready");
+  const [batchCount, setBatchCount] = useState(0);
 
   const isProcessing = status === "processing";
   const isComplete = status === "complete";
@@ -117,7 +119,24 @@ export function KeyFinderForm() {
   useEffect(() => () => abortRef.current?.abort(), []);
 
   const canAnalyze = Boolean(file) && !isProcessing && !isComplete && cooldownSeconds === 0;
-  const step: 1 | 2 | 3 = batchFiles ? 2 : isComplete ? 3 : isProcessing ? 2 : 1;
+  const batchRunning = Boolean(batchFiles) && batchPhase === "running";
+  const batchFinished = Boolean(batchFiles) && batchPhase === "finished";
+  const step: 1 | 2 | 3 = batchFiles
+    ? batchPhase === "ready"
+      ? 1
+      : batchRunning
+        ? 2
+        : 3
+    : isComplete
+      ? 3
+      : isProcessing
+        ? 2
+        : 1;
+
+  const handleBatchStatus = useCallback((s: BatchStatus) => {
+    setBatchPhase(s.phase);
+    setBatchCount(s.count);
+  }, []);
 
   const handleFileSelect = (selectedFile: File) => {
     setValidationError(null);
@@ -150,12 +169,15 @@ export function KeyFinderForm() {
     setResult(null);
     setStatus("idle");
     setFile(null);
+    setBatchPhase("ready");
+    setBatchCount(kept.length);
     setBatchFiles(kept);
   };
 
   const handleBatchReset = () => {
     setBatchFiles(null);
     setBatchNote(null);
+    setBatchPhase("ready");
   };
 
   const handleAnalyze = useCallback(async () => {
@@ -272,20 +294,21 @@ export function KeyFinderForm() {
   return (
     <FormShell
       toolLabel="Key & BPM finder"
-      toolMeta={batchFiles ? `${batchFiles.length} files · one at a time` : "Camelot · cross-checked"}
+      toolMeta={batchFiles ? `${batchCount} files, one at a time` : "Camelot · cross-checked"}
       steps={STEPS}
       step={step}
-      busy={isProcessing}
+      busy={isProcessing || batchRunning}
       failed={isFailed}
-      complete={isComplete}
+      complete={isComplete || batchFinished}
       footer={footer}
     >
-      {/* BATCH */}
       {batchFiles && (
-        <Section className="space-y-4">
-          {batchNote && <ValidationNote message={batchNote} />}
-          <KeyFinderBatch files={batchFiles} onReset={handleBatchReset} />
-        </Section>
+        <KeyFinderBatch
+          files={batchFiles}
+          note={batchNote}
+          onReset={handleBatchReset}
+          onStatusChange={handleBatchStatus}
+        />
       )}
 
       {/* SOURCE */}
@@ -304,8 +327,8 @@ export function KeyFinderForm() {
           {validationError && <ValidationNote message={validationError} />}
           {!file && (
             <p className="text-xs text-text-subtle">
-              Drop up to {MAX_BATCH_FILES} files to analyse a folder in one go. They run one after
-              another and the results download as CSV.
+              Drop up to {MAX_BATCH_FILES} files to analyse a folder in one go. Results download as a
+              CSV, or as your files renamed with their key and BPM.
             </p>
           )}
         </Section>
