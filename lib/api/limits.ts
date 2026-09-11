@@ -29,7 +29,7 @@ import { TOOL_LIMITS } from "@/lib/data/tool-limits";
  * `rate_limit.tools` on GET /credits/me — so client forms keep calling
  * rateLimitFor() and treat anything here as the free-tier fallback.
  *
- * COST: server-side only, `revalidate: 3600`, and it changes solely on
+ * COST: server-side only, `revalidate: 86400`, and it changes solely on
  * redeploy. Zero client requests, same pattern as getFeatureFlags(). Never
  * import this into a client component — see the Footer incident in
  * FRONTEND_ARCHITECTURE.md §7.2.
@@ -431,8 +431,9 @@ export async function getLimits(): Promise<Limits> {
   const base = fallback();
   try {
     const res = await fetch(`${RAILWAY_API_BASE}/limits`, {
-      // Changes only on redeploy, so an hour is generous rather than risky.
-      next: { revalidate: 3600 },
+      // Changes only on a backend redeploy. A day keeps all ~100 pages from
+      // regenerating every hour (that was most of the ISR write bill).
+      next: { revalidate: 86400 },
       // Without a deadline, a VPS that accepts the connection but never answers
       // blocks the whole server render and burns Vercel function duration.
       signal: AbortSignal.timeout(5_000),

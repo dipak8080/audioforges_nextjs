@@ -72,7 +72,7 @@ export const TRANSCRIPTION_MODEL = "Whisper large-v3";
 export async function getTranscriptionModelName(): Promise<string> {
   try {
     const res = await fetch(`${RAILWAY_API_BASE}/speech-to-text/languages`, {
-      next: { revalidate: 3600 },
+      next: { revalidate: 86400 },
       signal: AbortSignal.timeout(5_000),
     });
     if (!res.ok) return TRANSCRIPTION_MODEL;
