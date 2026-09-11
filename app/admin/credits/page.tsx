@@ -1,23 +1,7 @@
 "use client";
 
-/**
- * app/admin/credits/page.tsx — final pass.
- *
- * Two changes over the previous version:
- *
- *  1. FIXED SHELL. The page now fills the viewport exactly and never scrolls
- *     itself. Header, KPI rail, tabs, filters, stat cards and the pager all
- *     hold still; the only thing that moves is the data. The shell height is
- *     measured from where the page actually starts, so it stays correct under
- *     whatever chrome the admin layout puts above it.
- *
- *  2. NO RAW JSON. Every response is rendered as designed fields — labelled,
- *     typed, formatted. A <pre> dump was fine as scaffolding while the shapes
- *     were unknown; it is not an interface. Unknown keys still render, they
- *     just render as fields like everything else.
- */
-
-import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Fragment, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   AlertTriangle,
   Check,
@@ -41,6 +25,9 @@ import {
   Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
+import { RefreshControl } from "../_components/RefreshControl";
+import { SpendBoard, ToolTable } from "../_components/SpendCharts";
+import { RANGES, buildSpendModel, duration, rangeDates, toolLabel, type CostRow, type RangeKey } from "../_components/spend";
 
 /* ------------------------------------------------------------------ */
 /* types                                                               */
@@ -62,19 +49,6 @@ interface Overview {
   jobs_refunded?: number;
   webhooks_unprocessed?: number;
   usage?: { jobs?: number; gpu_seconds?: number; est_cost_usd?: number };
-}
-
-interface CostRow {
-  day: string;
-  tool: string;
-  jobs: number;
-  completed: number;
-  failed: number;
-  input_minutes: number;
-  gpu_seconds: number;
-  est_cost_usd: number;
-  paid_jobs: number;
-  free_jobs: number;
 }
 
 interface JobRow {
@@ -102,21 +76,49 @@ interface Filters {
 type Rec = Record<string, unknown>;
 
 const VIEWS: { id: View; label: string; hint: string; icon: typeof Coins }[] = [
-  { id: "lookup", label: "Customer", hint: "Paid and got nothing", icon: Search },
-  { id: "overview", label: "Overview", hint: "Liability and paywall state", icon: Wallet },
-  { id: "costs", label: "Spend", hint: "Spend by day", icon: Zap },
-  { id: "jobs", label: "Jobs", hint: "Cost joined to billing", icon: Clock },
-  { id: "webhooks", label: "Webhooks", hint: "Payment delivery log", icon: Inbox },
+  { id: "lookup", label: "Customer", hint: "Find a customer and grant credits", icon: Search },
+  { id: "overview", label: "Overview", hint: "Unspent credits and paywall settings", icon: Wallet },
+  { id: "costs", label: "Spend", hint: "What the GPU costs and which tools drive it", icon: Zap },
+  { id: "jobs", label: "Jobs", hint: "Every GPU job with its cost and charge", icon: Clock },
+  { id: "webhooks", label: "Payments", hint: "Ko-fi payment deliveries", icon: Inbox },
 ];
 
 const PAGE_SIZE = 50;
+const AUTO_MS = 30_000;
 const KOFI_PACKS = [10, 30, 100];
 
 /* ------------------------------------------------------------------ */
 /* transport + formatting                                              */
 /* ------------------------------------------------------------------ */
 
+const inflight = { n: 0, last: 0, subs: new Set<() => void>() };
+const emitInflight = () => inflight.subs.forEach((f) => f());
+const subscribeInflight = (f: () => void) => {
+  inflight.subs.add(f);
+  return () => {
+    inflight.subs.delete(f);
+  };
+};
+
+function useInflight() {
+  const busy = useSyncExternalStore(subscribeInflight, () => inflight.n > 0, () => false);
+  const last = useSyncExternalStore(subscribeInflight, () => inflight.last, () => 0);
+  return { busy, lastUpdated: last || null };
+}
+
 async function api<T = unknown>(path: string, init?: RequestInit): Promise<T> {
+  inflight.n += 1;
+  emitInflight();
+  try {
+    return await apiRaw<T>(path, init);
+  } finally {
+    inflight.n = Math.max(0, inflight.n - 1);
+    if (inflight.n === 0) inflight.last = Date.now();
+    emitInflight();
+  }
+}
+
+async function apiRaw<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, { cache: "no-store", ...init });
   const text = await res.text();
   let body: unknown = text;
@@ -139,25 +141,25 @@ const isAbort = (e: unknown) => e instanceof DOMException && e.name === "AbortEr
 const msg = (e: unknown, fallback: string) => (e instanceof Error ? e.message : fallback);
 
 const money = (n: number | null | undefined, dp = 4) =>
-  n === null || n === undefined || Number.isNaN(n) ? "—" : `$${n.toFixed(dp)}`;
+  n === null || n === undefined || Number.isNaN(n) ? "–" : `$${n.toFixed(dp)}`;
 
 const num = (n: number | null | undefined, dp = 0) =>
   n === null || n === undefined || Number.isNaN(n)
-    ? "—"
+    ? "–"
     : n.toLocaleString(undefined, { maximumFractionDigits: dp });
 
 const fullTime = (iso: string | null) => {
-  if (!iso) return "—";
+  if (!iso) return "–";
   const d = new Date(iso);
   return Number.isNaN(d.getTime())
-    ? "—"
+    ? "–"
     : d.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "medium" });
 };
 
 const relTime = (iso: string | null) => {
-  if (!iso) return "—";
+  if (!iso) return "–";
   const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "—";
+  if (Number.isNaN(d.getTime())) return "–";
   const s = Math.round((Date.now() - d.getTime()) / 1000);
   if (s < 60) return `${Math.max(s, 0)}s ago`;
   if (s < 3600) return `${Math.floor(s / 60)}m ago`;
@@ -330,7 +332,7 @@ function Card({ className, children }: { className?: string; children: React.Rea
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-text-subtle">{children}</p>
+    <p className="text-[12px] font-medium text-text-subtle">{children}</p>
   );
 }
 
@@ -362,7 +364,7 @@ function Stat({
       </div>
       <p
         className={cn(
-          "mt-1.5 font-mono text-xl font-semibold leading-none tabular-nums",
+          "mt-1.5 text-xl font-semibold leading-none tabular-nums",
           tone === "alarm"
             ? "text-red-400"
             : tone === "accent"
@@ -499,7 +501,7 @@ function Badge({
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-md border px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide",
+        "inline-flex items-center rounded-md border px-1.5 py-0.5 text-[11px] font-medium capitalize",
         tone === "good" && "border-teal-500/30 bg-teal-500/10 text-teal-300",
         tone === "bad" && "border-red-500/30 bg-red-500/10 text-red-300",
         tone === "accent" && "border-amber-500/30 bg-amber-500/10 text-amber-300",
@@ -605,7 +607,7 @@ function Th({
       className={cn(
         // Sticky against the DataScroll container — which now has a bounded
         // height, so this actually holds while the rows move under it.
-        "sticky top-0 z-10 whitespace-nowrap border-b border-graphite-800 bg-graphite-900 px-3 py-2.5 font-mono text-[10px] font-medium uppercase tracking-[0.14em]",
+        "sticky top-0 z-10 whitespace-nowrap border-b border-graphite-800 bg-graphite-900 px-3 py-2.5 text-[12px] font-medium",
         active ? "text-amber-400" : "text-text-subtle",
         right && "text-right"
       )}
@@ -665,7 +667,7 @@ function Table({ children }: { children: React.ReactNode }) {
  */
 function FieldValue({ name, value }: { name: string; value: unknown }) {
   if (value === null || value === undefined || value === "") {
-    return <span className="text-text-subtle">—</span>;
+    return <span className="text-text-subtle">–</span>;
   }
   if (typeof value === "boolean") {
     return <Badge tone={value ? "good" : "muted"}>{value ? "Yes" : "No"}</Badge>;
@@ -739,7 +741,7 @@ function FieldGrid({
         const wide = typeof v === "object" && v !== null;
         return (
           <div key={k} className={cn("min-w-0", wide && "sm:col-span-full")}>
-            <dt className="font-mono text-[10px] uppercase tracking-[0.16em] text-text-subtle">
+            <dt className="text-[12px] text-text-subtle">
               {prettyLabel(k)}
             </dt>
             <dd className="mt-1 min-w-0 text-sm">
@@ -828,8 +830,20 @@ function useOverview(tick: number) {
 /* page                                                                */
 /* ------------------------------------------------------------------ */
 
-export default function AdminCreditsPage() {
-  const [view, setView] = useState<View>("lookup");
+export default function AdminCreditsRoute() {
+  return (
+    <Suspense fallback={null}>
+      <AdminCreditsPage />
+    </Suspense>
+  );
+}
+
+function AdminCreditsPage() {
+  const params = useSearchParams();
+  const [view, setView] = useState<View>(() => {
+    const wanted = params.get("view");
+    return VIEWS.some((v) => v.id === wanted) ? (wanted as View) : "lookup";
+  });
   const [tick, setTick] = useState(0);
   const [auto, setAuto] = useState(false);
   const [jobsPreset, setJobsPreset] = useState<JobsPreset | null>(null);
@@ -838,6 +852,7 @@ export default function AdminCreditsPage() {
   const [shellRef, shellHeight] = useShellHeight();
 
   const refresh = useCallback(() => setTick((t) => t + 1), []);
+  const { busy, lastUpdated } = useInflight();
 
   const switchView = useCallback((next: View) => {
     setJobsPreset(null);
@@ -850,10 +865,11 @@ export default function AdminCreditsPage() {
   }, []);
 
   useEffect(() => {
-    if (!auto) return;
-    const id = window.setInterval(refresh, 30_000);
-    return () => window.clearInterval(id);
-  }, [auto, refresh]);
+    if (!auto || busy) return;
+    const wait = lastUpdated ? Math.max(0, lastUpdated + AUTO_MS - Date.now()) : AUTO_MS;
+    const id = window.setTimeout(refresh, wait);
+    return () => window.clearTimeout(id);
+  }, [auto, busy, lastUpdated, refresh]);
 
   // Keyboard: 1–5 switch views, r refreshes. Ignored while typing.
   useEffect(() => {
@@ -880,8 +896,8 @@ export default function AdminCreditsPage() {
       <style dangerouslySetInnerHTML={{ __html: STYLES }} />
 
       {/* ===== fixed chrome ===== */}
-      <header className="shrink-0 border-b border-graphite-800 px-4 pt-3 sm:px-6">
-        <div className="mx-auto w-full max-w-7xl">
+      <header className="shrink-0 border-b border-graphite-800 pt-3">
+        <div className="mx-auto w-full max-w-7xl px-4 sm:px-6">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
             <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-amber-500/30 bg-amber-500/10">
               <Coins className="h-4 w-4 text-amber-400" aria-hidden />
@@ -891,41 +907,38 @@ export default function AdminCreditsPage() {
               <p className="truncate text-[11px] text-text-subtle">{active.hint}</p>
             </div>
 
-            <div className="ml-auto flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setAuto((a) => !a)}
-                title="Refresh every 30 seconds"
-                className={cn(
-                  "hidden h-9 items-center gap-1.5 rounded-lg border px-3 text-[13px] outline-none transition-colors sm:inline-flex",
-                  "focus-visible:ring-2 focus-visible:ring-amber-400/70",
-                  auto
-                    ? "border-teal-500/40 bg-teal-500/10 text-teal-300"
-                    : "border-graphite-700 bg-graphite-850/80 text-text-muted hover:text-text-primary"
-                )}
-              >
-                <span className={cn("h-1.5 w-1.5 rounded-full", auto ? "bg-teal-400" : "bg-graphite-600")} />
-                Live
-              </button>
-              <Button size="sm" onClick={refresh} title="Refresh (r)">
-                <RefreshCw className="h-3.5 w-3.5" aria-hidden />
-                Refresh
-              </Button>
-            </div>
+            <RefreshControl
+              className="ml-auto"
+              busy={busy}
+              lastUpdated={lastUpdated}
+              onRefresh={refresh}
+              auto={auto}
+              onAutoChange={setAuto}
+              autoEveryMs={AUTO_MS}
+            />
           </div>
 
-          {/* Pinned so open holds and unmatched payments are never something you
-              have to navigate to in order to see. */}
           <div className="af-railless -mx-4 mt-3 flex gap-2 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-            <Pill label="Outstanding" value={num(overview?.credits_outstanding)} tone="accent" />
-            <Pill label="Accounts" value={num(overview?.accounts)} />
-            <Pill label="Holds open" value={num(overview?.holds_open)} tone={overview?.holds_open ? "alarm" : "plain"} />
             <Pill
-              label="Unmatched"
+              label="Unspent credits"
+              title="Credits people bought and have not used yet"
+              value={num(overview?.credits_outstanding)}
+              tone="accent"
+            />
+            <Pill label="Accounts" value={num(overview?.accounts)} />
+            <Pill
+              label="Credits on hold"
+              title="Jobs that took a credit and have not finished"
+              value={num(overview?.holds_open)}
+              tone={overview?.holds_open ? "alarm" : "plain"}
+            />
+            <Pill
+              label="Unmatched payments"
+              title="Ko-fi payments that did not reach an account"
               value={num(overview?.webhooks_unprocessed)}
               tone={overview?.webhooks_unprocessed ? "alarm" : "plain"}
             />
-            <Pill label="GPU spend" value={money(overview?.usage?.est_cost_usd, 2)} />
+            <Pill label="GPU spend, 30 days" value={money(overview?.usage?.est_cost_usd, 2)} />
           </div>
 
           <nav className="af-railless -mx-4 mt-3 flex gap-1 overflow-x-auto px-4 sm:mx-0 sm:px-0" aria-label="Credits views">
@@ -975,18 +988,29 @@ export default function AdminCreditsPage() {
   );
 }
 
-function Pill({ label, value, tone = "plain" }: { label: string; value: string; tone?: "plain" | "accent" | "alarm" }) {
+function Pill({
+  label,
+  value,
+  title,
+  tone = "plain",
+}: {
+  label: string;
+  value: string;
+  title?: string;
+  tone?: "plain" | "accent" | "alarm";
+}) {
   return (
     <div
+      title={title}
       className={cn(
         "flex shrink-0 items-baseline gap-2 rounded-lg border px-2.5 py-1.5",
         tone === "alarm" ? "border-red-500/30 bg-red-500/[0.07]" : "border-graphite-800 bg-graphite-900/60"
       )}
     >
-      <span className="font-mono text-[9px] uppercase tracking-[0.16em] text-text-subtle">{label}</span>
+      <span className="whitespace-nowrap text-[12px] text-text-subtle">{label}</span>
       <span
         className={cn(
-          "font-mono text-[13px] font-semibold tabular-nums",
+          "text-[13px] font-semibold tabular-nums",
           tone === "alarm" ? "text-red-400" : tone === "accent" ? "text-amber-400" : "text-text-primary"
         )}
       >
@@ -1117,7 +1141,7 @@ function LookupPanel({
 
           {recent.length > 0 && (
             <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-              <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-text-subtle">Recent</span>
+              <span className="text-[12px] text-text-subtle">Recent</span>
               {recent.map((r) => (
                 <button
                   key={r}
@@ -1145,7 +1169,7 @@ function LookupPanel({
                 <span className="truncate">{subject}</span>
                 <CopyButton value={subject} label="Copy email" />
               </span>
-              {stale && <Badge tone="accent">Search box changed — press Look up</Badge>}
+              {stale && <Badge tone="accent">Search box changed. Press Look up</Badge>}
               <button
                 type="button"
                 onClick={() => {
@@ -1181,7 +1205,7 @@ function LookupPanel({
               <Empty
                 icon={Users}
                 title="Search an account to begin"
-                body="Enter the email from the Ko-fi order. You can grant credits on the right without searching first — an unknown email creates the account."
+                body="Enter the email from the Ko-fi order. You can grant credits on the right without searching first. An unknown email creates the account."
               />
             )}
           </div>
@@ -1349,7 +1373,7 @@ function AdjustForm({
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-1.5">
-        <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-text-subtle">Ko-fi packs</span>
+        <span className="text-[12px] text-text-subtle">Ko-fi packs</span>
         {KOFI_PACKS.map((p) => (
           <button
             key={p}
@@ -1372,7 +1396,7 @@ function AdjustForm({
           type="number"
           value={delta}
           onChange={(e) => setDelta(e.target.value)}
-          placeholder="Delta — e.g. 30"
+          placeholder="Credits, e.g. 30"
           aria-label="Credit delta"
           className={cn(inputClass, "h-10 px-3 tabular-nums")}
         />
@@ -1381,7 +1405,7 @@ function AdjustForm({
           value={note}
           onChange={(e) => setNote(e.target.value)}
           maxLength={200}
-          placeholder="Note — e.g. Ko-fi order #1234"
+          placeholder="Note, e.g. Ko-fi order #1234"
           aria-label="Adjustment note"
           className={cn(inputClass, "h-10 px-3")}
         />
@@ -1415,7 +1439,7 @@ function AdjustForm({
         {!validEmail && <p>Enter the customer email to enable this.</p>}
         <p className={cn(delta && !validDelta && "text-red-400")}>Non-zero integer, −1000 to 1000.</p>
         <p className={cn(note && !validNote && "text-red-400")}>Note 3–200 characters ({note.trim().length}).</p>
-        {confirming && <p className="text-red-400">Negative adjustment — confirm to write it.</p>}
+        {confirming && <p className="text-red-400">Removing credits. Confirm to write it.</p>}
       </div>
 
       {error && (
@@ -1523,7 +1547,7 @@ function OverviewPanel({
             <SectionLabel>Hold sweep</SectionLabel>
             <p className="mt-2 text-xs leading-relaxed text-text-muted">
               Releases credits held by jobs that never reported a terminal state. Runs on its own
-              every 90 minutes — this button is for when someone is waiting.
+              every 90 minutes. Use this when someone is waiting.
             </p>
           </div>
           <div>
@@ -1542,33 +1566,6 @@ function OverviewPanel({
 /* ------------------------------------------------------------------ */
 
 type JobsPreset = { status?: string; chargeType?: string; range?: string; email?: string };
-
-type RangeKey = "today" | "yesterday" | "7d" | "30d" | "90d";
-
-const RANGES: { key: RangeKey; label: string }[] = [
-  { key: "today", label: "Today" },
-  { key: "yesterday", label: "Yesterday" },
-  { key: "7d", label: "7 days" },
-  { key: "30d", label: "30 days" },
-  { key: "90d", label: "90 days" },
-];
-
-const utcDay = (offset: number) => new Date(Date.now() - offset * 864e5).toISOString().slice(0, 10);
-
-function rangeDates(key: RangeKey): { from: string; to: string } {
-  switch (key) {
-    case "today":
-      return { from: utcDay(0), to: utcDay(0) };
-    case "yesterday":
-      return { from: utcDay(1), to: utcDay(1) };
-    case "7d":
-      return { from: utcDay(6), to: utcDay(0) };
-    case "90d":
-      return { from: utcDay(89), to: utcDay(0) };
-    default:
-      return { from: utcDay(29), to: utcDay(0) };
-  }
-}
 
 function Segmented({
   value,
@@ -1682,7 +1679,7 @@ function ReadPanel({
   };
 
   const activeChips = [
-    tool && { label: `Tool: ${tool}`, clear: () => setFilter(setTool)("") },
+    tool && { label: `Tool: ${toolLabel(tool)}`, clear: () => setFilter(setTool)("") },
     chargeType && { label: `Charge: ${chargeType}`, clear: () => setFilter(setChargeType)("") },
     accountsOnly && { label: "Accounts only", clear: () => setFilter(setAccountsOnly)(false) },
     emailApplied && {
@@ -1726,7 +1723,7 @@ function ReadPanel({
               <option value="">Any tool</option>
               {(filters.tools ?? []).map((t) => (
                 <option key={t} value={t}>
-                  {t}
+                  {toolLabel(t)}
                 </option>
               ))}
             </Select>
@@ -1768,9 +1765,9 @@ function ReadPanel({
                   setOffset(0);
                   setEmailApplied(email.trim().toLowerCase());
                 }}
-                className="flex min-w-0 flex-1"
+                className="flex min-w-[15rem] flex-1 basis-60"
               >
-                <div className="relative min-w-0 flex-1 sm:max-w-xs">
+                <div className="relative min-w-0 flex-1 sm:max-w-sm">
                   <Search
                     className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-text-subtle"
                     aria-hidden
@@ -1801,10 +1798,6 @@ function ReadPanel({
                 CSV
               </Button>
             )}
-            <Button size="sm" busy={loading} onClick={() => void load()}>
-              <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} aria-hidden />
-              Reload
-            </Button>
           </div>
         </div>
 
@@ -1829,7 +1822,13 @@ function ReadPanel({
       {loading && !data && <SkeletonPanel />}
 
       {data !== null && view === "costs" && (
-        <CostsPanel rows={costRows} onDrillFailed={() => onGoToJobs({ status: "failed_all", range })} />
+        <CostsPanel
+          rows={costRows}
+          range={range}
+          tool={tool}
+          onPickTool={setFilter(setTool)}
+          onDrillFailed={() => onGoToJobs({ status: "failed_all", range })}
+        />
       )}
       {data !== null && view === "jobs" && (
         <>
@@ -1854,224 +1853,60 @@ function ReadPanel({
   );
 }
 
-function DailyBars({ data }: { data: { day: string; cost: number }[] }) {
-  if (data.length < 2) return null;
-  const max = Math.max(...data.map((d) => d.cost), 0.0001);
-  const label = (day: string) => day.slice(5).replace("-", "/");
-  const mid = Math.floor((data.length - 1) / 2);
-  return (
-    <Card className="shrink-0 px-3 pb-2 pt-2.5">
-      <div className="flex items-baseline justify-between">
-        <SectionLabel>Daily spend</SectionLabel>
-        <span className="font-mono text-[10px] text-text-subtle">peak {money(max, 2)}/day</span>
-      </div>
-      <div className="mt-2 flex h-[120px] items-end gap-[3px]" role="img" aria-label="Daily spend chart">
-        {data.map((d) => (
-          <div key={d.day} title={`${d.day} — ${money(d.cost, 2)}`} className="group flex h-full flex-1 items-end">
-            <div
-              className="w-full rounded-t-sm bg-amber-500/60 transition-colors group-hover:bg-amber-400"
-              style={{ height: d.cost > 0 ? `${Math.max((d.cost / max) * 100, 2)}%` : "0%" }}
-            />
-          </div>
-        ))}
-      </div>
-      <div className="mt-1 flex justify-between font-mono text-[10px] text-text-subtle">
-        <span>{label(data[0].day)}</span>
-        <span>{label(data[mid].day)}</span>
-        <span>{label(data[data.length - 1].day)}</span>
-      </div>
-    </Card>
-  );
-}
-
-interface ToolAgg {
+function CostsPanel({
+  rows,
+  range,
+  tool,
+  onDrillFailed,
+  onPickTool,
+}: {
+  rows: CostRow[];
+  range: RangeKey;
   tool: string;
-  jobs: number;
-  failed: number;
-  paid: number;
-  gpu_seconds: number;
-  cost: number;
-}
-
-type ToolSortKey = "tool" | "jobs" | "failed" | "paid" | "gpu_seconds" | "cost";
-
-function CostsPanel({ rows, onDrillFailed }: { rows: CostRow[]; onDrillFailed: () => void }) {
-  const [sort, setSort] = useState<{ key: ToolSortKey; dir: "asc" | "desc" }>({ key: "cost", dir: "desc" });
-
-  const totals = useMemo(
-    () =>
-      rows.reduce(
-        (a, r) => ({
-          jobs: a.jobs + (r.jobs ?? 0),
-          failed: a.failed + (r.failed ?? 0),
-          cost: a.cost + (r.est_cost_usd ?? 0),
-          paid: a.paid + (r.paid_jobs ?? 0),
-        }),
-        { jobs: 0, failed: 0, cost: 0, paid: 0 }
-      ),
-    [rows]
-  );
-
-  const daily = useMemo(() => {
-    const byDay = new Map<string, number>();
-    rows.forEach((r) => byDay.set(r.day, (byDay.get(r.day) ?? 0) + (r.est_cost_usd ?? 0)));
-    return [...byDay.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([day, cost]) => ({ day, cost }));
-  }, [rows]);
-
-  const byTool = useMemo(() => {
-    const m = new Map<string, ToolAgg>();
-    rows.forEach((r) => {
-      const t = m.get(r.tool) ?? { tool: r.tool, jobs: 0, failed: 0, paid: 0, gpu_seconds: 0, cost: 0 };
-      t.jobs += r.jobs ?? 0;
-      t.failed += r.failed ?? 0;
-      t.paid += r.paid_jobs ?? 0;
-      t.gpu_seconds += r.gpu_seconds ?? 0;
-      t.cost += r.est_cost_usd ?? 0;
-      m.set(r.tool, t);
-    });
-    const dir = sort.dir === "asc" ? 1 : -1;
-    return [...m.values()].sort((a, b) => {
-      const x = a[sort.key];
-      const y = b[sort.key];
-      if (typeof x === "number" && typeof y === "number") return (x - y) * dir;
-      return String(x).localeCompare(String(y)) * dir;
-    });
-  }, [rows, sort]);
-
-  const onSort = (key: string) =>
-    setSort((s) =>
-      s.key === key ? { key: s.key, dir: s.dir === "asc" ? "desc" : "asc" } : { key: key as ToolSortKey, dir: "desc" }
-    );
+  onDrillFailed: () => void;
+  onPickTool: (tool: string) => void;
+}) {
+  const model = useMemo(() => {
+    const { from, to } = rangeDates(range);
+    return buildSpendModel(rows, from, to);
+  }, [rows, range]);
 
   if (rows.length === 0) {
     return (
       <div className="flex min-h-0 flex-1 items-center justify-center">
-        <Empty icon={Zap} title="No jobs in this range" body="Widen the range or clear the tool filter." />
+        <Empty icon={Zap} title="No GPU jobs in this range" body="Pick a longer range or clear the tool filter." />
       </div>
     );
   }
 
-  const failRate = totals.jobs > 0 ? totals.failed / totals.jobs : 0;
-
   return (
-    <>
-      <div className="grid shrink-0 grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label="Est. spend" value={money(totals.cost, 2)} tone="accent" />
-        <Stat label="Jobs" value={num(totals.jobs)} />
-        <button
-          type="button"
-          onClick={onDrillFailed}
-          title="Open these failed jobs in the Jobs tab"
-          className={cn(
-            "rounded-2xl border px-3.5 py-3 text-left outline-none transition-colors",
-            "focus-visible:ring-2 focus-visible:ring-amber-400/70",
-            failRate >= 0.1
-              ? "border-red-500/30 bg-red-500/[0.06] hover:bg-red-500/10"
-              : "border-graphite-800 bg-graphite-900/70 hover:border-graphite-700"
-          )}
-        >
-          <SectionLabel>Failed</SectionLabel>
-          <p
-            className={cn(
-              "mt-1.5 font-mono text-xl font-semibold leading-none tabular-nums",
-              failRate >= 0.1 ? "text-red-400" : "text-text-primary"
-            )}
-          >
-            {num(totals.failed)}
-            {totals.jobs > 0 && (
-              <span className="ml-1 text-xs font-normal text-text-subtle">{Math.round(failRate * 100)}%</span>
-            )}
-          </p>
-          <p className="mt-1 text-[11px] text-text-subtle">View failed jobs →</p>
-        </button>
-        <Stat label="Paid jobs" value={num(totals.paid)} sub="Charged a credit" />
-      </div>
-
-      <DailyBars data={daily} />
-
-      <DataScroll>
-        {/* mobile */}
-        <div className="space-y-2 p-2 md:hidden">
-          {byTool.map((t) => {
-            const rate = t.jobs > 0 ? t.failed / t.jobs : 0;
-            return (
-              <Card key={t.tool} className="p-3">
-                <div className="flex items-baseline justify-between gap-2">
-                  <span className="truncate font-mono text-[11px] text-text-primary">{t.tool}</span>
-                  <span className="font-mono text-[12px] text-amber-400">{money(t.cost)}</span>
-                </div>
-                <div className="mt-2 grid grid-cols-3 gap-2">
-                  <Cell label="Jobs" value={num(t.jobs)} />
-                  <Cell
-                    label="Failed"
-                    value={`${num(t.failed)}${rate >= 0.25 ? ` (${Math.round(rate * 100)}%)` : ""}`}
-                    tone={rate >= 0.25 ? "bad" : undefined}
-                  />
-                  <Cell label="Share" value={totals.cost > 0 ? `${Math.round((t.cost / totals.cost) * 100)}%` : "—"} />
-                </div>
-              </Card>
-            );
-          })}
+    <div className="af-scroll -mr-2 min-h-0 flex-1 space-y-4 overflow-y-auto pb-4 pr-2">
+      <SpendBoard
+        model={model}
+        range={range}
+        onDrillFailed={onDrillFailed}
+        onPickTool={onPickTool}
+        toolFilterLabel={tool ? toolLabel(tool) : undefined}
+      />
+      <section className="rounded-2xl border border-graphite-800 bg-graphite-900/70">
+        <div className="flex flex-wrap items-baseline justify-between gap-2 px-4 pb-2 pt-4 sm:px-5">
+          <div>
+            <h3 className="text-sm font-semibold text-text-primary">Every tool, side by side</h3>
+            <p className="mt-0.5 text-[12px] text-text-subtle">Click a tool to focus the page on it.</p>
+          </div>
         </div>
-
-        {/* desktop */}
-        <div className="hidden md:block">
-          <Table>
-            <thead>
-              <tr>
-                <Th sortKey="tool" sort={sort} onSort={onSort}>Tool</Th>
-                <Th right sortKey="jobs" sort={sort} onSort={onSort}>Jobs</Th>
-                <Th right sortKey="failed" sort={sort} onSort={onSort}>Failed</Th>
-                <Th right sortKey="paid" sort={sort} onSort={onSort}>Paid</Th>
-                <Th right sortKey="gpu_seconds" sort={sort} onSort={onSort}>GPU s</Th>
-                <Th right sortKey="cost" sort={sort} onSort={onSort}>Cost</Th>
-                <Th right>Share</Th>
-              </tr>
-            </thead>
-            <tbody>
-              {byTool.map((t) => {
-                const rate = t.jobs > 0 ? t.failed / t.jobs : 0;
-                const bad = rate >= 0.25;
-                const share = totals.cost > 0 ? t.cost / totals.cost : 0;
-                return (
-                  <Tr key={t.tool}>
-                    <Td className="font-mono text-[11px]">{t.tool}</Td>
-                    <Td right>{num(t.jobs)}</Td>
-                    <Td right className={bad ? "font-semibold text-red-400" : "text-text-muted"}>
-                      {num(t.failed)}
-                      {bad && <span className="ml-1 text-[11px] font-normal">{Math.round(rate * 100)}%</span>}
-                    </Td>
-                    <Td right>{num(t.paid)}</Td>
-                    <Td right className="text-text-subtle">{num(t.gpu_seconds, 1)}</Td>
-                    <Td right className="text-amber-400">{money(t.cost)}</Td>
-                    <Td right>
-                      <span className="inline-flex items-center gap-1.5">
-                        <span className="h-1.5 w-14 overflow-hidden rounded-full bg-graphite-800">
-                          <span
-                            className="block h-full rounded-full bg-amber-500/70"
-                            style={{ width: `${Math.max(share * 100, 2)}%` }}
-                          />
-                        </span>
-                        <span className="w-8 text-right font-mono text-[11px] text-text-subtle">
-                          {Math.round(share * 100)}%
-                        </span>
-                      </span>
-                    </Td>
-                  </Tr>
-                );
-              })}
-            </tbody>
-          </Table>
+        <div className="px-2 pb-2 sm:px-3">
+          <ToolTable model={model} onPick={onPickTool} />
         </div>
-      </DataScroll>
-    </>
+      </section>
+    </div>
   );
 }
 
 function Cell({ label, value, tone }: { label: string; value: string; tone?: "bad" | "accent" }) {
   return (
     <div>
-      <p className="font-mono text-[9px] uppercase tracking-[0.14em] text-text-subtle">{label}</p>
+      <p className="text-[11px] text-text-subtle">{label}</p>
       <p
         className={cn(
           "font-mono text-[13px] tabular-nums",
@@ -2105,7 +1940,7 @@ function JobsPanel({ rows, onEmail }: { rows: JobRow[]; onEmail: (email: string)
           <Card key={r.job_id} className={cn("p-3", isFailed(r) && "border-red-500/25")}>
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
-                <p className="truncate font-mono text-[12px] text-text-primary">{r.tool}</p>
+                <p className="truncate text-[13px] text-text-primary" title={r.tool}>{toolLabel(r.tool)}</p>
                 <p className="mt-0.5 text-[11px] text-text-subtle" title={fullTime(r.created_at)}>
                   {relTime(r.created_at)}
                 </p>
@@ -2121,8 +1956,8 @@ function JobsPanel({ rows, onEmail }: { rows: JobRow[]; onEmail: (email: string)
               </p>
             )}
             <div className="mt-2 grid grid-cols-3 gap-2">
-              <Cell label="Charge" value={r.charge_type ?? "—"} tone={r.charge_type === "credit" ? "accent" : undefined} />
-              <Cell label="GPU s" value={num(r.gpu_seconds, 1)} />
+              <Cell label="Charge" value={r.charge_type ?? "–"} tone={r.charge_type === "credit" ? "accent" : undefined} />
+              <Cell label="GPU time" value={duration(r.gpu_seconds)} />
               <Cell label="Cost" value={money(r.est_cost_usd)} tone="accent" />
             </div>
           </Card>
@@ -2139,7 +1974,7 @@ function JobsPanel({ rows, onEmail }: { rows: JobRow[]; onEmail: (email: string)
               <Th>Email</Th>
               <Th>Status</Th>
               <Th>Charge</Th>
-              <Th right>GPU s</Th>
+              <Th right>GPU time</Th>
               <Th right>Cost</Th>
               <Th />
             </tr>
@@ -2156,7 +1991,9 @@ function JobsPanel({ rows, onEmail }: { rows: JobRow[]; onEmail: (email: string)
                     <Td className="whitespace-nowrap text-text-subtle">
                       <span title={fullTime(r.created_at)}>{relTime(r.created_at)}</span>
                     </Td>
-                    <Td className="font-mono text-[11px]">{r.tool}</Td>
+                    <Td className="whitespace-nowrap text-[13px]">
+                      <span title={r.tool}>{toolLabel(r.tool)}</span>
+                    </Td>
                     <Td className="max-w-[13rem]">
                       {r.email ? (
                         <button
@@ -2184,13 +2021,13 @@ function JobsPanel({ rows, onEmail }: { rows: JobRow[]; onEmail: (email: string)
                           r.charge_type === "credit" ? "text-amber-400" : "text-text-subtle"
                         )}
                       >
-                        {r.charge_type ?? "—"}
+                        {r.charge_type ?? "–"}
                       </span>
                       {r.charge_status && r.charge_status !== "settled" && (
                         <span className="ml-1.5 font-mono text-[10px] text-text-subtle">{r.charge_status}</span>
                       )}
                     </Td>
-                    <Td right className="text-text-subtle">{num(r.gpu_seconds, 1)}</Td>
+                    <Td right className="text-text-muted">{duration(r.gpu_seconds)}</Td>
                     <Td right className="text-amber-400">{money(r.est_cost_usd)}</Td>
                     <Td className="text-right">
                       <ChevronDown
