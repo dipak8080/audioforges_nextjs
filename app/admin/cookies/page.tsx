@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { RefreshControl } from "../_components/RefreshControl";
+import { StickyHeader, onScrollToggle } from "../_components/StickyHeader";
 
 interface CookieSlot {
   exists: boolean;
@@ -370,6 +371,7 @@ export default function AdminCookiesPage() {
   const uploadPanelRef = useRef<HTMLDivElement>(null);
 
   const { toasts, push, dismiss } = useToasts();
+  const [scrolled, setScrolled] = useState(false);
 
   const load = useCallback(async () => {
     setBusy(true);
@@ -510,22 +512,30 @@ export default function AdminCookiesPage() {
   }
 
   return (
-    <div className="scrollbar-thin min-h-0 w-full flex-1 overflow-y-auto">
+    <div
+      onScroll={onScrollToggle(setScrolled)}
+      className="scrollbar-thin min-h-0 w-full flex-1 overflow-y-auto"
+    >
       <style dangerouslySetInnerHTML={{ __html: STYLES }} />
 
-      <div className="mx-auto w-full max-w-7xl px-4 py-5 sm:px-6 sm:py-6">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">YouTube cookies</h1>
-            <p className="mt-0.5 text-[13px] text-text-muted">
-              One Google account per slot. Downloads rotate across the healthy ones.
-            </p>
-          </div>
-          <RefreshControl busy={busy} lastUpdated={lastUpdated} onRefresh={() => void load()} />
-        </div>
+      <StickyHeader
+        title="YouTube cookies"
+        subtitle="One Google account per slot. Downloads rotate across the healthy ones."
+        scrolled={scrolled}
+        condensed={
+          !loading && !error ? (
+            <span className={cn(brokenSlots.length > 0 && "text-red-300")}>
+              {workingCount}/{slotEntries.length} working
+              {brokenSlots.length > 0 ? ` · ${brokenSlots.length} to fix` : ""}
+            </span>
+          ) : null
+        }
+        actions={<RefreshControl busy={busy} lastUpdated={lastUpdated} onRefresh={() => void load()} />}
+      />
 
+      <div className="mx-auto w-full max-w-7xl px-4 pb-6 sm:px-6">
         {!loading && !error && (
-          <p className="mt-5 max-w-2xl text-balance text-[15px] leading-relaxed text-text-body sm:text-base">
+          <p className="max-w-2xl text-balance text-[15px] leading-relaxed text-text-body sm:text-base">
             <span className="mr-1.5 text-[28px] font-semibold tabular-nums text-amber-400 sm:text-[32px]">
               {workingCount} of {slotEntries.length}
             </span>

@@ -15,6 +15,7 @@ import {
 import { cn } from "@/lib/utils/cn";
 import { ConfirmDialog } from "../_components/ConfirmDialog";
 import { RefreshControl } from "../_components/RefreshControl";
+import { StickyHeader, onScrollToggle } from "../_components/StickyHeader";
 
 /* ------------------------------------------------------------------ */
 /* types                                                               */
@@ -339,6 +340,7 @@ export default function AdminCachePage() {
   const [savingLimit, setSavingLimit] = useState(false);
 
   const { toasts, push, dismiss } = useToasts();
+  const [scrolled, setScrolled] = useState(false);
 
   const load = useCallback(async () => {
     setBusy(true);
@@ -447,22 +449,26 @@ export default function AdminCachePage() {
   const cacheCritical = !diskCritical && !diskHigh && percent >= 95;
 
   return (
-    <div className="af-scroll min-h-0 w-full flex-1 overflow-y-auto">
+    <div onScroll={onScrollToggle(setScrolled)} className="af-scroll min-h-0 w-full flex-1 overflow-y-auto">
       <style dangerouslySetInnerHTML={{ __html: STYLES }} />
 
-      <div className="mx-auto w-full max-w-5xl px-4 py-5 sm:px-6 sm:py-6">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Download cache</h1>
-            <p className="mt-0.5 text-[13px] text-text-muted">
-              Audio kept on disk so repeat requests skip re-downloading.
-            </p>
-          </div>
-          <RefreshControl busy={busy} lastUpdated={lastLoadedAt} onRefresh={() => void load()} />
-        </div>
+      <StickyHeader
+        title="Download cache"
+        subtitle="Audio kept on disk so repeat requests skip re-downloading."
+        scrolled={scrolled}
+        condensed={
+          stats ? (
+            <span className={cn(diskCritical && "text-red-300")}>
+              {fmtSize(stats.total_gb)} used · {fmtSize(stats.disk_free_gb)} disk free
+            </span>
+          ) : null
+        }
+        actions={<RefreshControl busy={busy} lastUpdated={lastLoadedAt} onRefresh={() => void load()} />}
+      />
 
+      <div className="mx-auto w-full max-w-5xl px-4 pb-6 sm:px-6">
         {stats && (
-          <dl className="mt-5 flex flex-wrap gap-x-8 gap-y-3">
+          <dl className="flex flex-wrap gap-x-8 gap-y-3">
             <Figure label="Cached files" value={stats.entry_count.toLocaleString()} />
             <Figure label="Cache used" value={fmtSize(stats.total_gb)} />
             <Figure label="Allowance" value={fmtSize(stats.max_gb)} />

@@ -5,8 +5,9 @@ import Link from "next/link";
 import { AlertTriangle, ArrowUpRight, Coins, Cookie, Database, ScrollText } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { RefreshControl } from "./_components/RefreshControl";
+import { StickyHeader, onScrollToggle } from "./_components/StickyHeader";
 import { SpendBoard, Toggle } from "./_components/SpendCharts";
-import { buildSpendModel, rangeDates, type CostRow, type RangeKey } from "./_components/spend";
+import { buildSpendModel, rangeDates, rangePhrase, usd, type CostRow, type RangeKey } from "./_components/spend";
 
 interface CreditsOverview {
   accounts?: number;
@@ -52,6 +53,7 @@ export default function AdminDashboardPage() {
   const [busy, setBusy] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<number | null>(null);
   const [tick, setTick] = useState(0);
+  const [scrolled, setScrolled] = useState(false);
 
   const refresh = useCallback(() => {
     setBusy(true);
@@ -110,13 +112,13 @@ export default function AdminDashboardPage() {
   const holds = credits?.holds_open ?? 0;
 
   return (
-    <div className="scrollbar-thin min-h-0 w-full flex-1 overflow-y-auto">
-      <div className="mx-auto w-full max-w-7xl px-4 py-5 sm:px-6 sm:py-6">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Dashboard</h1>
-            <p className="mt-0.5 text-[13px] text-text-muted">GPU spend, tool usage and backend health.</p>
-          </div>
+    <div onScroll={onScrollToggle(setScrolled)} className="scrollbar-thin min-h-0 w-full flex-1 overflow-y-auto">
+      <StickyHeader
+        title="Dashboard"
+        subtitle="GPU spend, tool usage and backend health."
+        scrolled={scrolled}
+        condensed={model ? <span>{usd(model.totals.cost)} spent {rangePhrase(range)}</span> : null}
+        actions={
           <div className="flex flex-wrap items-center gap-2">
             <Toggle<DashRange>
               label="Date range"
@@ -130,12 +132,15 @@ export default function AdminDashboardPage() {
             />
             <RefreshControl busy={busy} lastUpdated={lastUpdated} onRefresh={refresh} />
           </div>
-        </div>
+        }
+      />
+
+      <div className="mx-auto w-full max-w-7xl px-4 pb-6 sm:px-6">
 
         {(unmatched > 0 || holds > 0) && (
           <Link
             href="/admin/credits"
-            className="mt-4 flex items-center gap-3 rounded-xl border border-red-500/30 bg-red-500/[0.07] px-4 py-3 text-[13px] text-red-200 outline-none transition-colors hover:bg-red-500/10 focus-visible:ring-2 focus-visible:ring-red-400/70"
+            className="flex items-center gap-3 rounded-xl border border-red-500/30 bg-red-500/[0.07] px-4 py-3 text-[13px] text-red-200 outline-none transition-colors hover:bg-red-500/10 focus-visible:ring-2 focus-visible:ring-red-400/70"
           >
             <AlertTriangle className="h-4 w-4 shrink-0 text-red-400" aria-hidden />
             <span className="min-w-0 flex-1">
