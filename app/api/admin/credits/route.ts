@@ -38,6 +38,9 @@ const READ_VIEWS = {
    * adding.
    */
   filters: "/admin/credits/jobs/filters",
+  /** Paywall funnel — migration 005. `gate` is the summary, `gate_daily` the trend. */
+  gate: "/admin/credits/gate",
+  gate_daily: "/admin/credits/gate/daily",
 } as const;
 
 /** Writes. `adjust` is the ONLY one that touches the ledger. */
