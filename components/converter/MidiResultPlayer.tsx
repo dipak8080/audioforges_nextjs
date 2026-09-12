@@ -831,18 +831,31 @@ export function MidiResultPlayer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
 
-  /* ---------- warm the piano samples before the first play ---------- */
+  /* ---------- piano samples, on first interaction ----------
+     Twenty-nine mp3s from a third-party host, several megabytes of
+     them, used to start downloading the instant a result rendered —
+     whether or not anyone ever pressed play. Now the first pointer or
+     key near the player triggers it, which still lands well before the
+     samples are needed and costs nothing for the people who just want
+     to download the file. */
   useEffect(() => {
     if (status !== "ready") return;
-    const w = window as Window & {
-      requestIdleCallback?: (cb: () => void) => number;
+    const wrap = wrapRef.current;
+    if (!wrap) return;
+    let done = false;
+    const warm = () => {
+      if (done) return;
+      done = true;
+      prefetchPiano();
     };
-    if (w.requestIdleCallback) {
-      w.requestIdleCallback(prefetchPiano);
-      return;
-    }
-    const id = window.setTimeout(prefetchPiano, 400);
-    return () => window.clearTimeout(id);
+    wrap.addEventListener("pointerenter", warm, { once: true });
+    wrap.addEventListener("pointerdown", warm, { once: true });
+    window.addEventListener("keydown", warm, { once: true });
+    return () => {
+      wrap.removeEventListener("pointerenter", warm);
+      wrap.removeEventListener("pointerdown", warm);
+      window.removeEventListener("keydown", warm);
+    };
   }, [status]);
 
   /* ---------- canvas sizing ---------- */
@@ -1284,19 +1297,35 @@ export function MidiResultPlayer({
     return Math.max(0, Math.round(t / st) * st);
   };
 
+/**
+ * Runs on EVERY pointermove, in select mode as well as draw mode, purely
+ * to drive the hover tooltip. It used to walk every note of every track
+ * each time — on a five-track full-mix result that is tens of thousands
+ * of comparisons per mouse move, and it is the main reason the roll felt
+ * sticky on a dense file.
+ *
+ * Notes are sorted by start tick and no note lasts longer than its
+ * track's maxDur, so nothing before lowerBound(tick - maxDur) can still
+ * be sounding. Same answer, bounded work: the scan still keeps the LAST
+ * match in a track, which is what the old backwards loop returned.
+ */
   const hitNote = (tick: number, pitch: number, ppt: number) => {
     const d = dataRef.current;
     if (!d) return null;
     for (let ti = d.tracks.length - 1; ti >= 0; ti--) {
-      const notes = d.tracks[ti].notes;
-      for (let i = notes.length - 1; i >= 0; i--) {
+      const track = d.tracks[ti];
+      const notes = track.notes;
+      let found: { note: PlayerNote; ti: number; edge: boolean } | null = null;
+      for (let i = lowerBound(notes, tick - track.maxDur); i < notes.length; i++) {
         const n = notes[i];
+        if (n.t > tick) break;
         if (n.p !== pitch) continue;
-        if (tick >= n.t && tick <= n.t + n.d) {
+        if (tick <= n.t + n.d) {
           const edgePx = (n.t + n.d - tick) * ppt;
-          return { note: n, ti, edge: edgePx <= Math.min(8, Math.max(3, n.d * ppt * 0.3)) };
+          found = { note: n, ti, edge: edgePx <= Math.min(8, Math.max(3, n.d * ppt * 0.3)) };
         }
       }
+      if (found) return found;
     }
     return null;
   };
@@ -1445,8 +1474,17 @@ export function MidiResultPlayer({
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
     a.download = `${base} (Forge Roll edit).mid`;
+    // Attached to the DOM and revoked on a later tick, deliberately.
+    // Firefox ignores click() on a detached anchor, and revoking the
+    // object URL synchronously after click() aborts the download in both
+    // Firefox and older Safari — so "Save edits" did nothing there.
+    a.style.display = "none";
+    document.body.appendChild(a);
     a.click();
-    URL.revokeObjectURL(a.href);
+    setTimeout(() => {
+      URL.revokeObjectURL(a.href);
+      a.remove();
+    }, 1000);
   };
 
   const setMode = (draw: boolean) => {
@@ -1797,7 +1835,11 @@ export function MidiResultPlayer({
             pushHistory();
             const len = lastLenRef.current || gridStepOrMin();
             const note: PlayerNote = { t: snapTick(tick), d: len, p: pitch, v: 0.8 };
-            const ti = Math.max(0, g.d.tracks.findIndex((t) => !t.percussion));
+                    // findIndex returns -1 when every track is percussion, and
+            // Math.max turned that into track 0 — dropping a pitched note
+            // onto a drum track, which exports on channel 9.
+            const melodic = g.d.tracks.findIndex((t) => !t.percussion);
+            const ti = melodic >= 0 ? melodic : 0;
             g.d.tracks[ti].notes.push(note);
             selectedRef.current = note;
             dragRef.current = {
@@ -2048,7 +2090,16 @@ export function MidiResultPlayer({
   };
 
   /* ---------- render ---------- */
-  if (status === "error") return null;
+  if (status === "error") {
+    // Rendered nothing at all before, so a failed fetch was
+    // indistinguishable from a tool that simply has no editor. On the
+    // paid tier that reads as a missing feature rather than a hiccup.
+    return (
+      <div className="rounded-xl border border-white/10 bg-white/[0.02] px-4 py-3 text-[11px] text-white/45">
+        The editor could not load this file. The download above still works.
+      </div>
+    );
+  }
 
   const bpmNow = data ? Math.round(data.baseBpm * (tempoPct / 100)) : 0;
 

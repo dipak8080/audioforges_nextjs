@@ -290,6 +290,29 @@ async function toApiError(res: Response, context: ErrorContext): Promise<ApiErro
     }
   }
 
+  // 409 from the idempotency layer: an identical submit is still in
+  // flight. Not a failure — the caller waits and retries the same key,
+  // at which point the original job's response replays.
+  if (res.status === 409) {
+    let kind: string | undefined;
+    let message = "";
+    try {
+      const body = await res.clone().json();
+      const obj = (body?.detail && typeof body.detail === "object" ? body.detail : body) as
+        | Record<string, unknown>
+        | null;
+      if (obj) {
+        if (typeof obj.kind === "string") kind = obj.kind;
+        if (typeof obj.message === "string") message = obj.message;
+      }
+    } catch {
+      /* not JSON */
+    }
+    if (kind === "duplicate_request") {
+      return new ApiError(message || "This request is already running.", 409, { kind });
+    }
+  }
+
   const rawDetail = await parseDetail(res);
 
   // Gate EVERY branch, not just the default one. Previously 400/404/413/
@@ -699,12 +722,26 @@ export interface JobStatusResult {
   error: string | null;
 }
 
+/**
+ * `idempotencyKey` is what makes a retry safe.
+ *
+ * Every metered route reads the upload, probes the duration, charges,
+ * then spawns. A client that times out anywhere in the first three steps
+ * cannot know whether the charge landed, and a blind retry used to start
+ * a SECOND job: second upload, second GPU run, second credit. The server
+ * stores its response against this key, so a retry carrying the same one
+ * replays the original job id instead of creating anything.
+ *
+ * Send the SAME key for every attempt at one logical submit, and a fresh
+ * one when the user deliberately starts a new run.
+ */
 export async function submitJob(
   endpoint: string,
   formData: FormData,
   timeoutMs = 30_000,
   opts: RequestOptions = {},
-  withCredentials = false
+  withCredentials = false,
+  idempotencyKey?: string
 ): Promise<JobSubmitResponse> {
   const res = await fetchWithTimeout(
     `${RAILWAY_API_BASE}/${endpoint}`,
@@ -712,12 +749,39 @@ export async function submitJob(
       method: "POST",
       body: formData,
       signal: opts.signal,
+      ...(idempotencyKey ? { headers: { "Idempotency-Key": idempotencyKey } } : {}),
       ...(withCredentials ? { credentials: "include" as RequestCredentials } : {}),
     },
     timeoutMs
   );
   if (!res.ok) throw await toApiError(res, "job");
   return readJson<JobSubmitResponse>(res);
+}
+
+/**
+ * Stops a running job on the server.
+ *
+ * Cancelling used to be a client-only act: the form stopped polling and
+ * the GPU carried on running and billing, with the credit still spent.
+ * This reaches the backend, which cancels the RunPod job and refunds in
+ * the same instant.
+ *
+ * Never throws for the caller's benefit — the run is being abandoned
+ * either way, so a failed cancel must not block the UI from resetting.
+ */
+export async function cancelJob(jobId: string): Promise<boolean> {
+  try {
+    const res = await fetchWithTimeout(
+      `${RAILWAY_API_BASE}/jobs/${jobId}/cancel`,
+      { method: "POST", credentials: "include" as RequestCredentials },
+      10_000
+    );
+    if (!res.ok) return false;
+    const body = await readJson<{ cancelled?: boolean }>(res);
+    return body?.cancelled === true;
+  } catch {
+    return false;
+  }
 }
 
 /**

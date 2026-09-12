@@ -21,6 +21,7 @@ import {
   getJobStatus,
   getJobPreviewUrl,
   getJobDownloadUrl,
+  cancelJob,
   ApiError,
 } from "@/lib/api/railway";
 import {
@@ -70,6 +71,12 @@ export type { ProcessingStage };
  */
 
 const DEFAULT_MAX_POLL_MS = 10 * 60 * 1000;
+
+// A 409 means our own earlier attempt is still running on the server.
+// Waiting for it is the recovery: when it finishes, the same
+// idempotency key replays its response and we get the real job id.
+const DUPLICATE_WAIT_MS = 3000;
+const DUPLICATE_MAX_WAITS = 20;
 const STEPS = ["File", "Run", "Result"] as const;
 
 /* ------------------------------------------------------------------ */
@@ -311,6 +318,15 @@ interface JobToolFormProps {
    */
   metered?: boolean;
   /**
+   * The paywall RULE key, when it differs from the endpoint.
+   *
+   * /audio-to-midi-hq bills under two rules: `audio-to-midi-hq` at 1
+   * credit, and `audio-to-midi-hq-mix` at 3 for a full mix. The
+   * rate-limit upsell looked the cost up by ENDPOINT, so a full-mix
+   * run offered to sell the user 1 credit for a 3-credit job.
+   */
+  meteredToolKey?: string;
+  /**
    * Extra content rendered in the complete state, under the download button —
    * for a tool whose output can't be previewed as audio and therefore has
    * nothing to show for itself otherwise.
@@ -355,6 +371,7 @@ export function JobToolForm({
   maxSubmitRetries = 1,
   hidePreview = false,
   metered = false,
+  meteredToolKey,
   renderResult,
   hideSupport = false,
 }: JobToolFormProps) {
@@ -567,7 +584,19 @@ export function JobToolForm({
     setValidationError(null);
   };
 
-  const handleCancel = () => clearRun();
+  /**
+   * Stops the job on the SERVER too, not just in this tab.
+   *
+   * Cancel used to clear local state and nothing else: the GPU kept
+   * running, kept billing, and the credit stayed spent on a result
+   * nobody would ever fetch. The local reset happens first so the UI is
+   * instant, and the network call is fire-and-forget behind it.
+   */
+  const handleCancel = () => {
+    const id = jobId;
+    clearRun();
+    if (id) void cancelJob(id);
+  };
 
   const handleSubmit = async () => {
     if (!file) return;
@@ -593,11 +622,29 @@ export function JobToolForm({
       formData.append(key, value);
     }
 
+    // ONE KEY FOR EVERY ATTEMPT AT THIS SUBMIT. The server stores its
+    // response against it, so a retry after a timeout replays the
+    // original job instead of starting a second one — which on a metered
+    // route meant a second GPU run and a second credit off the same
+    // press of the same button.
+    const idempotencyKey =
+      typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
     let attempt = 0;
+    let duplicateWaits = 0;
 
     while (true) {
       try {
-        const res = await submitJob(endpoint, formData, submitTimeoutMs, {}, metered);
+        const res = await submitJob(
+          endpoint,
+          formData,
+          submitTimeoutMs,
+          {},
+          metered,
+          idempotencyKey
+        );
         if (cancelledRef.current) return;
         setRetryNotice(null);
         setJobId(res.job_id);
@@ -625,6 +672,22 @@ export function JobToolForm({
           setRetryNotice(null);
           setStatus("idle");
           return;
+        }
+
+        // Our own earlier attempt is still running. This is the
+        // recovery path, not a failure: keep asking with the same key
+        // until it finishes and its response replays.
+        if (
+          err instanceof ApiError &&
+          err.status === 409 &&
+          err.kind === "duplicate_request" &&
+          duplicateWaits < DUPLICATE_MAX_WAITS
+        ) {
+          duplicateWaits += 1;
+          setRetryNotice("Picking up the run already in progress");
+          await sleep(DUPLICATE_WAIT_MS);
+          if (cancelledRef.current) return;
+          continue;
         }
 
         if (attempt < maxSubmitRetries && isRetryableSubmitError(err)) {
@@ -832,7 +895,7 @@ export function JobToolForm({
                 </p>
                 <button
                   type="button"
-                  onClick={() => setUpsellPayload(buildUpsellPayload(me, endpoint))}
+                  onClick={() => setUpsellPayload(buildUpsellPayload(me, meteredToolKey ?? endpoint))}
                   className={buttonStyles({ variant: "primary", size: "sm", className: "mt-3" })}
                 >
                   Buy credits to continue

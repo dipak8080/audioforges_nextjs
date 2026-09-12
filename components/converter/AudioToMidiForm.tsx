@@ -362,6 +362,7 @@ type MidiHqResultExtra = MidiHqResult & {
   bpm?: number | null;
   stems_used?: string[];
   stems_skipped?: string[];
+  stems_failed?: string[];
 };
 
 const ENGINE_LABEL: Record<string, string> = {
@@ -698,6 +699,10 @@ function MidiHqResultSummary({ jobId }: { jobId: string }) {
   const engineLabel = result.engine ? ENGINE_LABEL[result.engine] : undefined;
   const cleaned = result.notes_dropped_by_cleanup ?? 0;
   const skipped = (result.stems_skipped ?? []).filter((stem) => stem !== "drums");
+  // NOT the same as skipped. The backend used to merge the two, so a
+  // crashed engine was reported to a paying user as "no piano part was
+  // found in this track".
+  const failed = (result.stems_failed ?? []).filter((stem) => stem !== "drums");
 
   return (
     <div className="overflow-hidden rounded-xl border border-graphite-800 bg-graphite-950/40">
@@ -743,6 +748,14 @@ function MidiHqResultSummary({ jobId }: { jobId: string }) {
         <p className="border-t border-graphite-800 px-4 py-2.5 text-[11px] leading-relaxed text-text-subtle">
           No {skipped.join(", ")} part was found in this track, so{" "}
           {skipped.length === 1 ? "that stem was" : "those stems were"} left out.
+        </p>
+      )}
+
+      {failed.length > 0 && (
+        <p className="border-t border-amber-500/20 bg-amber-500/[0.04] px-4 py-2.5 text-[11px] leading-relaxed text-text-muted">
+          The {failed.join(", ")} {failed.length === 1 ? "part" : "parts"} could not
+          be transcribed and {failed.length === 1 ? "is" : "are"} missing from this
+          file. Everything else came through.
         </p>
       )}
 
@@ -902,11 +915,14 @@ export function AudioToMidiForm({ hqAvailable = false }: { hqAvailable?: boolean
          audio. The 10 minute default gave up on jobs that were still running
          and already charged. */
       maxPollMs={isFullMix ? 25 * 60 * 1000 : isHq ? 15 * 60 * 1000 : 10 * 60 * 1000}
-      /* NO SUBMIT RETRY ON THE METERED ROUTE. A retry re-POSTs the whole file,
-         and if the first request reached the server and started a job before
-         the client timed out, the retry starts a SECOND one: second GPU run,
-         second credit. Free route keeps the retry. */
-      maxSubmitRetries={isHq ? 0 : 1}
+      /* Retries are safe again: every attempt now carries one idempotency
+         key, so a retry after a timeout replays the original job rather
+         than starting a second one. This had to be 0 on the metered route
+         before that existed. */
+      maxSubmitRetries={2}
+      /* Full mix bills under a different rule at 3 credits, and the
+         rate-limit upsell reads the cost from this. */
+      meteredToolKey={isHq ? hqToolKey(instrument) : undefined}
       rateLimitMessage={rateLimitHint}
       buildExtraFields={() => {
         const bounded = settings.limitPitch && settings.lowNote < settings.highNote;
