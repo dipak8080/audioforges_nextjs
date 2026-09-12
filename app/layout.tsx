@@ -71,6 +71,7 @@ const organizationJsonLd = {
   url: SITE_URL,
   logo: `${SITE_URL}/images/logo.png`,
   sameAs: [
+    "https://www.instagram.com/audioforges/",
     "https://www.producthunt.com/products/audioforges",
     "https://github.com/dipak8080/audioforges_nextjs",
     "https://ko-fi.com/audioforges",
