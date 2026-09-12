@@ -518,8 +518,17 @@ export function StemMixer({ stems, onDownload, onDownloadAll, sourceTitle }: Ste
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
       a.download = `${sourceTitle || "mix"} (AudioForges Mix).wav`;
+      // Attached, and revoked on a later tick. Firefox ignores click() on a
+      // detached anchor, and revoking the blob URL on the same tick aborts
+      // the download. A mix export can be tens of megabytes, so the delay is
+      // generous.
+      a.style.display = "none";
+      document.body.appendChild(a);
       a.click();
-      URL.revokeObjectURL(a.href);
+      setTimeout(() => {
+        URL.revokeObjectURL(a.href);
+        a.remove();
+      }, 60_000);
     } finally {
       setExporting(false);
     }

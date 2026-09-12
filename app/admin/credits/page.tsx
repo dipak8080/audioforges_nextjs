@@ -201,8 +201,12 @@ function downloadCsv(name: string, rows: Rec[]) {
   a.download = name;
   document.body.appendChild(a);
   a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+  // Revoked on a later tick: doing it synchronously after click() aborts
+  // the download in Firefox and older Safari.
+  setTimeout(() => {
+    URL.revokeObjectURL(url);
+    a.remove();
+  }, 1000);
 }
 
 /* ------------------------------------------------------------------ */

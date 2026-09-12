@@ -644,8 +644,16 @@ export function SheetResultPlayer({
       const a = document.createElement("a");
       a.href = URL.createObjectURL(png);
       a.download = `${(title || "score").replace(/\.[^.]+$/, "")} (AudioForges).png`;
+      // Attached, and revoked on a later tick. Firefox ignores click() on a
+      // detached anchor, and revoking the blob URL on the same tick aborts
+      // the download in Firefox and older Safari.
+      a.style.display = "none";
+      document.body.appendChild(a);
       a.click();
-      URL.revokeObjectURL(a.href);
+      setTimeout(() => {
+        URL.revokeObjectURL(a.href);
+        a.remove();
+      }, 1000);
     }, "image/png");
   };
 
