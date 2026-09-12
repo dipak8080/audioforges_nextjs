@@ -190,17 +190,19 @@ export default function AboutPage() {
               whether the site is honest. Naming the one thing that costs money,
               and why, beats an absolute that can be disproved in one click. */}
           <p>
-            There are no ads on this site and no accounts. Servers, GPU time and
-            bandwidth come out of my own pocket, offset by voluntary support via{" "}
+            There are no ads on this site. Servers, GPU time and bandwidth come
+            out of my own pocket, paid for by credit purchases through{" "}
             <a href="https://ko-fi.com/audioforges" target="_blank" rel="noopener noreferrer">
               Ko-fi
             </a>
-            .
+            , which handles the payment. You can use everything without an
+            account; signing in with your email is optional, and only useful if
+            you want credits you bought to follow you to another device.
           </p>
           <p>
             Almost everything here is free and stays that way, conversion,
-            editing, cleanup, analysis, practice tools, transcription, and
-            standard vocal removal and stem splitting, all with full-quality
+            editing, cleanup, analysis, practice tools, and standard vocal
+            removal and stem splitting, all with full-quality
             downloads and no watermark. The tools that run on GPU time carry
             fair-use caps per person rather than an account, so one person
             can&apos;t tie up a shared machine.
@@ -221,7 +223,7 @@ export default function AboutPage() {
           </p>
         </Prose>
         <div className="mt-12">
-          <PageByline updated="2026-09-10" note="Rewritten as the tool pages moved to named models and published limits" />
+          <PageByline updated="2026-09-12" note="Rewritten as the tool pages moved to named models and published limits" />
         </div>
       </main>
     </>
