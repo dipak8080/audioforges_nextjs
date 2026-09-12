@@ -318,7 +318,7 @@ export function YouTubeStemForm({ hqAvailable = false }: YouTubeStemFormProps) {
         breakoutOnComplete
         showMixerTeaser
       endpoint="youtube/stems"
-      onSubmit={(url) => submitYoutubeStems(url, effectiveQuality)}
+      onSubmit={(url, key) => submitYoutubeStems(url, effectiveQuality, {}, key)}
       // Credits wiring. `meteredToolKey` reflects the CURRENT selection, so it's
       // null while Standard is chosen and the 429 offer stays out of the free
       // tier's way.

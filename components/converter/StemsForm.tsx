@@ -279,7 +279,7 @@ export function StemsForm({ hqAvailable = false }: StemsFormProps) {
       resultView="mixer"
       breakoutOnComplete
       queryParam="stem"
-      onSubmit={(file) => submitStems(file, effectiveQuality)}
+      onSubmit={(file, key) => submitStems(file, effectiveQuality, {}, key)}
       // Credits wiring. `meteredToolKey` reflects the CURRENT selection, so it's
       // null while Standard is chosen and the 429 offer stays out of the free
       // tier's way.

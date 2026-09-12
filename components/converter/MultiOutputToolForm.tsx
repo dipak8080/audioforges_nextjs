@@ -36,6 +36,7 @@ import {
   getMultiOutputStatus,
   getMultiOutputPreviewUrl,
   getMultiOutputDownloadUrl,
+  cancelJob,
   ApiError,
   type JobSubmitResponse,
 } from "@/lib/api/railway";
@@ -102,6 +103,12 @@ export type { ProcessingStage };
  */
 
 const DEFAULT_MAX_POLL_MS = 12 * 60 * 1000;
+
+// A 409 means our own earlier attempt is still running on the server.
+// Waiting is the recovery: when it finishes, the same idempotency key
+// replays its response and we get the real job id.
+const DUPLICATE_WAIT_MS = 3000;
+const DUPLICATE_MAX_WAITS = 20;
 const STEPS = ["File", "Run", "Result"] as const;
 
 /**
@@ -225,7 +232,9 @@ interface MultiOutputToolFormProps {
    * closed over in this function, so this component never needs to know what a
    * given tool's extra parameters are.
    */
-  onSubmit: (file: File) => Promise<JobSubmitResponse>;
+  /** Receives the idempotency key for this submit. Pass it through to
+   *  the API call so a duplicate replays instead of re-charging. */
+  onSubmit: (file: File, idempotencyKey: string) => Promise<JobSubmitResponse>;
   /** Optional controls rendered above the submit button — e.g. a Standard/HQ
    * toggle for stems, or format+threshold fields for silence-split. Receives
    * current file + disabled state, same as JobToolForm's renderControls. */
@@ -561,7 +570,16 @@ export function MultiOutputToolForm({
     setValidationError(null);
   };
 
-  const handleCancel = () => clearRun();
+  /**
+   * Stops the job on the SERVER too. Cancel used to clear local state and
+   * nothing else: the GPU kept running, kept billing, and the credit
+   * stayed spent on stems nobody would collect.
+   */
+  const handleCancel = () => {
+    const id = jobId;
+    clearRun();
+    if (id) void cancelJob(id);
+  };
 
   const handleSubmit = async () => {
     if (!file) return;
@@ -572,11 +590,21 @@ export function MultiOutputToolForm({
     setRetryNotice(null);
     cancelledRef.current = false;
 
+    // ONE KEY FOR THIS SUBMIT. The server stores its response against it,
+    // so a duplicate — a double-click, or a retry after a timeout that
+    // already reached the server — replays the original job instead of
+    // starting a second GPU run on a second credit.
+    const idempotencyKey =
+      typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
     let attempt = 0;
+    let duplicateWaits = 0;
 
     while (true) {
       try {
-        const res = await onSubmit(file);
+        const res = await onSubmit(file, idempotencyKey);
         if (cancelledRef.current) return;
         setRetryNotice(null);
         setJobId(res.job_id);
@@ -602,6 +630,21 @@ export function MultiOutputToolForm({
           setRetryNotice(null);
           setStatus("idle");
           return;
+        }
+
+        // Our own earlier attempt is still in flight. Keep asking with
+        // the same key until it finishes and its response replays.
+        if (
+          err instanceof ApiError &&
+          err.status === 409 &&
+          err.kind === "duplicate_request" &&
+          duplicateWaits < DUPLICATE_MAX_WAITS
+        ) {
+          duplicateWaits += 1;
+          setRetryNotice("Picking up the run already in progress");
+          await sleep(DUPLICATE_WAIT_MS);
+          if (cancelledRef.current) return;
+          continue;
         }
 
         if (attempt < maxSubmitRetries && isRetryableSubmitError(err)) {

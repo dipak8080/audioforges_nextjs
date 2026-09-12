@@ -40,6 +40,7 @@ import {
   getSeparationStatus,
   getSeparationPreviewUrl,
   getSeparationDownloadUrl,
+  cancelJob,
   ApiError,
   type SeparationQuality,
 } from "@/lib/api/railway";
@@ -454,8 +455,17 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
     setError(null);
     cancelledRef.current = false;
 
+    // ONE KEY FOR THIS SUBMIT. This form has no retry loop, so the
+    // duplicate it guards against is the human one: a double-click, or a
+    // second press while the first is still uploading. Either used to
+    // start a second separation on a second credit.
+    const idempotencyKey =
+      typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
     try {
-      const res = await submitSeparation(file, effectiveQuality);
+      const res = await submitSeparation(file, effectiveQuality, {}, idempotencyKey);
       if (cancelledRef.current) return;
       setJobId(res.job_id);
       setJobQuality(effectiveQuality);
@@ -561,6 +571,10 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
   };
 
   const handleCancel = () => {
+    // Stops the job on the SERVER too. This used to be local only: the
+    // GPU kept running and billing, and the credit stayed spent.
+    const id = jobId;
+    if (id) void cancelJob(id);
     cancelledRef.current = true;
     stopPolling();
     setStatus("idle");

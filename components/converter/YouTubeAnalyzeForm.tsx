@@ -99,7 +99,7 @@ export function YouTubeAnalyzeForm() {
   return (
     <YouTubeUrlForm
       endpoint="youtube/analyze"
-      onSubmit={submitYoutubeAnalyze}
+      onSubmit={(url, key) => submitYoutubeAnalyze(url, {}, key)}
       pollIntervalMs={3000}
       // Explicit rather than inherited: its siblings run 45 and 110, so an
       // unstated default here would read as something nobody looked at.

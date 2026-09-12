@@ -282,7 +282,7 @@ export function YouTubeSeparateForm({ hqAvailable = false }: YouTubeSeparateForm
         breakoutOnComplete
         showMixerTeaser
       endpoint="youtube/separate"
-      onSubmit={(url) => submitYoutubeSeparate(url, effectiveQuality)}
+      onSubmit={(url, key) => submitYoutubeSeparate(url, effectiveQuality, {}, key)}
       // Credits wiring. `meteredToolKey` reflects the CURRENT selection, so it's
       // null while Standard is chosen and the 429 offer stays out of the free
       // tier's way.

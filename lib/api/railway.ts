@@ -619,7 +619,8 @@ export type SeparationQuality = "standard" | "hq";
 export async function submitSeparation(
   file: File,
   quality: SeparationQuality = "standard",
-  opts: RequestOptions = {}
+  opts: RequestOptions = {},
+  idempotencyKey?: string
 ): Promise<SeparateResponse> {
   const fd = new FormData();
   fd.append("file", file);
@@ -632,6 +633,7 @@ export async function submitSeparation(
       method: "POST",
       body: fd,
       signal: opts.signal,
+      ...(idempotencyKey ? { headers: { "Idempotency-Key": idempotencyKey } } : {}),
       ...(isMetered ? { credentials: "include" as RequestCredentials } : {}),
     },
     30_000
@@ -908,13 +910,14 @@ export function getMultiOutputDownloadUrl(
 export async function submitStems(
   file: File,
   quality: SeparationQuality = "standard",
-  opts: RequestOptions = {}
+  opts: RequestOptions = {},
+  idempotencyKey?: string
 ): Promise<JobSubmitResponse> {
   const fd = new FormData();
   fd.append("file", file);
   const isMetered = quality === "hq";
   const endpoint = isMetered ? "stems-hq" : "stems";
-  return submitJob(endpoint, fd, 30_000, opts, isMetered);
+  return submitJob(endpoint, fd, 30_000, opts, isMetered, idempotencyKey);
 }
 
 export function getStemsStatus(
@@ -967,7 +970,8 @@ export async function submitUrlJob(
   url: string,
   timeoutMs = 30_000,
   opts: RequestOptions = {},
-  withCredentials = false
+  withCredentials = false,
+  idempotencyKey?: string
 ): Promise<JobSubmitResponse> {
   const body = new URLSearchParams();
   body.set("url", url);
@@ -976,7 +980,10 @@ export async function submitUrlJob(
     `${RAILWAY_API_BASE}/${endpoint}`,
     {
       method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
+      },
       body,
       signal: opts.signal,
       ...(withCredentials ? { credentials: "include" as RequestCredentials } : {}),
@@ -993,9 +1000,10 @@ export async function submitUrlJob(
 
 export function submitYoutubeAnalyze(
   url: string,
-  opts: RequestOptions = {}
+  opts: RequestOptions = {},
+  idempotencyKey?: string
 ): Promise<JobSubmitResponse> {
-  return submitUrlJob("youtube/analyze", url, 30_000, opts);
+  return submitUrlJob("youtube/analyze", url, 30_000, opts, false, idempotencyKey);
 }
 
 export function getYoutubeAnalyzeStatus(
@@ -1026,7 +1034,8 @@ export async function getYoutubeAnalyzeResult(
 export function submitYoutubeSeparate(
   url: string,
   quality: SeparationQuality = "standard",
-  opts: RequestOptions = {}
+  opts: RequestOptions = {},
+  idempotencyKey?: string
 ): Promise<JobSubmitResponse> {
   const isMetered = quality === "hq";
   return submitUrlJob(
@@ -1034,7 +1043,8 @@ export function submitYoutubeSeparate(
     url,
     30_000,
     opts,
-    isMetered
+    isMetered,
+    idempotencyKey
   );
 }
 
@@ -1060,7 +1070,8 @@ export function getYoutubeSeparateDownloadUrl(jobId: string, stem: StemType): st
 export function submitYoutubeStems(
   url: string,
   quality: SeparationQuality = "standard",
-  opts: RequestOptions = {}
+  opts: RequestOptions = {},
+  idempotencyKey?: string
 ): Promise<JobSubmitResponse> {
   const isMetered = quality === "hq";
   return submitUrlJob(
@@ -1068,7 +1079,8 @@ export function submitYoutubeStems(
     url,
     30_000,
     opts,
-    isMetered
+    isMetered,
+    idempotencyKey
   );
 }
 

@@ -17,7 +17,12 @@ import type { UpgradeFamily } from "@/lib/api/credits";
 import { cn } from "@/lib/utils/cn";
 import { validateYouTubeUrl, sanitizeUserInput } from "@/lib/utils/validation";
 import { getRetryAfterFallback } from "@/lib/data/rate-limits";
-import { getJobStatus, ApiError, type JobSubmitResponse } from "@/lib/api/railway";
+import {
+  getJobStatus,
+  cancelJob,
+  ApiError,
+  type JobSubmitResponse,
+} from "@/lib/api/railway";
 import {
   CooldownBar,
   ErrorPanel,
@@ -45,6 +50,12 @@ import {
 export type { ProcessingStage };
 
 const DEFAULT_MAX_POLL_MS = 10 * 60 * 1000;
+
+// A 409 means our own earlier attempt is still running on the server.
+// Waiting is the recovery: when it finishes, the same idempotency key
+// replays its response and we get the real job id.
+const DUPLICATE_WAIT_MS = 3000;
+const DUPLICATE_MAX_WAITS = 20;
 const STEPS = ["Link", "Run", "Result"] as const;
 
 function extractVideoId(input: string): string | null {
@@ -94,7 +105,9 @@ interface YouTubeUrlFormProps {
   breakoutOnComplete?: boolean;
   /** Show the Forge Mixer promise strip under the URL input. */
   showMixerTeaser?: boolean;
-  onSubmit: (url: string) => Promise<JobSubmitResponse>;
+  /** Receives the idempotency key for this submit. Pass it through to
+   *  the API call so a duplicate replays instead of re-charging. */
+  onSubmit: (url: string, idempotencyKey: string) => Promise<JobSubmitResponse>;
   pollIntervalMs?: number;
   submitLabel: string;
   processingLabel: string;
@@ -377,7 +390,16 @@ export function YouTubeUrlForm({
     inputRef.current?.focus();
   };
 
-  const handleCancel = () => clearRun();
+  /**
+   * Stops the job on the SERVER too. A YouTube chain job holds a download
+   * slot and then a GPU slot, so abandoning one quietly was the most
+   * expensive version of this bug.
+   */
+  const handleCancel = () => {
+    const id = jobId;
+    clearRun();
+    if (id) void cancelJob(id);
+  };
 
   const handleSubmit = async () => {
     const trimmedUrl = url.trim();
@@ -393,11 +415,24 @@ export function YouTubeUrlForm({
     setRetryNotice(null);
     cancelledRef.current = false;
 
+    // ONE KEY FOR THIS SUBMIT. The server stores its response against it,
+    // so a duplicate — a double-click, or a retry after a timeout that
+    // already reached the server — replays the original job instead of
+    // starting a second GPU run on a second credit.
+    const idempotencyKey =
+      typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
     let attempt = 0;
+    let duplicateWaits = 0;
 
     while (true) {
       try {
-        const res = await onSubmit(urlValidation.normalizedUrl || trimmedUrl);
+        const res = await onSubmit(
+          urlValidation.normalizedUrl || trimmedUrl,
+          idempotencyKey
+        );
         if (cancelledRef.current) return;
         setRetryNotice(null);
         setJobId(res.job_id);
@@ -417,6 +452,21 @@ export function YouTubeUrlForm({
           setRetryNotice(null);
           setStatus("idle");
           return;
+        }
+
+        // Our own earlier attempt is still in flight. Keep asking with
+        // the same key until it finishes and its response replays.
+        if (
+          err instanceof ApiError &&
+          err.status === 409 &&
+          err.kind === "duplicate_request" &&
+          duplicateWaits < DUPLICATE_MAX_WAITS
+        ) {
+          duplicateWaits += 1;
+          setRetryNotice("Picking up the run already in progress");
+          await sleep(DUPLICATE_WAIT_MS);
+          if (cancelledRef.current) return;
+          continue;
         }
 
         if (attempt < maxSubmitRetries && isRetryableSubmitError(err)) {
