@@ -647,7 +647,11 @@ export default function AdminCookiesPage() {
 
           {!loading && !error && (
             <div className="af-railless -mx-4 mt-3 flex gap-2 overflow-x-auto px-4 sm:mx-0 sm:px-0" aria-live="polite">
-              <Pill label="Slots filled" value={`${presentCount} / 3`} tone={presentCount === 0 ? "alarm" : "plain"} />
+              <Pill
+                label="Slots filled"
+                value={`${presentCount} / ${slotEntries.length}`}
+                tone={presentCount === 0 ? "alarm" : "plain"}
+              />
               <Pill
                 label="Need re-export"
                 value={String(brokenSlots.length)}
