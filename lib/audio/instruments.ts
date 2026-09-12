@@ -70,6 +70,16 @@ const PIANO_URLS: Record<string, string> = {
   C7: "C7.mp3", "D#7": "Ds7.mp3", "F#7": "Fs7.mp3", A7: "A7.mp3", C8: "C8.mp3",
 };
 
+let pianoPrefetched = false;
+
+export function prefetchPiano() {
+  if (pianoPrefetched || typeof window === "undefined") return;
+  pianoPrefetched = true;
+  for (const file of Object.values(PIANO_URLS)) {
+    fetch(PIANO_BASE + file, { mode: "cors" }).catch(() => {});
+  }
+}
+
 export function makeInstrument(
   Tone: ToneModule,
   kind: InstrumentKind,
