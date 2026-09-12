@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import {
   ChevronDown,
   Music4,
@@ -12,7 +13,7 @@ import {
   Guitar,
   Lightbulb,
 } from "lucide-react";
-import { JobToolForm } from "@/components/converter/JobToolForm";
+import { JobToolForm, type ProcessingStage } from "@/components/converter/JobToolForm";
 import { OptionCards, type CardOption } from "@/components/converter/ToolControls";
 import { getRateLimitLabel } from "@/lib/data/rate-limits";
 import { cn } from "@/lib/utils/cn";
@@ -20,66 +21,24 @@ import { useCredits } from "@/components/credits/CreditProvider";
 import { FreeTierBadge } from "@/components/credits/FreeTierBadge";
 import type { MeteredToolKey } from "@/lib/types/credits";
 import { getAudioToMidiHqResult, getJobDownloadUrl, type MidiHqResult } from "@/lib/api/railway";
-import { MidiResultPlayer } from "@/components/converter/MidiResultPlayer";
 
 /**
- * TWO ENGINES, NOT TWO QUALITY LEVELS.
+ * Two engines, not two quality levels. /audio-to-midi runs basic-pitch with
+ * tunable onset/sustain detection. /audio-to-midi-hq routes per instrument
+ * (stems | transkun | basic-pitch-guitar) and has no detector to tune, so the
+ * sensitivity sliders and presets do not exist on that side.
  *
- * /audio-to-midi runs basic-pitch: one MIDI track, tunable onset and sustain
- * detection. /audio-to-midi-hq runs YourMT3, a transformer that emits note
- * events — there is NO detector to tune, so the sensitivity sliders do not
- * exist on that side. FastAPI silently drops unknown form fields, so sending
- * them anyway would fail quietly rather than error.
- *
- * That is why the two tiers show different controls rather than the same panel
- * with a quality switch, and why HQ has no presets: four of the six free
- * presets differ ONLY in sensitivity, so they would all collapse into the same
- * request. Presenting six options that do three things is worse than
- * presenting the two controls that actually exist.
- *
- * The other trap: HQ pitch bounds are MIDI NOTE NUMBERS, not Hz. The free tool
- * converts note→Hz at submit because basic-pitch's API takes Hz; that
- * conversion must NOT happen here.
- *
- * ── INSTRUMENT ROUTING (2026-09-01) ────────────────────────────────────
- *
- * HQ takes an `instrument` field (2026-09-05 routing):
- *   auto    Demucs split, then one engine per stem (bass/vocals basic-pitch,
- *           piano Transkun, guitar preset, other YourMT3), merged into one
- *           multi-track MIDI with the detected BPM as tempo. 3 credits under
- *           the "audio-to-midi-hq-mix" rule.
- *   piano   Transkun. 1 credit. `isolate=true` pulls the piano stem first.
- *   guitar  basic-pitch guitar mode. 1 credit. `isolate=true` as before.
- * The result carries `engine` (stems | transkun | basic-pitch-guitar).
- *
- * ── THIS PASS ──────────────────────────────────────────────────────────
- *
- * 1. THE RATE-LIMIT COPY WAS WRONG FOR ANYONE HOLDING CREDITS. It read
- *    getRateLimitLabel("audio-to-midi-hq") — the STATIC table, which carries
- *    the free-tier figure. The metered rule is tiered: 2/hour free, 30/hour
- *    credited (confirmed against the limiter, 2026-08-30). So a paying user
- *    who hit a 429 was told the limit was 2 per hour when theirs was 30.
- *    rateLimitFor() resolves through the same code path the limiter uses, so
- *    it's preferred now and the table is the fallback — matching what the four
- *    separation forms already do.
- *
- * 2. THE "CHANGED" BADGE COUNTED SETTINGS THE ACTIVE TIER DOESN'T SEND.
- *    changedCount always compared all five fields against DEFAULTS, so a user
- *    who nudged the sensitivity sliders on the free tier and then switched to
- *    Multi-track saw "2" on a panel where those two controls aren't rendered
- *    and those two values aren't submitted. It counts per tier now.
- *
- * 3. useRovingRadio IS GONE. Fourth hand-rolled copy of the same keyboard
- *    behaviour; OptionCards carries it, and the tier picker gets the same
- *    markup as every other picker on the site.
+ * HQ pitch bounds are MIDI NOTE NUMBERS. The free tool converts note→Hz at
+ * submit because basic-pitch's API takes Hz; that conversion must not happen
+ * on the HQ path.
  */
 
-/**
- * PLACEHOLDER COPY - every string in TOOL_COPY below is a placeholder,
- * not final. Swap for real values once ranking keywords / actual
- * processing-time numbers are available. Kept in one block up top
- * specifically so it's a one-spot edit rather than hunting through JSX.
- */
+/** Only mounts after a job completes, so it stays out of the first load. */
+const MidiResultPlayer = dynamic(
+  () => import("@/components/converter/MidiResultPlayer").then((m) => m.MidiResultPlayer),
+  { ssr: false },
+);
+
 const TOOL_COPY = {
   submitLabel: "Convert to MIDI",
   toolLabel: "Audio to MIDI",
@@ -91,10 +50,6 @@ const TOOL_COPY = {
 
 /* ------------------------------------------------------------------ *
  * Pitch helpers
- *
- * The backend takes minimum_frequency / maximum_frequency in Hz, but Hz
- * is a terrible unit for a musician to reason about. Everything below
- * works in MIDI note numbers and converts to Hz only at submit time.
  * ------------------------------------------------------------------ */
 
 const MIDI_LOW = 21; // A0
@@ -111,7 +66,6 @@ const midiToName = (m: number) => NOTE_NAMES[m % 12] + (Math.floor(m / 12) - 1);
 const clampHz = (hz: number) =>
   Math.min(HZ_CEIL, Math.max(HZ_FLOOR, Math.round(hz * 10) / 10));
 
-/* Keyboard geometry, computed once at module scope - it never changes. */
 const ALL_NOTES = Array.from({ length: MIDI_HIGH - MIDI_LOW + 1 }, (_, i) => MIDI_LOW + i);
 const WHITE_NOTES = ALL_NOTES.filter((n) => WHITE_PC.has(n % 12));
 const BLACK_NOTES = ALL_NOTES.filter((n) => !WHITE_PC.has(n % 12));
@@ -120,13 +74,11 @@ const BLACK_W = WHITE_W * 0.62;
 const WHITE_INDEX = new Map(WHITE_NOTES.map((n, i) => [n, i] as const));
 const OCTAVE_MARKS = WHITE_NOTES.filter((n) => n % 12 === 0);
 
-/** Left edge + width of a key, as a percentage of the keyboard width. */
 function noteBounds(n: number) {
   if (WHITE_PC.has(n % 12)) {
     const i = WHITE_INDEX.get(n) ?? 0;
     return { left: i * WHITE_W, width: WHITE_W };
   }
-  // Every black key sits immediately above a white key, so anchor to that.
   const i = WHITE_INDEX.get(n - 1) ?? 0;
   return { left: (i + 1) * WHITE_W - BLACK_W / 2, width: BLACK_W };
 }
@@ -139,18 +91,9 @@ type Settings = {
   onsetThreshold: number;
   frameThreshold: number;
   minimumNoteLength: number;
-  /**
-   * HQ ONLY, and OFF by default.
-   *
-   * 127.7ms is basic-pitch's default and it earns its place there: that model
-   * emits short spurious blips that need cleaning up. YourMT3 does not — it
-   * emits note events directly, with no threshold noise to filter. Carrying
-   * the free tool's default across meant every paid run silently discarded
-   * every note shorter than roughly an 8th at 120bpm, which on a busy piano
-   * part is a lot of real music, from a job someone paid for.
-   *
-   * So on HQ the filter is opt-in: send nothing unless the user asks for it.
-   */
+  /** HQ only, off by default: the HQ engines emit note events with no
+   *  threshold noise to filter, so carrying basic-pitch's 127.7ms default
+   *  across would discard real notes on a paid run. */
   limitNoteLength: boolean;
   limitPitch: boolean;
   lowNote: number;
@@ -264,7 +207,6 @@ function thresholdWord(v: number) {
   return "Very strict";
 }
 
-/* Rough musical equivalent, so "127.7 ms" means something to a producer. */
 const DIVISIONS = [
   { label: "1/64", ms: 31.25 },
   { label: "1/32", ms: 62.5 },
@@ -280,12 +222,8 @@ function nearestDivision(ms: number) {
   ).label;
 }
 
-/**
- * The static table carries the FREE-tier figure for every metered rule, and
- * /audio-to-midi-hq is tiered: 2/hour free, 30/hour credited. So a visitor
- * holding credits must be told 30, and only /credits/me knows which they are —
- * it resolves through the limiter's own code path.
- */
+/** The static table carries the free-tier figure, and the HQ rule is tiered
+ *  (2/hour free, 30/hour credited), so the live limit wins when available. */
 function formatRateLimit(max: number, windowSeconds: number): string {
   const unit =
     windowSeconds >= 3600
@@ -304,7 +242,7 @@ function formatRateLimit(max: number, windowSeconds: number): string {
  * HQ instrument routing
  * ------------------------------------------------------------------ */
 
-type Instrument = "auto" | "piano" | "mix" | "guitar";
+type Instrument = "auto" | "piano" | "guitar";
 
 const INSTRUMENTS: { id: Instrument; label: string; blurb: string; credits: 1 | 3 }[] = [
   {
@@ -332,20 +270,23 @@ const INSTRUMENTS: { id: Instrument; label: string; blurb: string; credits: 1 | 
 const INSTRUMENT_ICONS: Record<Instrument, typeof Sparkles> = {
   auto: Disc3,
   piano: Piano,
-  mix: Disc3,
   guitar: Guitar,
 };
 
 const SINGLE_SOUND_HINT = /\b(loop|stem|sample|one[- ]?shot|chord|pluck|lead|pad|riff|arp|melody|solo|dry|di)\b/i;
 const BASS_VOCAL_HINT = /\b(bass|808|sub|vocal|vox|voice|acapella|a cappella)\b/i;
-const SMALL_FILE_BYTES = 2_500_000;
 
 type Hint = { text: string; action?: { label: string; instrument?: Instrument; isolate?: boolean } };
 
+/**
+ * Filename only. File size is not a usable proxy here: a three minute 128 kbps
+ * MP3 is under 3 MB, so a size test flags whole songs as single sounds and
+ * pushes them off the only engine that handles a full mix.
+ */
 function presetHint(file: File | null, instrument: Instrument, isolate: boolean): Hint | null {
   if (!file) return null;
   const name = file.name.replace(/\.[^.]+$/, "");
-  const looksSingle = SINGLE_SOUND_HINT.test(name) || file.size < SMALL_FILE_BYTES;
+  const looksSingle = SINGLE_SOUND_HINT.test(name);
   const looksBassOrVocal = BASS_VOCAL_HINT.test(name);
 
   if (looksBassOrVocal && instrument !== "auto") {
@@ -412,9 +353,8 @@ function PresetHint({
 }
 
 const hqToolKey = (instrument: Instrument): MeteredToolKey =>
-  instrument === "auto" || instrument === "mix" ? "audio-to-midi-hq-mix" : "audio-to-midi-hq";
+  instrument === "auto" ? "audio-to-midi-hq-mix" : "audio-to-midi-hq";
 
-/** Fields the backend added for guitar mode; railway.ts may not type them yet. */
 type MidiHqResultExtra = MidiHqResult & {
   engine?: string;
   isolated?: boolean;
@@ -432,12 +372,40 @@ const ENGINE_LABEL: Record<string, string> = {
 };
 
 /* ------------------------------------------------------------------ *
- * Shared slider styling
+ * Progress pacing
  *
- * Native range inputs look like a browser default no matter what, so the
- * track is drawn as a clipped background on the input itself and the
- * thumb is styled per-engine. bg-clip-content + vertical padding keeps
- * the visible track thin while the hit area stays finger-sized.
+ * progressTau must sit near the tool's TYPICAL duration or the bar reaches
+ * ~92% in the first few seconds and then stalls for the rest of the run.
+ * ------------------------------------------------------------------ */
+
+const FREE_STAGES: ProcessingStage[] = [
+  { at: 0, label: "Reading the audio" },
+  { at: 8, label: "Detecting notes" },
+  { at: 20, label: "Writing the MIDI file" },
+];
+
+const MIX_STAGES: ProcessingStage[] = [
+  { at: 0, label: "Reading the audio" },
+  { at: 10, label: "Splitting into stems" },
+  { at: 40, label: "Transcribing each part" },
+  { at: 100, label: "Merging the tracks" },
+];
+
+const ISOLATE_STAGES: ProcessingStage[] = [
+  { at: 0, label: "Reading the audio" },
+  { at: 10, label: "Isolating the part" },
+  { at: 40, label: "Transcribing notes" },
+  { at: 80, label: "Writing the MIDI file" },
+];
+
+const HQ_STAGES: ProcessingStage[] = [
+  { at: 0, label: "Reading the audio" },
+  { at: 8, label: "Transcribing notes" },
+  { at: 35, label: "Writing the MIDI file" },
+];
+
+/* ------------------------------------------------------------------ *
+ * Shared slider styling
  * ------------------------------------------------------------------ */
 
 const SLIDER_BASE =
@@ -544,12 +512,9 @@ type PitchRangeProps = {
   onChange: (low: number, high: number) => void;
 };
 
-/**
- * Two stacked range inputs over a rendered keyboard. The inputs carry
- * pointer-events only on their thumbs so both stay grabbable, and each
- * handle clamps against the other so low < high always holds - which is
- * what keeps the backend's own min/max validation from ever rejecting us.
- */
+/** Two stacked range inputs over a rendered keyboard. Pointer events live on
+ *  the thumbs only so both stay grabbable, and each handle clamps against the
+ *  other so low < high always holds. */
 function PitchRange({ low, high, disabled, onChange }: PitchRangeProps) {
   const span = MIDI_HIGH - MIDI_LOW;
   const lowPct = ((low - MIDI_LOW) / span) * 100;
@@ -562,7 +527,6 @@ function PitchRange({ low, high, disabled, onChange }: PitchRangeProps) {
 
   return (
     <div className="space-y-2">
-      {/* Keyboard */}
       <div className="relative h-16 overflow-hidden rounded-md border border-graphite-800 bg-graphite-850">
         <div className="absolute inset-x-0 top-0 h-12">
           {WHITE_NOTES.map((n) => {
@@ -592,8 +556,6 @@ function PitchRange({ low, high, disabled, onChange }: PitchRangeProps) {
             );
           })}
 
-          {/* Excluded regions dimmed rather than hidden, so the user can
-              still see how much of the keyboard they're throwing away. */}
           <div
             style={{ width: `${lowEdge}%` }}
             className="absolute left-0 top-0 h-full bg-black/65"
@@ -604,7 +566,6 @@ function PitchRange({ low, high, disabled, onChange }: PitchRangeProps) {
           />
         </div>
 
-        {/* Octave ruler */}
         <div className="absolute inset-x-0 bottom-0 h-4">
           {OCTAVE_MARKS.map((n) => (
             <span
@@ -621,7 +582,6 @@ function PitchRange({ low, high, disabled, onChange }: PitchRangeProps) {
         </div>
       </div>
 
-      {/* Dual handle track */}
       <div className="relative h-6">
         <div className="pointer-events-none absolute inset-x-0 top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-white/[0.08]" />
         <div
@@ -682,8 +642,6 @@ type ToggleProps = {
   onChange: (next: boolean) => void;
 };
 
-/** A compact switch, not ToolControls' ToggleRow — that one is a full-width
- *  row with its own label, and these sit inline beside a section heading. */
 function Toggle({ checked, disabled, label, onChange }: ToggleProps) {
   return (
     <button
@@ -714,25 +672,11 @@ function Toggle({ checked, disabled, label, onChange }: ToggleProps) {
  * Multi-track result summary (HQ only)
  * ------------------------------------------------------------------ */
 
-/**
- * The ONLY evidence the paid tier did what it promised.
- *
- * MIDI is not playable audio in a browser, so unlike every separation tool
- * there is nothing to listen to — the user downloads a file and finds out in
- * their DAW. Per-instrument track names, note counts and ranges are
- * recognisable to a musician immediately, and they are the one thing the free
- * tool cannot produce at any setting.
- *
- * Renders nothing on failure. The download already works; a broken summary
- * must not make a successful run look failed.
- */
+/** Renders nothing on failure: the download already works, and a broken
+ *  summary must not make a successful run look failed. */
 function MidiHqResultSummary({ jobId }: { jobId: string }) {
   const [result, setResult] = useState<MidiHqResultExtra | null>(null);
 
-  // No `setResult(null)` here: the caller keys this component on jobId, so a
-  // new job mounts a fresh one with empty state. Resetting inside the effect
-  // would be a synchronous setState in an effect body, which the compiler lint
-  // rejects and which renders once with stale data before clearing it.
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -740,7 +684,7 @@ function MidiHqResultSummary({ jobId }: { jobId: string }) {
         const next = (await getAudioToMidiHqResult(jobId)) as MidiHqResultExtra;
         if (!cancelled) setResult(next);
       } catch {
-        /* silent — see above */
+        /* silent */
       }
     })();
     return () => {
@@ -810,11 +754,6 @@ function MidiHqResultSummary({ jobId }: { jobId: string }) {
       )}
 
       {result.notes_dropped_by_filter > 0 && (
-        /*
-          The honest answer to "why does this look sparse?". It points at the
-          user's OWN shortest-note or pitch-range setting rather than at the
-          model, which is both true and the version they can act on.
-        */
         <p className="border-t border-graphite-800 px-4 py-2.5 text-[11px] leading-relaxed text-text-subtle">
           {result.notes_dropped_by_filter.toLocaleString()} more{" "}
           {result.notes_dropped_by_filter === 1 ? "note was" : "notes were"} detected
@@ -832,29 +771,6 @@ function MidiHqResultSummary({ jobId }: { jobId: string }) {
 
 type Tier = "free" | "hq";
 
-/**
- * `cost` sits in the same slot on BOTH cards, deliberately.
- *
- * Only the paid one carried a price before, so the free option read as the
- * incomplete card rather than the free one — the absence of a label looks like
- * a missing feature, not an absent charge.
- *
- * The blurbs describe the WORK SAVED, not the file format. "One MIDI track
- * with every detected note" is accurate and tells a producer nothing about why
- * they would want the other one; the difference they actually feel is
- * twenty minutes of splitting a pile of notes by hand.
- *
- * NAMED FOR ACCURACY, NOT TRACK COUNT. "Single track" vs "Multi-track" is MIDI
- * vocabulary, and the search data says arrivals here don't have it: they type
- * "mp3 to midi", "melody to midi", "vocal to midi", "accurate mp3 to midi".
- * Neither search console reports a single impression for multi-track anything.
- * Naming the paid tier after a word nobody searches hid what it is best at.
- *
- * Accuracy leads; the per-instrument split follows as the second sentence.
- * That order also keeps the old warning satisfied — the tier still never
- * PROMISES separate instruments, which is the claim a solo-guitar upload
- * disproves and the one a disappointed user argues with.
- */
 const TIERS: { id: Tier; label: string; cost: string; blurb: string }[] = [
   {
     id: "free",
@@ -866,9 +782,6 @@ const TIERS: { id: Tier; label: string; cost: string; blurb: string }[] = [
   {
     id: "hq",
     label: "High accuracy",
-    // The badge renders the live cost here instead, so this stays empty —
-    // FreeTierBadge knows whether the visitor has free runs left and this
-    // module does not.
     cost: "",
     blurb:
       "A dedicated model per instrument. Full mixes are split into stems first so bass, keys, guitar and vocals each land on their own track.",
@@ -885,19 +798,11 @@ export function AudioToMidiForm({ hqAvailable = false }: { hqAvailable?: boolean
   const isGuitar = isHq && instrument === "guitar";
   const isPiano = isHq && instrument === "piano";
   const canIsolate = isGuitar || isPiano;
-  const isFullMix = isHq && (instrument === "auto" || instrument === "mix");
+  const isFullMix = isHq && instrument === "auto";
+  const isIsolated = canIsolate && isolate;
 
   const { rateLimitFor } = useCredits();
 
-  /**
-   * Live limit first, static table second.
-   *
-   * This used to read the static table only, which carries the FREE-tier
-   * figure for a rule that's tiered — 2/hour free, 30/hour credited. So a
-   * paying user who hit a 429 was told their limit was 2 when it was 30.
-   * rateLimitFor() resolves through the limiter's own code path via
-   * /credits/me, which is the only thing that knows which tier this visitor is.
-   */
   const liveLimit = isHq ? rateLimitFor("audio-to-midi-hq") : null;
   const rateLimitLabel = liveLimit
     ? formatRateLimit(liveLimit.max_requests, liveLimit.window_seconds)
@@ -908,20 +813,10 @@ export function AudioToMidiForm({ hqAvailable = false }: { hqAvailable?: boolean
     [settings],
   );
 
-  /**
-   * Counts only what the ACTIVE tier actually sends.
-   *
-   * This used to compare all five fields against DEFAULTS regardless of tier,
-   * so someone who nudged the sensitivity sliders on the free tier and then
-   * switched to Multi-track saw a "2" badge on a panel where neither control
-   * is rendered and neither value is submitted — a count of changes that have
-   * no effect.
-   */
+  /** Counts only what the ACTIVE tier actually sends. */
   const changedCount = useMemo(() => {
     let n = 0;
     if (isHq) {
-      // Sensitivity doesn't exist on YourMT3, and minimumNoteLength is only
-      // sent when the opt-in filter is on.
       if (settings.limitNoteLength !== DEFAULTS.limitNoteLength) n++;
       if (settings.limitNoteLength && settings.minimumNoteLength !== DEFAULTS.minimumNoteLength) {
         n++;
@@ -951,7 +846,6 @@ export function AudioToMidiForm({ hqAvailable = false }: { hqAvailable?: boolean
       ) : (
         <Music4 className="h-3.5 w-3.5" aria-hidden />
       ),
-    // Renders nothing while this rule is off.
     titleAfter: option.id === "hq" ? <FreeTierBadge tool={hqToolKey(instrument)} /> : undefined,
     meta: option.cost || undefined,
     detail: option.blurb,
@@ -967,23 +861,13 @@ export function AudioToMidiForm({ hqAvailable = false }: { hqAvailable?: boolean
     };
   });
 
+  const stages = !isHq ? FREE_STAGES : isFullMix ? MIX_STAGES : isIsolated ? ISOLATE_STAGES : HQ_STAGES;
+  const progressTau = !isHq ? 20 : isFullMix ? 80 : isIsolated ? 60 : 35;
+
   return (
     <JobToolForm
       breakoutOnComplete
-      // Different ROUTE, not a quality flag — the two tiers are different
-      // models with different parameter sets.
-      //
-      // NO `key` here, deliberately. Keying on the tier remounted the whole
-      // form on every switch, which threw away the file the user had already
-      // chosen — pick a track, switch to multi-track, start again. Nothing
-      // needs the remount: `endpoint` and `metered` are props read fresh each
-      // render, handleSubmit is a plain function rather than a memoised
-      // callback, and the tier picker is unreachable once a result is on
-      // screen, so a finished job can never have its download URL rewritten
-      // to the other route.
       endpoint={isHq ? "audio-to-midi-hq" : "audio-to-midi"}
-      // Sends af_sid so a balance can be seen and spent. False on the free
-      // route, which returns no billing block at all.
       metered={isHq}
       renderResult={(jobId, file) => (
         <>
@@ -1002,33 +886,36 @@ export function AudioToMidiForm({ hqAvailable = false }: { hqAvailable?: boolean
       processingLabel={
         isFullMix
           ? "Splitting into stems, then transcribing each"
-          : canIsolate && isolate
+          : isIsolated
             ? `Isolating ${instrument}, then transcribing`
             : TOOL_COPY.processingLabel
       }
-      expectedRange={isFullMix || (canIsolate && isolate) ? "one to a few minutes" : TOOL_COPY.expectedRange}
+      stages={stages}
+      progressTau={progressTau}
+      expectedRange={isFullMix || isIsolated ? "one to a few minutes" : TOOL_COPY.expectedRange}
       resultVerb={TOOL_COPY.resultVerb}
       icon={Music4}
       hidePreview
       pollIntervalMs={3000}
       submitTimeoutMs={90_000}
+      /* Full mix is Demucs plus up to five engines on up to ten minutes of
+         audio. The 10 minute default gave up on jobs that were still running
+         and already charged. */
+      maxPollMs={isFullMix ? 25 * 60 * 1000 : isHq ? 15 * 60 * 1000 : 10 * 60 * 1000}
+      /* NO SUBMIT RETRY ON THE METERED ROUTE. A retry re-POSTs the whole file,
+         and if the first request reached the server and started a job before
+         the client timed out, the retry starts a SECOND one: second GPU run,
+         second credit. Free route keeps the retry. */
+      maxSubmitRetries={isHq ? 0 : 1}
       rateLimitMessage={rateLimitHint}
       buildExtraFields={() => {
-        // Pitch limiting is opt-in on both tiers. When it's off nothing is
-        // sent at all and the backend uses its unbounded defaults — safer than
-        // sending a bound, and one less thing that can fail validation.
         const bounded = settings.limitPitch && settings.lowNote < settings.highNote;
 
         if (isHq) {
-          // NOTE NUMBERS, NOT Hz — no midiToHz here. And `min_note_ms`, not
-          // `minimum_note_length`. Sending the free tool's field names would
-          // be dropped silently by FastAPI and produce an unfiltered result
-          // that looks like the setting did nothing.
-          // Omitted unless the user turned the filter on. Sending the free
-          // tool's 127.7 default here would throw away real notes on a run
-          // they paid for — see Settings.limitNoteLength.
+          /* Note numbers, not Hz, and `min_note_ms` rather than
+             `minimum_note_length`. FastAPI drops unknown fields silently. */
           const fields: Record<string, string> = { instrument };
-          if ((instrument === "guitar" || instrument === "piano") && isolate) {
+          if (canIsolate && isolate) {
             fields.isolate = "true";
           }
           if (settings.limitNoteLength) {
@@ -1054,17 +941,6 @@ export function AudioToMidiForm({ hqAvailable = false }: { hqAvailable?: boolean
       }}
       renderControls={(file, disabled) => (
         <div className="space-y-3">
-          {/*
-            ENGINE, not quality. Named for what the user gets — one track vs
-            one track per instrument — because that is the difference they can
-            verify the moment they open the file, and it is the only thing the
-            free tier genuinely cannot do at any setting.
-
-            Deliberately NOT sold as "more accurate": on a solo guitar or a
-            short clip YourMT3 often returns a single track at program 0, and
-            promising separate instruments for that upload would be a refund
-            request waiting to happen.
-          */}
           {hqAvailable && (
             <fieldset disabled={disabled} className="space-y-2">
               <legend className="mb-2 text-sm font-medium text-text-primary">Quality</legend>
@@ -1079,8 +955,6 @@ export function AudioToMidiForm({ hqAvailable = false }: { hqAvailable?: boolean
             </fieldset>
           )}
 
-          {/* ---- Instrument: HQ tier only. Routes to the engine on the
-                 backend; guitar is a different model entirely. ---- */}
           {isHq && (
             <fieldset disabled={disabled} className="space-y-2">
               <legend className="mb-2 text-sm font-medium text-text-primary">
@@ -1126,8 +1000,6 @@ export function AudioToMidiForm({ hqAvailable = false }: { hqAvailable?: boolean
             </fieldset>
           )}
 
-          {/* ---- Presets: free tier only. On HQ four of the six would send
-                 an identical request, so there is nothing to choose. ---- */}
           {!isHq && (
             <fieldset disabled={disabled} className="space-y-2">
               <legend className="mb-2 flex w-full items-baseline justify-between gap-3">
@@ -1177,7 +1049,6 @@ export function AudioToMidiForm({ hqAvailable = false }: { hqAvailable?: boolean
             </fieldset>
           )}
 
-          {/* ---- Fine tuning ---- */}
           <button
             type="button"
             onClick={() => setAdvancedOpen((v) => !v)}
@@ -1212,12 +1083,8 @@ export function AudioToMidiForm({ hqAvailable = false }: { hqAvailable?: boolean
                 className="space-y-5 rounded-lg border border-graphite-800 bg-graphite-850/60 p-4"
                 disabled={disabled}
               >
-                {/* Detection — FREE TIER ONLY.
-                    YourMT3 emits note events directly; there is no onset or
-                    sustain detector behind it to tune. The API accepts these
-                    fields and ignores them, so showing the sliders on HQ would
-                    be two controls that visibly do nothing. The guitar engine
-                    has a detector but runs its own tuned preset. */}
+                {/* Detection: free tier only. The HQ engines emit note events,
+                    so there is no detector behind them to tune. */}
                 {!isHq && (
                   <div className="space-y-4">
                     <p className="text-[10px] font-medium uppercase tracking-widest text-text-subtle">
@@ -1258,7 +1125,6 @@ export function AudioToMidiForm({ hqAvailable = false }: { hqAvailable?: boolean
 
                 {!isHq && <div className="h-px bg-graphite-800" />}
 
-                {/* Cleanup */}
                 <div className="space-y-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
@@ -1300,9 +1166,6 @@ export function AudioToMidiForm({ hqAvailable = false }: { hqAvailable?: boolean
                       leftEnd="Keep everything"
                       rightEnd="Long notes only"
                       min={10}
-                      // 2000 is the real backend ceiling on BOTH tools; the free
-                      // tool's 1000 was a UI choice. HQ gets the full range since
-                      // it has fewer controls to reach for.
                       max={isHq ? 2000 : 1000}
                       step={0.1}
                       value={settings.minimumNoteLength}
@@ -1314,7 +1177,6 @@ export function AudioToMidiForm({ hqAvailable = false }: { hqAvailable?: boolean
 
                 <div className="h-px bg-graphite-800" />
 
-                {/* Pitch range */}
                 <div className="space-y-3">
                   <div className="flex items-start justify-between gap-3">
                     <div>
