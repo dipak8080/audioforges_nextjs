@@ -257,6 +257,46 @@ function Figure({
   );
 }
 
+/**
+ * The headline numbers, as raised glass tiles rather than bare text on the
+ * page background. The old rail had the right idea and the wrong typography:
+ * 9px all-caps monospace labels. Same physical treatment, readable type.
+ */
+function StatChip({
+  label,
+  value,
+  tone,
+  accent,
+}: {
+  label: string;
+  value: string;
+  tone?: "alarm";
+  accent?: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        "relative overflow-hidden rounded-xl border px-3.5 py-2.5 shadow-lg shadow-black/20",
+        "before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-px",
+        "before:bg-gradient-to-r before:from-transparent before:via-white/10 before:to-transparent",
+        tone === "alarm"
+          ? "border-red-500/30 bg-red-500/[0.08]"
+          : "border-graphite-800 bg-graphite-900/70 backdrop-blur"
+      )}
+    >
+      <dt className="truncate text-[12px] text-text-subtle">{label}</dt>
+      <dd
+        className={cn(
+          "mt-1 truncate text-[17px] font-semibold leading-none tabular-nums",
+          tone === "alarm" ? "text-red-400" : accent ? "text-amber-400" : "text-text-primary"
+        )}
+      >
+        {value}
+      </dd>
+    </div>
+  );
+}
+
 /** Pre-action warnings stay inline next to the control that would cause them.
  *  Results of an action go to a toast. Mixing the two is how a warning ends up
  *  reading like a failure report. */
@@ -468,16 +508,16 @@ export default function AdminCachePage() {
 
       <div className="mx-auto w-full max-w-5xl px-4 pb-6 sm:px-6">
         {stats && (
-          <dl className="flex flex-wrap gap-x-8 gap-y-3">
-            <Figure label="Cached files" value={stats.entry_count.toLocaleString()} />
-            <Figure label="Cache used" value={fmtSize(stats.total_gb)} />
-            <Figure label="Allowance" value={fmtSize(stats.max_gb)} />
-            <Figure
+          <dl className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-5">
+            <StatChip label="Cached files" value={stats.entry_count.toLocaleString()} />
+            <StatChip label="Cache used" value={fmtSize(stats.total_gb)} accent />
+            <StatChip label="Allowance" value={fmtSize(stats.max_gb)} />
+            <StatChip
               label="Disk free"
               value={fmtSize(stats.disk_free_gb)}
               tone={diskCritical ? "alarm" : undefined}
             />
-            <Figure label="Storage" value={stats.backend} />
+            <StatChip label="Storage" value={stats.backend} />
           </dl>
         )}
 
@@ -548,9 +588,7 @@ export default function AdminCachePage() {
 
                   {unaccountedGb > 1 && stats.total_gb < unaccountedGb && (
                     <p className="border-t border-graphite-800 pt-2.5 text-[11px] leading-relaxed text-text-subtle">
-                      Only {fmtSize(stats.total_gb)} of the {fmtSize(stats.disk_used_gb)} in use is this cache. The
-                      other {fmtSize(unaccountedGb)} is the OS, Docker images or other files. Clearing the cache
-                      below won&apos;t free that space.
+                      {`Only ${fmtSize(stats.total_gb)} of the ${fmtSize(stats.disk_used_gb)} in use is this cache. The other ${fmtSize(unaccountedGb)} is the OS, Docker images or other files. Clearing the cache below won't free that space.`}
                     </p>
                   )}
                 </Card>
