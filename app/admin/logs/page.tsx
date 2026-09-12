@@ -305,11 +305,27 @@ async function copyText(text: string): Promise<boolean> {
    Hooks
    =================================================================== */
 
+// Reading matchMedia during the first render made the client's initial HTML
+// disagree with the server's, so React threw the whole tree away and rebuilt it
+// on every mobile load. The first render must match the server (false), and the
+// real value is applied in a layout effect, before paint.
+// A counter the backend omits must render as 0, not crash the page. Reading
+// these straight off the response meant one missing key took the whole Logs
+// screen down inside Stat's value.toLocaleString().
+function readTotals(data: Record<string, unknown>): Totals {
+  const n = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
+  return {
+    total: n(data?.total),
+    success: n(data?.success),
+    client: n(data?.client),
+    server: n(data?.server),
+    silent: n(data?.silent),
+  };
+}
+
 function useIsMobile(): boolean {
-  const [isMobile, setIsMobile] = useState(() =>
-    typeof window !== "undefined" ? window.matchMedia("(max-width: 639px)").matches : false
-  );
-  useEffect(() => {
+  const [isMobile, setIsMobile] = useState(false);
+  useLayoutEffect(() => {
     const mq = window.matchMedia("(max-width: 639px)");
     const update = () => setIsMobile(mq.matches);
     update();
@@ -666,7 +682,7 @@ export default function AdminLogsPage() {
       if (sig === httpSigRef.current) return;
       httpSigRef.current = sig;
 
-      setTotals({ total: data.total, success: data.success, client: data.client, server: data.server, silent: data.silent ?? 0 });
+      setTotals(readTotals(data));
       setHttpTotal(data.total);
       if (typeof data.filtered_total === "number") setHttpFilteredTotal(data.filtered_total);
       const reversed = [...data.logs].reverse();
@@ -852,7 +868,7 @@ export default function AdminLogsPage() {
         return true;
       }
 
-      setTotals({ total: data.total, success: data.success, client: data.client, server: data.server, silent: data.silent ?? 0 });
+      setTotals(readTotals(data));
       setHttpTotal(data.total);
       if (typeof data.filtered_total === "number") setHttpFilteredTotal(data.filtered_total);
       setHttpError(null);
@@ -1856,7 +1872,7 @@ function Stat({
         )}
       </p>
       <p className={cn("mt-0.5 truncate text-sm font-semibold tabular-nums sm:mt-1 sm:text-2xl", valueClass || "text-text-primary")}>
-        {value.toLocaleString()}
+        {(value ?? 0).toLocaleString()}
       </p>
     </>
   );
