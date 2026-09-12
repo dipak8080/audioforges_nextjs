@@ -17,7 +17,7 @@ import type { ProcessingStage } from "@/components/tools/JobFormKit";
 import { OptionCards, type CardOption } from "@/components/converter/ToolControls";
 import { FreeTierBadge } from "@/components/credits/FreeTierBadge";
 import { cn } from "@/lib/utils/cn";
-import { SheetResultPlayer } from "@/components/converter/SheetResultPlayer";
+import dynamic from "next/dynamic";
 import {
   getAudioToSheetResult,
   getSheetPreviewUrl,
@@ -103,6 +103,20 @@ const SHEET_STAGES: ProcessingStage[] = [
   { at: 75, label: "Engraving the score" },
 ];
 
+/** Only mounts after a paid job completes, so the editor and its
+ *  dependencies stay out of the first load of this page. */
+const SheetResultPlayer = dynamic(
+  () => import("@/components/converter/SheetResultPlayer").then((m) => m.SheetResultPlayer),
+  { ssr: false },
+);
+
+// Per-tier figures matching the separation tools. A sheet job is a GPU
+// transcription plus an engrave, behind 2 concurrent slots and a queue of
+// 6, so the 10-minute default gave up on jobs that were still running and
+// already charged.
+const MAX_POLL_MS = 25 * 60 * 1000;
+const POLL_INTERVAL_MS = 8_000;
+
 export function AudioToSheetForm() {
   const [instrument, setInstrument] = useState<Instrument>("piano");
   const [handSplit, setHandSplit] = useState(true);
@@ -121,9 +135,12 @@ export function AudioToSheetForm() {
   return (
     <JobToolForm
       breakoutOnComplete
-      // Remount when the instrument changes so nothing stale carries over,
-      // matching how audio-to-midi keys on its tier.
-      key={instrument}
+      // NO `key` HERE. Keying on the instrument remounted the whole form on
+      // every change, which threw away the file the user had already chosen:
+      // pick a track, switch from piano to guitar, start again. audio-to-midi
+      // hit this and removed its key for the same reason. Nothing needs the
+      // remount - `endpoint` and the extra fields are read fresh each render,
+      // and the instrument picker is unreachable once a result is on screen.
       endpoint="audio-to-sheet"
       metered
       icon={Music4}
@@ -138,7 +155,8 @@ export function AudioToSheetForm() {
       // realistic time constant and the submit room to absorb a cold start.
       progressTau={35}
       submitTimeoutMs={120_000}
-      pollIntervalMs={3_000}
+      pollIntervalMs={POLL_INTERVAL_MS}
+      maxPollMs={MAX_POLL_MS}
       // MIDI-family input set (audio + opus/webm). The backend enforces the
       // real list; this only filters the picker dialog.
       fileAccept="audio/*,.mp3,.wav,.m4a,.aac,.ogg,.flac,.aiff,.opus,.webm"
