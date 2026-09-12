@@ -62,6 +62,33 @@ const SITE_LINKS = [
  */
 const PRICING_LINK = { href: "/pricing", label: "Pricing" };
 
+function InstagramIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden
+    >
+      <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
+      <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+      <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
+    </svg>
+  );
+}
+
+const SOCIAL_LINKS = [
+  {
+    href: "https://www.instagram.com/audioforges/",
+    label: "AudioForges on Instagram",
+    Icon: InstagramIcon,
+  },
+];
+
 const LEGAL_LINKS = [
   { href: "/privacy", label: "Privacy Policy" },
   { href: "/terms", label: "Terms of Service" },
@@ -119,6 +146,22 @@ export function Footer({ paywallEnabled = false }: { paywallEnabled?: boolean })
               {live.length} free audio tools for producers, DJs and musicians. No sign-up, no
               watermark.
             </p>
+
+            <div className="mt-5 flex items-center gap-2">
+              {SOCIAL_LINKS.map(({ href, label, Icon }) => (
+                <a
+                  key={href}
+                  href={href}
+                  target="_blank"
+                  rel="noopener noreferrer me"
+                  aria-label={label}
+                  title={label}
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-graphite-800 text-text-muted transition-colors hover:border-amber-500/60 hover:text-amber-400 focus:outline-none focus-visible:ring-1 focus-visible:ring-amber-500/60"
+                >
+                  <Icon className="h-[18px] w-[18px]" />
+                </a>
+              ))}
+            </div>
 
             <div className="mt-5">
               <a
