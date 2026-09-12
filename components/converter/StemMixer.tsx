@@ -115,6 +115,11 @@ export function StemMixer({ stems, onDownload, onDownloadAll, sourceTitle }: Ste
   const laneCanvasRefs = useRef<Map<string, HTMLCanvasElement>>(new Map());
   const meterRefs = useRef<Map<string, HTMLCanvasElement>>(new Map());
   const dragRef = useRef<null | "seek" | "loop">(null);
+  // Written directly from the rAF loop so the playhead and the clock
+  // can update every frame without a React render. See the readout
+  // and playhead in the transport below.
+  const timeRef = useRef<HTMLSpanElement>(null);
+  const headRef = useRef<HTMLDivElement>(null);
   const loopAnchorRef = useRef(0);
 
   const [lanes, setLanes] = useState<Map<string, LaneData>>(
@@ -379,10 +384,20 @@ export function StemMixer({ stems, onDownload, onDownloadAll, sourceTitle }: Ste
     const draw = () => {
       const pos = currentPosition();
       if (playingRef.current) {
-        setPosition(pos);
+        // DOM, not state. setPosition here re-rendered the whole mixer on
+        // every frame for the length of the track; these two writes are
+        // what that render existed to produce.
+        if (timeRef.current) {
+          timeRef.current.textContent = `${formatTime(pos)} / ${formatTime(duration)}`;
+        }
+        if (headRef.current && duration > 0) {
+          headRef.current.style.left = `${Math.min(1, pos / duration) * 100}%`;
+        }
         if (duration > 0 && !loopRef.current && pos >= duration) {
           pause();
           startOffsetRef.current = 0;
+          // A real transition, so state is right here: playback stopped and
+          // everything bound to `position` should settle at zero.
           setPosition(0);
         }
       }
@@ -616,7 +631,10 @@ export function StemMixer({ stems, onDownload, onDownloadAll, sourceTitle }: Ste
             <Play className="h-4 w-4" fill="currentColor" aria-hidden />
           )}
         </Button>
-        <span className="w-24 shrink-0 font-mono text-xs tabular-nums text-text-muted">
+        <span
+          ref={timeRef}
+          className="w-24 shrink-0 font-mono text-xs tabular-nums text-text-muted"
+        >
           {formatTime(position)} / {formatTime(duration)}
         </span>
         <div
@@ -644,6 +662,7 @@ export function StemMixer({ stems, onDownload, onDownloadAll, sourceTitle }: Ste
           )}
           <div
             className="absolute inset-y-0 w-px bg-amber-500"
+            ref={headRef}
             style={{ left: `${progress * 100}%` }}
           />
         </div>
