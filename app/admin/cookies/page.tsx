@@ -151,10 +151,12 @@ interface UploadResponse {
 
 const MAX_UPLOAD_BYTES = 1024 * 1024;
 
-const SLOT_LABELS: Record<string, string> = {
-  slot_1: "Primary",
-  slot_2: "Backup 1",
-  slot_3: "Backup 2",
+// Slot count comes from the backend (COOKIE_ACCOUNT_SLOTS), so adding a
+// slot there needs no change here.
+const slotNumber = (slotName: string) => Number(slotName.replace("slot_", "")) || 0;
+const slotLabel = (slotName: string) => {
+  const n = slotNumber(slotName);
+  return n === 1 ? "Primary" : n > 1 ? `Backup ${n - 1}` : slotName.replace("_", " ");
 };
 
 /**
@@ -518,7 +520,7 @@ export default function AdminCookiesPage() {
 
   // Server key order isn't guaranteed; slot order is meaningful here.
   const slotEntries = useMemo(
-    () => (slots ? Object.entries(slots).sort(([a], [b]) => a.localeCompare(b)) : []),
+    () => (slots ? Object.entries(slots).sort(([a], [b]) => slotNumber(a) - slotNumber(b)) : []),
     [slots]
   );
   const presentCount = slotEntries.filter(([, s]) => s.exists).length;
@@ -681,7 +683,7 @@ export default function AdminCookiesPage() {
               <AlertTriangle className="mt-px h-4 w-4 shrink-0 text-red-400" aria-hidden />
               <p className="text-xs leading-relaxed text-text-muted">
                 <span className="font-medium text-red-300">
-                  {brokenSlots.map(([name]) => SLOT_LABELS[name] ?? name).join(", ")}
+                  {brokenSlots.map(([name]) => slotLabel(name)).join(", ")}
                 </span>{" "}
                 {brokenSlots.length === 1 ? "needs" : "need"} re-exporting.{" "}
                 {revokedCount > 0
@@ -707,17 +709,17 @@ export default function AdminCookiesPage() {
               </Button>
             </Card>
           ) : (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {slotEntries.map(([slotName, info]) => {
-                const label = SLOT_LABELS[slotName] ?? slotName.replace("_", " ");
-                const slotNumber = slotName.replace("slot_", "");
+                const label = slotLabel(slotName);
+                const slotNum = String(slotNumber(slotName));
 
                 if (!info.exists) {
                   return (
                     <button
                       key={slotName}
                       type="button"
-                      onClick={() => startUploadFor(slotNumber)}
+                      onClick={() => startUploadFor(slotNum)}
                       className={cn(
                         "group flex min-h-[148px] flex-col items-center justify-center gap-1.5 rounded-2xl border border-dashed border-graphite-700 bg-graphite-900/30 p-4 text-center outline-none transition-colors",
                         "hover:border-amber-500/50 hover:bg-graphite-900/60 focus-visible:ring-2 focus-visible:ring-amber-400/70"
@@ -821,7 +823,7 @@ export default function AdminCookiesPage() {
                       </p>
                     )}
 
-                    <Button size="sm" className="w-full" onClick={() => startUploadFor(slotNumber)}>
+                    <Button size="sm" className="w-full" onClick={() => startUploadFor(slotNum)}>
                       <Upload className="h-3.5 w-3.5" aria-hidden />
                       Replace
                     </Button>
@@ -859,9 +861,11 @@ export default function AdminCookiesPage() {
                       "hover:border-graphite-600 focus-visible:border-amber-500/50 focus-visible:ring-2 focus-visible:ring-amber-500/20 disabled:opacity-50"
                     )}
                   >
-                    <option value="1">Primary</option>
-                    <option value="2">Backup 1</option>
-                    <option value="3">Backup 2</option>
+                    {slotEntries.map(([slotName]) => (
+                      <option key={slotName} value={String(slotNumber(slotName))}>
+                        {slotLabel(slotName)}
+                      </option>
+                    ))}
                   </select>
                   <ChevronRight
                     className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 rotate-90 text-text-subtle"
