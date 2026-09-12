@@ -126,6 +126,10 @@ const MAX_UPLOAD_BYTES = 1024 * 1024;
 
 // Slot count comes from the backend (COOKIE_ACCOUNT_SLOTS), so adding a slot
 // there needs no change here.
+// Enough failures that a run of odd videos can't explain it. Rotation
+// already sidelines a slot at this point; this only makes the panel agree.
+const MIN_FAILURES_TO_FLAG = 5;
+
 const slotNumber = (slotName: string) => Number(slotName.replace("slot_", "")) || 0;
 const slotLabel = (slotName: string) => {
   const n = slotNumber(slotName);
@@ -421,9 +425,17 @@ export default function AdminCookiesPage() {
     [slots]
   );
   const presentCount = slotEntries.filter(([, s]) => s.exists).length;
-  const brokenSlots = slotEntries.filter(
-    ([, s]) => s.exists && s.expiry_status != null && DEFINITELY_BROKEN.includes(s.expiry_status)
-  );
+  // A slot is broken when the file says so (expired, revoked, no auth
+  // cookies) OR when the runtime has actually proved it: 2026-09-12,
+  // Backup 5 sat at 0% over 10 straight bot checks while this panel said
+  // "nothing needs your attention", because its expiry date was still a
+  // year out. The file's date cannot see a session YouTube is refusing.
+  const brokenSlots = slotEntries.filter(([name, s]) => {
+    if (!s.exists) return false;
+    if (s.expiry_status != null && DEFINITELY_BROKEN.includes(s.expiry_status)) return true;
+    const t = trafficForSlot(traffic, name);
+    return !!t && t.successes === 0 && t.failures >= MIN_FAILURES_TO_FLAG;
+  });
   // Split out for the summary sentence, so "revoked" and "past expiry" aren't
   // conflated: a slot the runtime killed didn't necessarily run out of time.
   const revokedCount = slotEntries.filter(([, s]) => s.expiry_status === "revoked").length;
