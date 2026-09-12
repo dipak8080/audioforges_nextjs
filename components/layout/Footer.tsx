@@ -147,32 +147,33 @@ export function Footer({ paywallEnabled = false }: { paywallEnabled?: boolean })
               watermark.
             </p>
 
-            <div className="mt-5 flex items-center gap-2">
-              {SOCIAL_LINKS.map(({ href, label, Icon }) => (
-                <a
-                  key={href}
-                  href={href}
-                  target="_blank"
-                  rel="noopener noreferrer me"
-                  aria-label={label}
-                  title={label}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-graphite-800 text-text-muted transition-colors hover:border-amber-500/60 hover:text-amber-400 focus:outline-none focus-visible:ring-1 focus-visible:ring-amber-500/60"
-                >
-                  <Icon className="h-[18px] w-[18px]" />
-                </a>
-              ))}
-            </div>
-
             <div className="mt-5">
-              <a
-                href="https://ko-fi.com/audioforges"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 rounded-lg border border-amber-500/25 bg-amber-500/5 px-4 py-2.5 text-sm font-medium text-amber-400/90 transition-colors hover:border-amber-500/60 hover:bg-amber-500/10 hover:text-amber-300 focus:outline-none focus-visible:ring-1 focus-visible:ring-amber-500/60"
-              >
-                <Coffee className="h-4 w-4" />
-                Donate
-              </a>
+              <div className="flex items-center gap-2">
+                <a
+                  href="https://ko-fi.com/audioforges"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 rounded-lg border border-amber-500/25 bg-amber-500/5 px-4 py-2.5 text-sm font-medium text-amber-400/90 transition-colors hover:border-amber-500/60 hover:bg-amber-500/10 hover:text-amber-300 focus:outline-none focus-visible:ring-1 focus-visible:ring-amber-500/60"
+                >
+                  <Coffee className="h-4 w-4" />
+                  Donate
+                </a>
+
+                {SOCIAL_LINKS.map(({ href, label, Icon }) => (
+                  <a
+                    key={href}
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer me"
+                    aria-label={label}
+                    title={label}
+                    className="inline-flex h-[42px] w-[42px] items-center justify-center rounded-lg border border-graphite-800 text-text-muted transition-colors hover:border-amber-500/60 hover:text-amber-400 focus:outline-none focus-visible:ring-1 focus-visible:ring-amber-500/60"
+                  >
+                    <Icon className="h-[18px] w-[18px]" />
+                  </a>
+                ))}
+              </div>
+
               <p className="mt-2 max-w-xs text-xs leading-relaxed text-text-subtle">
                 Servers and bandwidth come out of pocket. A one-off tip keeps the tools free.
               </p>
