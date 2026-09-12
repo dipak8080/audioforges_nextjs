@@ -1,18 +1,6 @@
 "use client";
 
-/**
- * app/admin/cookies/page.tsx — redesigned to match the rest of the console.
- *
- * Same shell as Credits and Cache: fixed header and KPI rail, one scrolling
- * region, shared primitives and palette.
- *
- * The domain logic is untouched, because it's the part that's hard-won: only
- * definitive failures get colour, "revoked" is treated as a different kind of
- * evidence from "expired", and no slot is ever labelled "valid" — the file's
- * own expiry date can't prove that.
- */
-
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   Check,
@@ -21,15 +9,11 @@ import {
   FileText,
   Loader2,
   Plus,
-  RefreshCw,
   Upload,
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
-
-/* ------------------------------------------------------------------ */
-/* types                                                               */
-/* ------------------------------------------------------------------ */
+import { RefreshControl } from "../_components/RefreshControl";
 
 interface CookieSlot {
   exists: boolean;
@@ -41,8 +25,7 @@ interface CookieSlot {
   expiry_status?: ExpiryStatus;
   critical_cookies_found?: number;
   // The runtime's own verdict, layered on top of the static expiry date by
-  // cookie_health.apply_to() on the backend. See the "revoked" case below for
-  // why the date alone was never enough — Google can kill a session
+  // cookie_health.apply_to() on the backend. Google can kill a session
   // server-side without touching the file, so a future date proves nothing
   // once revoked_at is present.
   revoked_at?: number | null;
@@ -58,25 +41,14 @@ type ExpiryStatus =
   | "no_auth_cookies"
   | "session_only"
   | "unknown"
-  // The runtime confirmed YouTube rejected this session (yt-dlp's "cookies are
-  // no longer valid" warning, repeated enough times to rule out a flaky check
-  // — see cookie_health.py). Distinct from every other status here because
-  // it's the only one NOT derived from the file's own expiry date: a slot can
-  // show "revoked" while expires_in_days still reads 365. Never overrides
-  // "expired" or "no_auth_cookies" — both are already terminal and more
-  // specific about what's wrong with the file itself.
+  // The runtime confirmed YouTube rejected this session. The only status not
+  // derived from the file's own expiry date: a slot can show "revoked" while
+  // expires_in_days still reads 365.
   | "revoked";
 
 type SlotMap = Record<string, CookieSlot>;
 type Tone = "warn" | "bad" | "muted";
 
-/**
- * Live per-account counters from the runtime (/api/admin/cookies/health).
- * These are traffic truth, orthogonal to the file-level expiry read: a slot
- * can hold a pristine file that YouTube challenges on every request. Counters
- * reset on container restart, so rates describe "since last deploy", not all
- * time - the caption under the grid says so.
- */
 interface TrafficAccount {
   path: string;
   successes: number;
@@ -106,13 +78,13 @@ function trafficForSlot(traffic: TrafficData | null, slotName: string): TrafficA
 type TrafficTone = Tone | "good";
 
 /**
- * Rate thresholds: >=85 healthy, 60-85 degrading, <60 refresh-today. Under 5
+ * Rate thresholds: >=85 healthy, 60-85 degrading, <60 refresh today. Under 5
  * total attempts the rate is noise (one failure reads as 0%), so it stays
- * muted with a "low data" hint instead of shouting red at an idle backup.
+ * muted with a "too few tries" hint instead of shouting red at an idle backup.
  */
 function trafficRead(a: TrafficAccount): { label: string; tone: TrafficTone; pct: number; lowData: boolean } {
   const total = a.successes + a.failures;
-  if (total === 0) return { label: "no traffic", tone: "muted", pct: 0, lowData: true };
+  if (total === 0) return { label: "Not used yet", tone: "muted", pct: 0, lowData: true };
   const pct = a.success_rate ?? Math.round((a.successes / total) * 1000) / 10;
   const label = `${pct}%`;
   if (total < 5) return { label, tone: "muted", pct, lowData: true };
@@ -123,22 +95,22 @@ function trafficRead(a: TrafficAccount): { label: string; tone: TrafficTone; pct
 
 function formatUptime(seconds: number | null): string {
   if (seconds == null) return "";
-  if (seconds < 3600) return `${Math.max(1, Math.floor(seconds / 60))}m`;
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h`;
-  return `${Math.floor(seconds / 86400)}d`;
+  if (seconds < 3600) return `${Math.max(1, Math.floor(seconds / 60))} minutes`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)} hours`;
+  return `${Math.floor(seconds / 86400)} days`;
 }
 
 const TRAFFIC_TEXT: Record<TrafficTone, string> = {
-  good: "text-emerald-300",
+  good: "text-teal-400",
   warn: "text-amber-300",
   bad: "text-red-300",
   muted: "text-text-muted",
 };
 
 const TRAFFIC_BAR: Record<TrafficTone, string> = {
-  good: "bg-emerald-500/70",
-  warn: "bg-amber-500/70",
-  bad: "bg-red-500/70",
+  good: "bg-teal-500/80",
+  warn: "bg-amber-500/80",
+  bad: "bg-red-500/80",
   muted: "bg-graphite-700",
 };
 
@@ -151,8 +123,8 @@ interface UploadResponse {
 
 const MAX_UPLOAD_BYTES = 1024 * 1024;
 
-// Slot count comes from the backend (COOKIE_ACCOUNT_SLOTS), so adding a
-// slot there needs no change here.
+// Slot count comes from the backend (COOKIE_ACCOUNT_SLOTS), so adding a slot
+// there needs no change here.
 const slotNumber = (slotName: string) => Number(slotName.replace("slot_", "")) || 0;
 const slotLabel = (slotName: string) => {
   const n = slotNumber(slotName);
@@ -162,9 +134,8 @@ const slotLabel = (slotName: string) => {
 /**
  * The expiry date is a static string written into cookies.txt at export time.
  * If Google revokes the session server-side the date does not change, so a
- * future date proves nothing on its own — that gap is exactly what "revoked"
- * exists to close. Only definitive failures get colour; everything else reports
- * the date and claims nothing.
+ * future date proves nothing on its own. Only definitive failures get colour;
+ * everything else reports the date and claims nothing.
  */
 const TONE: Record<ExpiryStatus, Tone> = {
   ok: "muted",
@@ -186,10 +157,6 @@ const CHIP_CLASSES: Record<Tone, string> = {
   muted: "border-graphite-700 bg-graphite-850 text-text-muted",
 };
 
-/* ------------------------------------------------------------------ */
-/* formatting                                                          */
-/* ------------------------------------------------------------------ */
-
 function formatRelativeTime(unixSeconds: number): string {
   const diffSec = Math.floor((Date.now() - unixSeconds * 1000) / 1000);
   if (diffSec < 60) return "just now";
@@ -209,30 +176,27 @@ const formatDate = (unixSeconds: number) =>
     year: "numeric",
   });
 
-const formatFileSize = (bytes: number) =>
-  bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(1)} KB`;
+const formatFileSize = (bytes: number) => (bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(1)} KB`);
 
 function formatWindow(days: number | null | undefined): string {
-  if (days == null) return "—";
+  if (days == null) return "–";
   const abs = Math.abs(days);
-  if (abs < 1) return `${Math.round(abs * 24)}h`;
-  if (abs < 60) return `${Math.round(abs)}d`;
-  return `${Math.round(abs / 30)}mo`;
+  if (abs < 1) return `${Math.round(abs * 24)} hours`;
+  if (abs < 60) return `${Math.round(abs)} days`;
+  return `${Math.round(abs / 30)} months`;
 }
 
 /**
- * One chip, one sentence fragment. No label + value duplication. Takes the
- * whole slot because the "revoked" case needs revoked_at, which lives beside
- * expires_in_days on the same object.
+ * One chip, one sentence fragment. Takes the whole slot because the "revoked"
+ * case needs revoked_at, which lives beside expires_in_days.
  */
 function chipText(info: CookieSlot): string {
   const status = info.expiry_status ?? "unknown";
   switch (status) {
     case "revoked":
-      // Deliberately says WHEN it was revoked, not "13mo left" — the date is
-      // still visible in the Expires row below, so nothing is hidden, but the
-      // chip's one job is to say what actually happened, and "revoked"
-      // outranks a clock that never stopped.
+      // Says WHEN it was revoked, not "13mo left". The date is still in the
+      // facts row below, so nothing is hidden, but the chip's one job is to
+      // say what actually happened.
       return info.revoked_at != null ? `Revoked ${formatRelativeTime(info.revoked_at)}` : "Revoked";
     case "expired":
       return info.expires_in_days != null ? `Expired ${formatWindow(info.expires_in_days)} ago` : "Expired";
@@ -274,60 +238,20 @@ function uploadWithProgress(
   });
 }
 
-/* ------------------------------------------------------------------ */
-/* styles                                                              */
-/* ------------------------------------------------------------------ */
-
 const STYLES = `
-.af-scroll { scrollbar-width: thin; scrollbar-color: rgb(120 113 108 / .45) transparent; }
-.af-scroll::-webkit-scrollbar { width: 11px; height: 11px; }
-.af-scroll::-webkit-scrollbar-track { background: transparent; }
-.af-scroll::-webkit-scrollbar-thumb {
-  background: rgb(120 113 108 / .38); border-radius: 99px;
-  border: 3px solid transparent; background-clip: content-box;
-}
-.af-scroll::-webkit-scrollbar-thumb:hover { background: rgb(245 158 11 / .55); background-clip: content-box; }
-.af-railless { scrollbar-width: none; -ms-overflow-style: none; }
-.af-railless::-webkit-scrollbar { display: none; }
-@keyframes af-rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-.af-rise { animation: af-rise .24s cubic-bezier(.22,.9,.32,1) both; }
-@keyframes af-toast { from { opacity: 0; transform: translateY(10px) scale(.98); } to { opacity: 1; transform: none; } }
-.af-toast { animation: af-toast .2s cubic-bezier(.22,.9,.32,1) both; }
-@keyframes af-shimmer { 100% { transform: translateX(100%); } }
-.af-skel { position: relative; overflow: hidden; }
-.af-skel::after {
+@keyframes ck-rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.ck-rise { animation: ck-rise .24s cubic-bezier(.22,.9,.32,1) both; }
+@keyframes ck-toast { from { opacity: 0; transform: translateY(10px) scale(.98); } to { opacity: 1; transform: none; } }
+.ck-toast { animation: ck-toast .2s cubic-bezier(.22,.9,.32,1) both; }
+@keyframes ck-shimmer { 100% { transform: translateX(100%); } }
+.ck-skel { position: relative; overflow: hidden; }
+.ck-skel::after {
   content: ""; position: absolute; inset: 0; transform: translateX(-100%);
   background: linear-gradient(90deg, transparent, rgb(255 255 255 / .05), transparent);
-  animation: af-shimmer 1.4s infinite;
+  animation: ck-shimmer 1.4s infinite;
 }
-@media (prefers-reduced-motion: reduce) { .af-rise, .af-toast, .af-skel::after { animation: none !important; } }
+@media (prefers-reduced-motion: reduce) { .ck-rise, .ck-toast, .ck-skel::after { animation: none !important; } }
 `;
-
-/* ------------------------------------------------------------------ */
-/* shell + toasts                                                      */
-/* ------------------------------------------------------------------ */
-
-function useShellHeight() {
-  const ref = useRef<HTMLDivElement>(null);
-  const [height, setHeight] = useState<number | null>(null);
-
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const measure = () =>
-      setHeight(Math.max(360, Math.round(window.innerHeight - el.getBoundingClientRect().top)));
-    measure();
-    window.addEventListener("resize", measure);
-    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(measure) : null;
-    if (ro && el.parentElement) ro.observe(el.parentElement);
-    return () => {
-      window.removeEventListener("resize", measure);
-      ro?.disconnect();
-    };
-  }, []);
-
-  return [ref, height] as const;
-}
 
 type Toast = { id: number; tone: "ok" | "warn" | "bad"; text: string };
 
@@ -345,14 +269,14 @@ function useToasts() {
 function ToastStack({ toasts, dismiss }: { toasts: Toast[]; dismiss: (id: number) => void }) {
   return (
     <div
-      className="pointer-events-none fixed bottom-4 right-4 z-50 flex w-[min(24rem,calc(100vw-2rem))] flex-col gap-2"
+      className="pointer-events-none fixed inset-x-4 bottom-4 z-50 flex flex-col gap-2 sm:left-auto sm:w-[24rem]"
       aria-live="polite"
     >
       {toasts.map((t) => (
         <div
           key={t.id}
           className={cn(
-            "af-toast pointer-events-auto flex items-start gap-2.5 rounded-xl border p-3 text-xs leading-relaxed shadow-2xl shadow-black/40 backdrop-blur",
+            "ck-toast pointer-events-auto flex items-start gap-2.5 rounded-xl border p-3 text-[13px] leading-relaxed shadow-2xl shadow-black/40 backdrop-blur",
             t.tone === "ok" && "border-teal-500/30 bg-teal-500/10 text-teal-300",
             t.tone === "warn" && "border-amber-500/30 bg-amber-500/10 text-amber-300",
             t.tone === "bad" && "border-red-500/30 bg-red-500/10 text-red-300"
@@ -376,22 +300,6 @@ function ToastStack({ toasts, dismiss }: { toasts: Toast[]; dismiss: (id: number
       ))}
     </div>
   );
-}
-
-/* ------------------------------------------------------------------ */
-/* primitives                                                          */
-/* ------------------------------------------------------------------ */
-
-function Card({ className, children }: { className?: string; children: React.ReactNode }) {
-  return (
-    <section className={cn("rounded-2xl border border-graphite-800 bg-graphite-900/70", className)}>
-      {children}
-    </section>
-  );
-}
-
-function SectionLabel({ children }: { children: React.ReactNode }) {
-  return <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-text-subtle">{children}</p>;
 }
 
 function Button({
@@ -438,48 +346,23 @@ function Button({
   );
 }
 
-function Pill({ label, value, tone = "plain" }: { label: string; value: string; tone?: "plain" | "accent" | "alarm" }) {
-  return (
-    <div
-      className={cn(
-        "flex shrink-0 items-baseline gap-2 rounded-lg border px-2.5 py-1.5",
-        tone === "alarm" ? "border-red-500/30 bg-red-500/[0.07]" : "border-graphite-800 bg-graphite-900/60"
-      )}
-    >
-      <span className="font-mono text-[9px] uppercase tracking-[0.16em] text-text-subtle">{label}</span>
-      <span
-        className={cn(
-          "font-mono text-[13px] font-semibold tabular-nums",
-          tone === "alarm" ? "text-red-400" : tone === "accent" ? "text-amber-400" : "text-text-primary"
-        )}
-      >
-        {value}
-      </span>
-    </div>
-  );
-}
-
 function Skeleton({ className }: { className?: string }) {
-  return <div className={cn("af-skel rounded-2xl bg-graphite-850/70", className)} />;
+  return <div className={cn("ck-skel rounded-2xl bg-graphite-850/70", className)} />;
 }
-
-/* ------------------------------------------------------------------ */
-/* page                                                                */
-/* ------------------------------------------------------------------ */
 
 export default function AdminCookiesPage() {
   const [slots, setSlots] = useState<SlotMap | null>(null);
   const [traffic, setTraffic] = useState<TrafficData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
+  const [busy, setBusy] = useState(true);
+  const [lastUpdated, setLastUpdated] = useState<number | null>(null);
 
   const [selectedSlot, setSelectedSlot] = useState("1");
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-  // Only problems live here. Successes go to a toast — a green box that sticks
-  // around under the form is just clutter once you've read it.
+  // Only problems live here. Successes go to a toast.
   const [uploadProblem, setUploadProblem] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
 
@@ -487,9 +370,9 @@ export default function AdminCookiesPage() {
   const uploadPanelRef = useRef<HTMLDivElement>(null);
 
   const { toasts, push, dismiss } = useToasts();
-  const [shellRef, shellHeight] = useShellHeight();
 
   const load = useCallback(async () => {
+    setBusy(true);
     try {
       const res = await fetch("/api/admin/cookies", { cache: "no-store" });
       const data = await res.json();
@@ -500,22 +383,34 @@ export default function AdminCookiesPage() {
       setError((e as Error).message);
     } finally {
       setLoading(false);
-      setRefreshing(false);
     }
-    // Traffic health rides along but never blocks the page - the file/expiry
-    // view must keep working even when /admin/status is briefly unreachable
-    // (e.g. mid-restart), so failures here just leave the traffic block off.
+    // Traffic health rides along but never blocks the page. The file/expiry
+    // view must keep working when /admin/status is briefly unreachable.
     try {
       const res = await fetch("/api/admin/cookies/health", { cache: "no-store" });
       const data = await res.json();
       setTraffic(res.ok ? data : null);
     } catch {
       setTraffic(null);
+    } finally {
+      setBusy(false);
+      setLastUpdated(Date.now());
     }
   }, []);
 
   useEffect(() => {
     void load();
+  }, [load]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) return;
+      if (e.key.toLowerCase() === "r") void load();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
   }, [load]);
 
   // Server key order isn't guaranteed; slot order is meaningful here.
@@ -527,16 +422,16 @@ export default function AdminCookiesPage() {
   const brokenSlots = slotEntries.filter(
     ([, s]) => s.exists && s.expiry_status != null && DEFINITELY_BROKEN.includes(s.expiry_status)
   );
-  // Split out for the banner sentence, so "revoked" and "past expiry" aren't
-  // conflated into one misleading word — a slot the runtime killed didn't
-  // necessarily run out of time, and one that ran out of time wasn't
-  // necessarily ever confirmed dead in use.
+  // Split out for the summary sentence, so "revoked" and "past expiry" aren't
+  // conflated: a slot the runtime killed didn't necessarily run out of time.
   const revokedCount = slotEntries.filter(([, s]) => s.expiry_status === "revoked").length;
+  const workingCount = presentCount - brokenSlots.length;
 
-  async function handleRefresh() {
-    setRefreshing(true);
-    await load();
-  }
+  const worstTraffic = useMemo(() => {
+    const meaningful = (traffic?.accounts ?? []).filter((a) => a.successes + a.failures >= 5);
+    if (meaningful.length === 0) return null;
+    return Math.min(...meaningful.map((a) => trafficRead(a).pct));
+  }, [traffic]);
 
   function pickFile(f: File | null) {
     setUploadProblem(null);
@@ -546,7 +441,7 @@ export default function AdminCookiesPage() {
       return;
     }
     if (f && f.size > MAX_UPLOAD_BYTES) {
-      setUploadProblem("That file is over 1 MB — not a cookies export.");
+      setUploadProblem("That file is over 1 MB, so it isn't a cookies export.");
       setFile(null);
       return;
     }
@@ -555,7 +450,7 @@ export default function AdminCookiesPage() {
 
   function startUploadFor(slot: string) {
     setSelectedSlot(slot);
-    uploadPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    uploadPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
     fileInputRef.current?.click();
   }
 
@@ -585,14 +480,12 @@ export default function AdminCookiesPage() {
       } else if (st === "session_only") {
         message = `Slot ${slotName} saved. Cookies are session-scoped, so there's no expiry date to check.`;
       } else if (data?.expires_in_days != null) {
-        message = `Slot ${slotName} saved · ${formatWindow(data.expires_in_days)} left on the clock.`;
+        message = `Slot ${slotName} saved, with ${formatWindow(data.expires_in_days)} left on the clock.`;
       } else {
         message = `Slot ${slotName} saved.`;
       }
-      // "revoked" deliberately isn't reachable here: cookie_health is cleared
-      // as part of every successful upload (see cookie_upload.py), so a
-      // just-uploaded slot can't come back revoked in the same response. If it
-      // somehow did, the generic branches above still produce a sane message.
+      // "revoked" isn't reachable here: cookie_health is cleared as part of
+      // every successful upload (see cookie_upload.py).
 
       if (isBroken) {
         setUploadProblem(message);
@@ -617,408 +510,425 @@ export default function AdminCookiesPage() {
   }
 
   return (
-    <div
-      ref={shellRef}
-      style={shellHeight ? { height: shellHeight } : undefined}
-      className="flex w-full flex-col overflow-hidden bg-graphite-950 text-text-primary"
-    >
+    <div className="scrollbar-thin min-h-0 w-full flex-1 overflow-y-auto">
       <style dangerouslySetInnerHTML={{ __html: STYLES }} />
 
-      {/* ===== fixed chrome ===== */}
-      <header className="shrink-0 border-b border-graphite-800 px-4 py-3 sm:px-6">
-        <div className="mx-auto w-full max-w-3xl">
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-amber-500/30 bg-amber-500/10">
-              <Cookie className="h-4 w-4 text-amber-400" aria-hidden />
-            </span>
-            <div className="min-w-0">
-              <h1 className="text-[17px] font-semibold leading-tight tracking-tight">YouTube cookies</h1>
-              <p className="truncate text-[11px] text-text-subtle">
-                One Google account per slot. Downloads rotate across healthy accounts.
-              </p>
-            </div>
-            <div className="ml-auto">
-              <Button size="sm" busy={refreshing} disabled={loading} onClick={handleRefresh}>
-                <RefreshCw className={cn("h-3.5 w-3.5", refreshing && "animate-spin")} aria-hidden />
-                Refresh
-              </Button>
-            </div>
+      <div className="mx-auto w-full max-w-7xl px-4 py-5 sm:px-6 sm:py-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">YouTube cookies</h1>
+            <p className="mt-0.5 text-[13px] text-text-muted">
+              One Google account per slot. Downloads rotate across the healthy ones.
+            </p>
           </div>
-
-          {!loading && !error && (
-            <div className="af-railless -mx-4 mt-3 flex gap-2 overflow-x-auto px-4 sm:mx-0 sm:px-0" aria-live="polite">
-              <Pill
-                label="Slots filled"
-                value={`${presentCount} / ${slotEntries.length}`}
-                tone={presentCount === 0 ? "alarm" : "plain"}
-              />
-              <Pill
-                label="Need re-export"
-                value={String(brokenSlots.length)}
-                tone={brokenSlots.length > 0 ? "alarm" : "plain"}
-              />
-              <Pill label="Revoked" value={String(revokedCount)} tone={revokedCount > 0 ? "alarm" : "plain"} />
-              {(() => {
-                // Worst live rate among accounts with enough traffic to mean
-                // anything - the single number that says "refresh a cookie
-                // today" before users ever see a 503.
-                const meaningful = (traffic?.accounts ?? []).filter((a) => a.successes + a.failures >= 5);
-                if (meaningful.length === 0) return null;
-                const worst = Math.min(...meaningful.map((a) => trafficRead(a).pct));
-                return (
-                  <Pill
-                    label="Worst traffic"
-                    value={`${worst}%`}
-                    tone={worst < 60 ? "alarm" : "plain"}
-                  />
-                );
-              })()}
-            </div>
-          )}
+          <RefreshControl busy={busy} lastUpdated={lastUpdated} onRefresh={() => void load()} />
         </div>
-      </header>
 
-      {/* ===== the one scrolling region ===== */}
-      <main className="af-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6">
-        <div className="mx-auto w-full max-w-3xl space-y-4">
-          {/* Only fires on definitive failures. */}
-          {!loading && brokenSlots.length > 0 && (
-            <div className="af-rise flex items-start gap-2.5 rounded-2xl border border-red-500/30 bg-red-500/[0.07] px-3.5 py-3">
-              <AlertTriangle className="mt-px h-4 w-4 shrink-0 text-red-400" aria-hidden />
-              <p className="text-xs leading-relaxed text-text-muted">
-                <span className="font-medium text-red-300">
-                  {brokenSlots.map(([name]) => slotLabel(name)).join(", ")}
-                </span>{" "}
-                {brokenSlots.length === 1 ? "needs" : "need"} re-exporting.{" "}
-                {revokedCount > 0
-                  ? "A revoked slot was confirmed dead by an actual download attempt, not just its expiry date. Re-exporting replaces it immediately."
-                  : "A weak account is tried last until you replace it, so downloads keep working meanwhile."}
-              </p>
+        {!loading && !error && (
+          <p className="mt-5 max-w-2xl text-balance text-[15px] leading-relaxed text-text-body sm:text-base">
+            <span className="mr-1.5 text-[28px] font-semibold tabular-nums text-amber-400 sm:text-[32px]">
+              {workingCount} of {slotEntries.length}
+            </span>
+            {workingCount === 1 ? "slot is working" : "slots are working"}.{" "}
+            {brokenSlots.length > 0 ? (
+              <span className="text-text-muted">
+                {brokenSlots.map(([name]) => slotLabel(name)).join(" and ")}{" "}
+                {brokenSlots.length === 1 ? "needs" : "need"} a fresh export.
+              </span>
+            ) : presentCount < slotEntries.length ? (
+              <span className="text-text-muted">
+                {slotEntries.length - presentCount} slot
+                {slotEntries.length - presentCount === 1 ? " is" : "s are"} still empty. Adding one spreads
+                downloads across more accounts.
+              </span>
+            ) : (
+              <span className="text-text-muted">Nothing needs your attention right now.</span>
+            )}
+          </p>
+        )}
+
+        {!loading && !error && (
+          <dl className="mt-4 flex flex-wrap gap-x-8 gap-y-3" aria-live="polite">
+            <div>
+              <dt className="text-[12px] text-text-subtle">Slots filled</dt>
+              <dd
+                className={cn(
+                  "text-lg font-semibold tabular-nums",
+                  presentCount === 0 ? "text-red-400" : "text-text-primary"
+                )}
+              >
+                {presentCount} of {slotEntries.length}
+              </dd>
             </div>
-          )}
+            <div>
+              <dt className="text-[12px] text-text-subtle">Need re-export</dt>
+              <dd
+                className={cn(
+                  "text-lg font-semibold tabular-nums",
+                  brokenSlots.length > 0 ? "text-red-400" : "text-text-primary"
+                )}
+              >
+                {brokenSlots.length}
+              </dd>
+            </div>
+            {worstTraffic !== null && (
+              <div>
+                <dt className="text-[12px] text-text-subtle">Worst success rate</dt>
+                <dd
+                  className={cn(
+                    "text-lg font-semibold tabular-nums",
+                    worstTraffic < 60 ? "text-red-400" : worstTraffic < 85 ? "text-amber-300" : "text-text-primary"
+                  )}
+                >
+                  {worstTraffic}%
+                </dd>
+              </div>
+            )}
+          </dl>
+        )}
 
-          {/* ===== slots ===== */}
+        {!loading && brokenSlots.length > 0 && (
+          <div className="ck-rise mt-4 flex items-start gap-2.5 rounded-xl border border-red-500/30 bg-red-500/[0.07] px-3.5 py-3">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-400" aria-hidden />
+            <p className="text-[13px] leading-relaxed text-text-muted">
+              {revokedCount > 0
+                ? "A revoked slot was confirmed dead by a real download attempt, not just its expiry date. Re-exporting replaces it immediately."
+                : "A weak account is tried last until you replace it, so downloads keep working meanwhile."}
+            </p>
+          </div>
+        )}
+
+        <section className="mt-5">
+          <h2 className="sr-only">Slots</h2>
           {loading ? (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {[0, 1, 2].map((i) => (
-                <Skeleton key={i} className="h-[148px]" />
+                <Skeleton key={i} className="h-[230px]" />
               ))}
             </div>
           ) : error ? (
-            <Card className="flex flex-col items-center gap-3 px-4 py-8">
-              <p className="text-center text-sm text-red-400">Couldn&apos;t load slots: {error}</p>
-              <Button size="sm" variant="danger" onClick={handleRefresh}>
-                <RefreshCw className="h-3.5 w-3.5" aria-hidden />
+            <div className="flex flex-col items-center gap-3 rounded-2xl border border-red-500/25 bg-red-500/[0.06] px-4 py-10">
+              <p className="text-center text-sm text-red-300">Slots did not load: {error}</p>
+              <Button size="sm" variant="danger" onClick={() => void load()}>
                 Try again
               </Button>
-            </Card>
+            </div>
           ) : (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {slotEntries.map(([slotName, info]) => {
-                const label = slotLabel(slotName);
-                const slotNum = String(slotNumber(slotName));
-
-                if (!info.exists) {
-                  return (
-                    <button
-                      key={slotName}
-                      type="button"
-                      onClick={() => startUploadFor(slotNum)}
-                      className={cn(
-                        "group flex min-h-[148px] flex-col items-center justify-center gap-1.5 rounded-2xl border border-dashed border-graphite-700 bg-graphite-900/30 p-4 text-center outline-none transition-colors",
-                        "hover:border-amber-500/50 hover:bg-graphite-900/60 focus-visible:ring-2 focus-visible:ring-amber-400/70"
-                      )}
-                    >
-                      <Plus className="h-4 w-4 text-text-subtle transition-colors group-hover:text-amber-400" aria-hidden />
-                      <span className="text-sm font-medium text-text-muted">{label}</span>
-                      <span className="text-[11px] text-text-subtle">Empty · add cookies</span>
-                    </button>
-                  );
-                }
-
-                const status: ExpiryStatus = info.expiry_status ?? "unknown";
-                const tone = TONE[status];
-                const isBad = tone === "bad";
-
-                return (
-                  <div
-                    key={slotName}
-                    className={cn(
-                      "af-rise flex min-h-[148px] flex-col gap-3 rounded-2xl border p-4 transition-colors",
-                      isBad ? "border-red-500/30 bg-red-500/[0.05]" : "border-graphite-800 bg-graphite-900/70"
-                    )}
-                  >
-                    <div className="flex min-w-0 items-center gap-2">
-                      <Cookie className={cn("h-4 w-4 shrink-0", isBad ? "text-red-400" : "text-amber-400")} aria-hidden />
-                      <span className="truncate text-sm font-medium">{label}</span>
-                    </div>
-
-                    <span
-                      className={cn(
-                        "self-start rounded-md border px-2 py-1 text-[11px] font-medium tabular-nums",
-                        CHIP_CLASSES[tone]
-                      )}
-                    >
-                      {chipText(info)}
-                    </span>
-
-                    {(() => {
-                      const acct = trafficForSlot(traffic, slotName);
-                      if (!acct) return null;
-                      const read = trafficRead(acct);
-                      return (
-                        <div className="rounded-lg border border-graphite-800 bg-graphite-950/40 px-2.5 py-2">
-                          <div className="flex items-baseline justify-between gap-2">
-                            <span className="text-[10px] uppercase tracking-wider text-text-subtle">Traffic</span>
-                            <span className={cn("font-mono text-[13px] font-semibold tabular-nums", TRAFFIC_TEXT[read.tone])}>
-                              {read.label}
-                              {read.lowData && read.pct > 0 && (
-                                <span className="ml-1 text-[10px] font-normal text-text-subtle">low data</span>
-                              )}
-                            </span>
-                          </div>
-                          <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-graphite-800">
-                            <div
-                              className={cn("h-full rounded-full transition-all", TRAFFIC_BAR[read.tone])}
-                              style={{ width: `${Math.max(read.pct, 2)}%` }}
-                            />
-                          </div>
-                          <div className="mt-1.5 flex items-center justify-between font-mono text-[10px] text-text-subtle">
-                            <span className="whitespace-nowrap tabular-nums">
-                              {acct.successes.toLocaleString()} ok · {acct.failures.toLocaleString()} fail
-                            </span>
-                            <span className={cn("truncate", acct.last_failure_kind === "bot_check" && read.tone !== "good" && "text-amber-300")}>
-                              {acct.last_failure_kind ? `last: ${acct.last_failure_kind}` : "no failures"}
-                            </span>
-                          </div>
-                          {acct.rotation === "demoted" && (
-                            <p className="mt-1 text-[10px] text-amber-300">
-                              Tried last: {acct.recent_success_rate ?? 0}% ok in the last 2h
-                            </p>
-                          )}
-                        </div>
-                      );
-                    })()}
-
-                    <dl className="mt-auto flex flex-col gap-1 text-[11px]">
-                      {info.expires_at != null && (
-                        <Row label="Expires" value={formatDate(info.expires_at)} />
-                      )}
-                      {/* The count backing the expiry/revoked read above. A
-                          1.8 KB file with 3 auth cookies against siblings at
-                          3+ KB / 8 cookies is visible at a glance instead of
-                          only discoverable by diffing file sizes. */}
-                      {info.critical_cookies_found != null && (
-                        <Row label="Auth cookies" value={String(info.critical_cookies_found)} />
-                      )}
-                      <Row label="Size" value={info.size_bytes ? formatFileSize(info.size_bytes) : "—"} />
-                      {info.last_modified && (
-                        <Row label="Added" value={formatRelativeTime(info.last_modified)} />
-                      )}
-                    </dl>
-
-                    {/* The actual yt-dlp warning that triggered revocation, when
-                        the backend captured one. Kept out of the <dl> above:
-                        that's a fixed label/value grid, and this is prose that
-                        can run longer than a value column holds. */}
-                    {status === "revoked" && info.revoked_reason && (
-                      <p className="line-clamp-2 border-t border-red-500/20 pt-2 text-[11px] leading-snug text-red-300/80">
-                        {info.revoked_reason}
-                      </p>
-                    )}
-
-                    <Button size="sm" className="w-full" onClick={() => startUploadFor(slotNum)}>
-                      <Upload className="h-3.5 w-3.5" aria-hidden />
-                      Replace
-                    </Button>
-                  </div>
-                );
-              })}
+              {slotEntries.map(([slotName, info]) => (
+                <SlotCard
+                  key={slotName}
+                  slotName={slotName}
+                  info={info}
+                  traffic={trafficForSlot(traffic, slotName)}
+                  onUpload={() => startUploadFor(String(slotNumber(slotName)))}
+                />
+              ))}
             </div>
           )}
 
-          {/* ===== upload ===== */}
-          <Card className="p-4 sm:p-5" >
-          {traffic && (
-            <p className="px-1 text-[11px] leading-relaxed text-text-subtle">
-              Traffic numbers are live counters since the last restart
-              {traffic.uptime_seconds != null ? ` (${formatUptime(traffic.uptime_seconds)} ago)` : ""}. They reset on
-              every deploy and when you replace a file. Green ≥85%, amber 60–85%, red under 60% with bot_check means re-export that account today.
+          {traffic && !loading && !error && (
+            <p className="mt-3 text-[12px] leading-relaxed text-text-subtle">
+              Success rates are counted since the backend last restarted
+              {traffic.uptime_seconds != null ? `, ${formatUptime(traffic.uptime_seconds)} ago` : ""}. They reset on
+              every deploy and when you replace a file. Above 85% is healthy, 60 to 85% is slipping, and under 60%
+              with a bot check means re-export that account today.
             </p>
           )}
+        </section>
 
-            <div ref={uploadPanelRef} className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-sm font-semibold">Add cookies</p>
-              <div className="flex items-center gap-2">
-                <label htmlFor="slot-select" className="sr-only">
-                  Slot
-                </label>
-                <SectionLabel>Slot</SectionLabel>
-                <div className="relative">
-                  <select
-                    id="slot-select"
-                    value={selectedSlot}
-                    onChange={(e) => setSelectedSlot(e.target.value)}
-                    disabled={uploading}
-                    className={cn(
-                      "h-9 appearance-none rounded-lg border border-graphite-700 bg-graphite-850/80 pl-3 pr-8 text-[13px] text-text-primary outline-none transition-colors",
-                      "hover:border-graphite-600 focus-visible:border-amber-500/50 focus-visible:ring-2 focus-visible:ring-amber-500/20 disabled:opacity-50"
-                    )}
-                  >
-                    {slotEntries.map(([slotName]) => (
-                      <option key={slotName} value={String(slotNumber(slotName))}>
-                        {slotLabel(slotName)}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronRight
-                    className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 rotate-90 text-text-subtle"
-                    aria-hidden
-                  />
-                </div>
-              </div>
-            </div>
+        <section
+          ref={uploadPanelRef}
+          className="mt-5 rounded-2xl border border-graphite-800 bg-graphite-900/70 p-4 sm:p-5"
+        >
+          <h2 className="text-sm font-semibold">Add cookies</h2>
+          <p className="mt-0.5 text-[12px] text-text-subtle">
+            Export cookies.txt from a logged-in YouTube tab, then pick which slot it replaces.
+          </p>
 
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".txt"
-              className="hidden"
-              onChange={(e) => pickFile(e.target.files?.[0] ?? null)}
-            />
-
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                void handleUpload();
-              }}
-              className="mt-3 flex flex-col gap-3"
-            >
-              {!file ? (
+          <div className="mt-3 flex flex-wrap gap-1.5" role="group" aria-label="Slot to save into">
+            {slotEntries.map(([slotName, info]) => {
+              const value = String(slotNumber(slotName));
+              const on = value === selectedSlot;
+              return (
                 <button
+                  key={slotName}
                   type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    setIsDragging(true);
-                  }}
-                  onDragLeave={() => setIsDragging(false)}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    setIsDragging(false);
-                    const dropped = e.dataTransfer.files?.[0] ?? null;
-                    if (dropped) pickFile(dropped);
-                  }}
+                  aria-pressed={on}
+                  disabled={uploading}
+                  onClick={() => setSelectedSlot(value)}
                   className={cn(
-                    "flex w-full flex-col items-center justify-center gap-1 rounded-xl border border-dashed px-4 py-7 outline-none transition-colors",
-                    "focus-visible:ring-2 focus-visible:ring-amber-400/70",
-                    isDragging
-                      ? "border-amber-500 bg-amber-500/[0.07]"
-                      : "border-graphite-700 bg-graphite-850/60 hover:border-graphite-600 hover:bg-graphite-850"
+                    "inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-[13px] outline-none transition-colors",
+                    "focus-visible:ring-2 focus-visible:ring-amber-400/70 disabled:opacity-50",
+                    on
+                      ? "border-amber-500/50 bg-amber-500/15 text-amber-200"
+                      : "border-graphite-700 bg-graphite-850/80 text-text-muted hover:text-text-primary"
                   )}
                 >
-                  <Upload className={cn("h-5 w-5", isDragging ? "text-amber-400" : "text-text-subtle")} aria-hidden />
-                  <span className="text-xs text-text-primary">
-                    <span className="font-medium">Choose a file</span> or drop it here
-                  </span>
-                  <span className="text-[11px] text-text-subtle">cookies.txt · one Google account per slot</span>
+                  {slotLabel(slotName)}
+                  <span className="text-[11px] text-text-subtle">{info.exists ? "replace" : "empty"}</span>
                 </button>
-              ) : (
-                <div className="flex flex-col gap-2 rounded-xl border border-graphite-700 bg-graphite-850/80 px-3 py-2.5">
-                  <div className="flex items-center gap-2.5">
-                    <FileText className="h-4 w-4 shrink-0 text-amber-400" aria-hidden />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-xs text-text-primary">{file.name}</p>
-                      <p className="text-[11px] tabular-nums text-text-subtle">
-                        {uploading
-                          ? uploadProgress < 100
-                            ? `Uploading ${uploadProgress}%`
-                            : "Checking file…"
-                          : formatFileSize(file.size)}
-                      </p>
-                    </div>
-                    {!uploading && (
-                      <button
-                        type="button"
-                        onClick={() => pickFile(null)}
-                        aria-label="Remove file"
-                        className="rounded p-1 text-text-subtle outline-none transition-colors hover:bg-graphite-800 hover:text-text-primary focus-visible:ring-2 focus-visible:ring-amber-400/70"
-                      >
-                        <X className="h-3.5 w-3.5" aria-hidden />
-                      </button>
-                    )}
+              );
+            })}
+          </div>
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".txt"
+            className="hidden"
+            onChange={(e) => pickFile(e.target.files?.[0] ?? null)}
+          />
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              void handleUpload();
+            }}
+            className="mt-3 flex flex-col gap-3"
+          >
+            {!file ? (
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setIsDragging(true);
+                }}
+                onDragLeave={() => setIsDragging(false)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setIsDragging(false);
+                  const dropped = e.dataTransfer.files?.[0] ?? null;
+                  if (dropped) pickFile(dropped);
+                }}
+                className={cn(
+                  "flex w-full flex-col items-center justify-center gap-1 rounded-xl border border-dashed px-4 py-8 outline-none transition-colors",
+                  "focus-visible:ring-2 focus-visible:ring-amber-400/70",
+                  isDragging
+                    ? "border-amber-500 bg-amber-500/[0.07]"
+                    : "border-graphite-700 bg-graphite-850/60 hover:border-graphite-600 hover:bg-graphite-850"
+                )}
+              >
+                <Upload className={cn("h-5 w-5", isDragging ? "text-amber-400" : "text-text-subtle")} aria-hidden />
+                <span className="text-[13px] text-text-primary">
+                  <span className="font-medium">Choose a file</span> or drop it here
+                </span>
+                <span className="text-[12px] text-text-subtle">cookies.txt, up to 1 MB</span>
+              </button>
+            ) : (
+              <div className="flex flex-col gap-2 rounded-xl border border-graphite-700 bg-graphite-850/80 px-3 py-2.5">
+                <div className="flex items-center gap-2.5">
+                  <FileText className="h-4 w-4 shrink-0 text-amber-400" aria-hidden />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[13px] text-text-primary">{file.name}</p>
+                    <p className="text-[12px] tabular-nums text-text-subtle">
+                      {uploading
+                        ? uploadProgress < 100
+                          ? `Uploading ${uploadProgress}%`
+                          : "Checking file…"
+                        : formatFileSize(file.size)}
+                    </p>
                   </div>
-                  {uploading && (
-                    <div
-                      className="h-1 w-full overflow-hidden rounded-full bg-graphite-800"
-                      role="progressbar"
-                      aria-valuenow={uploadProgress}
-                      aria-valuemin={0}
-                      aria-valuemax={100}
+                  {!uploading && (
+                    <button
+                      type="button"
+                      onClick={() => pickFile(null)}
+                      aria-label="Remove file"
+                      className="rounded p-1 text-text-subtle outline-none transition-colors hover:bg-graphite-800 hover:text-text-primary focus-visible:ring-2 focus-visible:ring-amber-400/70"
                     >
-                      <div
-                        className="h-full bg-amber-500 transition-[width] duration-150 ease-out"
-                        style={{ width: `${uploadProgress}%` }}
-                      />
-                    </div>
+                      <X className="h-3.5 w-3.5" aria-hidden />
+                    </button>
                   )}
                 </div>
-              )}
-
-              <Button type="submit" variant="primary" busy={uploading} disabled={!file} className="self-start">
-                {uploading ? "Saving…" : "Save to slot"}
-              </Button>
-
-              {/* Problems persist; successes went to a toast. */}
-              {uploadProblem && (
-                <div className="flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/[0.07] px-3 py-2 text-xs leading-relaxed text-red-300">
-                  <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden />
-                  <span className="flex-1">{uploadProblem}</span>
-                  <button
-                    type="button"
-                    onClick={() => setUploadProblem(null)}
-                    aria-label="Dismiss"
-                    className="rounded p-0.5 opacity-60 outline-none transition-opacity hover:opacity-100 focus-visible:ring-2 focus-visible:ring-current"
+                {uploading && (
+                  <div
+                    className="h-1 w-full overflow-hidden rounded-full bg-graphite-800"
+                    role="progressbar"
+                    aria-valuenow={uploadProgress}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
                   >
-                    <X className="h-3.5 w-3.5" aria-hidden />
-                  </button>
-                </div>
-              )}
-            </form>
-          </Card>
+                    <div
+                      className="h-full bg-amber-500 transition-[width] duration-150 ease-out"
+                      style={{ width: `${uploadProgress}%` }}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
 
-          {/* The caveat that used to be three paragraphs. Collapsed by default —
-              it matters when you're reading a chip, not every time you land here. */}
-          {!loading && !error && (
-            <details className="group rounded-2xl border border-graphite-800 bg-graphite-900/40">
-              <summary className="flex cursor-pointer list-none items-center gap-1.5 rounded-2xl px-3.5 py-2.5 text-[11px] text-text-subtle outline-none transition-colors hover:text-text-muted focus-visible:ring-2 focus-visible:ring-amber-400/70">
-                <ChevronRight className="h-3 w-3 transition-transform group-open:rotate-90" aria-hidden />
-                Why no slot is marked &ldquo;valid&rdquo;
-              </summary>
-              <p className="px-3.5 pb-3 pl-8 text-[11px] leading-relaxed text-text-subtle">
-                The expiry date is read from the file itself, so it only tells you whether the clock has run out —
-                Google can revoke a session server-side without changing that date.{" "}
-                <span className="text-text-muted">Revoked</span> means the opposite kind of evidence: an actual
-                download attempt confirmed YouTube rejected the session, which is stronger than any date but only
-                ever found out about a slot after it was used. A revoked primary shows up as a Discord alert the
-                next time it runs; a revoked backup can stay silent until failover, since standby slots are rarely
-                used at all.
-              </p>
-            </details>
-          )}
-        </div>
-      </main>
+            <Button
+              type="submit"
+              variant="primary"
+              busy={uploading}
+              disabled={!file}
+              className="w-full sm:w-auto sm:self-start"
+            >
+              {uploading ? "Saving…" : `Save to ${slotLabel(`slot_${selectedSlot}`)}`}
+            </Button>
+
+            {/* Problems persist; successes went to a toast. */}
+            {uploadProblem && (
+              <div className="flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/[0.07] px-3 py-2 text-[13px] leading-relaxed text-red-300">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+                <span className="flex-1">{uploadProblem}</span>
+                <button
+                  type="button"
+                  onClick={() => setUploadProblem(null)}
+                  aria-label="Dismiss"
+                  className="rounded p-0.5 opacity-60 outline-none transition-opacity hover:opacity-100 focus-visible:ring-2 focus-visible:ring-current"
+                >
+                  <X className="h-3.5 w-3.5" aria-hidden />
+                </button>
+              </div>
+            )}
+          </form>
+        </section>
+
+        {!loading && !error && (
+          <details className="group mt-4 rounded-2xl border border-graphite-800 bg-graphite-900/40">
+            <summary className="flex cursor-pointer list-none items-center gap-1.5 rounded-2xl px-3.5 py-3 text-[13px] text-text-muted outline-none transition-colors hover:text-text-primary focus-visible:ring-2 focus-visible:ring-amber-400/70">
+              <ChevronRight className="h-3.5 w-3.5 transition-transform group-open:rotate-90" aria-hidden />
+              Why no slot is ever marked valid
+            </summary>
+            <p className="px-3.5 pb-4 pl-8 text-[13px] leading-relaxed text-text-subtle">
+              The expiry date is read from the file itself, so it only tells you whether the clock has run out.
+              Google can revoke a session server-side without changing that date. Revoked means the opposite kind of
+              evidence: a real download attempt confirmed YouTube rejected the session, which is stronger than any
+              date but only found out after the slot was used. A revoked primary shows up as a Discord alert the next
+              time it runs. A revoked backup can stay silent until failover, since standby slots are rarely used.
+            </p>
+          </details>
+        )}
+      </div>
 
       <ToastStack toasts={toasts} dismiss={dismiss} />
     </div>
   );
 }
 
-function Row({ label, value }: { label: string; value: string }) {
+function SlotCard({
+  slotName,
+  info,
+  traffic,
+  onUpload,
+}: {
+  slotName: string;
+  info: CookieSlot;
+  traffic: TrafficAccount | null;
+  onUpload: () => void;
+}) {
+  const label = slotLabel(slotName);
+
+  if (!info.exists) {
+    return (
+      <button
+        type="button"
+        onClick={onUpload}
+        className={cn(
+          "group flex min-h-[150px] flex-col items-center justify-center gap-1.5 rounded-2xl border border-dashed border-graphite-700 bg-graphite-900/30 p-4 text-center outline-none transition-colors",
+          "hover:border-amber-500/50 hover:bg-graphite-900/60 focus-visible:ring-2 focus-visible:ring-amber-400/70"
+        )}
+      >
+        <Plus className="h-4 w-4 text-text-subtle transition-colors group-hover:text-amber-400" aria-hidden />
+        <span className="text-sm font-medium text-text-muted">{label}</span>
+        <span className="text-[12px] text-text-subtle">Empty, tap to add cookies</span>
+      </button>
+    );
+  }
+
+  const status: ExpiryStatus = info.expiry_status ?? "unknown";
+  const tone = TONE[status];
+  const isBad = tone === "bad";
+  const read = traffic ? trafficRead(traffic) : null;
+
   return (
-    <div className="flex items-baseline justify-between gap-2">
+    <div
+      className={cn(
+        "ck-rise flex flex-col gap-3 rounded-2xl border p-4",
+        isBad ? "border-red-500/30 bg-red-500/[0.05]" : "border-graphite-800 bg-graphite-900/70"
+      )}
+    >
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
+        <Cookie className={cn("h-4 w-4 shrink-0", isBad ? "text-red-400" : "text-amber-400")} aria-hidden />
+        <span className="text-sm font-medium">{label}</span>
+        <span
+          className={cn(
+            "ml-auto rounded-md border px-2 py-0.5 text-[12px] font-medium tabular-nums",
+            CHIP_CLASSES[tone]
+          )}
+        >
+          {chipText(info)}
+        </span>
+      </div>
+
+      {traffic && read && (
+        <div className="rounded-xl border border-graphite-800 bg-graphite-950/40 px-3 py-2.5">
+          <div className="flex items-baseline justify-between gap-2">
+            <span className="text-[12px] text-text-subtle">Downloads that worked</span>
+            <span className={cn("text-[15px] font-semibold tabular-nums", TRAFFIC_TEXT[read.tone])}>
+              {read.label}
+            </span>
+          </div>
+          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-graphite-800">
+            <div
+              className={cn("h-full rounded-full transition-all", TRAFFIC_BAR[read.tone])}
+              style={{ width: `${Math.max(read.pct, 2)}%` }}
+            />
+          </div>
+          <p className="mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-[12px] text-text-subtle">
+            <span className="tabular-nums">
+              {traffic.successes.toLocaleString()} worked, {traffic.failures.toLocaleString()} failed
+            </span>
+            {read.lowData && <span>too few tries to judge</span>}
+            {traffic.last_failure_kind && (
+              <span
+                className={cn(traffic.last_failure_kind === "bot_check" && read.tone !== "good" && "text-amber-300")}
+              >
+                last failure: {traffic.last_failure_kind.replace(/_/g, " ")}
+              </span>
+            )}
+          </p>
+          {traffic.rotation === "demoted" && (
+            <p className="mt-1.5 text-[12px] text-amber-300">
+              Tried last, {traffic.recent_success_rate ?? 0}% worked in the last 2 hours
+            </p>
+          )}
+        </div>
+      )}
+
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-[12px]">
+        {info.expires_at != null && <Fact label="Expires" value={formatDate(info.expires_at)} />}
+        {info.critical_cookies_found != null && (
+          // The count backing the expiry read above. A 1.8 KB file with 3 auth
+          // cookies beside siblings at 3+ KB and 8 cookies is visible at a
+          // glance instead of only by diffing file sizes.
+          <Fact label="Auth cookies" value={String(info.critical_cookies_found)} />
+        )}
+        <Fact label="Size" value={info.size_bytes ? formatFileSize(info.size_bytes) : "–"} />
+        {info.last_modified && <Fact label="Added" value={formatRelativeTime(info.last_modified)} />}
+      </dl>
+
+      {status === "revoked" && info.revoked_reason && (
+        <p className="line-clamp-3 border-t border-red-500/20 pt-2.5 text-[12px] leading-relaxed text-red-300/80">
+          {info.revoked_reason}
+        </p>
+      )}
+
+      <Button size="sm" className="mt-auto w-full" variant={isBad ? "primary" : "ghost"} onClick={onUpload}>
+        <Upload className="h-3.5 w-3.5" aria-hidden />
+        Replace cookies
+      </Button>
+    </div>
+  );
+}
+
+function Fact({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0">
       <dt className="text-text-subtle">{label}</dt>
-      <dd className="tabular-nums text-text-muted">{value}</dd>
+      <dd className="truncate tabular-nums text-text-primary">{value}</dd>
     </div>
   );
 }
