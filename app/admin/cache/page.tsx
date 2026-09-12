@@ -1,9 +1,24 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+/**
+ * app/admin/cache/page.tsx — redesigned to match the credits console.
+ *
+ * Same shell as the other admin screens: the page fills the viewport, the
+ * header and KPI rail hold still, and one region scrolls. Same primitives, same
+ * palette, same toast behaviour — so moving between Cache, Credits and Logs
+ * doesn't feel like moving between three different products.
+ *
+ * The information hierarchy is unchanged on purpose, because it was right:
+ * disk before cache (a full disk breaks deploys, downloads and logging; a full
+ * cache just evicts itself), and the single most urgent condition stated once,
+ * at the top, in plain words.
+ */
+
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   AlertTriangle,
   Check,
+  Database,
   HardDrive,
   Loader2,
   RefreshCw,
@@ -14,8 +29,6 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { ConfirmDialog } from "../_components/ConfirmDialog";
-import { RefreshControl } from "../_components/RefreshControl";
-import { StickyHeader, onScrollToggle } from "../_components/StickyHeader";
 
 /* ------------------------------------------------------------------ */
 /* types                                                               */
@@ -41,8 +54,8 @@ interface CacheStats {
 /* ------------------------------------------------------------------ */
 
 function fmtSize(gb: number | null | undefined): string {
-  // A missing figure must never read as a real one. The disk fields come from
-  // the backend's own statvfs call, which can be absent mid-restart.
+  // A figure the backend didn't send must never read as a real one. The disk
+  // fields come from its statvfs call, which can be missing mid-restart.
   if (gb == null || Number.isNaN(gb)) return "unknown";
   if (gb >= 1) return `${gb.toFixed(gb >= 10 ? 1 : 2)} GB`;
   const mb = gb * 1024;
@@ -51,6 +64,15 @@ function fmtSize(gb: number | null | undefined): string {
 }
 
 const hasNum = (n: number | null | undefined): n is number => typeof n === "number" && !Number.isNaN(n);
+
+function relativeAge(ms: number): string {
+  const s = Math.floor(ms / 1000);
+  if (s < 5) return "just now";
+  if (s < 60) return `${s}s ago`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ago`;
+  return `${Math.floor(m / 60)}h ago`;
+}
 
 type Health = { bar: string; text: string; label: string };
 
@@ -104,6 +126,31 @@ const STYLES = `
 /* ------------------------------------------------------------------ */
 /* shell + toasts                                                      */
 /* ------------------------------------------------------------------ */
+
+/** The page fills from wherever it starts to the bottom of the window.
+ *  Measured rather than hardcoded, because the admin chrome above this page can
+ *  change height and a wrong constant is what strands content below the fold. */
+function useShellHeight() {
+  const ref = useRef<HTMLDivElement>(null);
+  const [height, setHeight] = useState<number | null>(null);
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () =>
+      setHeight(Math.max(360, Math.round(window.innerHeight - el.getBoundingClientRect().top)));
+    measure();
+    window.addEventListener("resize", measure);
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(measure) : null;
+    if (ro && el.parentElement) ro.observe(el.parentElement);
+    return () => {
+      window.removeEventListener("resize", measure);
+      ro?.disconnect();
+    };
+  }, []);
+
+  return [ref, height] as const;
+}
 
 type Toast = { id: number; tone: "ok" | "warn" | "bad"; text: string };
 
@@ -166,6 +213,10 @@ function Card({ className, children }: { className?: string; children: React.Rea
   );
 }
 
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-text-subtle">{children}</p>;
+}
+
 function Button({
   children,
   onClick,
@@ -213,6 +264,27 @@ function Button({
   );
 }
 
+function Pill({ label, value, tone = "plain" }: { label: string; value: string; tone?: "plain" | "accent" | "alarm" }) {
+  return (
+    <div
+      className={cn(
+        "flex shrink-0 items-baseline gap-2 rounded-lg border px-2.5 py-1.5",
+        tone === "alarm" ? "border-red-500/30 bg-red-500/[0.07]" : "border-graphite-800 bg-graphite-900/60"
+      )}
+    >
+      <span className="font-mono text-[9px] uppercase tracking-[0.16em] text-text-subtle">{label}</span>
+      <span
+        className={cn(
+          "font-mono text-[13px] font-semibold tabular-nums",
+          tone === "alarm" ? "text-red-400" : tone === "accent" ? "text-amber-400" : "text-text-primary"
+        )}
+      >
+        {value}
+      </span>
+    </div>
+  );
+}
+
 /** Both bars on this page. One component so a percentage can never be drawn two
  *  different ways depending on which card it lands in. */
 function Meter({ percent, health, thick }: { percent: number; health: Health; thick?: boolean }) {
@@ -230,69 +302,12 @@ function Meter({ percent, health, thick }: { percent: number; health: Health; th
   );
 }
 
-function Figure({
-  label,
-  value,
-  sub,
-  tone,
-}: {
-  label: string;
-  value: string;
-  sub?: string;
-  tone?: "alarm";
-}) {
+function Figure({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
     <div>
-      <dt className="text-[12px] text-text-subtle">{label}</dt>
-      <dd
-        className={cn(
-          "mt-1 text-lg font-semibold leading-none tabular-nums",
-          tone === "alarm" ? "text-red-400" : "text-text-primary"
-        )}
-      >
-        {value}
-      </dd>
-      {sub && <p className="mt-1.5 text-[12px] leading-snug text-text-subtle">{sub}</p>}
-    </div>
-  );
-}
-
-/**
- * The headline numbers, as raised glass tiles rather than bare text on the
- * page background. The old rail had the right idea and the wrong typography:
- * 9px all-caps monospace labels. Same physical treatment, readable type.
- */
-function StatChip({
-  label,
-  value,
-  tone,
-  accent,
-}: {
-  label: string;
-  value: string;
-  tone?: "alarm";
-  accent?: boolean;
-}) {
-  return (
-    <div
-      className={cn(
-        "relative overflow-hidden rounded-xl border px-3.5 py-2.5 shadow-lg shadow-black/20",
-        "before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-px",
-        "before:bg-gradient-to-r before:from-transparent before:via-white/10 before:to-transparent",
-        tone === "alarm"
-          ? "border-red-500/30 bg-red-500/[0.08]"
-          : "border-graphite-800 bg-graphite-900/70 backdrop-blur"
-      )}
-    >
-      <dt className="truncate text-[12px] text-text-subtle">{label}</dt>
-      <dd
-        className={cn(
-          "mt-1 truncate text-[17px] font-semibold leading-none tabular-nums",
-          tone === "alarm" ? "text-red-400" : accent ? "text-amber-400" : "text-text-primary"
-        )}
-      >
-        {value}
-      </dd>
+      <SectionLabel>{label}</SectionLabel>
+      <p className="mt-1 font-mono text-lg font-semibold leading-none tabular-nums text-text-primary">{value}</p>
+      {sub && <p className="mt-1.5 text-[11px] leading-snug text-text-subtle">{sub}</p>}
     </div>
   );
 }
@@ -370,8 +385,9 @@ export default function AdminCachePage() {
   const [stats, setStats] = useState<CacheStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [lastLoadedAt, setLastLoadedAt] = useState<number | null>(null);
+  const [, forceTick] = useState(0);
 
   const [clearing, setClearing] = useState(false);
   const [confirmingClear, setConfirmingClear] = useState(false);
@@ -380,10 +396,9 @@ export default function AdminCachePage() {
   const [savingLimit, setSavingLimit] = useState(false);
 
   const { toasts, push, dismiss } = useToasts();
-  const [scrolled, setScrolled] = useState(false);
+  const [shellRef, shellHeight] = useShellHeight();
 
   const load = useCallback(async () => {
-    setBusy(true);
     try {
       const res = await fetch("/api/admin/cache", { cache: "no-store" });
       const data = await res.json();
@@ -396,7 +411,7 @@ export default function AdminCachePage() {
       setError((e as Error).message);
     } finally {
       setLoading(false);
-      setBusy(false);
+      setRefreshing(false);
     }
   }, []);
 
@@ -404,16 +419,16 @@ export default function AdminCachePage() {
     void load();
   }, [load]);
 
+  // Only the "updated Ns ago" line depends on the clock, so the tick is cheap.
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const el = e.target as HTMLElement | null;
-      if (e.metaKey || e.ctrlKey || e.altKey) return;
-      if (el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) return;
-      if (e.key.toLowerCase() === "r") void load();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [load]);
+    const id = setInterval(() => forceTick((n) => n + 1), 10000);
+    return () => clearInterval(id);
+  }, []);
+
+  async function handleRefresh() {
+    setRefreshing(true);
+    await load();
+  }
 
   async function handleClear() {
     setClearing(true);
@@ -425,7 +440,7 @@ export default function AdminCachePage() {
       push(
         "ok",
         n === 0
-          ? "Nothing to remove, the cache was already empty."
+          ? "Nothing to remove — the cache was already empty."
           : `Removed ${n.toLocaleString()} cached ${n === 1 ? "file" : "files"}.`
       );
       await load();
@@ -489,39 +504,59 @@ export default function AdminCachePage() {
   const cacheCritical = !diskCritical && !diskHigh && percent >= 95;
 
   return (
-    <div onScroll={onScrollToggle(setScrolled)} className="af-scroll min-h-0 w-full flex-1 overflow-y-auto">
+    <div
+      ref={shellRef}
+      style={shellHeight ? { height: shellHeight } : undefined}
+      className="flex w-full flex-col overflow-hidden bg-graphite-950 text-text-primary"
+    >
       <style dangerouslySetInnerHTML={{ __html: STYLES }} />
 
-      <StickyHeader
-        title="Download cache"
-        subtitle="Audio kept on disk so repeat requests skip re-downloading."
-        scrolled={scrolled}
-        condensed={
-          stats ? (
-            <span className={cn(diskCritical && "text-red-300")}>
-              {fmtSize(stats.total_gb)} used · {fmtSize(stats.disk_free_gb)} disk free
+      {/* ===== fixed chrome ===== */}
+      <header className="shrink-0 border-b border-graphite-800 px-4 pb-3 pt-3 sm:px-6">
+        <div className="mx-auto w-full max-w-5xl">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-amber-500/30 bg-amber-500/10">
+              <Database className="h-4 w-4 text-amber-400" aria-hidden />
             </span>
-          ) : null
-        }
-        actions={<RefreshControl busy={busy} lastUpdated={lastLoadedAt} onRefresh={() => void load()} />}
-      />
+            <div className="min-w-0">
+              <h1 className="text-[17px] font-semibold leading-tight tracking-tight">Download cache</h1>
+              <p className="truncate text-[11px] text-text-subtle">
+                Audio kept on disk so repeat requests skip re-downloading
+              </p>
+            </div>
 
-      <div className="mx-auto w-full max-w-5xl px-4 pb-6 sm:px-6">
-        {stats && (
-          <dl className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-5">
-            <StatChip label="Cached files" value={stats.entry_count.toLocaleString()} />
-            <StatChip label="Cache used" value={fmtSize(stats.total_gb)} accent />
-            <StatChip label="Allowance" value={fmtSize(stats.max_gb)} />
-            <StatChip
-              label="Disk free"
-              value={fmtSize(stats.disk_free_gb)}
-              tone={diskCritical ? "alarm" : undefined}
-            />
-            <StatChip label="Storage" value={stats.backend} />
-          </dl>
-        )}
+            <div className="ml-auto flex items-center gap-2">
+              {lastLoadedAt && !loading && (
+                <span className="hidden text-[11px] tabular-nums text-text-subtle sm:inline">
+                  Updated {relativeAge(Date.now() - lastLoadedAt)}
+                </span>
+              )}
+              <Button size="sm" busy={refreshing} onClick={handleRefresh}>
+                <RefreshCw className={cn("h-3.5 w-3.5", refreshing && "animate-spin")} aria-hidden />
+                Refresh
+              </Button>
+            </div>
+          </div>
 
-        <div className="mt-5 space-y-4">
+          {stats && (
+            <div className="af-railless -mx-4 mt-3 flex gap-2 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+              <Pill label="Cached files" value={stats.entry_count.toLocaleString()} />
+              <Pill label="Cache used" value={fmtSize(stats.total_gb)} tone="accent" />
+              <Pill label="Allowance" value={fmtSize(stats.max_gb)} />
+              <Pill
+                label="Disk free"
+                value={fmtSize(stats.disk_free_gb)}
+                tone={diskCritical ? "alarm" : "plain"}
+              />
+              <Pill label="Backend" value={stats.backend} />
+            </div>
+          )}
+        </div>
+      </header>
+
+      {/* ===== the one scrolling region ===== */}
+      <main className="af-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6">
+        <div className="mx-auto w-full max-w-5xl space-y-4">
           {loading ? (
             <CacheSkeleton />
           ) : error ? (
@@ -531,7 +566,7 @@ export default function AdminCachePage() {
                 <p className="text-sm font-medium text-text-primary">Couldn&apos;t load cache stats</p>
                 <p className="mt-1 break-words text-xs text-text-muted">{error}</p>
                 <div className="mt-3">
-                  <Button size="sm" variant="danger" onClick={() => void load()}>
+                  <Button size="sm" variant="danger" onClick={handleRefresh}>
                     <RefreshCw className="h-3.5 w-3.5" aria-hidden />
                     Try again
                   </Button>
@@ -557,7 +592,7 @@ export default function AdminCachePage() {
               {cacheCritical && (
                 <AlertBanner tone="amber" title="Cache is full">
                   The cache has hit its {fmtSize(stats.max_gb)} allowance. Oldest files are being deleted
-                  automatically to make room. Raise the allowance below if that happens too often.
+                  automatically to make room — raise the allowance below if that&apos;s happening too often.
                 </AlertBanner>
               )}
 
@@ -575,20 +610,20 @@ export default function AdminCachePage() {
                       <span className="tabular-nums text-text-subtle">
                         {fmtSize(stats.disk_used_gb)} of {fmtSize(stats.disk_total_gb)}
                       </span>
-                      <span className={cn("font-semibold tabular-nums", diskHealth.text)}>
-                        {hasNum(stats.disk_percent_used) ? `${stats.disk_percent_used}%` : "–"}
+                      <span className={cn("font-mono font-semibold tabular-nums", diskHealth.text)}>
+                        {hasNum(stats.disk_percent_used) ? `${stats.disk_percent_used}%` : "—"}
                       </span>
                     </div>
                     <Meter percent={hasNum(stats.disk_percent_used) ? stats.disk_percent_used : 0} health={diskHealth} />
                   </div>
 
                   <p className="text-xs text-text-subtle">
-                    {fmtSize(stats.disk_free_gb)} free, shared by the operating system, Docker and this cache.
+                    {fmtSize(stats.disk_free_gb)} free — shared by the operating system, Docker and this cache.
                   </p>
 
                   {unaccountedGb > 1 && stats.total_gb < unaccountedGb && (
                     <p className="border-t border-graphite-800 pt-2.5 text-[11px] leading-relaxed text-text-subtle">
-                      {`Only ${fmtSize(stats.total_gb)} of the ${fmtSize(stats.disk_used_gb)} in use is this cache. The other ${fmtSize(unaccountedGb)} is the OS, Docker images or other files. Clearing the cache below won't free that space.`}
+                      {`Only ${fmtSize(stats.total_gb)} of the ${fmtSize(stats.disk_used_gb)} in use is this cache — the other ${fmtSize(unaccountedGb)} is the OS, Docker images or other files. Clearing the cache below won't free that space.`}
                     </p>
                   )}
                 </Card>
@@ -605,15 +640,15 @@ export default function AdminCachePage() {
                       <span className="tabular-nums text-text-subtle">
                         {fmtSize(stats.total_gb)} used of {fmtSize(stats.max_gb)} allowed
                       </span>
-                      <span className={cn("font-semibold tabular-nums", cacheHealth.text)}>{percent}%</span>
+                      <span className={cn("font-mono font-semibold tabular-nums", cacheHealth.text)}>{percent}%</span>
                     </div>
                     <Meter percent={percent} health={cacheHealth} thick />
                   </div>
 
-                  <dl className="grid grid-cols-2 gap-3 border-t border-graphite-800 pt-3">
+                  <div className="grid grid-cols-2 gap-3 border-t border-graphite-800 pt-3">
                     <Figure label="Cached files" value={stats.entry_count.toLocaleString()} />
                     <Figure label="Room left" value={fmtSize(Math.max(0, stats.max_gb - stats.total_gb))} />
-                  </dl>
+                  </div>
 
                   <p className="text-[11px] leading-relaxed text-text-subtle">
                     When cached files fill this space, the oldest are deleted automatically to make room. This never
@@ -650,9 +685,9 @@ export default function AdminCachePage() {
                       className="w-full cursor-pointer accent-amber-500"
                       aria-label="Cache allowance in GB"
                     />
-                    <div className="mt-1 flex justify-between text-[12px] text-text-subtle">
+                    <div className="mt-1 flex justify-between font-mono text-[10px] uppercase tracking-[0.14em] text-text-subtle">
                       <span>0.5 GB</span>
-                      <span>{fmtSize(sliderMax)} max</span>
+                      <span>{fmtSize(sliderMax)} max possible</span>
                     </div>
                   </div>
 
@@ -671,7 +706,7 @@ export default function AdminCachePage() {
                           "hover:border-graphite-600 focus-visible:border-amber-500/50 focus-visible:ring-2 focus-visible:ring-amber-500/20"
                         )}
                       />
-                      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[12px] text-text-subtle">
+                      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 font-mono text-[11px] text-text-subtle">
                         GB
                       </span>
                     </div>
@@ -692,14 +727,14 @@ export default function AdminCachePage() {
 
                   {wouldEvict && (
                     <Notice tone="amber">
-                      This is lower than what is already cached ({fmtSize(stats.total_gb)}), so saving deletes the
+                      This is lower than what&apos;s already cached ({fmtSize(stats.total_gb)}) — saving deletes the
                       oldest files immediately to fit the smaller allowance.
                     </Notice>
                   )}
                   {wouldExceedDisk && (
                     <Notice tone="red">
                       Only {fmtSize(maxPossibleGb)} is actually available for the cache on this disk. Setting it
-                      higher is not possible right now. Free up disk space first.
+                      higher isn&apos;t possible right now — free up disk space first.
                     </Notice>
                   )}
                 </form>
@@ -712,7 +747,7 @@ export default function AdminCachePage() {
                   <p className="mt-0.5 text-xs leading-relaxed text-text-muted">
                     {stats.entry_count > 0
                       ? `Deletes all ${stats.entry_count.toLocaleString()} cached files right now. Each re-downloads next time it's requested.`
-                      : "Nothing is cached right now, so this button is just a manual sanity check."}
+                      : "Nothing is cached right now — this button is here for a manual sanity check."}
                   </p>
                 </div>
                 <Button
@@ -732,7 +767,7 @@ export default function AdminCachePage() {
                   body={
                     stats.entry_count > 0
                       ? `This deletes all ${stats.entry_count.toLocaleString()} cached files right now. Each re-downloads the next time it's requested. This can't be undone.`
-                      : "The cache is already empty, so this just confirms nothing is left tracked."
+                      : "The cache is already empty — this just confirms nothing is left tracked."
                   }
                   confirmLabel="Clear cache"
                   loading={clearing}
@@ -743,7 +778,7 @@ export default function AdminCachePage() {
             </>
           ) : null}
         </div>
-      </div>
+      </main>
 
       <ToastStack toasts={toasts} dismiss={dismiss} />
     </div>
