@@ -530,22 +530,23 @@ export function WorkingPanel({
             not a button shape. Running it through Button would mean overriding
             the padding, height, radius and every variant colour.
 
-            The LABEL changes on a charged run because the behaviour is not what
-            "Cancel" implies: this stops the poll, not the job, and the credit is
-            already spent. Telling someone they can cancel and then taking both
-            their credit and their result is the worst thing these forms can do. */}
+            The label used to change to "Stop watching" on a charged run,
+            because that was the truth: the button stopped the poll, the GPU
+            carried on billing, and the credit stayed spent. Cancel now reaches
+            the server, which stops the job and refunds in the same instant, so
+            one honest word covers both cases. */}
         <button
           type="button"
           onClick={onCancel}
           className="rounded px-1 text-xs text-text-subtle underline underline-offset-2 outline-none transition-colors hover:text-red-400 focus-visible:ring-2 focus-visible:ring-amber-400/70"
         >
-          {chargedRun ? "Stop watching" : "Cancel"}
+          Cancel
         </button>
       </div>
 
       <p className="text-xs leading-relaxed text-text-subtle">
         {expectedRange ? `Typically ${expectedRange}. ` : ""}Keep this tab open.
-        {chargedRun && " This run has already used its credit — stopping here won't return it."}
+        {chargedRun && " Cancelling stops the job and returns your credit."}
       </p>
     </div>
   );
