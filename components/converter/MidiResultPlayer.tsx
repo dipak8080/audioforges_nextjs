@@ -4,19 +4,27 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Midi } from "@tonejs/midi";
 import {
   AudioLines,
+  Check,
+  ChevronDown,
   Download,
   Headphones,
+  HelpCircle,
   Loader2,
   Magnet,
+  Maximize2,
+  Minus,
+  MousePointer2,
   Pause,
   Pencil,
   Play,
+  Plus,
   Redo2,
   Repeat,
   Sparkles,
   Square,
   Undo2,
   VolumeX,
+  Wand2,
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
@@ -86,6 +94,8 @@ const VEL_H = 54;
 const ROW_MIN = 17;
 const ROW_MAX = 24;
 const CANVAS_MAX_H = 540;
+const SCROLL_W = 9;
+const SCROLL_H = 9;
 const BLACK_PC = new Set([1, 3, 6, 8, 10]);
 const NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const FOLLOW_TO = 0.28;
@@ -268,6 +278,8 @@ export function MidiResultPlayer({
   const [metronome, setMetronome] = useState(false);
   const [loopRegion, setLoopRegion] = useState<{ a: number; b: number } | null>(null);
   const [hover, setHover] = useState<{ x: number; y: number; text: string } | null>(null);
+  const [panel, setPanel] = useState<null | "notes" | "help" | "compare">(null);
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null);
 
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -295,6 +307,11 @@ export function MidiResultPlayer({
   const compareRef = useRef(false);
   const sourceUrlRef = useRef<string | null>(null);
   const editRef = useRef(false);
+  const followRef = useRef(true);
+  const clickRef = useRef({ t: 0, x: 0, y: 0 });
+  const scrollDragRef = useRef<null | { axis: "v" | "h"; from: number; base: number }>(null);
+  const eraseRef = useRef(false);
+  const suppressMenuRef = useRef(false);
   const snapDivRef = useRef<0 | 4 | 8 | 16 | 32>(16);
   const autoKeyRef = useRef<DetectedKey | null>(null);
   const selectedRef = useRef<PlayerNote | null>(null);
@@ -376,8 +393,8 @@ export function MidiResultPlayer({
     const ppt = pxPerTickRef.current;
     if (!Number.isFinite(ppt) || ppt <= 0 || w <= 0 || h <= 0) return;
     const view0 = scrollRef.current;
-    const plotW = Math.max(1, w - KEYS_W);
-    const plotH = Math.max(1, h - RULER_H - VEL_H);
+    const plotW = Math.max(1, w - KEYS_W - SCROLL_W);
+    const plotH = Math.max(1, h - RULER_H - VEL_H - SCROLL_H);
     const view1 = view0 + plotW / ppt;
     if (!Number.isFinite(view0) || !Number.isFinite(view1)) return;
     const rowH = rowHRef.current;
@@ -406,13 +423,12 @@ export function MidiResultPlayer({
       const rh = snap(yFor(p) + rowH) - y;
       ctx.fillStyle = isBlack(p) ? "#0e0e12" : "#191920";
       ctx.fillRect(KEYS_W, y, plotW, rh);
-      if (showScale) {
-        const inKey = key.pcs.has(p % 12);
-        ctx.fillStyle = inKey ? "rgba(251,191,36,0.03)" : "rgba(0,0,0,0.22)";
+      if (showScale && key.pcs.has(p % 12)) {
+        ctx.fillStyle = "rgba(255,255,255,0.045)";
         ctx.fillRect(KEYS_W, y, plotW, rh);
         if (p % 12 === key.tonic) {
-          ctx.fillStyle = "rgba(251,191,36,0.05)";
-          ctx.fillRect(KEYS_W, y, plotW, rh);
+          ctx.fillStyle = "rgba(251,191,36,0.5)";
+          ctx.fillRect(KEYS_W, y, plotW, hair);
         }
       }
       ctx.fillStyle = p % 12 === 11 ? "rgba(255,255,255,0.09)" : "rgba(0,0,0,0.5)";
@@ -463,8 +479,12 @@ export function MidiResultPlayer({
         ctx.fillStyle = isBar
           ? "rgba(255,255,255,0.13)"
           : isBeat
-            ? "rgba(255,255,255,0.05)"
-            : "rgba(255,255,255,0.022)";
+            ? editRef.current
+              ? "rgba(255,255,255,0.085)"
+              : "rgba(255,255,255,0.05)"
+            : editRef.current
+              ? "rgba(255,255,255,0.045)"
+              : "rgba(255,255,255,0.022)";
         ctx.fillRect(x, RULER_H, hair, plotH);
         if (isBeat) {
           ctx.fillStyle = isBar ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.12)";
@@ -482,13 +502,18 @@ export function MidiResultPlayer({
     if (region) {
       const ax = xFor(region.a);
       const bx = xFor(region.b);
-      ctx.fillStyle = "rgba(45,212,191,0.07)";
-      ctx.fillRect(ax, RULER_H, bx - ax, plotH);
-      ctx.fillStyle = "rgba(45,212,191,0.28)";
-      ctx.fillRect(ax, 0, bx - ax, RULER_H - 1);
-      ctx.fillStyle = "rgba(45,212,191,0.9)";
-      ctx.fillRect(ax, 0, 1.5, RULER_H + plotH);
-      ctx.fillRect(bx - 1.5, 0, 1.5, RULER_H + plotH);
+      ctx.fillStyle = "rgba(45,212,191,0.035)";
+      ctx.fillRect(snap(ax), RULER_H, snap(bx) - snap(ax), plotH);
+      ctx.fillStyle = "rgba(45,212,191,0.22)";
+      ctx.fillRect(snap(ax), 0, snap(bx) - snap(ax), RULER_H - 1);
+      ctx.fillStyle = "rgba(45,212,191,0.75)";
+      ctx.fillRect(snap(ax), 0, hair, RULER_H + plotH);
+      ctx.fillRect(snap(bx) - hair, 0, hair, RULER_H + plotH);
+    }
+
+    if (editRef.current) {
+      ctx.fillStyle = "rgba(251,191,36,0.55)";
+      ctx.fillRect(KEYS_W, RULER_H, plotW, hair * 2);
     }
 
     /* notes */
@@ -534,7 +559,7 @@ export function MidiResultPlayer({
         ctx.shadowBlur = 0;
 
         if (nh >= 5 && nw >= 3) {
-          ctx.fillStyle = "rgba(0,0,0,0.45)";
+          ctx.fillStyle = "rgba(0,0,0,0.6)";
           ctx.fillRect(x, y + nh - hair, nw, hair);
           ctx.fillRect(x + nw - hair, y, hair, nh);
           ctx.fillStyle = active ? "rgba(255,255,255,0.55)" : "rgba(255,255,255,0.2)";
@@ -543,8 +568,18 @@ export function MidiResultPlayer({
         }
 
         if (showScale && !track.percussion && !key.pcs.has(n.p % 12) && audible) {
-          ctx.fillStyle = "#f43f5e";
-          ctx.fillRect(x, y, Math.min(snap(3), nw), nh);
+          const ow = hair * 2;
+          ctx.fillStyle = "rgba(0,0,0,0.3)";
+          ctx.fillRect(x, y, nw, nh);
+          ctx.fillStyle = active ? track.bright : ramp[(n.v * 8) | 0];
+          ctx.globalAlpha = 0.55;
+          ctx.fillRect(x, y, nw, nh);
+          ctx.globalAlpha = 1;
+          ctx.fillStyle = "#fb7185";
+          ctx.fillRect(x, y, nw, ow);
+          ctx.fillRect(x, y + nh - ow, nw, ow);
+          ctx.fillRect(x, y, ow, nh);
+          ctx.fillRect(x + nw - ow, y, ow, nh);
         }
 
         if (showLabels && audible) {
@@ -700,6 +735,31 @@ export function MidiResultPlayer({
     ctx.restore();
     ctx.fillStyle = "#000000";
     ctx.fillRect(KEYS_W - snap(2), RULER_H, snap(2), plotH);
+
+    /* scrollbars */
+    const contentH = (d.hiPitch - d.loPitch + 1) * rowH;
+    const viewTicks = plotW / ppt;
+    ctx.fillStyle = "#0c0c10";
+    ctx.fillRect(w - SCROLL_W, RULER_H, SCROLL_W, plotH);
+    ctx.fillRect(0, h - SCROLL_H, w, SCROLL_H);
+
+    const thumb = (bx: number, by: number, bw2: number, bh2: number) => {
+      ctx.fillStyle = "rgba(255,255,255,0.2)";
+      ctx.beginPath();
+      ctx.roundRect(snap(bx), snap(by), Math.max(2, snap(bw2)), Math.max(2, snap(bh2)), 2);
+      ctx.fill();
+    };
+
+    if (contentH > plotH + 1) {
+      const th = Math.max(26, (plotH / contentH) * plotH);
+      const ty = RULER_H + (vs / Math.max(1, contentH - plotH)) * (plotH - th);
+      thumb(w - SCROLL_W + 2, ty, SCROLL_W - 4, th);
+    }
+    if (d.durationTicks > viewTicks + 1) {
+      const tw = Math.max(26, (viewTicks / d.durationTicks) * plotW);
+      const tx = KEYS_W + (view0 / Math.max(1, d.durationTicks - viewTicks)) * (plotW - tw);
+      thumb(tx, h - SCROLL_H + 2, tw, SCROLL_H - 4);
+    }
   }, []);
 
   /* ---------- Ctrl+wheel: stop the browser zooming the page ---------- */
@@ -726,8 +786,8 @@ export function MidiResultPlayer({
         const canvas = canvasRef.current;
         if (canvas) {
           const w = canvas.width / (window.devicePixelRatio || 1);
-          const viewTicks = Math.max(1, w - KEYS_W) / pxPerTickRef.current;
-          if (posRef.current > scrollRef.current + viewTicks * FOLLOW_AT) {
+          const viewTicks = Math.max(1, w - KEYS_W - SCROLL_W) / pxPerTickRef.current;
+          if (followRef.current && posRef.current > scrollRef.current + viewTicks * FOLLOW_AT) {
             scrollRef.current = clampScroll(
               posRef.current - viewTicks * FOLLOW_TO,
               d,
@@ -760,9 +820,9 @@ export function MidiResultPlayer({
       )}`;
     }
     if (seekRef.current && !seekingRef.current) {
-      seekRef.current.value = String(
-        Math.round((posRef.current / d.durationTicks) * 1000)
-      );
+      const pct = (posRef.current / d.durationTicks) * 100;
+      seekRef.current.value = String(Math.round(pct * 10));
+      seekRef.current.style.setProperty("--p", `${pct}%`);
     }
   };
 
@@ -798,12 +858,12 @@ export function MidiResultPlayer({
       const w = wrap.clientWidth;
       if (!w) return;
       const rows = d.hiPitch - d.loPitch + 1;
-      const maxPlot = CANVAS_MAX_H - RULER_H - VEL_H;
+      const maxPlot = CANVAS_MAX_H - RULER_H - VEL_H - SCROLL_H;
       const rowH = Math.round(Math.max(ROW_MIN, Math.min(ROW_MAX, maxPlot / rows)));
       rowHRef.current = rowH;
       const contentH = rows * rowH;
-      const h = Math.min(CANVAS_MAX_H, Math.max(300, contentH + RULER_H + VEL_H));
-      const plotH = h - RULER_H - VEL_H;
+      const h = Math.min(CANVAS_MAX_H, Math.max(300, contentH + RULER_H + VEL_H + SCROLL_H));
+      const plotH = h - RULER_H - VEL_H - SCROLL_H;
       const maxV = Math.max(0, contentH - plotH);
       if (!vInitRef.current) {
         vInitRef.current = true;
@@ -818,13 +878,15 @@ export function MidiResultPlayer({
       canvas.height = Math.round(h * dpr);
       canvas.style.width = `${w}px`;
       canvas.style.height = `${h}px`;
-      minZoomRef.current = Math.max(1, w - KEYS_W) / d.durationTicks;
+      const plotWNow = Math.max(1, w - KEYS_W - SCROLL_W);
+      minZoomRef.current = plotWNow / d.durationTicks;
       if (
         !Number.isFinite(pxPerTickRef.current) ||
         pxPerTickRef.current <= 0 ||
         pxPerTickRef.current < minZoomRef.current
       ) {
-        pxPerTickRef.current = minZoomRef.current;
+        const openTicks = Math.min(d.durationTicks, d.ppq * d.beatsPerBar * 4);
+        pxPerTickRef.current = Math.max(minZoomRef.current, plotWNow / openTicks);
         scrollRef.current = 0;
       }
       dirtyRef.current = true;
@@ -1059,6 +1121,7 @@ export function MidiResultPlayer({
     } else {
       if (instrReadyRef.current) await instrReadyRef.current;
       if (playingRef.current) return;
+      followRef.current = true;
       const lead = "+0.15";
       eng.transport.ticks = posRef.current;
       eng.transport.start(lead);
@@ -1087,6 +1150,7 @@ export function MidiResultPlayer({
   const seekTo = (ticks: number) => {
     const d = dataRef.current;
     if (!d) return;
+    followRef.current = true;
     const t = Math.max(0, Math.min(d.durationTicks, ticks));
     posRef.current = t;
     const eng = engineRef.current;
@@ -1099,7 +1163,8 @@ export function MidiResultPlayer({
     dirtyRef.current = true;
   };
 
-  const setTempo = (pct: number) => {
+  const setTempo = (raw: number) => {
+    const pct = Math.max(50, Math.min(150, Math.round(raw / 5) * 5));
     tempoRef.current = pct;
     setTempoPct(pct);
     const eng = engineRef.current;
@@ -1135,12 +1200,6 @@ export function MidiResultPlayer({
       eng.midiGain.gain.rampTo(g.midi, 0.05);
       eng.origGain.gain.rampTo(g.orig, 0.05);
     }
-  };
-
-  const toggleCompare = async () => {
-    const next = !compareRef.current;
-    if (next && !engineRef.current) await ensureEngine();
-    applyMix(next ? 0.5 : 1, next);
   };
 
   const toggleLoop = () => {
@@ -1192,12 +1251,14 @@ export function MidiResultPlayer({
     const dpr = window.devicePixelRatio || 1;
     const w = canvas.width / dpr;
     const h = canvas.height / dpr;
-    const plotW = Math.max(1, w - KEYS_W);
-    const plotH = Math.max(1, h - RULER_H - VEL_H);
+    const plotW = Math.max(1, w - KEYS_W - SCROLL_W);
+    const plotH = Math.max(1, h - RULER_H - VEL_H - SCROLL_H);
     const rowH = rowHRef.current;
     const ppt = pxPerTickRef.current;
     return {
       d,
+      w,
+      h,
       plotW,
       plotH,
       rowH,
@@ -1248,6 +1309,20 @@ export function MidiResultPlayer({
     redoRef.current = [];
     setHistoryLen(historyRef.current.length);
     setRedoLen(0);
+  };
+
+  const eraseAt = (tick: number, pitch: number, ppt: number, first: boolean) => {
+    const d = dataRef.current;
+    if (!d) return false;
+    const hit = hitNote(tick, pitch, ppt);
+    if (!hit) return false;
+    if (first) pushHistory();
+    const notes = d.tracks[hit.ti].notes;
+    const at = notes.indexOf(hit.note);
+    if (at < 0) return false;
+    notes.splice(at, 1);
+    if (selectedRef.current === hit.note) selectedRef.current = null;
+    return true;
   };
 
   const afterEdit = () => {
@@ -1374,12 +1449,37 @@ export function MidiResultPlayer({
     URL.revokeObjectURL(a.href);
   };
 
-  const toggleEdit = () => {
-    const next = !editRef.current;
-    editRef.current = next;
-    setEditMode(next);
-    if (!next) selectedRef.current = null;
+  const setMode = (draw: boolean) => {
+    if (editRef.current === draw) return;
+    editRef.current = draw;
+    setEditMode(draw);
+    if (!draw) selectedRef.current = null;
     dirtyRef.current = true;
+  };
+
+  const closePanels = () => {
+    setPanel(null);
+    setCtxMenu(null);
+  };
+
+  const openPanel = async (which: "notes" | "help" | "compare") => {
+    setCtxMenu(null);
+    setPanel((cur) => (cur === which ? null : which));
+    if (which === "compare" && !compareRef.current) {
+      if (!engineRef.current) await ensureEngine();
+      applyMix(0.5, true);
+    }
+  };
+
+  const onCanvasContextMenu = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    if (suppressMenuRef.current) {
+      suppressMenuRef.current = false;
+      return;
+    }
+    const rect = e.currentTarget.getBoundingClientRect();
+    setPanel(null);
+    setCtxMenu({ x: e.clientX - rect.left, y: e.clientY - rect.top });
   };
 
   const gridStepOrMin = () => (snapDivRef.current ? gridStep() : Math.max(1, Math.round(gridStep() / 4)));
@@ -1527,12 +1627,24 @@ export function MidiResultPlayer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
 
+  useEffect(() => {
+    if (!panel && !ctxMenu) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setPanel(null);
+        setCtxMenu(null);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [panel, ctxMenu]);
+
   const scrollV = (dy: number) => {
     const canvas = canvasRef.current;
     const d = dataRef.current;
     if (!canvas || !d) return;
     const h = canvas.height / (window.devicePixelRatio || 1);
-    const plotH = Math.max(1, h - RULER_H - VEL_H);
+    const plotH = Math.max(1, h - RULER_H - VEL_H - SCROLL_H);
     const contentH = (d.hiPitch - d.loPitch + 1) * rowHRef.current;
     const maxV = Math.max(0, contentH - plotH);
     const next = Math.max(0, Math.min(maxV, vScrollRef.current + dy));
@@ -1547,7 +1659,7 @@ export function MidiResultPlayer({
     const canvas = canvasRef.current;
     const d = dataRef.current;
     if (!canvas || !d) return;
-    const plotW = Math.max(1, canvas.width / (window.devicePixelRatio || 1) - KEYS_W);
+    const plotW = Math.max(1, canvas.width / (window.devicePixelRatio || 1) - KEYS_W - SCROLL_W);
     const ax = Math.max(0, anchorX ?? plotW / 2);
     const old = pxPerTickRef.current;
     const anchorTick = scrollRef.current + ax / old;
@@ -1558,9 +1670,39 @@ export function MidiResultPlayer({
     dirtyRef.current = true;
   };
 
+  const fitAll = () => {
+    const d = dataRef.current;
+    if (!d) return;
+    pxPerTickRef.current = minZoomRef.current;
+    scrollRef.current = 0;
+    dirtyRef.current = true;
+  };
+
   const pointer = useRef<{ x: number; y: number; startX: number; startY: number; panned: boolean } | null>(null);
 
   const onPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (ctxMenu) setCtxMenu(null);
+    if (e.button === 2) {
+      suppressMenuRef.current = false;
+      const g = geom();
+      if (!g) return;
+      const rect = (e.target as HTMLElement).getBoundingClientRect();
+      const ly = e.clientY - rect.top;
+      if (ly < RULER_H) {
+        if (loopRegionRef.current) applyLoopRegion(null);
+        suppressMenuRef.current = true;
+        return;
+      }
+      const lx = e.clientX - rect.left - KEYS_W;
+      if (lx < 0 || lx > g.plotW || ly > RULER_H + g.plotH) return;
+      if (eraseAt(g.tickAt(lx), g.pitchAt(ly), g.ppt, true)) {
+        eraseRef.current = true;
+        suppressMenuRef.current = true;
+        (e.target as HTMLElement).setPointerCapture(e.pointerId);
+        afterEdit();
+      }
+      return;
+    }
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
     if (e.pointerType === "touch") {
       pinchRef.current.set(e.pointerId, e.clientX);
@@ -1570,6 +1712,23 @@ export function MidiResultPlayer({
         pointer.current = null;
         dragRef.current = null;
         return;
+      }
+    }
+    {
+      const g = geom();
+      if (g) {
+        const rect = (e.target as HTMLElement).getBoundingClientRect();
+        const px = e.clientX - rect.left;
+        const py = e.clientY - rect.top;
+        if (px >= g.w - SCROLL_W && py >= RULER_H && py < RULER_H + g.plotH) {
+          scrollDragRef.current = { axis: "v", from: e.clientY, base: vScrollRef.current };
+          return;
+        }
+        if (py >= g.h - SCROLL_H && px >= KEYS_W) {
+          followRef.current = false;
+          scrollDragRef.current = { axis: "h", from: e.clientX, base: scrollRef.current };
+          return;
+        }
       }
     }
     {
@@ -1600,8 +1759,25 @@ export function MidiResultPlayer({
         if (g.inPlot(lx, ly)) {
           const tick = g.tickAt(lx);
           const pitch = g.pitchAt(ly);
+          const last = clickRef.current;
+          const nowMs = e.timeStamp || performance.now();
+          const isDouble =
+            nowMs - last.t < 350 &&
+            Math.abs(e.clientX - last.x) < 6 &&
+            Math.abs(e.clientY - last.y) < 6;
+          clickRef.current = { t: isDouble ? 0 : nowMs, x: e.clientX, y: e.clientY };
+
           const hit = hitNote(tick, pitch, g.ppt);
           if (hit) {
+            if (isDouble) {
+              pushHistory();
+              const notes = g.d.tracks[hit.ti].notes;
+              const at = notes.indexOf(hit.note);
+              if (at >= 0) notes.splice(at, 1);
+              selectedRef.current = null;
+              afterEdit();
+              return;
+            }
             selectedRef.current = hit.note;
             dragRef.current = {
               kind: hit.edge ? "resize" : "move",
@@ -1617,14 +1793,24 @@ export function MidiResultPlayer({
             dirtyRef.current = true;
             return;
           }
-          if (e.detail === 2) {
+          if (!isDouble) {
             pushHistory();
-            const len = lastLenRef.current || g.d.ppq;
+            const len = lastLenRef.current || gridStepOrMin();
             const note: PlayerNote = { t: snapTick(tick), d: len, p: pitch, v: 0.8 };
-            const ti = g.d.tracks.findIndex((t) => !t.percussion);
-            g.d.tracks[Math.max(0, ti)].notes.push(note);
+            const ti = Math.max(0, g.d.tracks.findIndex((t) => !t.percussion));
+            g.d.tracks[ti].notes.push(note);
             selectedRef.current = note;
-            void auditionPitch(pitch, Math.max(0, ti));
+            dragRef.current = {
+              kind: "resize",
+              note,
+              ti,
+              startX: e.clientX,
+              startY: e.clientY,
+              orig: { ...note },
+              changed: false,
+              lastPitch: pitch,
+            };
+            void auditionPitch(pitch, ti);
             afterEdit();
             return;
           }
@@ -1637,6 +1823,38 @@ export function MidiResultPlayer({
   };
 
   const onPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (eraseRef.current) {
+      const g = geom();
+      if (!g) return;
+      const rect = (e.target as HTMLElement).getBoundingClientRect();
+      const lx = e.clientX - rect.left - KEYS_W;
+      const ly = e.clientY - rect.top;
+      if (lx >= 0 && lx <= g.plotW && ly >= RULER_H && ly <= RULER_H + g.plotH) {
+        if (eraseAt(g.tickAt(lx), g.pitchAt(ly), g.ppt, false)) afterEdit();
+      }
+      return;
+    }
+    const sd = scrollDragRef.current;
+    if (sd) {
+      const g = geom();
+      if (!g) return;
+      if (sd.axis === "v") {
+        const contentH = (g.d.hiPitch - g.d.loPitch + 1) * g.rowH;
+        const th = Math.max(26, (g.plotH / contentH) * g.plotH);
+        const span = Math.max(1, g.plotH - th);
+        const next = sd.base + ((e.clientY - sd.from) / span) * Math.max(0, contentH - g.plotH);
+        vScrollRef.current = Math.max(0, Math.min(Math.max(0, contentH - g.plotH), next));
+      } else {
+        const viewTicks = g.plotW / g.ppt;
+        const tw = Math.max(26, (viewTicks / g.d.durationTicks) * g.plotW);
+        const span = Math.max(1, g.plotW - tw);
+        const next =
+          sd.base + ((e.clientX - sd.from) / span) * Math.max(0, g.d.durationTicks - viewTicks);
+        scrollRef.current = clampScroll(next, g.d, viewTicks);
+      }
+      dirtyRef.current = true;
+      return;
+    }
     if (e.pointerType === "touch" && pinchRef.current.size === 2) {
       pinchRef.current.set(e.pointerId, e.clientX);
       const [a, b] = [...pinchRef.current.values()];
@@ -1746,7 +1964,8 @@ export function MidiResultPlayer({
     p.y = e.clientY;
     if (Math.abs(e.clientX - p.startX) > 4 || Math.abs(e.clientY - p.startY) > 4) p.panned = true;
     if (p.panned) {
-      const plotW = Math.max(1, canvas.width / (window.devicePixelRatio || 1) - KEYS_W);
+      const plotW = Math.max(1, canvas.width / (window.devicePixelRatio || 1) - KEYS_W - SCROLL_W);
+      followRef.current = false;
       scrollRef.current = clampScroll(
         scrollRef.current - dx / pxPerTickRef.current,
         d,
@@ -1758,6 +1977,14 @@ export function MidiResultPlayer({
   };
 
   const onPointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (eraseRef.current) {
+      eraseRef.current = false;
+      return;
+    }
+    if (scrollDragRef.current) {
+      scrollDragRef.current = null;
+      return;
+    }
     if (e.pointerType === "touch") {
       pinchRef.current.delete(e.pointerId);
       if (pinchRef.current.size < 2) pinchDistRef.current = 0;
@@ -1765,7 +1992,11 @@ export function MidiResultPlayer({
     const rd = rulerDragRef.current;
     if (rd) {
       rulerDragRef.current = null;
-      if (rd.kind === "region" && !rd.moved) seekTo(rd.anchor);
+      if (rd.kind === "region" && !rd.moved) {
+        const reg = loopRegionRef.current;
+        if (reg && (rd.anchor < reg.a || rd.anchor > reg.b)) applyLoopRegion(null);
+        seekTo(rd.anchor);
+      }
       return;
     }
     const drag = dragRef.current;
@@ -1797,7 +2028,7 @@ export function MidiResultPlayer({
       const horizontal = e.shiftKey || Math.abs(e.deltaX) > Math.abs(e.deltaY);
       if (!horizontal) {
         const h = canvas.height / (window.devicePixelRatio || 1);
-        const plotH = h - RULER_H - VEL_H;
+        const plotH = h - RULER_H - VEL_H - SCROLL_H;
         const contentH = (d.hiPitch - d.loPitch + 1) * rowHRef.current;
         if (contentH > plotH + 1) {
           scrollV(e.deltaY);
@@ -1805,7 +2036,8 @@ export function MidiResultPlayer({
         }
       }
       const delta = horizontal && Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
-      const plotW = Math.max(1, canvas.width / (window.devicePixelRatio || 1) - KEYS_W);
+      const plotW = Math.max(1, canvas.width / (window.devicePixelRatio || 1) - KEYS_W - SCROLL_W);
+      followRef.current = false;
       scrollRef.current = clampScroll(
         scrollRef.current + delta / pxPerTickRef.current,
         d,
@@ -1818,77 +2050,168 @@ export function MidiResultPlayer({
   /* ---------- render ---------- */
   if (status === "error") return null;
 
+  const bpmNow = data ? Math.round(data.baseBpm * (tempoPct / 100)) : 0;
+
+  const noteOps = (
+    <NoteOps
+      snapLabel={snapDiv ? `1/${snapDiv}` : "off"}
+      onQuantize={() => {
+        quantizeAll();
+        closePanels();
+      }}
+      onTranspose={(n) => {
+        transposeAll(n);
+        closePanels();
+      }}
+      onVelocity={(m) => {
+        velocityTool(m);
+        closePanels();
+      }}
+    />
+  );
+
   return (
-    <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
-      <div className="mb-2 flex flex-wrap items-center gap-2">
-        <span className="flex items-center gap-1.5 font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-500">
-          <Sparkles className="h-3.5 w-3.5" aria-hidden />
+    <div className="relative rounded-xl border border-white/10 bg-white/[0.02] p-2">
+      {/* ---------- toolbar ---------- */}
+      <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-white/[0.07] bg-black/20 px-2 py-1.5">
+        <span className="flex items-center gap-1.5 pr-1 font-mono text-[10.5px] font-semibold uppercase tracking-[0.16em] text-white/40">
+          <Sparkles className="h-3.5 w-3.5 text-amber-500/80" aria-hidden />
           Forge Roll
         </span>
+
         {status === "ready" && (
-          <div
-            className={cn(
-              "flex items-center overflow-hidden rounded-full border font-mono text-[11px] transition-colors",
-              scaleHighlight ? "border-amber-500/60 bg-amber-500/10" : "border-white/10"
-            )}
-          >
-            <button
-              type="button"
-              onClick={toggleScale}
-              aria-pressed={scaleHighlight}
-              title="Scale highlight — tint in-key rows and flag out-of-key notes in red"
-              className={cn(
-                "flex items-center gap-1.5 py-1 pl-2.5 pr-2 transition-colors",
-                scaleHighlight ? "text-amber-400" : "text-white/60 hover:text-white/85"
-              )}
-            >
-              <span className="text-white/40">Scale</span>
-            </button>
-            <select
-              value={keyOverride}
-              onChange={(e) => selectKey(e.target.value)}
-              aria-label="Key and scale"
+          <>
+            <Group>
+              <GBtn
+                label="Select"
+                title="Select mode — drag to pan, click to seek"
+                active={!editMode}
+                onClick={() => setMode(false)}
+              >
+                <MousePointer2 className="h-3.5 w-3.5" />
+                <span className="ml-1.5 hidden sm:inline">Select</span>
+              </GBtn>
+              <GBtn
+                label="Draw"
+                title="Draw mode — drag notes to move, edges to resize, double-click to add"
+                active={editMode}
+                onClick={() => setMode(true)}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                <span className="ml-1.5 hidden sm:inline">Draw</span>
+              </GBtn>
+            </Group>
+
+            <Picker
+              ariaLabel="Snap grid"
+              title="Snap grid — where dragged notes land, and what Quantize aligns to"
+              value={String(snapDiv)}
+              mono
+              icon={
+                <Magnet
+                  className={cn("h-3.5 w-3.5", snapDiv ? "text-amber-400/80" : "text-white/30")}
+                  aria-hidden
+                />
+              }
+              options={[
+                { value: "0", label: "Off" },
+                { value: "4", label: "1/4" },
+                { value: "8", label: "1/8" },
+                { value: "16", label: "1/16" },
+                { value: "32", label: "1/32" },
+              ]}
+              onChange={(v) => setSnapDiv(Number(v) as 0 | 4 | 8 | 16 | 32)}
+            />
+
+            <Group>
+              <GBtn
+                label="Scale highlight"
+                title="Tint in-key rows and flag out-of-key notes in red"
+                active={scaleHighlight}
+                onClick={toggleScale}
+              >
+                Key
+              </GBtn>
+            </Group>
+            <Picker
+              ariaLabel="Key and scale"
               title="Key guessed from the transcribed notes — pick any key to override"
-              className={cn(
-                "cursor-pointer bg-transparent py-1 pr-2 outline-none",
-                scaleHighlight ? "text-amber-400" : "text-white/70"
-              )}
-            >
-              <option value="auto" className="bg-graphite-900">
-                {keyOverride === "auto" && detectedKey ? `Auto · ${detectedKey.label}` : "Auto"}
-              </option>
-              {ALL_KEYS.map((k) => (
-                <option key={k.label} value={`${k.tonic}:${k.mode}`} className="bg-graphite-900">
-                  {k.label}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-        {status === "ready" && (
-          <div className="ml-auto flex items-center gap-1">
-            <button
-              type="button"
-              onClick={toggleEdit}
-              aria-pressed={editMode}
-              title="Edit notes: drag to move, edge to resize, double-click to add"
-              className={cn(
-                "mr-1 flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] transition-colors",
-                editMode
-                  ? "border-amber-500/60 bg-amber-500/10 text-amber-400"
-                  : "border-white/10 text-white/55 hover:border-white/20 hover:text-white/80"
-              )}
-            >
-              <Pencil className="h-3 w-3" aria-hidden />
-              Edit
-            </button>
-            <IconBtn label="Zoom out" onClick={() => zoomBy(1 / 1.35)}>
-              <ZoomOut className="h-3.5 w-3.5" />
-            </IconBtn>
-            <IconBtn label="Zoom in" onClick={() => zoomBy(1.35)}>
-              <ZoomIn className="h-3.5 w-3.5" />
-            </IconBtn>
-          </div>
+              value={keyOverride}
+              mono
+              options={[
+                {
+                  value: "auto",
+                  label: detectedKey ? `Auto · ${detectedKey.label}` : "Auto",
+                },
+                ...ALL_KEYS.map((k) => ({ value: `${k.tonic}:${k.mode}`, label: k.label })),
+              ]}
+              onChange={selectKey}
+            />
+
+            <div className="ml-auto flex items-center gap-1.5">
+              <Group>
+                <GBtn
+                  label="Note tools"
+                  title="Quantize, transpose, velocity"
+                  active={panel === "notes"}
+                  onClick={() => openPanel("notes")}
+                >
+                  <Wand2 className="h-3.5 w-3.5" />
+                </GBtn>
+              </Group>
+
+              <Group>
+                <GBtn label="Undo" title="Undo (Ctrl+Z)" onClick={undo} disabled={historyLen === 0}>
+                  <Undo2 className="h-3.5 w-3.5" />
+                </GBtn>
+                <GBtn label="Redo" title="Redo (Ctrl+Shift+Z)" onClick={redo} disabled={redoLen === 0}>
+                  <Redo2 className="h-3.5 w-3.5" />
+                </GBtn>
+              </Group>
+
+              <Group>
+                <GBtn label="Zoom out" title="Zoom out (Ctrl+scroll)" onClick={() => zoomBy(1 / 1.35)}>
+                  <ZoomOut className="h-3.5 w-3.5" />
+                </GBtn>
+                <GBtn label="Zoom in" title="Zoom in (Ctrl+scroll)" onClick={() => zoomBy(1.35)}>
+                  <ZoomIn className="h-3.5 w-3.5" />
+                </GBtn>
+                <GBtn label="Fit" title="Fit the whole file in view" onClick={fitAll}>
+                  <Maximize2 className="h-3.5 w-3.5" />
+                </GBtn>
+              </Group>
+
+              <Group>
+                <GBtn
+                  label="Shortcuts"
+                  title="Keyboard and mouse shortcuts"
+                  active={panel === "help"}
+                  onClick={() => openPanel("help")}
+                >
+                  <HelpCircle className="h-3.5 w-3.5" />
+                </GBtn>
+              </Group>
+
+              <button
+                type="button"
+                onClick={exportEdited}
+                disabled={historyLen === 0}
+                title={historyLen === 0 ? "Make an edit first" : "Download the MIDI with your edits applied"}
+                className={cn(
+                  "flex h-7 items-center gap-1.5 rounded-md border px-2.5 text-[11px] font-medium transition-colors",
+                  historyLen === 0
+                    ? "pointer-events-none border-white/[0.07] text-white/25"
+                    : "border-amber-500/50 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20"
+                )}
+              >
+                <Download className="h-3.5 w-3.5" aria-hidden />
+                <span className="hidden sm:inline">Save edits</span>
+                {historyLen > 0 && (
+                  <span className="rounded bg-black/30 px-1 font-mono text-[10px]">{historyLen}</span>
+                )}
+              </button>
+            </div>
+          </>
         )}
       </div>
 
@@ -1900,24 +2223,26 @@ export function MidiResultPlayer({
 
       {status === "ready" && data && (
         <>
-          <div ref={wrapRef} className="relative w-full">
+          {/* ---------- canvas ---------- */}
+          <div ref={wrapRef} className="relative mt-2 w-full">
             <canvas
               ref={canvasRef}
               className={cn(
                 "w-full touch-none rounded-lg border border-white/10 bg-black/30",
-                editMode ? "border-amber-500/30" : "cursor-grab active:cursor-grabbing"
+                editMode ? "cursor-crosshair border-amber-500/25" : "cursor-grab active:cursor-grabbing"
               )}
               onPointerDown={onPointerDown}
               onPointerMove={onPointerMove}
               onPointerUp={onPointerUp}
               onPointerCancel={onPointerUp}
+              onContextMenu={onCanvasContextMenu}
               onPointerLeave={() => {
                 hoverNoteRef.current = null;
                 setHover(null);
               }}
               onWheel={onWheel}
             />
-            {hover && (
+            {hover && !ctxMenu && (
               <div
                 className="pointer-events-none absolute z-10 whitespace-nowrap rounded-md border border-white/10 bg-black/90 px-2 py-1 font-mono text-[10px] text-white/85 shadow-lg"
                 style={{ left: Math.min(hover.x + 12, (wrapRef.current?.clientWidth ?? 600) - 220), top: Math.max(0, hover.y - 30) }}
@@ -1925,34 +2250,53 @@ export function MidiResultPlayer({
                 {hover.text}
               </div>
             )}
+            {ctxMenu && (
+              <div
+                className="absolute z-30 w-52 overflow-hidden rounded-lg border border-white/12 bg-graphite-900/98 shadow-2xl shadow-black/60 backdrop-blur"
+                style={{
+                  left: Math.min(ctxMenu.x, (wrapRef.current?.clientWidth ?? 600) - 220),
+                  top: Math.min(ctxMenu.y, Math.max(0, (canvasRef.current?.clientHeight ?? 400) - 240)),
+                }}
+              >
+                {noteOps}
+              </div>
+            )}
           </div>
 
-          <div className="mt-2.5 flex items-center gap-2.5">
-            <button
-              type="button"
-              onClick={togglePlay}
-              aria-label={isPlaying ? "Pause" : "Play"}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-amber-500 text-black shadow-lg shadow-amber-500/20 transition hover:bg-amber-400 active:scale-95"
+          {/* ---------- transport ---------- */}
+          <div className="mt-2 flex flex-wrap items-center gap-1.5 rounded-lg border border-white/[0.07] bg-black/20 px-2 py-1.5">
+            <Group>
+              <button
+                type="button"
+                onClick={togglePlay}
+                aria-label={isPlaying ? "Pause" : "Play"}
+                title={isPlaying ? "Pause (Space)" : "Play (Space)"}
+                className="flex h-7 w-10 shrink-0 items-center justify-center bg-amber-500 text-black transition hover:bg-amber-400"
+              >
+                {isPlaying ? <Pause className="h-3.5 w-3.5" /> : <Play className="ml-px h-3.5 w-3.5" />}
+              </button>
+              <GBtn label="Stop" title="Stop and return to the start" onClick={stop}>
+                <Square className="h-3.5 w-3.5" />
+              </GBtn>
+              <GBtn
+                label="Loop"
+                title={loopRegion ? "Loop region — drag the ruler to change" : "Loop — drag on the ruler to loop a section"}
+                active={loop}
+                onClick={toggleLoop}
+              >
+                <Repeat className="h-3.5 w-3.5" />
+              </GBtn>
+              <GBtn label="Metronome" title="Metronome click" active={metronome} onClick={toggleMetronome}>
+                <Headphones className="h-3.5 w-3.5" />
+              </GBtn>
+            </Group>
+
+            <span
+              ref={timeRef}
+              className="shrink-0 font-mono text-[11px] tabular-nums text-white/45"
             >
-              {isPlaying ? (
-                <Pause className="h-4.5 w-4.5" />
-              ) : (
-                <Play className="ml-0.5 h-4.5 w-4.5" />
-              )}
-            </button>
-            <IconBtn label="Stop" onClick={stop}>
-              <Square className="h-3.5 w-3.5" />
-            </IconBtn>
-            <IconBtn
-              label={loopRegion ? "Loop region (drag the ruler to change, click to clear)" : "Loop — drag on the ruler to loop a section"}
-              onClick={toggleLoop}
-              active={loop}
-            >
-              <Repeat className="h-3.5 w-3.5" />
-            </IconBtn>
-            <IconBtn label="Metronome click" onClick={toggleMetronome} active={metronome}>
-              <Headphones className="h-3.5 w-3.5" />
-            </IconBtn>
+              0:00 / 0:00
+            </span>
 
             <input
               ref={seekRef}
@@ -1961,225 +2305,84 @@ export function MidiResultPlayer({
               max={1000}
               defaultValue={0}
               aria-label="Seek"
-              className="af-midi-range min-w-0 flex-1"
+              className="af-range mx-1 min-w-[80px] flex-1"
               onPointerDown={() => (seekingRef.current = true)}
               onPointerUp={() => (seekingRef.current = false)}
-              onChange={(e) =>
-                seekTo((Number(e.target.value) / 1000) * data.durationTicks)
+              onChange={(e) => {
+                const v = Number(e.target.value);
+                e.currentTarget.style.setProperty("--p", `${v / 10}%`);
+                seekTo((v / 1000) * data.durationTicks);
+              }}
+            />
+
+            <Group>
+              <GBtn label="Slower" title="Slow down 5%" onClick={() => setTempo(tempoPct - 5)} disabled={tempoPct <= 50}>
+                <Minus className="h-3 w-3" />
+              </GBtn>
+              <button
+                type="button"
+                onClick={() => setTempo(100)}
+                title={`${tempoPct}% of original tempo — click to reset`}
+                className="h-7 w-[66px] shrink-0 text-center font-mono text-[11px] tabular-nums text-white/65 transition-colors hover:text-white/90"
+              >
+                {bpmNow} BPM
+              </button>
+              <GBtn label="Faster" title="Speed up 5%" onClick={() => setTempo(tempoPct + 5)} disabled={tempoPct >= 150}>
+                <Plus className="h-3 w-3" />
+              </GBtn>
+            </Group>
+
+            <Picker
+              ariaLabel="Playback sound"
+              title="Playback sound"
+              value={instrument}
+              up
+              options={INSTRUMENTS.map((inst) => ({ value: inst.key, label: inst.label }))}
+              onChange={(v) => changeInstrument(v as InstrumentKind)}
+              trailing={
+                instrumentLoading ? (
+                  <Loader2 className="h-3 w-3 animate-spin text-white/40" aria-hidden />
+                ) : null
               }
             />
 
-            <span
-              ref={timeRef}
-              className="shrink-0 font-mono text-[11px] tabular-nums text-white/60"
-            >
-              0:00 / 0:00
-            </span>
-          </div>
-
-          <div className="mt-2 flex items-center gap-2">
-            <span className="w-12 shrink-0 text-[11px] text-white/50">
-              {tempoPct}%
-            </span>
-            <input
-              type="range"
-              min={50}
-              max={150}
-              step={5}
-              value={tempoPct}
-              aria-label="Playback speed"
-              className="af-midi-range flex-1"
-              onChange={(e) => setTempo(Number(e.target.value))}
-            />
-            <span className="shrink-0 text-[11px] text-white/40">
-              {Math.round(data.baseBpm * (tempoPct / 100))} BPM
-            </span>
-          </div>
-
-          <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-            <span className="mr-0.5 text-[10px] font-semibold uppercase tracking-wide text-white/40">
-              Sound
-            </span>
-            {INSTRUMENTS.map((inst) => (
-              <button
-                key={inst.key}
-                type="button"
-                onClick={() => changeInstrument(inst.key)}
-                aria-pressed={instrument === inst.key}
-                title={inst.key === "piano" ? "Sampled grand piano (loads on first play)" : `Play back with a ${inst.label.toLowerCase()} sound`}
-                className={cn(
-                  "rounded-full border px-2.5 py-1 text-[11px] transition-colors",
-                  instrument === inst.key
-                    ? "border-amber-500/60 bg-amber-500/10 text-amber-400"
-                    : "border-white/10 text-white/55 hover:border-white/20 hover:text-white/80"
-                )}
-              >
-                {inst.label}
-              </button>
-            ))}
-            {instrumentLoading && (
-              <span className="flex items-center gap-1 text-[11px] text-white/40">
-                <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
-                loading
-              </span>
-            )}
             {sourceFile && (
-              <button
-                type="button"
-                onClick={toggleCompare}
-                aria-pressed={compare}
-                title="Play your original audio alongside the MIDI to check accuracy"
-                className={cn(
-                  "ml-auto flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] transition-colors",
-                  compare
-                    ? "border-teal-400/60 bg-teal-400/10 text-teal-300"
-                    : "border-white/10 text-white/55 hover:border-white/20 hover:text-white/80"
-                )}
-              >
-                <AudioLines className="h-3 w-3" aria-hidden />
-                Compare original
-              </button>
+              <Group>
+                <GBtn
+                  label="Compare with original"
+                  title="Crossfade between the MIDI and your original audio"
+                  active={compare}
+                  onClick={() => openPanel("compare")}
+                >
+                  <AudioLines className="h-3.5 w-3.5" />
+                </GBtn>
+              </Group>
             )}
           </div>
-
-          {editMode && (
-            <div className="mt-2.5 overflow-hidden rounded-xl border border-amber-500/25 bg-amber-500/[0.035]">
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-3 py-2.5">
-                <EditGroup label="Grid">
-                  <label
-                    className="flex h-8 items-center gap-1.5 rounded-md border border-white/10 bg-black/30 pl-2 pr-1.5 text-[11px] text-white/70"
-                    title="Snap grid — where dragged notes land, and what Quantize aligns to"
-                  >
-                    <Magnet className="h-3.5 w-3.5 text-amber-400" aria-hidden />
-                    <select
-                      value={snapDiv}
-                      onChange={(e) => setSnapDiv(Number(e.target.value) as 0 | 4 | 8 | 16 | 32)}
-                      aria-label="Snap grid"
-                      className="cursor-pointer bg-transparent font-mono text-[11px] text-amber-400 outline-none"
-                    >
-                      <option value={0} className="bg-graphite-900">Off</option>
-                      <option value={4} className="bg-graphite-900">1/4</option>
-                      <option value={8} className="bg-graphite-900">1/8</option>
-                      <option value={16} className="bg-graphite-900">1/16</option>
-                      <option value={32} className="bg-graphite-900">1/32</option>
-                    </select>
-                  </label>
-                  <ToolChip label="Quantize" title="Align every note's start and length to the snap grid" onClick={quantizeAll} />
-                </EditGroup>
-                <EditGroup label="Pitch">
-                  <ToolChip label="−1" title="Transpose everything down a semitone" onClick={() => transposeAll(-1)} />
-                  <ToolChip label="+1" title="Transpose everything up a semitone" onClick={() => transposeAll(1)} />
-                  <ToolChip label="−12" title="Transpose everything down an octave" onClick={() => transposeAll(-12)} />
-                  <ToolChip label="+12" title="Transpose everything up an octave" onClick={() => transposeAll(12)} />
-                </EditGroup>
-                <EditGroup label="Velocity">
-                  <ToolChip label="Flatten" title="Set every note to the same velocity" onClick={() => velocityTool("flatten")} />
-                  <ToolChip label="Humanize" title="Add small random velocity variation" onClick={() => velocityTool("humanize")} />
-                </EditGroup>
-                <EditGroup label="History">
-                  <IconBtn label="Undo (Ctrl+Z)" onClick={undo} disabled={historyLen === 0}>
-                    <Undo2 className="h-3.5 w-3.5" />
-                  </IconBtn>
-                  <IconBtn label="Redo (Ctrl+Shift+Z)" onClick={redo} disabled={redoLen === 0}>
-                    <Redo2 className="h-3.5 w-3.5" />
-                  </IconBtn>
-                </EditGroup>
-                <button
-                  type="button"
-                  onClick={exportEdited}
-                  disabled={historyLen === 0}
-                  title={historyLen === 0 ? "Make an edit first" : "Download the MIDI with your edits applied"}
-                  className="ml-auto flex h-8 items-center gap-1.5 rounded-md bg-amber-500 px-3 text-[11px] font-semibold text-black transition hover:bg-amber-400 disabled:opacity-40"
-                >
-                  <Download className="h-3.5 w-3.5" aria-hidden />
-                  Export edited MIDI
-                  {historyLen > 0 && (
-                    <span className="rounded bg-black/20 px-1.5 py-px font-mono text-[10px]">
-                      {historyLen}
-                    </span>
-                  )}
-                </button>
-              </div>
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-white/5 bg-black/20 px-3 py-1.5 text-[10.5px] text-white/45">
-                <span><Kbd>drag</Kbd> move</span>
-                <span><Kbd>edge</Kbd> resize</span>
-                <span><Kbd>dbl-click</Kbd> add</span>
-                <span><Kbd>Del</Kbd> delete</span>
-                <span><Kbd>Space</Kbd> play</span>
-                <span><Kbd>Ctrl</Kbd>+<Kbd>scroll</Kbd> zoom</span>
-                <span><Kbd>Shift</Kbd>+<Kbd>scroll</Kbd> pan</span>
-              </div>
-            </div>
-          )}
-
-          {compare && (
-            <div className="mt-2 flex items-center gap-2">
-              <div className="flex shrink-0 overflow-hidden rounded-full border border-white/10">
-                {[
-                  { v: 0, l: "Original" },
-                  { v: 0.5, l: "Both" },
-                  { v: 1, l: "MIDI" },
-                ].map((o) => (
-                  <button
-                    key={o.l}
-                    type="button"
-                    onClick={() => applyMix(o.v, true)}
-                    title={o.v === 0 ? "Hear only your original audio" : o.v === 1 ? "Hear only the transcribed MIDI" : "Hear both at equal level"}
-                    className={cn(
-                      "px-2.5 py-1 text-[11px] transition-colors",
-                      Math.abs(mix - o.v) < 0.02 ? "bg-teal-400/15 text-teal-300" : "text-white/55 hover:bg-white/5"
-                    )}
-                  >
-                    {o.l}
-                  </button>
-                ))}
-              </div>
-              <span className="w-14 shrink-0 text-right text-[11px] text-white/50">Original</span>
-              <input
-                type="range"
-                min={0}
-                max={100}
-                value={Math.round(mix * 100)}
-                aria-label="Crossfade between original audio and MIDI"
-                className="af-midi-range flex-1"
-                onChange={(e) => applyMix(Number(e.target.value) / 100, true)}
-              />
-              <span className="w-14 shrink-0 text-[11px] text-white/50">MIDI</span>
-              {!originalReady && (
-                <span className="flex items-center gap-1 text-[11px] text-white/40">
-                  <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
-                </span>
-              )}
-            </div>
-          )}
 
           {data.tracks.length > 1 && (
-            <div className="mt-2.5 flex flex-wrap gap-1.5">
+            <div className="mt-2 flex flex-wrap gap-1.5">
               {data.tracks.map((track, ti) => {
                 const dim = soloed.size > 0 ? !soloed.has(ti) : muted.has(ti);
                 return (
                   <div
                     key={ti}
                     className={cn(
-                      "flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] py-1 pl-2 pr-1 text-[11px]",
-                      dim && "opacity-45"
+                      "flex items-center gap-1.5 rounded-md border border-white/[0.07] bg-black/20 py-0.5 pl-2 pr-0.5 text-[11px]",
+                      dim && "opacity-40"
                     )}
                   >
-                    <span
-                      className="h-2 w-2 rounded-full"
-                      style={{ background: track.color }}
-                    />
-                    <span className="max-w-[110px] truncate text-white/75">
-                      {track.name}
-                    </span>
-                    <span className="text-white/35">{track.notes.length}</span>
+                    <span className="h-2 w-2 rounded-[2px]" style={{ background: track.color }} />
+                    <span className="max-w-[110px] truncate text-white/65">{track.name}</span>
+                    <span className="font-mono text-[10px] text-white/30">{track.notes.length}</span>
                     <button
                       type="button"
                       aria-label={`Mute ${track.name}`}
+                      title={`Mute ${track.name}`}
                       onClick={() => toggleMute(ti)}
                       className={cn(
-                        "flex h-5 w-5 items-center justify-center rounded-full transition hover:bg-white/10",
-                        muted.has(ti) ? "text-rose-400" : "text-white/45"
+                        "flex h-6 w-6 items-center justify-center rounded transition hover:bg-white/10",
+                        muted.has(ti) ? "text-rose-400" : "text-white/40"
                       )}
                     >
                       <VolumeX className="h-3 w-3" />
@@ -2187,10 +2390,11 @@ export function MidiResultPlayer({
                     <button
                       type="button"
                       aria-label={`Solo ${track.name}`}
+                      title={`Solo ${track.name}`}
                       onClick={() => toggleSolo(ti)}
                       className={cn(
-                        "flex h-5 w-5 items-center justify-center rounded-full transition hover:bg-white/10",
-                        soloed.has(ti) ? "text-amber-400" : "text-white/45"
+                        "flex h-6 w-6 items-center justify-center rounded transition hover:bg-white/10",
+                        soloed.has(ti) ? "text-amber-400" : "text-white/40"
                       )}
                     >
                       <Headphones className="h-3 w-3" />
@@ -2200,37 +2404,131 @@ export function MidiResultPlayer({
               })}
             </div>
           )}
+
+          {panel === "notes" && (
+            <Panel className="right-2 top-12 w-52" onClose={closePanels}>
+              {noteOps}
+            </Panel>
+          )}
+
+          {panel === "help" && (
+            <Panel className="right-2 top-12 w-[268px]" onClose={closePanels}>
+              <div className="px-3 py-2.5">
+                <p className="mb-2 font-mono text-[10px] uppercase tracking-[0.14em] text-white/35">
+                  Shortcuts
+                </p>
+                <ul className="space-y-1.5 text-[11px] text-white/55">
+                  <li className="flex justify-between gap-3"><span>Play / pause</span><Kbd>Space</Kbd></li>
+                  <li className="flex justify-between gap-3"><span>Move note</span><Kbd>drag</Kbd></li>
+                  <li className="flex justify-between gap-3"><span>Resize note</span><Kbd>drag edge</Kbd></li>
+                  <li className="flex justify-between gap-3"><span>Add note (Draw)</span><Kbd>click</Kbd></li>
+                  <li className="flex justify-between gap-3"><span>Draw to length</span><Kbd>click-drag</Kbd></li>
+                  <li className="flex justify-between gap-3"><span>Delete note</span><Kbd>right-click</Kbd></li>
+                  <li className="flex justify-between gap-3"><span>Erase several</span><Kbd>right-drag</Kbd></li>
+                  <li className="flex justify-between gap-3"><span>Note tools</span><Kbd>right-click empty</Kbd></li>
+                  <li className="flex justify-between gap-3"><span>Clear loop</span><Kbd>right-click ruler</Kbd></li>
+                  <li className="flex justify-between gap-3"><span>Zoom</span><Kbd>Ctrl+scroll</Kbd></li>
+                  <li className="flex justify-between gap-3"><span>Pan</span><Kbd>Shift+scroll</Kbd></li>
+                  <li className="flex justify-between gap-3"><span>Undo</span><Kbd>Ctrl+Z</Kbd></li>
+                </ul>
+              </div>
+            </Panel>
+          )}
+
+          {panel === "compare" && (
+            <Panel className="bottom-2 right-2 w-[300px]" onClose={closePanels}>
+              <div className="px-3 py-2.5">
+                <div className="mb-2.5 flex items-center justify-between">
+                  <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-white/35">
+                    Compare
+                  </span>
+                  {!originalReady && <Loader2 className="h-3 w-3 animate-spin text-white/35" aria-hidden />}
+                </div>
+                <Group className="w-full">
+                  {[
+                    { v: 0, l: "Original" },
+                    { v: 0.5, l: "Both" },
+                    { v: 1, l: "MIDI" },
+                  ].map((o) => (
+                    <GBtn
+                      key={o.l}
+                      label={o.l}
+                      title={o.v === 0 ? "Hear only your original audio" : o.v === 1 ? "Hear only the transcribed MIDI" : "Hear both at equal level"}
+                      active={compare && Math.abs(mix - o.v) < 0.02}
+                      onClick={() => applyMix(o.v, true)}
+                      className="flex-1 justify-center"
+                    >
+                      {o.l}
+                    </GBtn>
+                  ))}
+                </Group>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  value={Math.round(mix * 100)}
+                  aria-label="Crossfade between original audio and MIDI"
+                  className="af-range mt-3 w-full"
+                  style={{ "--p": `${Math.round(mix * 100)}%` } as React.CSSProperties}
+                  onChange={(e) => applyMix(Number(e.target.value) / 100, true)}
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    applyMix(mix, false);
+                    closePanels();
+                  }}
+                  className="mt-2.5 w-full rounded-md border border-white/10 py-1 text-[11px] text-white/50 transition-colors hover:text-white/80"
+                >
+                  Turn compare off
+                </button>
+              </div>
+            </Panel>
+          )}
         </>
       )}
 
       <style>{`
-        .af-midi-range {
-          -webkit-appearance: none;
-          appearance: none;
-          height: 4px;
-          border-radius: 9999px;
-          background: rgba(255, 255, 255, 0.12);
-          outline: none;
+        .af-scroll::-webkit-scrollbar { width: 8px; }
+        .af-scroll::-webkit-scrollbar-track { background: transparent; }
+        .af-scroll::-webkit-scrollbar-thumb {
+          background: rgba(255, 255, 255, 0.16);
+          border-radius: 4px;
+          border: 2px solid transparent;
+          background-clip: content-box;
         }
-        .af-midi-range::-webkit-slider-thumb {
+        .af-scroll { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.2) transparent; }
+        .af-range {
           -webkit-appearance: none;
           appearance: none;
-          height: 13px;
-          width: 13px;
-          border-radius: 9999px;
-          background: #f59e0b;
+          height: 3px;
+          border-radius: 2px;
+          outline: none;
+          background: linear-gradient(
+            to right,
+            rgba(245, 158, 11, 0.55) 0,
+            rgba(245, 158, 11, 0.55) var(--p, 0%),
+            rgba(255, 255, 255, 0.1) var(--p, 0%),
+            rgba(255, 255, 255, 0.1) 100%
+          );
+        }
+        .af-range::-webkit-slider-thumb {
+          -webkit-appearance: none;
+          appearance: none;
+          height: 12px;
+          width: 6px;
+          border-radius: 2px;
+          background: #9a9aa4;
           border: none;
           cursor: pointer;
-          transition: transform 120ms ease;
+          transition: background 120ms ease;
         }
-        .af-midi-range::-webkit-slider-thumb:hover {
-          transform: scale(1.15);
-        }
-        .af-midi-range::-moz-range-thumb {
-          height: 13px;
-          width: 13px;
-          border-radius: 9999px;
-          background: #f59e0b;
+        .af-range:hover::-webkit-slider-thumb { background: #d4d4dc; }
+        .af-range::-moz-range-thumb {
+          height: 12px;
+          width: 6px;
+          border-radius: 2px;
+          background: #9a9aa4;
           border: none;
           cursor: pointer;
         }
@@ -2239,66 +2537,232 @@ export function MidiResultPlayer({
   );
 }
 
-function ToolChip({ label, title, onClick }: { label: string; title: string; onClick: () => void }) {
+function Group({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      title={title}
-      className="h-8 rounded-md border border-white/10 bg-black/30 px-2.5 text-[11px] font-medium text-white/75 transition-colors hover:border-amber-500/40 hover:bg-amber-500/10 hover:text-amber-300 active:scale-95"
+    <div
+      className={cn(
+        "flex shrink-0 items-center overflow-hidden rounded-md border border-white/[0.09] bg-black/25 divide-x divide-white/[0.07]",
+        className
+      )}
     >
-      {label}
-    </button>
-  );
-}
-
-function EditGroup({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex items-center gap-1.5">
-      <span className="mr-0.5 font-mono text-[9.5px] font-semibold uppercase tracking-[0.14em] text-white/35">
-        {label}
-      </span>
       {children}
     </div>
   );
 }
 
-function Kbd({ children }: { children: React.ReactNode }) {
+function Picker({
+  ariaLabel,
+  title,
+  value,
+  options,
+  onChange,
+  icon,
+  trailing,
+  mono,
+  up,
+}: {
+  ariaLabel: string;
+  title?: string;
+  value: string;
+  options: { value: string; label: string }[];
+  onChange: (value: string) => void;
+  icon?: React.ReactNode;
+  trailing?: React.ReactNode;
+  mono?: boolean;
+  up?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const current = options.find((o) => o.value === value);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
+
   return (
-    <kbd className="rounded border border-white/15 bg-white/[0.06] px-1 py-px font-mono text-[10px] text-white/65">
-      {children}
-    </kbd>
+    <div className="relative shrink-0">
+      <button
+        type="button"
+        aria-label={ariaLabel}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        title={title ?? ariaLabel}
+        onClick={() => setOpen((v) => !v)}
+        className={cn(
+          "flex h-7 items-center gap-1.5 rounded-md border border-white/[0.09] bg-black/25 pl-2 pr-1.5 text-[11px] transition-colors",
+          open ? "text-white/90" : "text-white/60 hover:text-white/85"
+        )}
+      >
+        {icon}
+        <span className={cn("whitespace-nowrap", mono && "font-mono")}>
+          {current?.label ?? value}
+        </span>
+        {trailing}
+        <ChevronDown className={cn("h-3 w-3 text-white/35 transition-transform", open && "rotate-180")} aria-hidden />
+      </button>
+
+      {open && (
+        <>
+          <div className="fixed inset-0 z-20" onPointerDown={() => setOpen(false)} aria-hidden />
+          <div
+            role="listbox"
+            className={cn(
+              "af-scroll absolute left-0 z-30 max-h-64 min-w-full overflow-y-auto rounded-lg border border-white/12 bg-graphite-900/98 py-1 shadow-2xl shadow-black/60 backdrop-blur",
+              up ? "bottom-full mb-1" : "top-full mt-1"
+            )}
+          >
+            {options.map((o) => {
+              const on = o.value === value;
+              return (
+                <button
+                  key={o.value}
+                  type="button"
+                  role="option"
+                  aria-selected={on}
+                  onClick={() => {
+                    onChange(o.value);
+                    setOpen(false);
+                  }}
+                  className={cn(
+                    "flex w-full items-center justify-between gap-4 whitespace-nowrap px-3 py-1.5 text-left text-[11px] transition-colors",
+                    mono && "font-mono",
+                    on ? "text-amber-400" : "text-white/65 hover:bg-white/[0.07] hover:text-white/90"
+                  )}
+                >
+                  {o.label}
+                  {on && <Check className="h-3 w-3 shrink-0" aria-hidden />}
+                </button>
+              );
+            })}
+          </div>
+        </>
+      )}
+    </div>
   );
 }
 
-function IconBtn({
+function GBtn({
   label,
+  title,
   active,
   disabled,
   onClick,
+  className,
   children,
 }: {
   label: string;
+  title?: string;
   active?: boolean;
   disabled?: boolean;
   onClick: () => void;
+  className?: string;
   children: React.ReactNode;
 }) {
   return (
     <button
       type="button"
       aria-label={label}
-      title={label}
+      title={title ?? label}
       aria-pressed={active}
       disabled={disabled}
       onClick={onClick}
       className={cn(
-        "flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-white/10 bg-black/20 transition hover:bg-white/10 active:scale-95 disabled:pointer-events-none disabled:opacity-35",
-        active ? "bg-amber-500/20 text-amber-400" : "text-white/60"
+        "flex h-7 min-w-[28px] items-center justify-center px-2 text-[11px] transition-colors disabled:pointer-events-none disabled:opacity-30",
+        active ? "bg-amber-500/15 text-amber-400" : "text-white/55 hover:bg-white/[0.06] hover:text-white/85",
+        className
       )}
     >
       {children}
     </button>
+  );
+}
+
+function Panel({
+  className,
+  onClose,
+  children,
+}: {
+  className?: string;
+  onClose: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <>
+      <div className="fixed inset-0 z-20" onPointerDown={onClose} aria-hidden />
+      <div
+        className={cn(
+          "absolute z-30 overflow-hidden rounded-lg border border-white/12 bg-graphite-900/98 shadow-2xl shadow-black/60 backdrop-blur",
+          className
+        )}
+      >
+        {children}
+      </div>
+    </>
+  );
+}
+
+function NoteOps({
+  snapLabel,
+  onQuantize,
+  onTranspose,
+  onVelocity,
+}: {
+  snapLabel: string;
+  onQuantize: () => void;
+  onTranspose: (semis: number) => void;
+  onVelocity: (mode: "flatten" | "humanize") => void;
+}) {
+  return (
+    <div className="py-1 text-[11px]">
+      <MenuRow onClick={onQuantize} hint={snapLabel}>
+        Quantize to grid
+      </MenuRow>
+      <MenuSep />
+      <MenuRow onClick={() => onTranspose(1)} hint="+1">Transpose up</MenuRow>
+      <MenuRow onClick={() => onTranspose(-1)} hint="−1">Transpose down</MenuRow>
+      <MenuRow onClick={() => onTranspose(12)} hint="+12">Octave up</MenuRow>
+      <MenuRow onClick={() => onTranspose(-12)} hint="−12">Octave down</MenuRow>
+      <MenuSep />
+      <MenuRow onClick={() => onVelocity("flatten")}>Flatten velocity</MenuRow>
+      <MenuRow onClick={() => onVelocity("humanize")}>Humanize velocity</MenuRow>
+    </div>
+  );
+}
+
+function MenuRow({
+  onClick,
+  hint,
+  children,
+}: {
+  onClick: () => void;
+  hint?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex w-full items-center justify-between gap-4 px-3 py-1.5 text-left text-white/65 transition-colors hover:bg-white/[0.07] hover:text-white/90"
+    >
+      <span>{children}</span>
+      {hint && <span className="font-mono text-[10px] text-white/30">{hint}</span>}
+    </button>
+  );
+}
+
+function MenuSep() {
+  return <div className="my-1 h-px bg-white/[0.07]" />;
+}
+
+function Kbd({ children }: { children: React.ReactNode }) {
+  return (
+    <kbd className="shrink-0 rounded border border-white/12 bg-white/[0.05] px-1 py-px font-mono text-[10px] text-white/50">
+      {children}
+    </kbd>
   );
 }
 
