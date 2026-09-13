@@ -1,256 +1,128 @@
-import { RATE_LIMITS } from "@/lib/data/rate-limits";
+import {
+  RATE_LIMITS,
+  SHARED_ALLOWANCES,
+  normalizeRouteKey,
+  type SharedAllowanceSpec,
+  type SharedWindowSpec,
+} from "@/lib/data/rate-limits";
 import { TOOL_LIMITS } from "@/lib/data/tool-limits";
 
 /**
- * `GET /limits` — the backend's own account of every FREE-TIER limit.
+ * `GET /limits` — the backend's account of every FREE-TIER limit.
  *
- * WHY THIS EXISTS
+ * The hand-maintained tables in lib/data are the fallback, not the source. Read
+ * this instead: limits are settings-table rows now, changeable by the operator
+ * with one API call and no deploy, and a static table drifts the first time one
+ * moves.
  *
- * lib/data/rate-limits.ts and lib/data/tool-limits.ts mirror backend config BY
- * HAND, are read from 22 places, and nothing verifies them. That drift has
- * already shipped five wrong numbers to users:
+ * WHAT THIS IS NOT: /limits is public and cacheable precisely because it does
+ * not know who is asking, so it always serves free-tier numbers. A credit
+ * holder gets 30/hour on a metered tool where free gets 2. Client forms keep
+ * calling rateLimitFor() for those; anything here is the anonymous fallback.
  *
- *   - /youtube-vocal-remover advertised 15-minute videos against a 10-minute
- *     cap, so people waited through a download on a paid residential proxy for
- *     a job that could never run
- *   - /audio-to-midi reported 3 per 5 min when the real allowance was 5
- *   - /download reported 15 per hour when it was 18
- *   - the four HQ keys said "1 per hour" when the API returned 2
- *   - /stems omitted AIFF from its format list while the tool accepted it
+ * The shared standard-separation block is the exception and is identical here
+ * and on /credits/me, because those four routes are unmetered and have no paid
+ * tier.
  *
- * Every one was the same bug and every one was found by accident. This makes
- * the backend the source and the tables the fallback.
- *
- * WHAT THIS IS NOT
- *
- * /limits is static and cacheable precisely BECAUSE it does not know who is
- * asking. It carries free-tier numbers only. A credit holder gets 30/hour where
- * free gets 2, and the only thing that knows which applies is
- * `rate_limit.tools` on GET /credits/me — so client forms keep calling
- * rateLimitFor() and treat anything here as the free-tier fallback.
- *
- * COST: server-side only, `revalidate: 86400`, and it changes solely on
- * redeploy. Zero client requests, same pattern as getFeatureFlags(). Never
- * import this into a client component — see the Footer incident in
- * FRONTEND_ARCHITECTURE.md §7.2.
- *
- * ── THIS PASS ──────────────────────────────────────────────────────────
- *
- * Absorbs everything the backend published on 2026-08-30.
- *
- * 1. DURATION CAPS, and the one that is live right now. The per-tool overrides
- *    for pitch and tempo sat in config with NO READERS for weeks — every tool
- *    silently took the 3600 fallback, so those 900s entries were decoration.
- *    They were wired up this morning, which means pitch and tempo dropped from
- *    an hour to fifteen minutes TODAY. Any page still saying an hour is now
- *    rejecting real uploads it promised to accept.
- *
- * 2. `exempt_tools` MATTERS MORE THAN IT LOOKS. /convert has no duration cap at
- *    all — it is the only caller anywhere passing check_duration=False.
- *    Applying the 3600 fallback to it would reject uploads the server would
- *    happily take. A cap the client invents is as bad as one it omits, so
- *    durationCapFor() returns null for an exempt tool rather than a number.
- *
- * 3. THREE FORMAT LISTS, not one. Video and MIDI were both enforced and
- *    neither was published — the exact mechanism that let /stems omit AIFF.
- *    Bare lowercase extensions, no dots, no MIME types.
- *
- * 4. FOUR UPLOAD CAPS, not two. max_upload_mb does NOT cover video: 80 audio,
- *    200 /video-to-audio, 100 /video-to-text, and /join is 150 total with the
- *    per-file 80 still applying to each. A page showing one number for two of
- *    those routes is wrong for one of them.
- *
- * 5. STATUS POLLS ARE UNAUTHENTICATED. Confirmed by reading every handler:
- *    _tool_status takes no identity parameter, and HQ jobs share the standard
- *    status routes. The warning comment in railway.ts about /audio-to-midi-hq
- *    possibly scoping by subject can be deleted — it doesn't.
+ * Server-side only, `revalidate: 3600`. Never import into a client component.
  */
 
 const RAILWAY_API_BASE =
   process.env.NEXT_PUBLIC_RAILWAY_API_BASE || "https://api.audioforges.com";
 
-/**
- * Which retention shape a tool follows. Three, and they are genuinely
- * different sentences — see retentionSentences().
- */
+export type { SharedAllowanceSpec, SharedWindowSpec };
+
 export type RetentionShape = "separation" | "audio_tools" | "transcription";
 
-/**
- * THE DOWNLOAD CACHE — a fourth retention shape, and the only one that isn't
- * about a user's file.
- *
- * It gets its own type rather than joining Retention because the input/output
- * pair is meaningless here: /download takes a URL, not an upload, so
- * `inputDeletedWhen` would describe something that never happened. What's
- * stored is converted audio derived from a public video — nobody's file.
- *
- * `guaranteed` is the field that decides the sentence. The cache is
- * LRU-evicted against a size cap, so maxAgeSeconds is a CEILING, not a
- * promise: a rarely-requested entry can vanish long before it. "Up to 30 days"
- * is honest; "for 30 days" is not. Read this flag before writing either.
- */
 export interface DownloadCache {
-  /** "per_video" means one person's conversion serves the next person's
-   *  request for the same URL and format. No visitor identity in the key. */
   scope: string;
   keyedOn: string[];
   maxAgeSeconds: number;
   eviction: string;
-  /** FALSE when entries can be evicted early — say "up to", never "for". */
+  /** FALSE when entries can be evicted early. Say "up to", never "for". */
   guaranteed: boolean;
   stores: string;
 }
 
 export interface Retention {
-  /**
-   * "job_end" means the upload is gone the moment the job finishes — win,
-   * lose, or killed by a redeploy. "ttl" means it is held for `inputSeconds`.
-   * Separation is the only shape that uses "ttl", and only so the one-click
-   * Studio Quality re-run works without a second upload.
-   */
   inputDeletedWhen: "job_end" | "ttl";
-  /**
-   * NULL, not 0, when inputDeletedWhen is "job_end". The distinction is the
-   * whole point: 0 would render as "deleted after zero seconds", which is
-   * nonsense. Null means "no timer applies — say the other sentence".
-   */
+  /** NULL, not 0, when inputDeletedWhen is "job_end". */
   inputSeconds: number | null;
   outputSeconds: number;
-  /**
-   * "text" is transcription: the result is inline in the job record, so
-   * nothing sits on disk after processing at all. "Your file is available for
-   * an hour" is the wrong sentence for a transcript.
-   */
+  /** "text" is transcription: nothing sits on disk after processing. */
   outputKind: "file" | "files" | "text";
 }
 
 export interface Durations {
-  /** Applies to any job tool without its own entry, and NOT to exempt tools. */
   audioToolsDefaultSeconds: number;
-  /**
-   * Overrides. A tool MISSING from here is not an omission — it takes the
-   * default. Same shape _validate_duration_or_reject uses, so there is no
-   * flattened per-tool list to drift.
-   */
+  /** A tool missing from here takes the default. */
   audioToolsPerToolSeconds: Record<string, number>;
-  /**
-   * Tools with NO duration check at all. Currently just /convert, which is the
-   * only route passing check_duration=False. Read this before applying the
-   * default or you invent a cap the server doesn't have.
-   */
+  /** Tools with NO duration check. Applying the default to one rejects uploads
+   *  the server would accept. */
   exemptTools: string[];
   videoExtractMaxSeconds: number;
-  /**
-   * The DOWNLOADER's cap, governing /download and every /youtube/* chained
-   * tool. Named without "transcribe" on purpose: it lived in the frontend's
-   * TRANSCRIPTION_LIMITS for months, which is a different subsystem, and the
-   * name is what stops it drifting back there.
-   *
-   * Not the binding cap on most /youtube/* pages — separation caps at 600 and
-   * transcription at 1200, and the SMALLER of a stacked pair is the one a user
-   * actually hits. It IS binding on /youtube-to-wav and /youtube-to-mp3, where
-   * nothing downstream refuses on length.
-   */
   youtubeDownloadMaxSeconds: number;
-  /** TOTAL across every file in one /join request, not per file. */
+  /** TOTAL across every file in one /join request. */
   joinMaxTotalSeconds: number;
-  /** Lower bounds — the only ones on the site. Below this there isn't enough
-   *  signal and the result is a guaranteed empty MIDI. */
   midiMinSeconds: number;
   midiHqMinSeconds: number;
 }
 
 export interface Limits {
-  /** Upload ceiling for ordinary audio routes, in MB. */
   maxUploadMb: number;
-  /** /video-to-audio. Higher than the transcribe cap — different route, different rule. */
   maxVideoUploadMb: number;
-  /**
-   * /video-to-text caps LOWER than the general video upload limit, because a
-   * 200MB video is almost certainly past the duration cap and accepting the
-   * upload only to reject it wastes the whole transfer. Use this on that route
-   * and nowhere else.
-   */
+  /** /video-to-text only. Caps lower than the general video upload limit. */
   maxVideoTranscribeMb: number;
-  /**
-   * /join's four caps, published together under `join` because they are facets
-   * of one request shape rather than four unrelated numbers.
-   *
-   * BOTH "total" FIGURES REJECT INDEPENDENTLY, and neither is implied by the
-   * other or by the per-file cap: ten 20MB files pass maxPerFileMb and fail
-   * maxTotalMb; ten four-minute tracks pass any per-file duration intuition
-   * and fail durations.joinMaxTotalSeconds at forty minutes combined. A page
-   * that states only one of them is wrong about the other.
-   */
+  /** Both totals reject independently, and neither implies the per-file cap. */
   join: {
     maxFiles: number;
     maxTotalMb: number;
-    /** Applies to each file separately. NOT derivable from maxTotalMb, which
-     *  is why the backend publishes it rather than leaving it implied. */
     maxPerFileMb: number;
   };
-  /**
-   * Kill switch for the multi-track MIDI tool. FALSE means the route returns
-   * 503 — hide the option entirely.
-   *
-   * This is a DIFFERENT question from paywall_tools["audio-to-midi-hq"], which
-   * answers whether it costs a credit. Tying them together made turning off
-   * charging hide the tool instead of making it free.
-   */
+  /** FALSE means the route returns 503. Separate question from whether it costs
+   *  a credit. */
   midiHqEnabled: boolean;
-  /** Seconds. Read per route — the tiers genuinely differ. */
   featureDurations: {
     midi: number;
     midiHq: number;
     separationHq: number;
     transcription: number;
   };
-  /** Caps for the ordinary job tools. See durationCapFor(). */
   durations: Durations;
-  /** Bare lowercase extensions, no dots. `.${fmt}` for an accept attribute,
-   *  bare for display. */
   allowedAudioFormats: string[];
-  /** Only /video-to-audio and /video-to-text take these, and no endpoint
-   *  outputs one — which is why they're a separate list rather than folded in. */
   allowedVideoFormats: string[];
-  /** The audio set plus opus and webm. Published complete so it can be
-   *  rendered directly rather than reconstructed. */
   allowedMidiInputFormats: string[];
-  /** Free-tier max requests per window, keyed as the backend names them. */
-  rateLimits: Record<string, number>;
   /**
-   * Per-tool windows, keyed as the backend names them. Prefer this over
-   * `windowSeconds` — see windowFor(). The flat value was wrong for
-   * /audio-to-midi, which is what prompted the backend to publish this map.
+   * Free-tier max requests per window, keyed as the backend names them.
+   *
+   * One number per tool, so these carry the HOURLY figure for a route in a
+   * shared pool and cannot express a second window. Read `sharedAllowances`
+   * when you need the complete picture. Kept because other code indexes them.
    */
+  rateLimits: Record<string, number>;
+  /** Per-tool windows. Prefer over windowSeconds — see windowFor(). */
   windows: Record<string, number>;
-  /** Legacy flat window. Correct for everything except the keys in `windows`,
-   *  and kept so nothing breaks mid-migration. */
+  /** Legacy flat window, correct for everything without a `windows` entry. */
   windowSeconds: number;
-  /** How long uploads and results are kept, by shape. */
+  /**
+   * Pools where several routes spend from one allowance across one or more
+   * windows. The complete account of a route's limits; the flat keys above are
+   * a lossy view of it.
+   */
+  sharedAllowances: SharedAllowanceSpec[];
   retention: Record<RetentionShape, Retention>;
-  /** The /download cache. Not a Retention — see DownloadCache. */
   downloadCache: DownloadCache;
 }
 
-/**
- * Fail-closed defaults, read from the hand-maintained tables so a backend blip
- * shows today's numbers rather than blanks or zeroes. A page rendering "up to 0
- * minutes" would be worse than a slightly stale figure.
- *
- * The retention and duration defaults are the values confirmed on 2026-08-30
- * and pinned in .env rather than sitting on framework defaults. Retention
- * figures are privacy claims, so a fallback that quietly understates a TTL
- * would be worse than one that understates a rate limit.
- */
+/** Fail-closed defaults, read from the hand tables so a backend blip renders
+ *  stale numbers rather than blanks. */
 function fallback(): Limits {
   return {
     maxUploadMb: 80,
     maxVideoUploadMb: 200,
     maxVideoTranscribeMb: 100,
     join: { maxFiles: 10, maxTotalMb: 150, maxPerFileMb: 80 },
-    // Fails closed: an unreachable backend hides the paid tool rather than
-    // offering something that would 503.
+    // Hides the paid tool rather than offering something that would 503.
     midiHqEnabled: false,
     featureDurations: {
       midi: TOOL_LIMITS["audio-to-midi"]?.maxTotalDurationSeconds ?? 600,
@@ -260,12 +132,7 @@ function fallback(): Limits {
     },
     durations: {
       audioToolsDefaultSeconds: 3600,
-      // 900 for both, wired up on the backend 2026-08-30. Before that morning
-      // these entries existed and had no readers, so every tool took the 3600
-      // fallback — which is why a page saying "an hour" was right yesterday
-      // and rejects real uploads today.
       audioToolsPerToolSeconds: { pitch: 900, tempo: 900 },
-      // /convert alone. Inventing a cap here rejects uploads the server takes.
       exemptTools: ["convert"],
       videoExtractMaxSeconds: 3600,
       youtubeDownloadMaxSeconds: 2400,
@@ -281,18 +148,25 @@ function fallback(): Limits {
       "aac", "aiff", "flac", "m4a", "mp3", "ogg", "opus", "wav", "webm",
     ],
     rateLimits: {
+      separate: RATE_LIMITS.separate?.limit ?? 10,
+      stems: RATE_LIMITS.stems?.limit ?? 10,
+      youtube_separate: RATE_LIMITS["youtube/separate"]?.limit ?? 10,
+      youtube_stems: RATE_LIMITS["youtube/stems"]?.limit ?? 10,
+      separate_hq: RATE_LIMITS["separate-hq"]?.limit ?? 2,
+      stems_hq: RATE_LIMITS["stems-hq"]?.limit ?? 2,
+      youtube_separate_hq: RATE_LIMITS["youtube/separate-hq"]?.limit ?? 2,
+      youtube_stems_hq: RATE_LIMITS["youtube/stems-hq"]?.limit ?? 2,
       audio_to_midi: RATE_LIMITS["audio-to-midi"]?.limit ?? 5,
       audio_to_midi_hq: RATE_LIMITS["audio-to-midi-hq"]?.limit ?? 2,
       speech_to_text: RATE_LIMITS["speech-to-text"]?.limit ?? 2,
       video_to_text: RATE_LIMITS["video-to-text"]?.limit ?? 2,
       youtube_transcribe: RATE_LIMITS["youtube/transcribe"]?.limit ?? 2,
     },
-    // Seeded from the hand table for the one key the flat window was wrong
-    // about, so even the fallback stops publishing /audio-to-midi as hourly.
     windows: {
       audio_to_midi: RATE_LIMITS["audio-to-midi"]?.windowSeconds ?? 300,
     },
     windowSeconds: 3600,
+    sharedAllowances: SHARED_ALLOWANCES,
     retention: {
       separation: {
         inputDeletedWhen: "ttl",
@@ -327,22 +201,13 @@ function fallback(): Limits {
 const asNumber = (v: unknown, or: number) =>
   typeof v === "number" && Number.isFinite(v) && v > 0 ? v : or;
 
-/**
- * Like asNumber, but NULL is a legitimate answer rather than a miss.
- *
- * `input_seconds: null` means "no timer applies — the upload is deleted when
- * the job ends". Running that through asNumber would substitute a number and
- * turn a correct sentence into a false one, which on a retention claim is the
- * expensive direction to be wrong in.
- */
+/** Like asNumber, but NULL is a legitimate answer rather than a miss. */
 const asNullableNumber = (v: unknown, or: number | null): number | null => {
   if (v === null) return null;
   if (typeof v === "number" && Number.isFinite(v) && v > 0) return v;
   return or;
 };
 
-/** Bare lowercase extensions only. Anything else in the array is dropped
- *  rather than rendered as a broken accept token. */
 const asStringList = (v: unknown, or: string[]): string[] => {
   if (!Array.isArray(v)) return or;
   const out = v.filter((x): x is string => typeof x === "string" && x.length > 0);
@@ -383,8 +248,8 @@ function readDownloadCache(raw: unknown, base: DownloadCache): DownloadCache {
     keyedOn: asStringList(d.keyed_on, base.keyedOn),
     maxAgeSeconds: asNumber(d.max_age_seconds, base.maxAgeSeconds),
     eviction: typeof d.eviction === "string" ? d.eviction : base.eviction,
-    // Defaults to FALSE, not to `base`: an unreadable value must not let a
-    // page promise a retention window the cache doesn't guarantee.
+    // Defaults to FALSE, not to `base`: an unreadable value must not let a page
+    // promise a retention window the cache doesn't guarantee.
     guaranteed: d.guaranteed === true,
     stores: typeof d.stores === "string" ? d.stores : base.stores,
   };
@@ -409,9 +274,8 @@ function readDurations(raw: unknown, base: Durations): Durations {
       d.audio_tools_default_seconds,
       base.audioToolsDefaultSeconds
     ),
-    // Replaced wholesale, not merged. A tool REMOVED from the backend map has
-    // gone back to the default, and merging would keep applying a cap that no
-    // longer exists.
+    // Replaced wholesale, not merged: a tool removed from the backend map has
+    // gone back to the default, and merging keeps applying a dead cap.
     audioToolsPerToolSeconds: Object.keys(perTool).length
       ? perTool
       : base.audioToolsPerToolSeconds,
@@ -427,15 +291,59 @@ function readDurations(raw: unknown, base: Durations): Durations {
   };
 }
 
+/**
+ * Parses `rate_limits.shared`.
+ *
+ * An entry missing a key, a route or a usable window is DROPPED rather than
+ * patched with a guess: a pool the client half-understands would render a
+ * confident wrong sentence. If nothing survives, the whole block falls back, so
+ * a malformed payload shows the last known-good shape instead of silently
+ * dropping the daily cap from every page.
+ */
+function readShared(raw: unknown, base: SharedAllowanceSpec[]): SharedAllowanceSpec[] {
+  if (!Array.isArray(raw)) return base;
+
+  const out: SharedAllowanceSpec[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue;
+    const d = item as Record<string, unknown>;
+
+    const key = typeof d.key === "string" && d.key ? d.key : "";
+    const routes = asStringList(d.routes, []);
+    const windows = Array.isArray(d.windows)
+      ? d.windows
+          .map((w): SharedWindowSpec | null => {
+            if (!w || typeof w !== "object") return null;
+            const x = w as Record<string, unknown>;
+            const maxRequests = asNumber(x.max_requests, 0);
+            const windowSeconds = asNumber(x.window_seconds, 0);
+            return maxRequests > 0 && windowSeconds > 0 ? { maxRequests, windowSeconds } : null;
+          })
+          .filter((w): w is SharedWindowSpec => w !== null)
+      : [];
+
+    if (!key || routes.length === 0 || windows.length === 0) continue;
+
+    windows.sort((a, b) => a.windowSeconds - b.windowSeconds);
+    out.push({
+      key,
+      routes,
+      scope: typeof d.scope === "string" ? d.scope : "per_ip",
+      windows,
+    });
+  }
+
+  return out.length ? out : base;
+}
+
 export async function getLimits(): Promise<Limits> {
   const base = fallback();
   try {
     const res = await fetch(`${RAILWAY_API_BASE}/limits`, {
-      // Changes only on a backend redeploy. A day keeps all ~100 pages from
-      // regenerating every hour (that was most of the ISR write bill).
-      next: { revalidate: 86400 },
-      // Without a deadline, a VPS that accepts the connection but never answers
-      // blocks the whole server render and burns Vercel function duration.
+      // Was a day. Limits are read live on every request now and an operator
+      // change lands in about a second, so a day-long ISR window would keep
+      // serving the old number for a day after it stopped being true.
+      next: { revalidate: 3600 },
       signal: AbortSignal.timeout(5_000),
     });
     if (!res.ok) return base;
@@ -448,9 +356,7 @@ export async function getLimits(): Promise<Limits> {
       maxUploadMb: asNumber(d.max_upload_mb, base.maxUploadMb),
       maxVideoUploadMb: asNumber(d.max_video_upload_mb, base.maxVideoUploadMb),
       maxVideoTranscribeMb: asNumber(d.max_video_transcribe_mb, base.maxVideoTranscribeMb),
-      // NESTED under `join`, not top-level. It has been published this way all
-      // along; a grep for "max_join_files" finds nothing because the key is
-      // `join.max_files`.
+      // Nested under `join`, not top-level.
       join: readJoin(d.join, base.join),
       midiHqEnabled: Boolean(f.midi_hq_enabled),
       featureDurations: {
@@ -476,14 +382,19 @@ export async function getLimits(): Promise<Limits> {
         ...base.rateLimits,
         ...Object.fromEntries(
           Object.entries(r)
-            // `windows` is an object and `window_seconds` is the flat legacy
-            // value — neither belongs in the per-tool max map.
-            .filter(([k, v]) => k !== "window_seconds" && k !== "windows" && typeof v === "number")
+            .filter(
+              ([k, v]) =>
+                k !== "window_seconds" &&
+                k !== "windows" &&
+                k !== "shared" &&
+                typeof v === "number"
+            )
             .map(([k, v]) => [k, v as number])
         ),
       },
       windows: { ...base.windows, ...asNumberMap(r.windows) },
       windowSeconds: asNumber(r.window_seconds, base.windowSeconds),
+      sharedAllowances: readShared(r.shared, base.sharedAllowances),
       downloadCache: readDownloadCache(d.retention, base.downloadCache),
       retention: {
         separation: readRetention(ret.separation, base.retention.separation),
@@ -497,52 +408,24 @@ export async function getLimits(): Promise<Limits> {
 }
 
 /**
- * The duration cap for one job tool, in seconds, or NULL when it has none.
- *
- * READ THIS RATHER THAN THE DEFAULT DIRECTLY. Three cases, and the third is
- * the one that bites:
- *
- *   · exempt   → null. /convert passes check_duration=False, so a cap applied
- *                here would reject uploads the server accepts. A cap the
- *                client invents is as bad as one it omits.
- *   · override → the per-tool value. pitch and tempo are 900 as of 2026-08-30,
- *                down from the 3600 they silently took while the overrides had
- *                no readers.
- *   · missing  → the default. Absence from the map is the answer, not a gap.
+ * The duration cap for one job tool in seconds, or NULL when it has none.
+ * Exempt tools return null: a cap the client invents is as bad as one it omits.
  */
 export function durationCapFor(limits: Limits, tool: string): number | null {
   if (limits.durations.exemptTools.includes(tool)) return null;
   return limits.durations.audioToolsPerToolSeconds[tool] ?? limits.durations.audioToolsDefaultSeconds;
 }
 
-/**
- * The window for one tool, per-tool map first.
- *
- * ALWAYS PREFER THIS over reading `windowSeconds` directly. The flat value is
- * correct for most routes and wrong for the ones that have their own entry —
- * /audio-to-midi is 5 per 5 minutes and the flat value said hourly, which is
- * exactly why the map exists.
- */
+/** The window for one tool, per-tool map first. Prefer over windowSeconds. */
 export function windowFor(limits: Limits, tool: string): number {
   return limits.windows[tool] ?? limits.windowSeconds;
 }
 
-/** For an `accept` attribute: ".mp3,.wav,.flac". Bare extensions are for
- *  display; the dots belong only here. */
+/** For an `accept` attribute: ".mp3,.wav,.flac". */
 export function acceptAttribute(formats: string[]): string {
   return formats.map((f) => `.${f}`).join(",");
 }
 
-/**
- * "2 hours" / "10 minutes" / "90 seconds". Derived, so a cap change can't leave
- * prose stale.
- *
- * THE HOUR BRANCH IS NOT COSMETIC. Every duration-cap caller passes 20 minutes
- * or less, so minutes were always right. Retention passes 3600 and 7200 — and
- * without this the copy read "your upload is kept for 120 minutes", which is
- * accurate, unidiomatic, and reads like a machine filled in a template. On a
- * privacy answer that is the wrong impression to give.
- */
 export function durationLabel(seconds: number): string {
   if (seconds < 60) return `${seconds} seconds`;
   if (seconds >= 3600 && seconds % 3600 === 0) {
@@ -553,8 +436,12 @@ export function durationLabel(seconds: number): string {
   return `${minutes} ${minutes === 1 ? "minute" : "minutes"}`;
 }
 
-/** "5 per hour" / "2 per 5 minutes". Same shape getRateLimitLabel produced. */
+/** "10 per hour" / "30 per day" / "2 per 5 minutes". */
 export function rateLimitLabel(max: number, windowSeconds: number): string {
+  if (windowSeconds >= 86400 && windowSeconds % 86400 === 0) {
+    const days = windowSeconds / 86400;
+    return `${max} per ${days === 1 ? "day" : `${days} days`}`;
+  }
   if (windowSeconds >= 3600) {
     const hours = Math.round(windowSeconds / 3600);
     return `${max} per ${hours === 1 ? "hour" : `${hours} hours`}`;
@@ -566,36 +453,72 @@ export function rateLimitLabel(max: number, windowSeconds: number): string {
   return `${max} per ${windowSeconds} seconds`;
 }
 
+/** The pool a route draws from, or NULL when it has its own bucket. */
+export function sharedAllowanceFor(
+  limits: Limits,
+  route: string
+): SharedAllowanceSpec | null {
+  const want = normalizeRouteKey(route);
+  return (
+    limits.sharedAllowances.find((a) =>
+      a.routes.some((r) => normalizeRouteKey(r) === want)
+    ) ?? null
+  );
+}
+
+/** "10 per hour, 30 per day". Every window the pool enforces, shortest first. */
+export function sharedAllowanceLabel(allowance: SharedAllowanceSpec): string {
+  return allowance.windows
+    .map((w) => rateLimitLabel(w.maxRequests, w.windowSeconds))
+    .join(", ");
+}
+
+/**
+ * The complete limit label for a route.
+ *
+ * Reads the shared pool when the route is in one, so both windows show, and
+ * falls back to the flat key otherwise. Use this anywhere a limit is displayed
+ * rather than reading `rateLimits` directly — the flat keys hold one number and
+ * quietly omit a second window.
+ *
+ * `route` is the backend path ("youtube/separate"), `flatKey` the flat
+ * rate_limits key ("youtube_separate"); the two naming schemes do not overlap.
+ */
+export function limitLabelFor(limits: Limits, route: string, flatKey: string): string {
+  const shared = sharedAllowanceFor(limits, route);
+  if (shared) return sharedAllowanceLabel(shared);
+  const max = limits.rateLimits[flatKey];
+  return rateLimitLabel(max ?? 0, windowFor(limits, flatKey));
+}
+
+/**
+ * "shared across the vocal remover, stem splitter and both YouTube tools" —
+ * the sentence that stops a user reading a pool as a per-tool budget.
+ *
+ * Returns null for a route with its own bucket, so a caller can drop the clause
+ * entirely rather than printing something empty.
+ */
+export function sharedPoolNote(limits: Limits, route: string): string | null {
+  const shared = sharedAllowanceFor(limits, route);
+  if (!shared || shared.routes.length < 2) return null;
+  return `This allowance is shared across all ${shared.routes.length} separation tools, so a split on any one of them draws from the same total.`;
+}
+
 /**
  * The two sentences a retention FAQ needs, built from the shape.
  *
- * WHY A HELPER AND NOT PROSE ON EACH PAGE
- *
- * The wrong version of this answer sat on /vocal-remover for weeks: it said
- * uploads were deleted when processing finished, while a feature on the same
- * page depended on them being kept for two hours. It was written from
- * assumption, and it was only caught by reading the upgrade component's
- * docstring.
- *
- * Twenty pages typing that sentence by hand is twenty chances to repeat it.
- * One function, fed by the backend's own numbers, is one.
- *
- * Returns `input` and `output` separately because they are different facts and
- * conflating them is the specific mistake that caused the original error. A
- * page can join them with a space; nothing here decides that.
+ * `input` and `output` are returned separately because they are different
+ * facts; conflating them is what put a wrong deletion claim on /vocal-remover
+ * for weeks.
  */
 export function retentionSentences(r: Retention): { input: string; output: string } {
   const input =
     r.inputDeletedWhen === "job_end" || r.inputSeconds === null
-      ? "Your upload is deleted as soon as processing finishes — not on a timer, and whether the job succeeded or failed."
+      ? "Your upload is deleted as soon as processing finishes, not on a timer, and whether the job succeeded or failed."
       : `Your upload is kept for ${durationLabel(r.inputSeconds)}, then deleted automatically.`;
 
   const window = durationLabel(r.outputSeconds);
 
-  // "text" is the transcription case: the result lives inline in the job
-  // record, so there is no file sitting on disk to describe. Saying "your file
-  // is available for an hour" about a transcript is wrong in a way nobody
-  // would notice until someone went looking for the file.
   const output =
     r.outputKind === "text"
       ? `The transcript is available for ${window}, then removed. Nothing is stored on disk afterwards.`

@@ -1,152 +1,77 @@
 // lib/data/rate-limits.ts
 //
-// Single source of truth for every tool's rate limit, as configured on
-// the backend. Every form component reads its limit from here instead
-// of hardcoding a string like "3 per hour" in its own file — a backend
-// limit change means updating ONE entry here, not hunting through every
-// form component and landing page that happens to display that number.
-//
-// IMPORTANT: these are DISPLAY values only — this file does not enforce
-// anything. It mirrors whatever rate_limit.py / gpu_budget.py actually
-// enforce on the backend. If the backend limit changes and this file
-// isn't updated to match, the UI will quietly lie to the user about
-// what the limit is. There is no way to verify these from the frontend
-// alone — they have to be kept in sync by hand.
-//
-// SCOPE: most limits below are per IP address, per endpoint — two endpoints
-// sharing a number don't share a budget, because rate_limit.py's `_requests`
-// map is keyed `(ip, path)`.
-//
-// THE THREE TRANSCRIPTION ROUTES ARE THE EXCEPTION. They were moved onto
-// tiered_rate_limit("transcribe"), which keys on the RULE rather than the
-// path, so /speech-to-text, /video-to-text and /youtube/transcribe now draw
-// from ONE pool. See the transcription block below before writing copy about
-// them.
+// FALLBACK ONLY. GET /limits and GET /credits/me are the source of truth at
+// runtime and every limit is operator-tunable with no redeploy, so treat the
+// numbers below as a last resort for when both are unreachable.
 //
 // For input caps (file counts, byte ceilings, duration ceilings) see
-// tool-limits.ts — separate file, separate concern.
-//
-// ALL VALUES BELOW RE-VERIFIED against backend config.py on 2026-08-26.
-// The `envVar` field names the backend variable, so a limit changed on
-// the VPS can be traced back here without grepping Python.
+// tool-limits.ts.
 
 export interface RateLimitSpec {
-  /** Max requests allowed within the window. */
   limit: number;
-  /** Window duration in seconds. */
   windowSeconds: number;
-  /** Human-readable label for display, e.g. "3 per hour", "3 per 5 min". */
   label: string;
-  /** Backend env var governing the request count, for cross-checking. */
   envVar?: string;
 }
 
-// Keyed by backend endpoint segment. Where one endpoint serves two
-// quality tiers (standard/hq), the tiers get separate keys since they
-// carry different limits — the form picks the right key for the active
-// tier and looks it up with getRateLimitLabel(key).
+export interface SharedWindowSpec {
+  maxRequests: number;
+  windowSeconds: number;
+}
+
+/** A pool of routes drawing from one allowance across one or more windows. */
+export interface SharedAllowanceSpec {
+  key: string;
+  /** Backend paths, leading slash included. */
+  routes: string[];
+  scope: string;
+  /** Sorted shortest window first. */
+  windows: SharedWindowSpec[];
+}
+
 export const RATE_LIMITS: Record<string, RateLimitSpec> = {
-  // ---- Vocal Remover (2 stems: vocals + instrumental) ----
-  // RAISED 3 -> 6 (2026-08-22), matching the chained youtube/separate
-  // limit below. Demand-driven; MAX_QUEUED_SEPARATIONS (3 in flight) is
-  // what actually protects the server and is unchanged.
+  // The four standard separation routes share ONE allowance — see
+  // SHARED_ALLOWANCES. The per-route number here is the hourly window only and
+  // cannot express the daily cap.
   separate: {
-    limit: 6, windowSeconds: 3600, label: "6 per hour",
+    limit: 10, windowSeconds: 3600, label: "10 per hour",
     envVar: "SEPARATION_RATE_LIMIT_MAX_REQUESTS",
   },
-  // ---- The four HQ routes ----
-  //
-  // CORRECTED 2026-08-28: these said 1/hour. GET /credits/me returns
-  // max_requests: 2 for the free tier on all four, so every page falling back
-  // to this table was under-reporting the real allowance by half — the same
-  // class of bug already found on audio-to-midi and download.
-  //
-  // THESE ARE THE FREE-TIER NUMBERS ONLY. The HQ routes are TIERED: 2/hour
-  // free, 30/hour once the visitor holds credits. A static string cannot be
-  // right for both, which is why the forms call rateLimitFor(toolKey) and only
-  // fall back here. Server-rendered pages have no visitor to resolve against,
-  // so they get the free number — correct for a first-time reader, and the
-  // form corrects it the moment it hydrates.
+  stems: {
+    limit: 10, windowSeconds: 3600, label: "10 per hour",
+    envVar: "STEMS_RATE_LIMIT_MAX_REQUESTS",
+  },
+  "youtube/separate": {
+    limit: 10, windowSeconds: 3600, label: "10 per hour",
+    envVar: "YOUTUBE_SEPARATE_RATE_LIMIT_MAX_REQUESTS",
+  },
+  "youtube/stems": {
+    limit: 10, windowSeconds: 3600, label: "10 per hour",
+    envVar: "YOUTUBE_STEMS_RATE_LIMIT_MAX_REQUESTS",
+  },
+
+  // FREE-TIER numbers. The HQ routes are tiered: credits raise them to 30/hour
+  // and key on the account rather than the IP, so a form that can resolve the
+  // visitor should call rateLimitFor() and only fall back here.
   "separate-hq": {
     limit: 2, windowSeconds: 3600, label: "2 per hour",
     envVar: "SEPARATION_HQ_RATE_LIMIT_MAX_REQUESTS",
-  },
-  // CHANGED 2026-08-21: 15 → 6, and the envVar moved off the shared
-  // YOUTUBE_CHAIN_* constant onto this tool's own. The backend split
-  // one pair of constants into five (one per chained YouTube tool)
-  // because /youtube/separate holds the single Demucs slot for 3-5
-  // minutes per job, while /youtube/analyze — which shared its number —
-  // finishes in about 30 seconds on a 4-slot semaphore. Fifteen
-  // separation jobs from one IP was over an hour of the only separation
-  // slot on the box.
-  "youtube/separate": {
-    limit: 6, windowSeconds: 3600, label: "6 per hour",
-    envVar: "YOUTUBE_SEPARATE_RATE_LIMIT_MAX_REQUESTS",
-  },
-  "youtube/separate-hq": {
-    limit: 2, windowSeconds: 3600, label: "2 per hour",
-    envVar: "YOUTUBE_SEPARATE_HQ_RATE_LIMIT_MAX_REQUESTS",
-  },
-
-  // ---- Stem Splitter (4 stems: vocals, drums, bass, other) ----
-  // RAISED 3 -> 6 (2026-08-22), same reasoning as `separate` above -
-  // identical Demucs cost, so the two move together.
-  stems: {
-    limit: 6, windowSeconds: 3600, label: "6 per hour",
-    envVar: "STEMS_RATE_LIMIT_MAX_REQUESTS",
   },
   "stems-hq": {
     limit: 2, windowSeconds: 3600, label: "2 per hour",
     envVar: "STEMS_HQ_RATE_LIMIT_MAX_REQUESTS",
   },
-  // CHANGED 2026-08-21: 15 → 6, same reasoning as youtube/separate
-  // above. Identical Demucs cost (same model, same run — only the
-  // output files differ), so the same number, but now from its own
-  // backend constant rather than a shared one.
-  "youtube/stems": {
-    limit: 6, windowSeconds: 3600, label: "6 per hour",
-    envVar: "YOUTUBE_STEMS_RATE_LIMIT_MAX_REQUESTS",
+  "youtube/separate-hq": {
+    limit: 2, windowSeconds: 3600, label: "2 per hour",
+    envVar: "YOUTUBE_SEPARATE_HQ_RATE_LIMIT_MAX_REQUESTS",
   },
   "youtube/stems-hq": {
     limit: 2, windowSeconds: 3600, label: "2 per hour",
     envVar: "YOUTUBE_STEMS_HQ_RATE_LIMIT_MAX_REQUESTS",
   },
 
-  // ---- Transcription ----
-  //
-  // CHANGED 2026-08-26: 2 per 5 minutes -> 2 per hour, across all three
-  // routes. Tightened deliberately to bound worst-case GPU/CPU spend on
-  // whichever transcription backend is active (see TRANSCRIPTION_BACKEND
-  // in config.py) while the actual backend/model in production was being
-  // confirmed. If this was only meant as a temporary brake, remember to
-  // loosen it back up once that's settled — 2/hour is noticeably tighter
-  // than every other limit on the site and the most likely to be hit by
-  // an ordinary user doing a normal retry.
-  //
-  // CHANGED 2026-08-28: THESE THREE NOW SHARE ONE POOL. Each route passes
-  // tiered_rate_limit("transcribe") — a single shared rule key, chosen
-  // because all three hit one RunPod endpoint and one
-  // MAX_CONCURRENT_TRANSCRIPTIONS pool, and three keys would hand one caller
-  // three independent budgets for one resource.
-  //
-  // The previous comment here said the opposite ("counted SEPARATELY:
-  // exhausting /speech-to-text doesn't block /youtube/transcribe"). That was
-  // true while they used the per-path limiter and is false now. Any copy
-  // implying three separate transcription allowances is wrong.
-  //
-  // THESE NUMBERS ARE THE FREE TIER ONLY. The shared rule is TIERED: 2/hour
-  // free, 30/hour once the visitor holds credits. A static string can only
-  // ever be right for one of the two, which is what rateLimitFor() exists to
-  // solve on the separation forms — but /credits/me's rate_limit.tools does
-  // not yet include "transcribe" (_free_route_limits() in credits/ledger.py
-  // lists only the four separation keys). Until it does, do not print a
-  // per-hour figure to a credited user from this table.
-  //
-  // These are the tightest limits on the site by a wide margin, and the
-  // most likely to be hit by an ordinary user — someone who picks the
-  // wrong language, retries, and then wants a third go is already
-  // blocked. That makes the countdown in the UI load-bearing rather
-  // than decorative.
+  // The three transcription routes draw from one pool keyed on the rule, not
+  // the path. Any copy implying three separate allowances is wrong.
   "speech-to-text": {
     limit: 2, windowSeconds: 3600, label: "2 per hour",
     envVar: "AUDIO_TRANSCRIBE_RATE_LIMIT_MAX_REQUESTS",
@@ -160,45 +85,21 @@ export const RATE_LIMITS: Record<string, RateLimitSpec> = {
     envVar: "VIDEO_TRANSCRIBE_RATE_LIMIT_MAX_REQUESTS",
   },
 
-  // ---- Audio to MIDI ----
-  //
-  // CORRECTED 2026-08-21: this said "3 per 5 minutes", but
-  // MIDI_RATE_LIMIT_MAX_REQUESTS in config.py is 5, not 3. The UI was
-  // under-reporting the real allowance — users were told they had two
-  // fewer attempts than they actually did.
   "audio-to-midi": {
     limit: 5, windowSeconds: 300, label: "5 per 5 minutes",
     envVar: "MIDI_RATE_LIMIT_MAX_REQUESTS",
   },
-  // The paid multi-track tool. FREE-TIER number, like the four HQ separation
-  // routes above — the rule is tiered and /credits/me's rate_limit.tools does
-  // not carry this key, so a server-rendered page gets the free figure and the
-  // form corrects it on hydrate.
   "audio-to-midi-hq": {
     limit: 2, windowSeconds: 3600, label: "2 per hour",
     envVar: "MIDI_HQ_RATE_LIMIT_MAX_REQUESTS",
   },
-  // ---- Audio to Sheet Music ----
-  // NOTE: this hourly number is NOT the binding free-tier constraint. Sheet
-  // music's free lane is governed by free_under_seconds=30 (clips <=30s free)
-  // plus FREE_MONTHLY_OPS (a couple of free full-song runs/month), so this
-  // per-IP hourly cap is a secondary abuse limit shown for display only.
-  //
-  // KEEP THIS IN SYNC WITH .env: the backend default for
-  // SHEET_MUSIC_RATE_LIMIT_MAX_REQUESTS is 30. If you set it lower on the VPS
-  // (10 was floated to cap free-tier GPU cost), change `limit` and `label`
-  // here to match — otherwise the UI says 30 while the server enforces 10.
+  // Not the binding free-tier constraint: free_under_seconds and
+  // FREE_MONTHLY_OPS govern that. Secondary abuse limit, display only.
   "audio-to-sheet": {
     limit: 30, windowSeconds: 3600, label: "30 per hour",
     envVar: "SHEET_MUSIC_RATE_LIMIT_MAX_REQUESTS",
   },
 
-  // ---- YouTube / TikTok download ----
-  //
-  // CORRECTED 2026-09-10: DOWNLOAD_RATE_LIMIT_MAX_REQUESTS in config.py
-  // now defaults to 30 (was 18 on 2026-08-21, 15 before that). /limits is
-  // the source of truth at runtime; this is the fallback and must track
-  // config.py.
   download: {
     limit: 30, windowSeconds: 3600, label: "30 per hour",
     envVar: "DOWNLOAD_RATE_LIMIT_MAX_REQUESTS",
@@ -208,7 +109,6 @@ export const RATE_LIMITS: Record<string, RateLimitSpec> = {
     envVar: "TIKTOK_RATE_LIMIT_MAX_REQUESTS",
   },
 
-  // ---- Fast ffmpeg tools (5 per minute) ----
   convert: {
     limit: 5, windowSeconds: 60, label: "5 per minute",
     envVar: "AUDIO_CONVERT_RATE_LIMIT_MAX_REQUESTS",
@@ -262,11 +162,6 @@ export const RATE_LIMITS: Record<string, RateLimitSpec> = {
     envVar: "RINGTONE_RATE_LIMIT_MAX_REQUESTS",
   },
 
-  // ---- Heavier tools (rubberband / multi-input filter graphs) ----
-  // RAISED 3 -> 5 (2026-08-22). These are the only ITERATIVE tools on
-  // the site - the real workflow is +2, listen, +3, listen - and 3
-  // locked someone out on their third attempt, mid-decision. Every
-  // other tool here is one-shot.
   pitch: {
     limit: 5, windowSeconds: 300, label: "5 per 5 minutes",
     envVar: "AUDIO_PITCH_RATE_LIMIT_MAX_REQUESTS",
@@ -288,18 +183,44 @@ export const RATE_LIMITS: Record<string, RateLimitSpec> = {
     envVar: "VIDEO_TO_AUDIO_RATE_LIMIT_MAX_REQUESTS",
   },
 
-  // ---- YouTube chained analysis ----
-  //
-  // Unchanged at 15/hour, but now from its own backend constant. This
-  // is the one chained YouTube tool that never touches the single
-  // separation slot — it runs Essentia on a 3-minute trim against a
-  // 4-slot semaphore — which is exactly why it can stay this loose
-  // while its two former co-tenants dropped to 6.
+  // Never touches the separation slot, which is why it stays this loose.
   "youtube/analyze": {
     limit: 15, windowSeconds: 3600, label: "15 per hour",
     envVar: "YOUTUBE_ANALYZE_RATE_LIMIT_MAX_REQUESTS",
   },
 };
+
+/**
+ * Pools where several routes spend from one allowance. Fallback for
+ * `rate_limits.shared`.
+ *
+ * The four standard separation routes are one bucket per IP across two
+ * windows: four splits on /stems spend four of the same ten that
+ * /youtube/separate draws from.
+ */
+export const SHARED_ALLOWANCES: SharedAllowanceSpec[] = [
+  {
+    key: "separation-standard",
+    routes: ["/separate", "/stems", "/youtube/separate", "/youtube/stems"],
+    scope: "per_ip",
+    windows: [
+      { maxRequests: 10, windowSeconds: 3600 },
+      { maxRequests: 30, windowSeconds: 86400 },
+    ],
+  },
+];
+
+/** "/youtube/separate", "youtube/separate" and "youtube_separate" all match. */
+export function normalizeRouteKey(route: string): string {
+  return "/" + route.trim().replace(/^\/+/, "").replace(/_/g, "/").toLowerCase();
+}
+
+export function getSharedAllowance(route: string): SharedAllowanceSpec | null {
+  const want = normalizeRouteKey(route);
+  return (
+    SHARED_ALLOWANCES.find((a) => a.routes.some((r) => normalizeRouteKey(r) === want)) ?? null
+  );
+}
 
 export function getRateLimitLabel(endpoint: string): string | undefined {
   return RATE_LIMITS[endpoint]?.label;
@@ -310,13 +231,17 @@ export function getRateLimit(endpoint: string): RateLimitSpec | undefined {
 }
 
 /**
- * Seconds to count down after a 429 when the server didn't send a
- * Retry-After header. Falls back to the endpoint's own window, which is
- * the correct worst case — the limit can't still be in force beyond it.
+ * Seconds to count down after a 429 with no Retry-After header.
  *
- * Callers should prefer the header when it's present:
- *   setCooldown(err.retryAfterSeconds ?? getRetryAfterFallback(endpoint))
+ * For a route in a shared pool this returns the SHORTEST window, not the
+ * longest: a 10/hour block is the common case and locking the button for a day
+ * on a guess would be worse than re-showing the 429. Prefer the header, which
+ * the backend does send.
  */
 export function getRetryAfterFallback(endpoint: string, defaultSeconds = 300): number {
+  const shared = getSharedAllowance(endpoint);
+  if (shared?.windows.length) {
+    return Math.min(...shared.windows.map((w) => w.windowSeconds));
+  }
   return RATE_LIMITS[endpoint]?.windowSeconds ?? defaultSeconds;
 }
