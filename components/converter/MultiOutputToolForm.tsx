@@ -64,6 +64,7 @@ import {
   type ProcessingStage,
   type UiState,
   MixerTeaser,
+  resolveRateLimitMessage,
 } from "@/components/tools/JobFormKit";
 
 export type { ProcessingStage };
@@ -241,7 +242,12 @@ interface MultiOutputToolFormProps {
   renderControls?: (file: File | null, disabled: boolean) => ReactNode;
   /** Rate-limit message shown on a 429 — differs per tool/tier, so it's a prop
    * rather than a hardcoded string. */
-  rateLimitMessage?: string;
+  /**
+   * A function when the copy depends on WHICH limit fired. The shared
+   * separation bucket has two windows and one status code, so a fixed
+   * string cannot tell an hourly block from a daily one.
+   */
+  rateLimitMessage?: string | ((err: ApiError) => string);
   /** Overrides the default tab-label formatting for output names. */
   formatOutputName?: (name: string) => string;
   /** Overrides the default per-row icon for a given output name. */
@@ -666,8 +672,8 @@ export function MultiOutputToolForm({
           setError({
             title: freeTierOnMetered ? "Studio Quality limit reached" : "You're going a little fast",
             hint: freeTierOnMetered
-              ? "That's the free-tier limit. Credits raise it to 30 per hour — and they never expire."
-              : rateLimitMessage || "Wait for the timer, then run it again.",
+              ? "That's the free-tier limit. Credits raise it to 30 per hour, and they never expire."
+              : resolveRateLimitMessage(rateLimitMessage, err) || "Wait for the timer, then run it again.",
             offerCredits: freeTierOnMetered,
           });
           // The endpoint's real window, not a flat minute — /silence-split runs

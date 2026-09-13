@@ -64,6 +64,23 @@ export function formatCooldown(seconds: number): string {
   return `${seconds}s`;
 }
 
+/**
+ * Resolves a `rateLimitMessage` that may depend on which limit fired.
+ *
+ * A string passes through. A function is called with the error, so a form
+ * sharing one bucket across several windows can name the window that actually
+ * blocked the request rather than reciting all of them.
+ */
+export function resolveRateLimitMessage(
+  message: string | ((err: ApiError) => string) | undefined,
+  err: unknown
+): string | undefined {
+  if (typeof message === "function") {
+    return err instanceof ApiError ? message(err) : undefined;
+  }
+  return message;
+}
+
 export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }

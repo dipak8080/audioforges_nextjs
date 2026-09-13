@@ -11,7 +11,11 @@ import {
   type CardOption,
 } from "@/components/converter/ToolControls";
 import { submitStems, type SeparationQuality } from "@/lib/api/railway";
-import { getRateLimitLabel } from "@/lib/data/rate-limits";
+import {
+  getRateLimitLabel,
+  type SharedAllowanceSpec,
+} from "@/lib/data/rate-limits";
+import { useSharedLimit } from "@/lib/hooks/useSharedLimit";
 import { useCredits } from "@/components/credits/CreditProvider";
 import { AlwaysFreeTag, FreeTierBadge } from "@/components/credits/FreeTierBadge";
 import type { MeteredToolKey } from "@/lib/types/credits";
@@ -73,6 +77,12 @@ import { useNotificationPermission } from "@/lib/hooks/useNotificationPermission
 
 interface StemsFormProps {
   hqAvailable?: boolean;
+  /**
+   * The shared standard-separation allowance, resolved server-side from
+   * /limits. Required for the daily cap to show at all: CreditProvider makes
+   * no request while the paywall is off, so context alone returns null.
+   */
+  standardLimit?: SharedAllowanceSpec | null;
 }
 
 interface QualitySpec {
@@ -155,8 +165,15 @@ function formatRateLimit(max: number, windowSeconds: number): string {
  * Live limit first (it's the one that applies to THIS visitor), static table
  * second, nothing third. Every call site omits rather than substitutes.
  */
-function limitLabelFor(spec: QualitySpec, live: RateLimitRule | null): string | undefined {
+function limitLabelFor(
+  spec: QualitySpec,
+  live: RateLimitRule | null,
+  sharedLabel?: string
+): string | undefined {
   if (live) return formatRateLimit(live.max_requests, live.window_seconds);
+  // The standard tier has no entry in rate_limit.tools and never will: it is
+  // unmetered and shares a pool with three other routes.
+  if (spec.value !== "hq" && sharedLabel) return sharedLabel;
   return getRateLimitLabel(spec.rateLimitKey) ?? undefined;
 }
 
@@ -179,7 +196,7 @@ const HQ_STAGES = [
   { at: 95, label: "Refining and rendering stems" },
 ];
 
-export function StemsForm({ hqAvailable = false }: StemsFormProps) {
+export function StemsForm({ hqAvailable = false, standardLimit }: StemsFormProps) {
   const [quality, setQuality] = useState<SeparationQuality>("standard");
   const [notifyEnabled, setNotifyEnabled] = useState(false);
   const { permission: notifyPermission, request: requestNotifyPermission } =
@@ -190,6 +207,7 @@ export function StemsForm({ hqAvailable = false }: StemsFormProps) {
   const spec = isHq ? HQ_SPEC : STANDARD_SPEC;
 
   const { rateLimitFor } = useCredits();
+  const sharedLimit = useSharedLimit("stems", standardLimit);
 
   /**
    * Read by notifyOnDone, which runs inside the parent's polling loop. Reading
@@ -234,7 +252,11 @@ export function StemsForm({ hqAvailable = false }: StemsFormProps) {
   const notifyOn = notifyEnabled && notifyPermission === "granted";
 
   /** The limit for the tier that's about to run — used by the 429 copy. */
-  const activeLimitLabel = limitLabelFor(spec, spec.toolKey ? rateLimitFor(spec.toolKey) : null);
+  const activeLimitLabel = limitLabelFor(
+    spec,
+    spec.toolKey ? rateLimitFor(spec.toolKey) : null,
+    sharedLimit.shortLabel
+  );
   const tierWord = isHq ? "studio quality" : "free";
 
   /** Built here rather than inline so the live per-visitor limit is resolved
@@ -259,7 +281,7 @@ export function StemsForm({ hqAvailable = false }: StemsFormProps) {
         detail: option.detail,
         // Omitted when there's no real figure, rather than filled with a
         // placeholder that reads as a shrug.
-        footnote: limitLabelFor(option, liveLimit),
+        footnote: limitLabelFor(option, liveLimit, sharedLimit.shortLabel),
       };
     }
   );
@@ -298,15 +320,18 @@ export function StemsForm({ hqAvailable = false }: StemsFormProps) {
       expectedRange={`usually ${spec.time}`}
       resultVerb="Split"
       /*
-        No parenthetical when there's no number to put in it. This used to read
-        "You've reached the free limit (rate limited). Try again later." — the
-        brackets exist to carry a figure, and the fallback constant turned them
-        into an apology.
+        No parenthetical when there's no number to put in it. The brackets exist
+        to carry a figure, and the fallback constant turned them into an apology.
+
+        A function on the standard tier: that bucket has two windows and one
+        status code, so the copy has to be built from the error.
       */
-      rateLimitMessage={
-        activeLimitLabel
-          ? `You've reached the ${tierWord} limit (${activeLimitLabel}). Try again later.`
-          : `You've reached the ${tierWord} limit. Try again later.`
+      rateLimitMessage={(err) =>
+        !isHq
+          ? sharedLimit.hintFor(err)
+          : activeLimitLabel
+            ? `You've reached the ${tierWord} limit (${activeLimitLabel}). Try again later.`
+            : `You've reached the ${tierWord} limit. Try again later.`
       }
       onComplete={() =>
         notifyOnDone("Stems are ready", "Your separated tracks finished processing.")

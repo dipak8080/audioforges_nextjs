@@ -18,7 +18,11 @@ import {
   getYoutubeSeparateDownloadUrl,
   type SeparationQuality,
 } from "@/lib/api/railway";
-import { getRateLimitLabel } from "@/lib/data/rate-limits";
+import {
+  getRateLimitLabel,
+  type SharedAllowanceSpec,
+} from "@/lib/data/rate-limits";
+import { useSharedLimit } from "@/lib/hooks/useSharedLimit";
 import type { StemType } from "@/lib/types/converter";
 import { useCredits } from "@/components/credits/CreditProvider";
 import { AlwaysFreeTag, FreeTierBadge } from "@/components/credits/FreeTierBadge";
@@ -57,6 +61,12 @@ import { useNotificationPermission } from "@/lib/hooks/useNotificationPermission
 
 interface YouTubeSeparateFormProps {
   hqAvailable?: boolean;
+  /**
+   * The shared standard-separation allowance, resolved server-side from
+   * /limits. Required for the daily cap to show at all: CreditProvider makes
+   * no request while the paywall is off, so context alone returns null.
+   */
+  standardLimit?: SharedAllowanceSpec | null;
 }
 
 interface QualitySpec {
@@ -183,7 +193,7 @@ function SeparateResult({ jobId, title }: { jobId: string; title: string | null 
   );
 }
 
-export function YouTubeSeparateForm({ hqAvailable = false }: YouTubeSeparateFormProps) {
+export function YouTubeSeparateForm({ hqAvailable = false, standardLimit }: YouTubeSeparateFormProps) {
   const [quality, setQuality] = useState<SeparationQuality>("standard");
   const [notifyEnabled, setNotifyEnabled] = useState(false);
   const { permission: notifyPermission, request: requestNotifyPermission } =
@@ -198,8 +208,13 @@ export function YouTubeSeparateForm({ hqAvailable = false }: YouTubeSeparateForm
   // Looked up here (not hardcoded) so both the quality-picker cards and the
   // rate-limit-exceeded message always agree with each other and with
   // lib/data/rate-limits.ts.
+  const sharedLimit = useSharedLimit("youtube/separate", standardLimit);
+  // Shortest window only. The picker slot fits one figure; the page FAQ carries
+  // both, and the 429 names whichever actually fired.
   const standardLimitLabel =
-    getRateLimitLabel(STANDARD_SPEC.rateLimitKey) ?? FALLBACK_RATE_LIMIT_LABEL;
+    sharedLimit.shortLabel ??
+    getRateLimitLabel(STANDARD_SPEC.rateLimitKey) ??
+    FALLBACK_RATE_LIMIT_LABEL;
   const hqLimitLabel = getRateLimitLabel(HQ_SPEC.rateLimitKey) ?? FALLBACK_RATE_LIMIT_LABEL;
 
   /**
@@ -261,9 +276,14 @@ export function YouTubeSeparateForm({ hqAvailable = false }: YouTubeSeparateForm
         ) : undefined,
         meta: option.time,
         detail: option.detail,
-        footnote: liveLimit
-          ? formatRateLimit(liveLimit.max_requests, liveLimit.window_seconds)
-          : (getRateLimitLabel(option.rateLimitKey) ?? FALLBACK_RATE_LIMIT_LABEL),
+        // The standard tier draws from the shared pool and has no per-tool
+        // entry in rate_limit.tools, so liveLimit is always null for it.
+        footnote:
+          option.value === "hq"
+            ? liveLimit
+              ? formatRateLimit(liveLimit.max_requests, liveLimit.window_seconds)
+              : (getRateLimitLabel(option.rateLimitKey) ?? FALLBACK_RATE_LIMIT_LABEL)
+            : standardLimitLabel,
       };
     }
   );
@@ -298,10 +318,10 @@ export function YouTubeSeparateForm({ hqAvailable = false }: YouTubeSeparateForm
       }
       expectedRange={spec.time}
       stages={isHq ? HQ_STAGES : STANDARD_STAGES}
-      rateLimitMessage={
+      rateLimitMessage={(err) =>
         isHq
           ? `You've reached the studio quality limit (${hqLimitLabel}). Try again later.`
-          : `You've reached the free limit (${standardLimitLabel}). Try again later.`
+          : sharedLimit.hintFor(err)
       }
       onComplete={() =>
         notifyOnDone("Vocals separated", "Your vocal and instrumental tracks are ready.")

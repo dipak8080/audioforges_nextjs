@@ -45,6 +45,7 @@ import {
   type ProcessingStage,
   type UiState,
   MixerTeaser,
+  resolveRateLimitMessage,
 } from "@/components/tools/JobFormKit";
 
 export type { ProcessingStage };
@@ -112,7 +113,12 @@ interface YouTubeUrlFormProps {
   submitLabel: string;
   processingLabel: string;
   expectedRange?: string;
-  rateLimitMessage?: string;
+  /**
+   * A function when the copy depends on WHICH limit fired. The shared
+   * separation bucket has two windows and one status code, so a fixed
+   * string cannot tell an hourly block from a daily one.
+   */
+  rateLimitMessage?: string | ((err: ApiError) => string);
   toolLabel?: string;
   toolMeta?: string;
   stages?: ProcessingStage[];
@@ -486,8 +492,8 @@ export function YouTubeUrlForm({
           setError({
             title: freeTierOnMetered ? "Studio Quality limit reached" : "You've hit this tool's limit",
             hint: freeTierOnMetered
-              ? "That's the free-tier limit. Credits raise it to 30 per hour — and they never expire."
-              : rateLimitMessage || "Wait for the timer, then run it again.",
+              ? "That's the free-tier limit. Credits raise it to 30 per hour, and they never expire."
+              : resolveRateLimitMessage(rateLimitMessage, err) || "Wait for the timer, then run it again.",
             offerCredits: freeTierOnMetered,
           });
           const wait = err.retryAfterSeconds ?? getRetryAfterFallback(endpoint);

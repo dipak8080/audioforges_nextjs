@@ -45,6 +45,7 @@ import {
   type FormError,
   type ProcessingStage,
   type UiState,
+  resolveRateLimitMessage,
 } from "@/components/tools/JobFormKit";
 
 export type { ProcessingStage };
@@ -286,7 +287,12 @@ interface JobToolFormProps {
    * window/shape is unusual enough to be worth spelling out (e.g. "3 per 5
    * minutes" vs every other tool's per-hour limits).
    */
-  rateLimitMessage?: string;
+  /**
+   * A function when the copy depends on WHICH limit fired. The shared
+   * separation bucket has two windows and one status code, so a fixed
+   * string cannot tell an hourly block from a daily one.
+   */
+  rateLimitMessage?: string | ((err: ApiError) => string);
   /** Suggested download filename or extension, e.g. "wav" — falls back to backend's header if omitted */
   downloadFilename?: string;
   /**
@@ -704,7 +710,7 @@ export function JobToolForm({
         if (err instanceof ApiError && err.isRateLimit) {
           setError({
             title: "You're going a little fast",
-            hint: rateLimitMessage || "Wait for the timer, then run it again.",
+            hint: resolveRateLimitMessage(rateLimitMessage, err) || "Wait for the timer, then run it again.",
           });
           const wait = err.retryAfterSeconds ?? getRetryAfterFallback(endpoint);
           setCooldownCeiling(Math.max(1, wait));

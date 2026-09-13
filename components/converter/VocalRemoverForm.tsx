@@ -44,7 +44,12 @@ import {
   ApiError,
   type SeparationQuality,
 } from "@/lib/api/railway";
-import { getRateLimitLabel, getRetryAfterFallback } from "@/lib/data/rate-limits";
+import {
+  getRateLimitLabel,
+  getRetryAfterFallback,
+  type SharedAllowanceSpec,
+} from "@/lib/data/rate-limits";
+import { useSharedLimit } from "@/lib/hooks/useSharedLimit";
 import type { SeparationUiState, StemType, SubmitBilling } from "@/lib/types/converter";
 import type { MeteredToolKey } from "@/lib/types/credits";
 import { SupportBlock } from "@/components/ui/SupportBlock";
@@ -94,6 +99,12 @@ import { useNotificationPermission } from "@/lib/hooks/useNotificationPermission
 
 interface VocalRemoverFormProps {
   hqAvailable?: boolean;
+  /**
+   * The shared standard-separation allowance, resolved server-side from
+   * /limits. Required for the daily cap to show at all: CreditProvider makes
+   * no request while the paywall is off, so context alone returns null.
+   */
+  standardLimit?: SharedAllowanceSpec | null;
 }
 
 interface QualitySpec {
@@ -201,7 +212,7 @@ function humanizeError(raw: string): FormError {
   };
 }
 
-export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps) {
+export function VocalRemoverForm({ hqAvailable = false, standardLimit }: VocalRemoverFormProps) {
   const [file, setFile] = useState<File | null>(null);
   const [status, setStatus] = useState<SeparationUiState>("idle");
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -254,6 +265,7 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
     onCredited: () => submitRef.current(),
   });
   const { applyBalance, rateLimitFor } = useCredits();
+  const sharedLimit = useSharedLimit("separate", standardLimit);
 
   const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pollStartedAtRef = useRef(0);
@@ -296,8 +308,12 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
   /** Drives the honest cancel copy while a paid run is in flight. */
   const chargedRun = billing?.charged === "credit";
 
+  // Shortest window only. The picker slot fits one figure; the page FAQ carries
+  // both, and the 429 names whichever actually fired.
   const standardLimitLabel =
-    getRateLimitLabel(STANDARD_SPEC.rateLimitKey) ?? FALLBACK_RATE_LIMIT_LABEL;
+    sharedLimit.shortLabel ??
+    getRateLimitLabel(STANDARD_SPEC.rateLimitKey) ??
+    FALLBACK_RATE_LIMIT_LABEL;
   const hqLimitLabel = getRateLimitLabel(HQ_SPEC.rateLimitKey) ?? FALLBACK_RATE_LIMIT_LABEL;
 
   const stopPolling = useCallback(() => {
@@ -493,10 +509,10 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
               ? "Studio Quality limit reached"
               : "You've reached the free limit",
           hint: freeTierOnMetered
-            ? "That's the free-tier limit. Credits raise it to 30 per hour — and they never expire."
+            ? "That's the free-tier limit. Credits raise it to 30 per hour, and they never expire."
             : effectiveQuality === "hq"
               ? `${hqLimitLabel}. Try again later.`
-              : `${standardLimitLabel}. Try again later.`,
+              : sharedLimit.hintFor(err),
           offerCredits: freeTierOnMetered,
         });
         const seconds =
@@ -604,9 +620,14 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
         ) : undefined,
         meta: option.time,
         detail: option.detail,
-        footnote: liveLimit
-          ? formatRateLimit(liveLimit.max_requests, liveLimit.window_seconds)
-          : (getRateLimitLabel(option.rateLimitKey) ?? FALLBACK_RATE_LIMIT_LABEL),
+        // The standard tier draws from the shared pool and has no per-tool
+        // entry in rate_limit.tools, so liveLimit is always null for it.
+        footnote:
+          option.value === "hq"
+            ? liveLimit
+              ? formatRateLimit(liveLimit.max_requests, liveLimit.window_seconds)
+              : (getRateLimitLabel(option.rateLimitKey) ?? FALLBACK_RATE_LIMIT_LABEL)
+            : standardLimitLabel,
       };
     }
   );
