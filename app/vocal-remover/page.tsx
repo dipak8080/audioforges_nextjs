@@ -18,7 +18,16 @@ import { ToolVideo } from "@/components/media/ToolVideo";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
 import { getFeatureFlags } from "@/lib/api/railway";
-import { getLimits, windowFor, rateLimitLabel, durationLabel } from "@/lib/api/limits";
+import {
+  getLimits,
+  windowFor,
+  rateLimitLabel,
+  durationLabel,
+  sharedAllowanceFor,
+  sharedAllowanceLabel,
+  sharedAllowanceProse,
+  sharedPoolNote,
+} from "@/lib/api/limits";
 import { ogForTool } from "@/lib/og";
 
 // Shared with /pricing: same 41 s clip through both tiers, level-matched.
@@ -90,13 +99,20 @@ export default async function VocalRemoverPage() {
   const { separationHqEnabled } = await getFeatureFlags();
   const limits = await getLimits();
 
-  // Keys are the file-upload Vocal Remover's own pair, not "stems" or the YouTube tool.
-  const standardLimitLabel = rateLimitLabel(
-    limits.rateLimits.separate ?? 6,
-    windowFor(limits, "separate")
-  );
+  // The standard tier draws from a pool, so the flat `separate` key carries the
+  // hourly window only. Read the allowance for the complete picture and hand it
+  // to the form, which has no other way to reach it: CreditProvider makes no
+  // request while the paywall is off.
+  const standardAllowance = sharedAllowanceFor(limits, "separate");
+  const standardLimitLabel = standardAllowance
+    ? sharedAllowanceLabel(standardAllowance)
+    : rateLimitLabel(limits.rateLimits.separate, windowFor(limits, "separate"));
+  const standardLimitProse = standardAllowance
+    ? sharedAllowanceProse(standardAllowance)
+    : standardLimitLabel;
+  const standardPoolNote = sharedPoolNote(limits, "separate");
   const hqLimitLabel = rateLimitLabel(
-    limits.rateLimits.separate_hq ?? 2,
+    limits.rateLimits.separate_hq,
     windowFor(limits, "separate_hq")
   );
   const maxUploadLabel = `${limits.maxUploadMb}MB`;
@@ -122,7 +138,7 @@ export default async function VocalRemoverPage() {
     },
     {
       question: "What formats can I upload, and is there a size limit?",
-      answer: `${formatList}, up to ${maxUploadLabel} per upload. Standard quality is limited to ${standardLimitLabel} per IP address so it stays free for everyone.`,
+      answer: `${formatList}, up to ${maxUploadLabel} per upload. Standard quality is limited to ${standardLimitProse} per IP address so it stays free for everyone.${standardPoolNote ? ` ${standardPoolNote}` : ""}`,
     },
     ...(separationHqEnabled
       ? [
@@ -184,7 +200,12 @@ export default async function VocalRemoverPage() {
         title="Free AI Vocal Remover"
         lede="Upload a song, get the vocals and the instrumental back as two separate WAV files. No sign-up, nothing to install."
         meta={["No account", "No watermark", "Full-length WAV"]}
-        tool={<VocalRemoverForm hqAvailable={separationHqEnabled} />}
+        tool={
+          <VocalRemoverForm
+            hqAvailable={separationHqEnabled}
+            standardLimit={standardAllowance}
+          />
+        }
       >
         <ProofStrip
           proofs={[
@@ -329,7 +350,11 @@ export default async function VocalRemoverPage() {
                 {
                   label: "Limit",
                   cells: [
-                    { text: standardLimitLabel, mono: true },
+                    {
+                      text: standardLimitLabel,
+                      mono: true,
+                      sub: standardAllowance ? "shared across all four separation tools" : undefined,
+                    },
                     { text: hqLimitLabel, mono: true, sub: "on the free tier" },
                   ],
                 },

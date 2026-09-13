@@ -208,7 +208,13 @@ export const SHARED_ALLOWANCES: SharedAllowanceSpec[] = [
       { maxRequests: 30, windowSeconds: 86400 },
     ],
   },
-];
+].map((a) => ({
+  // Sorted here, not trusted from the literal above. Callers read windows[0]
+  // as the shortest window; toSharedAllowance guarantees that for the wire
+  // shape, and this is the only other way an allowance is constructed.
+  ...a,
+  windows: [...a.windows].sort((x, y) => x.windowSeconds - y.windowSeconds),
+}));
 
 /** "/youtube/separate", "youtube/separate" and "youtube_separate" all match. */
 export function normalizeRouteKey(route: string): string {
@@ -308,28 +314,18 @@ export function sharedAllowanceLabel(allowance: SharedAllowanceSpec): string {
     .join(", ");
 }
 
-/**
- * Which window of a pool fired, matched on the count the 429 reported.
- *
- * The backend names the count and the duration in the message and nothing
- * else distinguishes the two caps. Matching on `maxRequests` is exact where
- * the windows carry different numbers; `windowSeconds` disambiguates the case
- * where they don't.
- */
-export function matchSharedWindow(
-  allowance: SharedAllowanceSpec,
-  limitMax?: number,
-  limitWindowSeconds?: number
-): SharedWindowSpec | null {
-  if (limitWindowSeconds) {
-    const byWindow = allowance.windows.find((w) => w.windowSeconds === limitWindowSeconds);
-    if (byWindow) return byWindow;
-  }
-  if (limitMax) {
-    const byMax = allowance.windows.filter((w) => w.maxRequests === limitMax);
-    if (byMax.length === 1) return byMax[0];
-  }
-  return null;
+/** "10 per hour and 30 per day". The same windows, for a sentence. */
+export function sharedAllowanceProse(allowance: SharedAllowanceSpec): string {
+  const parts = allowance.windows.map((w) => rateLimitLabel(w.maxRequests, w.windowSeconds));
+  if (parts.length < 2) return parts[0] ?? "";
+  return `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
+}
+
+const COUNT_WORDS = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight"];
+
+/** Spelled out up to eight, since this lands mid-sentence in page copy. */
+export function countWord(n: number): string {
+  return COUNT_WORDS[n] ?? String(n);
 }
 
 export function getRateLimitLabel(endpoint: string): string | undefined {
@@ -341,12 +337,13 @@ export function getRateLimit(endpoint: string): RateLimitSpec | undefined {
 }
 
 /**
- * Seconds to count down after a 429 with no Retry-After header.
+ * Seconds to count down when NOTHING about the 429 is known: no Retry-After
+ * header and no parsable window in the message.
  *
  * For a route in a shared pool this returns the SHORTEST window, not the
- * longest: a 10/hour block is the common case and locking the button for a day
- * on a guess would be worse than re-showing the 429. Prefer the header, which
- * the backend does send.
+ * longest, because this is a guess and locking the button for a day on a guess
+ * is worse than re-showing the 429. Where the window IS known, railway.ts uses
+ * it exactly and never reaches here.
  */
 export function getRetryAfterFallback(endpoint: string, defaultSeconds = 300): number {
   const shared = getSharedAllowance(endpoint);

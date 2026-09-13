@@ -410,10 +410,14 @@ async function toApiError(res: Response, context: ErrorContext): Promise<ApiErro
         429,
         {
           isRateLimit: true,
-          // Was `?? 10`. On a daily cap that counted down from ten seconds and
-          // re-enabled the button into a guaranteed second 429. The window that
-          // fired is the correct worst case; the header is better still and is
-          // what the backend actually sends.
+          // ONE POLICY, THREE SOURCES, BEST FIRST: the header (exact time
+          // remaining, and the backend always sends it), then the window the
+          // message names, then — left undefined here — the caller's
+          // getRetryAfterFallback, which guesses the SHORTEST window because a
+          // guess should not lock the button for a day. Precision decides the
+          // order; the shortest-window rule only applies where nothing is known.
+          // Was `?? 10`, which on a daily cap re-enabled the button after ten
+          // seconds straight into another 429.
           retryAfterSeconds: retryAfter ?? parsed?.windowSeconds,
           limitMax: parsed?.maxRequests,
           limitWindowSeconds: parsed?.windowSeconds,

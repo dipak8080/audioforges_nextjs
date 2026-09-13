@@ -18,7 +18,16 @@ import { ToolVideo } from "@/components/media/ToolVideo";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
 import { getFeatureFlags } from "@/lib/api/railway";
-import { getLimits, windowFor, rateLimitLabel, durationLabel } from "@/lib/api/limits";
+import {
+  getLimits,
+  windowFor,
+  rateLimitLabel,
+  durationLabel,
+  sharedAllowanceFor,
+  sharedAllowanceLabel,
+  sharedAllowanceProse,
+  sharedPoolNote,
+} from "@/lib/api/limits";
 import { ogForTool } from "@/lib/og";
 
 // Shared with /pricing and /vocal-remover: same 41 s clip through both tiers.
@@ -86,9 +95,18 @@ export default async function StemsPage() {
   const { separationHqEnabled } = await getFeatureFlags();
   const limits = await getLimits();
 
-  // "stems"/"stems_hq" are this tool's own keys, not the Vocal Remover's.
-  const standardLimitLabel = rateLimitLabel(limits.rateLimits.stems ?? 6, windowFor(limits, "stems"));
-  const hqLimitLabel = rateLimitLabel(limits.rateLimits.stems_hq ?? 2, windowFor(limits, "stems_hq"));
+  // "stems_hq" is this tool's own key. The standard tier has no key of its own
+  // any more: it draws from a pool shared with the three other separation
+  // routes, so the flat `stems` number is the hourly window and nothing else.
+  const standardAllowance = sharedAllowanceFor(limits, "stems");
+  const standardLimitLabel = standardAllowance
+    ? sharedAllowanceLabel(standardAllowance)
+    : rateLimitLabel(limits.rateLimits.stems, windowFor(limits, "stems"));
+  const standardLimitProse = standardAllowance
+    ? sharedAllowanceProse(standardAllowance)
+    : standardLimitLabel;
+  const standardPoolNote = sharedPoolNote(limits, "stems");
+  const hqLimitLabel = rateLimitLabel(limits.rateLimits.stems_hq, windowFor(limits, "stems_hq"));
   const maxUploadLabel = `${limits.maxUploadMb}MB`;
 
   // Number derives from /limits; the retention sentence stays hand-written and
@@ -113,7 +131,7 @@ export default async function StemsPage() {
     },
     {
       question: "What formats can I upload, and is there a size limit?",
-      answer: `${formatList}, up to ${maxUploadLabel} per upload. Standard quality is limited to ${standardLimitLabel} per IP address so it stays free for everyone.`,
+      answer: `${formatList}, up to ${maxUploadLabel} per upload. Standard quality is limited to ${standardLimitProse} per IP address so it stays free for everyone.${standardPoolNote ? ` ${standardPoolNote}` : ""}`,
     },
     ...(separationHqEnabled
       ? [
@@ -179,7 +197,7 @@ export default async function StemsPage() {
         meta={["No account", "No watermark", "Four full-length stems"]}
         title="Free AI Stem Splitter"
         lede="Split a song into vocals, drums, bass and other. Four separate WAV files, no sign-up, nothing to install."
-        tool={<StemsForm hqAvailable={separationHqEnabled} />}
+        tool={<StemsForm hqAvailable={separationHqEnabled} standardLimit={standardAllowance} />}
       >
         <ProofStrip
           proofs={[
@@ -334,7 +352,11 @@ export default async function StemsPage() {
                 {
                   label: "Limit",
                   cells: [
-                    { text: standardLimitLabel, mono: true },
+                    {
+                      text: standardLimitLabel,
+                      mono: true,
+                      sub: standardAllowance ? "shared across all four separation tools" : undefined,
+                    },
                     { text: hqLimitLabel, mono: true, sub: "on the free tier" },
                   ],
                 },

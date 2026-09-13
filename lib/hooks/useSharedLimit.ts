@@ -5,9 +5,11 @@ import { useCredits } from "@/components/credits/CreditProvider";
 import type { ApiError } from "@/lib/api/railway";
 import {
   SHARED_ALLOWANCES,
+  countWord,
   findSharedAllowance,
   rateLimitLabel,
   sharedAllowanceLabel,
+  sharedAllowanceProse,
   type SharedAllowanceSpec,
 } from "@/lib/data/rate-limits";
 
@@ -67,7 +69,7 @@ export function useSharedLimit(
         : undefined,
       fullLabel: sharedAllowanceLabel(allowance),
       hintFor: (err: ApiError) => {
-        const scope = `shared across all ${toolCount} separation tools`;
+        const scope = `shared across all ${countWord(toolCount)} separation tools`;
 
         // THE ERROR'S NUMBERS, NOT THE ALLOWANCE'S. The server is describing
         // the window it just enforced, so it is right even when `allowance` is
@@ -81,7 +83,7 @@ export function useSharedLimit(
         // shape changed. State the windows we know rather than guess at one:
         // naming the wrong cap is worse than naming neither.
         if (!max || !window) {
-          return `The limit is ${sharedAllowanceLabel(allowance)}, ${scope}.`;
+          return `The limit is ${sharedAllowanceProse(allowance)}, ${scope}.`;
         }
 
         const label = rateLimitLabel(max, window);

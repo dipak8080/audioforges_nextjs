@@ -2,8 +2,10 @@ import {
   RATE_LIMITS,
   SHARED_ALLOWANCES,
   findSharedAllowance,
+  countWord,
   rateLimitLabel,
   sharedAllowanceLabel,
+  sharedAllowanceProse,
   toSharedAllowance,
   type SharedAllowanceSpec,
   type SharedWindowSpec,
@@ -27,18 +29,27 @@ import { TOOL_LIMITS } from "@/lib/data/tool-limits";
  * and on /credits/me, because those four routes are unmetered and have no paid
  * tier.
  *
- * Server-side only, `revalidate: 3600`. Never import into a client component.
+ * Server-side only, `revalidate: 86400` plus the "limits" cache tag. An
+ * operator retune does not wait out that window: PUT the settings row, then
+ * POST /api/revalidate-limits, and every page regenerates on next request.
+ * Shortening the window instead would have regenerated ~30 pages 24x more
+ * often to shave the same drift down to an hour rather than remove it.
+ *
+ * Never import into a client component.
  */
 
 const RAILWAY_API_BASE =
   process.env.NEXT_PUBLIC_RAILWAY_API_BASE || "https://api.audioforges.com";
+
+/** Cache tag for the /limits fetch. See app/api/revalidate-limits/route.ts. */
+export const LIMITS_CACHE_TAG = "limits";
 
 export type { SharedAllowanceSpec, SharedWindowSpec };
 
 // Live in lib/data/rate-limits.ts so client components can use them without
 // pulling this server-only module into the browser bundle. Re-exported because
 // pages import them from here.
-export { rateLimitLabel, sharedAllowanceLabel };
+export { rateLimitLabel, sharedAllowanceLabel, sharedAllowanceProse };
 
 export type RetentionShape = "separation" | "audio_tools" | "transcription";
 
@@ -302,12 +313,18 @@ function readDurations(raw: unknown, base: Durations): Durations {
 /**
  * Parses `rate_limits.shared`.
  *
- * If nothing survives validation the whole block falls back, so a malformed
- * payload shows the last known-good shape rather than silently dropping the
- * daily cap from every page.
+ * An EMPTY array is an answer, not a miss: it is how the backend says these
+ * routes no longer share a bucket. Falling back to the build-time table there
+ * made the pool impossible to turn off, so a client would keep claiming a
+ * shared allowance after the backend had split it back into four.
+ *
+ * A non-empty array that fully fails validation IS a miss, and falls back, so
+ * a malformed payload shows the last known-good shape rather than silently
+ * dropping the daily cap from every page.
  */
 function readShared(raw: unknown, base: SharedAllowanceSpec[]): SharedAllowanceSpec[] {
   if (!Array.isArray(raw)) return base;
+  if (raw.length === 0) return [];
   const out = raw
     .map(toSharedAllowance)
     .filter((a): a is SharedAllowanceSpec => a !== null);
@@ -318,10 +335,9 @@ export async function getLimits(): Promise<Limits> {
   const base = fallback();
   try {
     const res = await fetch(`${RAILWAY_API_BASE}/limits`, {
-      // Was a day. Limits are read live on every request now and an operator
-      // change lands in about a second, so a day-long ISR window would keep
-      // serving the old number for a day after it stopped being true.
-      next: { revalidate: 3600 },
+      // Tagged so POST /api/revalidate-limits can drop it on demand. The day
+      // is the floor for a retune nobody flushed, not the mechanism.
+      next: { revalidate: 86400, tags: [LIMITS_CACHE_TAG] },
       signal: AbortSignal.timeout(5_000),
     });
     if (!res.ok) return base;
@@ -450,7 +466,7 @@ export function limitLabelFor(limits: Limits, route: string, flatKey: string): s
 export function sharedPoolNote(limits: Limits, route: string): string | null {
   const shared = sharedAllowanceFor(limits, route);
   if (!shared || shared.routes.length < 2) return null;
-  return `This allowance is shared across all ${shared.routes.length} separation tools, so a split on any one of them draws from the same total.`;
+  return `That allowance is shared across all ${countWord(shared.routes.length)} separation tools, so a run on any one of them draws from the same total.`;
 }
 
 /**

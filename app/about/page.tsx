@@ -2,19 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { TRANSCRIPTION_MODEL } from "@/lib/api/transcription";
 import { SITE_URL } from "@/lib/constants";
-import { getRateLimitLabel } from "@/lib/data/rate-limits";
+import { getLimits, limitLabelFor } from "@/lib/api/limits";
 import { Breadcrumb } from "@/components/layout/Breadcrumb";
 import { Prose } from "@/components/ui/Prose";
 import { PageByline } from "@/components/tools/PageByline";
 import { ogImage } from "@/lib/og";
-
-/**
- * Read, never written as a literal. This page said "3 separations per hour"
- * long after the backend moved to 6, and "1 per hour at Studio Quality"
- * after that became a tiered 2/30. A page whose whole argument is that it
- * states real numbers cannot be the page carrying stale ones.
- */
-const STANDARD_SEPARATION_LIMIT = getRateLimitLabel("separate") ?? "a few per hour";
 
 const PAGE_TITLE = "About AudioForges – Who Builds It and Why";
 const PAGE_DESCRIPTION =
@@ -72,7 +64,18 @@ const aboutJsonLd = {
   },
 };
 
-export default function AboutPage() {
+/**
+ * Read from /limits per request, never written as a literal and no longer read
+ * from the build-time table either. This page said "3 separations per hour"
+ * long after the backend moved to 6, then "6 per hour" after that became a
+ * pooled 10/hour and 30/day. A page whose whole argument is that it states real
+ * numbers cannot be the page carrying stale ones, and the table is now only a
+ * fallback for when the API is unreachable.
+ */
+export default async function AboutPage() {
+  const limits = await getLimits();
+  const STANDARD_SEPARATION_LIMIT = limitLabelFor(limits, "separate", "separate");
+
   return (
     <>
       <script

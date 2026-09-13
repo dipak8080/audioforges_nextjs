@@ -65,14 +65,20 @@ import { useNotificationPermission } from "@/lib/hooks/useNotificationPermission
  *    omitting the line. If a key ever does go missing, this fails quietly
  *    instead of loudly saying nothing.
  *
- * NUMBERS CONFIRMED AGAINST THE SERVER (2026-08-30), so don't "fix" them:
- *   stems           6 per hour
- *   stems-hq        2 per hour free, 30 credited
- * The free HQ figure resolves from `rule.free_rate_limit`, which short-circuits
- * the config constant /limits publishes — which is why /limits says 1 and the
- * limiter enforces 2. rateLimitFor() reads /credits/me, which resolves through
- * the limiter's own code path, so it is right by construction. Keep it as the
- * source; the static table below is only the server-render fallback.
+ * NUMBERS, AND WHERE EACH ONE COMES FROM (2026-09-13):
+ *   standard   one POOL shared with /separate, /youtube/separate and
+ *              /youtube/stems, over two windows. Not a per-tool bucket, and
+ *              not in `rate_limit.tools`. STANDARD_SPEC.toolKey is null, so
+ *              rateLimitFor() is never called for it. Read useSharedLimit,
+ *              fed by the standardLimit prop the page resolves from /limits.
+ *   stems-hq   2 per hour free, 30 credited. Resolves from
+ *              `rule.free_rate_limit`, which short-circuits the config
+ *              constant /limits publishes, which is why /limits says 1 and the
+ *              limiter enforces 2. rateLimitFor() reads /credits/me and goes
+ *              through the limiter's own code path, so it is right by
+ *              construction.
+ * The table in lib/data/rate-limits.ts is the build-time fallback for both,
+ * and its standard entry carries the hourly window only.
  */
 
 interface StemsFormProps {
@@ -391,3 +397,4 @@ export function StemsForm({ hqAvailable = false, standardLimit }: StemsFormProps
     />
   );
 }
+

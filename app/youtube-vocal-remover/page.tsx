@@ -16,9 +16,17 @@ import { PageByline } from "@/components/tools/PageByline";
 import { ToolVideo } from "@/components/media/ToolVideo";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
-import { getRateLimitLabel } from "@/lib/data/rate-limits";
 import { getDurationLabel } from "@/lib/data/tool-limits";
 import { getFeatureFlags } from "@/lib/api/railway";
+import {
+  getLimits,
+  windowFor,
+  rateLimitLabel,
+  sharedAllowanceFor,
+  sharedAllowanceLabel,
+  sharedAllowanceProse,
+  sharedPoolNote,
+} from "@/lib/api/limits";
 import { ogForTool } from "@/lib/og";
 
 const DEMO_STANDARD = "/audio/demo-vocals-standard.mp3";
@@ -78,11 +86,9 @@ const webAppJsonLd = {
   ],
 };
 
-// From lib/data/rate-limits.ts and lib/data/tool-limits.ts, the same sources
-// YouTubeSeparateForm uses, so the tool and this copy can't drift.
-const FALLBACK_RATE_LIMIT_LABEL = "rate limited";
-const standardLimitLabel = getRateLimitLabel("youtube/separate") ?? FALLBACK_RATE_LIMIT_LABEL;
-const hqLimitLabel = getRateLimitLabel("youtube/separate-hq") ?? FALLBACK_RATE_LIMIT_LABEL;
+// Rate limits are resolved per request from /limits inside the component, not
+// from the build-time table: every limit is a settings row the operator can
+// change without a deploy. Duration caps below still come from tool-limits.ts.
 
 // The two fallbacks differ on purpose: Studio Quality's ceiling is the tighter
 // one, and a missing key must never over-promise on the tier with less room.
@@ -97,11 +103,25 @@ const hqDurationDiffers = hqDurationLabel !== standardDurationLabel;
 export default async function YouTubeVocalRemoverPage() {
   const relatedTools = getRelatedTools("youtube-vocal-remover", 5);
   const { separationHqEnabled } = await getFeatureFlags();
+  const limits = await getLimits();
+
+  const standardAllowance = sharedAllowanceFor(limits, "youtube/separate");
+  const standardLimitLabel = standardAllowance
+    ? sharedAllowanceLabel(standardAllowance)
+    : rateLimitLabel(limits.rateLimits.youtube_separate, windowFor(limits, "youtube_separate"));
+  const standardLimitProse = standardAllowance
+    ? sharedAllowanceProse(standardAllowance)
+    : standardLimitLabel;
+  const standardPoolNote = sharedPoolNote(limits, "youtube/separate");
+  const hqLimitLabel = rateLimitLabel(
+    limits.rateLimits.youtube_separate_hq,
+    windowFor(limits, "youtube_separate_hq")
+  );
 
   const faqs: FAQItem[] = [
     {
       question: "How long can the video be?",
-      answer: `Up to ${standardDurationLabel}${hqDurationDiffers ? `, and ${hqDurationLabel} on Studio Quality` : " on both tiers"}. The cap is on separation, not the fetch, so a longer video is refused rather than downloaded first and rejected afterwards. Usage is limited to ${standardLimitLabel} per IP address so the tool stays free.`,
+      answer: `Up to ${standardDurationLabel}${hqDurationDiffers ? `, and ${hqDurationLabel} on Studio Quality` : " on both tiers"}. The cap is on separation, not the fetch, so a longer video is refused rather than downloaded first and rejected afterwards. Usage is limited to ${standardLimitProse} per IP address so the tool stays free.${standardPoolNote ? ` ${standardPoolNote}` : ""}`,
     },
     {
       question: "Do I need to download the video first?",
@@ -189,7 +209,12 @@ export default async function YouTubeVocalRemoverPage() {
         meta={["No account", "No download step", "Full-length WAV"]}
         title="Free YouTube Vocal Remover"
         lede="Paste a link and get the vocals and the instrumental back as two separate WAV files. No download step, no sign-up."
-        tool={<YouTubeSeparateForm hqAvailable={separationHqEnabled} />}
+        tool={
+          <YouTubeSeparateForm
+            hqAvailable={separationHqEnabled}
+            standardLimit={standardAllowance}
+          />
+        }
       >
         <ProofStrip
           proofs={[
@@ -341,7 +366,11 @@ export default async function YouTubeVocalRemoverPage() {
                 {
                   label: "Limit",
                   cells: [
-                    { text: standardLimitLabel, mono: true },
+                    {
+                      text: standardLimitLabel,
+                      mono: true,
+                      sub: standardAllowance ? "shared across all four separation tools" : undefined,
+                    },
                     { text: hqLimitLabel, mono: true, sub: "on the free tier" },
                   ],
                 },
