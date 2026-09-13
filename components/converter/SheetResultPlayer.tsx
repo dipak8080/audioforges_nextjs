@@ -56,6 +56,8 @@ const fmtTime = (s: number) => {
  * from the job's MIDI file, which is the raw (unquantized) transcription and
  * would drift against the engraved timeline.
  */
+const clampBpm = (bpm: number) => Math.min(400, Math.max(20, bpm || 120));
+
 export function SheetResultPlayer({
   musicXmlUrl,
   tempoBpm,
@@ -109,21 +111,24 @@ export function SheetResultPlayer({
   const sourceUrlRef = useRef<string | null>(null);
   const litRef = useRef<{ el: SVGElement | HTMLElement; fill: string; stroke: string }[]>([]);
   const overlayRef = useRef<HTMLDivElement | null>(null);
-  const baseBpmRef = useRef(Math.min(400, Math.max(20, tempoBpm || 120)));
-  const [baseBpm, setBaseBpm] = useState(baseBpmRef.current);
+  const baseBpmRef = useRef(clampBpm(tempoBpm));
+  const [baseBpm, setBaseBpm] = useState(() => clampBpm(tempoBpm));
 
-  loopRef.current = loop;
+  /* Synced in an effect, not assigned during render: writing a ref while
+     rendering is skipped outright once a render is memoised. */
+  useEffect(() => {
+    loopRef.current = loop;
+  });
 
   /* tempoBpm arrives from a separate fetch after mount — apply it live. */
   useEffect(() => {
-    const clamped = Math.min(400, Math.max(20, tempoBpm || 120));
+    const clamped = clampBpm(tempoBpm);
     if (clamped === baseBpmRef.current) return;
     baseBpmRef.current = clamped;
     setBaseBpm(clamped);
     const eng = engineRef.current;
     if (eng) eng.transport.bpm.value = clamped * (tempoRef.current / 100);
     syncTimeUi();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tempoBpm]);
 
   /* ---------- load, render, extract timeline ---------- */
@@ -264,7 +269,7 @@ export function SheetResultPlayer({
   /* OSMD's own cursor img is created with z-index -2 — behind the white sheet.
      We hide it and drive our own overlay div from the coordinates OSMD keeps
      computing on it. The overlay is plain DOM we fully control. */
-  const styleCursor = (osmd: OSMD) => {
+  function styleCursor(osmd: OSMD) {
     const el = osmd.cursor?.cursorElement as HTMLImageElement | undefined;
     if (!el || !el.parentElement) return;
     el.style.display = "none";
@@ -286,7 +291,7 @@ export function SheetResultPlayer({
     positionOverlay(osmd);
   };
 
-  const positionOverlay = (osmd: OSMD) => {
+  function positionOverlay(osmd: OSMD) {
     const el = osmd.cursor?.cursorElement as HTMLImageElement | undefined;
     const overlay = overlayRef.current;
     if (!el || !overlay) return;
@@ -296,7 +301,7 @@ export function SheetResultPlayer({
     overlay.style.height = `${el.height || 60}px`;
   };
 
-  const clearHighlights = () => {
+  function clearHighlights() {
     for (const { el, fill, stroke } of litRef.current) {
       el.style.fill = fill;
       el.style.stroke = stroke;
@@ -306,7 +311,7 @@ export function SheetResultPlayer({
 
   /* VexFlow sets fill/stroke ATTRIBUTES on note paths; inherited style on the
      group loses to those. Inline style per element wins — so paint each one. */
-  const highlightUnderCursor = () => {
+  function highlightUnderCursor() {
     const osmd = osmdRef.current;
     if (!osmd) return;
     clearHighlights();
@@ -333,7 +338,7 @@ export function SheetResultPlayer({
     }
   };
 
-  const advanceCursorTo = (tick: number) => {
+  function advanceCursorTo(tick: number) {
     const osmd = osmdRef.current;
     if (!osmd) return;
     const steps = stepsRef.current;
@@ -353,7 +358,7 @@ export function SheetResultPlayer({
     }
   };
 
-  const followCursor = () => {
+  function followCursor() {
     const el = overlayRef.current;
     const box = scrollRef.current;
     if (!el || !box) return;
@@ -363,7 +368,7 @@ export function SheetResultPlayer({
     }
   };
 
-  const resetCursor = () => {
+  function resetCursor() {
     const osmd = osmdRef.current;
     if (!osmd) return;
     osmd.cursor.reset();
@@ -372,7 +377,7 @@ export function SheetResultPlayer({
     positionOverlay(osmd);
   };
 
-  const syncTimeUi = () => {
+  function syncTimeUi() {
     const bpm = baseBpmRef.current * (tempoRef.current / 100);
     const toSec = (ticks: number) => (ticks / PPQ) * (60 / bpm);
     if (timeRef.current) {
