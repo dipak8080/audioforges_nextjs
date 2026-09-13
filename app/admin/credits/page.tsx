@@ -20,6 +20,7 @@ import {
   RefreshCw,
   Search,
   ShieldCheck,
+  SlidersHorizontal,
   Users,
   Wallet,
   X,
@@ -30,12 +31,13 @@ import { RefreshControl } from "../_components/RefreshControl";
 import { SpendBoard, ToolTable } from "../_components/SpendCharts";
 import { RANGES, buildSpendModel, duration, rangeDates, toolLabel, type CostRow, type RangeKey } from "../_components/spend";
 import { GatePanel } from "../_components/GatePanel";
+import { SettingsPanel } from "../_components/SettingsPanel";
 
 /* ------------------------------------------------------------------ */
 /* types                                                               */
 /* ------------------------------------------------------------------ */
 
-type View = "lookup" | "overview" | "costs" | "jobs" | "gate" | "webhooks";
+type View = "lookup" | "overview" | "costs" | "jobs" | "gate" | "webhooks" | "settings";
 
 interface Overview {
   paywall?: {
@@ -85,6 +87,7 @@ const VIEWS: { id: View; label: string; hint: string; icon: typeof Coins }[] = [
   { id: "jobs", label: "Jobs", hint: "Every GPU job with its cost and charge", icon: Clock },
   { id: "gate", label: "Gate", hint: "Who hit the paywall and what they did next", icon: Lock },
   { id: "webhooks", label: "Payments", hint: "Ko-fi payment deliveries", icon: Inbox },
+  { id: "settings", label: "Config", hint: "Runtime limits and flags, no redeploy", icon: SlidersHorizontal },
 ];
 
 const PAGE_SIZE = 50;
@@ -994,6 +997,8 @@ function AdminCreditsPage() {
           <OverviewPanel data={overview} onToast={push} onChanged={refresh} />
         ) : view === "gate" ? (
           <GatePanel tick={tick} />
+        ) : view === "settings" ? (
+          <SettingsPanel tick={tick} onToast={push} />
         ) : (
           <ReadPanel key={view} view={view} tick={tick} preset={jobsPreset} onGoToJobs={goToJobs} />
         )}
