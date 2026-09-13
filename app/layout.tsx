@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Script from "next/script";
 import { SiteChrome } from "@/components/layout/SiteChrome";
+import { ConsentBanner } from "@/components/consent/ConsentBanner";
 import { SITE_URL } from "@/lib/constants";
 import { getFeatureFlags } from "@/lib/api/railway";
 import { ogImage } from "@/lib/og";
@@ -79,6 +80,14 @@ const organizationJsonLd = {
   ],
 };
 
+// EEA + UK + Switzerland. gtag resolves the region by IP on its own, so
+// visitors outside it keep full analytics without ever seeing a banner.
+const CONSENT_REGIONS = [
+  "AT", "BE", "BG", "HR", "CY", "CZ", "DK", "EE", "FI", "FR", "DE", "GR",
+  "HU", "IE", "IT", "LV", "LT", "LU", "MT", "NL", "PL", "PT", "RO", "SK",
+  "SI", "ES", "SE", "IS", "LI", "NO", "GB", "CH",
+];
+
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   // Resolved HERE, once, server-side — so CreditProvider makes ZERO client
   // requests on the ~90 pages of this site while the paywall is off.
@@ -97,6 +106,30 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
       suppressHydrationWarning
     >
       <body className="flex min-h-full flex-col">
+        {/* Consent defaults MUST execute before gtag.js, which is why this is
+            beforeInteractive. Denied in the EEA/UK/CH until the visitor
+            chooses; granted everywhere else. */}
+        <Script id="consent-mode-default" strategy="beforeInteractive">
+          {`
+    window.dataLayer = window.dataLayer || [];
+    window.gtag = window.gtag || function(){window.dataLayer.push(arguments);};
+    gtag('consent', 'default', {
+      ad_storage: 'denied',
+      ad_user_data: 'denied',
+      ad_personalization: 'denied',
+      analytics_storage: 'denied',
+      region: ${JSON.stringify(CONSENT_REGIONS)},
+      wait_for_update: 500
+    });
+    gtag('consent', 'default', {
+      ad_storage: 'granted',
+      ad_user_data: 'granted',
+      ad_personalization: 'granted',
+      analytics_storage: 'granted'
+    });
+  `}
+        </Script>
+
         {/* Google tag (gtag.js) */}
         <Script
           src="https://www.googletagmanager.com/gtag/js?id=G-4MW6XTR9XM"
@@ -112,12 +145,8 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   `}
         </Script>
 
-        {/* Ahrefs Analytics */}
-        <Script
-          src="https://analytics.ahrefs.com/analytics.js"
-          data-key="QkVPNT1O6u+JbZ5njmaMTw"
-          strategy="afterInteractive"
-        />
+        {/* Ahrefs Analytics has no consent-mode integration, so it is injected
+            by ConsentBanner only once analytics storage is allowed. */}
 
         {/* Site-wide Organization schema — only needs to appear once, not
             per-page, since it describes the publisher/brand rather than any
@@ -128,6 +157,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         />
 
         <SiteChrome flags={{ paywallEnabled, paywallTools }}>{children}</SiteChrome>
+        <ConsentBanner />
       </body>
     </html>
   );
