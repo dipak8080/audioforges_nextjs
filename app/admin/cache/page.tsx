@@ -387,7 +387,7 @@ export default function AdminCachePage() {
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [lastLoadedAt, setLastLoadedAt] = useState<number | null>(null);
-  const [, forceTick] = useState(0);
+  const [now, setNow] = useState(() => Date.now());
 
   const [clearing, setClearing] = useState(false);
   const [confirmingClear, setConfirmingClear] = useState(false);
@@ -421,7 +421,7 @@ export default function AdminCachePage() {
 
   // Only the "updated Ns ago" line depends on the clock, so the tick is cheap.
   useEffect(() => {
-    const id = setInterval(() => forceTick((n) => n + 1), 10000);
+    const id = setInterval(() => setNow(Date.now()), 10000);
     return () => clearInterval(id);
   }, []);
 
@@ -528,7 +528,7 @@ export default function AdminCachePage() {
             <div className="ml-auto flex items-center gap-2">
               {lastLoadedAt && !loading && (
                 <span className="hidden text-[11px] tabular-nums text-text-subtle sm:inline">
-                  Updated {relativeAge(Date.now() - lastLoadedAt)}
+                  Updated {relativeAge(now - lastLoadedAt)}
                 </span>
               )}
               <Button size="sm" busy={refreshing} onClick={handleRefresh}>

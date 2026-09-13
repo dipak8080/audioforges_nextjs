@@ -9,6 +9,7 @@ import {
   memo,
   useCallback,
   useEffect,
+  useId,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -361,12 +362,13 @@ function useLockBodyScroll(active: boolean) {
 }
 
 function useTicker(active: boolean, intervalMs: number) {
-  const [, force] = useState(0);
+  const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     if (!active) return;
-    const id = setInterval(() => force((n) => n + 1), intervalMs);
+    const id = setInterval(() => setNow(Date.now()), intervalMs);
     return () => clearInterval(id);
   }, [active, intervalMs]);
+  return now;
 }
 
 function useVirtualWindow(count: number, rowH: number) {
@@ -384,11 +386,8 @@ function useVirtualWindow(count: number, rowH: number) {
   return [win, measure] as const;
 }
 
-let _idSeq = 0;
 function useStableId(prefix: string): string {
-  const ref = useRef<string | null>(null);
-  if (!ref.current) ref.current = `${prefix}-${++_idSeq}`;
-  return ref.current;
+  return `${prefix}-${useId()}`;
 }
 
 /* ===================================================================
@@ -1800,7 +1799,8 @@ export default function AdminLogsPage() {
    =================================================================== */
 
 function LiveStatus({ isPaused, lastUpdatedAt }: { isPaused: boolean; lastUpdatedAt: number | null }) {
-  useTicker(!isPaused && lastUpdatedAt !== null, 5000);
+  // Ticks while paused too: the age keeps counting even when the feed stops.
+  const now = useTicker(lastUpdatedAt !== null, 5000);
   return (
     <p className="mt-0.5 flex items-center gap-1.5 text-xs text-text-subtle">
       <span className="relative flex h-1.5 w-1.5">
@@ -1810,7 +1810,7 @@ function LiveStatus({ isPaused, lastUpdatedAt }: { isPaused: boolean; lastUpdate
         <span className={cn("relative inline-flex h-1.5 w-1.5 rounded-full", isPaused ? "bg-amber-500" : "bg-teal-400")} />
       </span>
       {isPaused ? "Paused" : "Live"}
-      {lastUpdatedAt && <span className="text-text-subtle/80">· updated {fmtAgo(Date.now() - lastUpdatedAt)}</span>}
+      {lastUpdatedAt && <span className="text-text-subtle/80">· updated {fmtAgo(now - lastUpdatedAt)}</span>}
     </p>
   );
 }
