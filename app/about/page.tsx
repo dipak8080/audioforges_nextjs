@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { TRANSCRIPTION_MODEL } from "@/lib/api/transcription";
 import { SITE_URL } from "@/lib/constants";
-import { getLimits, limitLabelFor } from "@/lib/api/limits";
+import { getLimits, limitLabelFor, sharedAllowanceFor, sharedAllowanceProse, sharedPoolNote } from "@/lib/api/limits";
 import { Breadcrumb } from "@/components/layout/Breadcrumb";
 import { Prose } from "@/components/ui/Prose";
 import { PageByline } from "@/components/tools/PageByline";
@@ -74,7 +74,11 @@ const aboutJsonLd = {
  */
 export default async function AboutPage() {
   const limits = await getLimits();
-  const STANDARD_SEPARATION_LIMIT = limitLabelFor(limits, "separate", "separate");
+  const separationAllowance = sharedAllowanceFor(limits, "separate");
+  const STANDARD_SEPARATION_LIMIT = separationAllowance
+    ? sharedAllowanceProse(separationAllowance)
+    : limitLabelFor(limits, "separate", "separate");
+  const SEPARATION_POOL_NOTE = sharedPoolNote(limits, "separate");
 
   return (
     <>
@@ -131,7 +135,8 @@ export default async function AboutPage() {
             damages the mix. Separation runs on GPU-accelerated infrastructure, so
             it&apos;s rate-limited per person to keep it available for everyone:{" "}
             {STANDARD_SEPARATION_LIMIT} at standard quality, which is free with no
-            account. Studio Quality runs a heavier model that costs real money per run;
+            account.{SEPARATION_POOL_NOTE ? ` ${SEPARATION_POOL_NOTE}` : ""} Studio
+            Quality runs a heavier model that costs real money per run;
             everyone gets free runs of it each month, and beyond that it takes{" "}
             <Link href="/pricing">a credit</Link>.
           </p>
