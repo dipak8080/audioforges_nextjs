@@ -1,7 +1,10 @@
 import {
   RATE_LIMITS,
   SHARED_ALLOWANCES,
-  normalizeRouteKey,
+  findSharedAllowance,
+  rateLimitLabel,
+  sharedAllowanceLabel,
+  toSharedAllowance,
   type SharedAllowanceSpec,
   type SharedWindowSpec,
 } from "@/lib/data/rate-limits";
@@ -31,6 +34,11 @@ const RAILWAY_API_BASE =
   process.env.NEXT_PUBLIC_RAILWAY_API_BASE || "https://api.audioforges.com";
 
 export type { SharedAllowanceSpec, SharedWindowSpec };
+
+// Live in lib/data/rate-limits.ts so client components can use them without
+// pulling this server-only module into the browser bundle. Re-exported because
+// pages import them from here.
+export { rateLimitLabel, sharedAllowanceLabel };
 
 export type RetentionShape = "separation" | "audio_tools" | "transcription";
 
@@ -294,45 +302,15 @@ function readDurations(raw: unknown, base: Durations): Durations {
 /**
  * Parses `rate_limits.shared`.
  *
- * An entry missing a key, a route or a usable window is DROPPED rather than
- * patched with a guess: a pool the client half-understands would render a
- * confident wrong sentence. If nothing survives, the whole block falls back, so
- * a malformed payload shows the last known-good shape instead of silently
- * dropping the daily cap from every page.
+ * If nothing survives validation the whole block falls back, so a malformed
+ * payload shows the last known-good shape rather than silently dropping the
+ * daily cap from every page.
  */
 function readShared(raw: unknown, base: SharedAllowanceSpec[]): SharedAllowanceSpec[] {
   if (!Array.isArray(raw)) return base;
-
-  const out: SharedAllowanceSpec[] = [];
-  for (const item of raw) {
-    if (!item || typeof item !== "object") continue;
-    const d = item as Record<string, unknown>;
-
-    const key = typeof d.key === "string" && d.key ? d.key : "";
-    const routes = asStringList(d.routes, []);
-    const windows = Array.isArray(d.windows)
-      ? d.windows
-          .map((w): SharedWindowSpec | null => {
-            if (!w || typeof w !== "object") return null;
-            const x = w as Record<string, unknown>;
-            const maxRequests = asNumber(x.max_requests, 0);
-            const windowSeconds = asNumber(x.window_seconds, 0);
-            return maxRequests > 0 && windowSeconds > 0 ? { maxRequests, windowSeconds } : null;
-          })
-          .filter((w): w is SharedWindowSpec => w !== null)
-      : [];
-
-    if (!key || routes.length === 0 || windows.length === 0) continue;
-
-    windows.sort((a, b) => a.windowSeconds - b.windowSeconds);
-    out.push({
-      key,
-      routes,
-      scope: typeof d.scope === "string" ? d.scope : "per_ip",
-      windows,
-    });
-  }
-
+  const out = raw
+    .map(toSharedAllowance)
+    .filter((a): a is SharedAllowanceSpec => a !== null);
   return out.length ? out : base;
 }
 
@@ -436,41 +414,12 @@ export function durationLabel(seconds: number): string {
   return `${minutes} ${minutes === 1 ? "minute" : "minutes"}`;
 }
 
-/** "10 per hour" / "30 per day" / "2 per 5 minutes". */
-export function rateLimitLabel(max: number, windowSeconds: number): string {
-  if (windowSeconds >= 86400 && windowSeconds % 86400 === 0) {
-    const days = windowSeconds / 86400;
-    return `${max} per ${days === 1 ? "day" : `${days} days`}`;
-  }
-  if (windowSeconds >= 3600) {
-    const hours = Math.round(windowSeconds / 3600);
-    return `${max} per ${hours === 1 ? "hour" : `${hours} hours`}`;
-  }
-  if (windowSeconds >= 60) {
-    const mins = Math.round(windowSeconds / 60);
-    return `${max} per ${mins === 1 ? "minute" : `${mins} minutes`}`;
-  }
-  return `${max} per ${windowSeconds} seconds`;
-}
-
 /** The pool a route draws from, or NULL when it has its own bucket. */
 export function sharedAllowanceFor(
   limits: Limits,
   route: string
 ): SharedAllowanceSpec | null {
-  const want = normalizeRouteKey(route);
-  return (
-    limits.sharedAllowances.find((a) =>
-      a.routes.some((r) => normalizeRouteKey(r) === want)
-    ) ?? null
-  );
-}
-
-/** "10 per hour, 30 per day". Every window the pool enforces, shortest first. */
-export function sharedAllowanceLabel(allowance: SharedAllowanceSpec): string {
-  return allowance.windows
-    .map((w) => rateLimitLabel(w.maxRequests, w.windowSeconds))
-    .join(", ");
+  return findSharedAllowance(limits.sharedAllowances, route);
 }
 
 /**

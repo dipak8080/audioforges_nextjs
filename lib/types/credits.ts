@@ -64,9 +64,36 @@ export interface RateLimitRule {
   window_seconds: number;
 }
 
+/** One window of a shared allowance, in the backend's own naming. */
+export interface SharedRateLimitWindow {
+  max_requests: number;
+  window_seconds: number;
+}
+
+/**
+ * A pool of routes drawing from ONE allowance across one or more windows.
+ *
+ * Cannot live in `tools`: that maps one metered tool to one window, and this
+ * covers four unmetered routes over two. `metered` is present here and absent
+ * from the identical block on /limits.
+ */
+export interface SharedRateLimitAllowance {
+  key: string;
+  /** Backend paths, leading slash included. */
+  routes: string[];
+  scope: string;
+  metered?: boolean;
+  windows: SharedRateLimitWindow[];
+}
+
 export interface RateLimitState {
   tier: RateLimitTier;
   tools: Partial<Record<MeteredToolKey, RateLimitRule>>;
+  /**
+   * Empty when the backend could not resolve the pools. Read defensively:
+   * an older backend omits the key entirely.
+   */
+  shared?: SharedRateLimitAllowance[];
 }
 
 /** Ledger entry kinds, from the backend's `kind` enum. */

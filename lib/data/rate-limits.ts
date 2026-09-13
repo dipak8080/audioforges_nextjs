@@ -222,6 +222,116 @@ export function getSharedAllowance(route: string): SharedAllowanceSpec | null {
   );
 }
 
+/**
+ * Normalizes one wire-shape shared allowance, from EITHER endpoint.
+ *
+ * /limits and /credits/me publish the same block (the latter adds
+ * `metered`), so one validator serves both and they cannot drift into
+ * disagreeing about a bucket they both describe.
+ *
+ * Returns null for an entry missing a key, a route or a usable window: a pool
+ * the client half-understands would render a confident wrong sentence.
+ */
+export function toSharedAllowance(raw: unknown): SharedAllowanceSpec | null {
+  if (!raw || typeof raw !== "object") return null;
+  const d = raw as Record<string, unknown>;
+
+  const key = typeof d.key === "string" && d.key ? d.key : "";
+  const routes = Array.isArray(d.routes)
+    ? d.routes.filter((r): r is string => typeof r === "string" && r.length > 0)
+    : [];
+  const windows = Array.isArray(d.windows)
+    ? d.windows
+        .map((w): SharedWindowSpec | null => {
+          if (!w || typeof w !== "object") return null;
+          const x = w as Record<string, unknown>;
+          const maxRequests = x.max_requests;
+          const windowSeconds = x.window_seconds;
+          if (typeof maxRequests !== "number" || !Number.isFinite(maxRequests) || maxRequests <= 0) {
+            return null;
+          }
+          if (
+            typeof windowSeconds !== "number" ||
+            !Number.isFinite(windowSeconds) ||
+            windowSeconds <= 0
+          ) {
+            return null;
+          }
+          return { maxRequests, windowSeconds };
+        })
+        .filter((w): w is SharedWindowSpec => w !== null)
+    : [];
+
+  if (!key || routes.length === 0 || windows.length === 0) return null;
+
+  windows.sort((a, b) => a.windowSeconds - b.windowSeconds);
+  return {
+    key,
+    routes,
+    scope: typeof d.scope === "string" ? d.scope : "per_ip",
+    windows,
+  };
+}
+
+/** The pool a route draws from, out of an arbitrary list. */
+export function findSharedAllowance(
+  allowances: SharedAllowanceSpec[],
+  route: string
+): SharedAllowanceSpec | null {
+  const want = normalizeRouteKey(route);
+  return (
+    allowances.find((a) => a.routes.some((r) => normalizeRouteKey(r) === want)) ?? null
+  );
+}
+
+/** "10 per hour" / "30 per day" / "2 per 5 minutes". */
+export function rateLimitLabel(max: number, windowSeconds: number): string {
+  if (windowSeconds >= 86400 && windowSeconds % 86400 === 0) {
+    const days = windowSeconds / 86400;
+    return `${max} per ${days === 1 ? "day" : `${days} days`}`;
+  }
+  if (windowSeconds >= 3600) {
+    const hours = Math.round(windowSeconds / 3600);
+    return `${max} per ${hours === 1 ? "hour" : `${hours} hours`}`;
+  }
+  if (windowSeconds >= 60) {
+    const mins = Math.round(windowSeconds / 60);
+    return `${max} per ${mins === 1 ? "minute" : `${mins} minutes`}`;
+  }
+  return `${max} per ${windowSeconds} seconds`;
+}
+
+/** "10 per hour, 30 per day". Every window the pool enforces, shortest first. */
+export function sharedAllowanceLabel(allowance: SharedAllowanceSpec): string {
+  return allowance.windows
+    .map((w) => rateLimitLabel(w.maxRequests, w.windowSeconds))
+    .join(", ");
+}
+
+/**
+ * Which window of a pool fired, matched on the count the 429 reported.
+ *
+ * The backend names the count and the duration in the message and nothing
+ * else distinguishes the two caps. Matching on `maxRequests` is exact where
+ * the windows carry different numbers; `windowSeconds` disambiguates the case
+ * where they don't.
+ */
+export function matchSharedWindow(
+  allowance: SharedAllowanceSpec,
+  limitMax?: number,
+  limitWindowSeconds?: number
+): SharedWindowSpec | null {
+  if (limitWindowSeconds) {
+    const byWindow = allowance.windows.find((w) => w.windowSeconds === limitWindowSeconds);
+    if (byWindow) return byWindow;
+  }
+  if (limitMax) {
+    const byMax = allowance.windows.filter((w) => w.maxRequests === limitMax);
+    if (byMax.length === 1) return byMax[0];
+  }
+  return null;
+}
+
 export function getRateLimitLabel(endpoint: string): string | undefined {
   return RATE_LIMITS[endpoint]?.label;
 }

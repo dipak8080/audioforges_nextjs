@@ -10,6 +10,11 @@ import {
   useState,
 } from "react";
 import { getCreditsMe } from "@/lib/api/credits";
+import {
+  findSharedAllowance,
+  toSharedAllowance,
+  type SharedAllowanceSpec,
+} from "@/lib/data/rate-limits";
 import type {
   CreditsMe,
   MeteredToolKey,
@@ -107,6 +112,16 @@ interface CreditContextValue {
   isToolMetered: (tool: MeteredToolKey) => boolean;
   /** The rate limit that will actually apply to THIS visitor for this tool. */
   rateLimitFor: (tool: MeteredToolKey) => RateLimitRule | null;
+  /**
+   * The pool a backend route draws from, or null.
+   *
+   * NULL IS THE NORMAL CASE, not an error: this provider makes no request at
+   * all while the paywall is off, so a caller needs a server-rendered fallback
+   * rather than treating null as "no shared limit". The standard separation
+   * pool is unmetered and tier-independent, so the /limits copy is equally
+   * correct when this returns null.
+   */
+  sharedLimitFor: (route: string) => SharedAllowanceSpec | null;
   /** True when the visitor holds credits, so the credited tier applies. */
   isCredited: boolean;
 }
@@ -122,6 +137,7 @@ const InertContext: CreditContextValue = {
   heldCredits: 0,
   isToolMetered: () => false,
   rateLimitFor: () => null,
+  sharedLimitFor: () => null,
   isCredited: false,
 };
 
@@ -331,6 +347,16 @@ export function CreditProvider({
     [refresh]
   );
 
+  // Normalized once per payload rather than per lookup: sharedLimitFor is read
+  // from render in several forms, and toSharedAllowance validates and sorts.
+  const sharedLimits = useMemo<SharedAllowanceSpec[]>(
+    () =>
+      (me?.rate_limit?.shared ?? [])
+        .map(toSharedAllowance)
+        .filter((a): a is SharedAllowanceSpec => a !== null),
+    [me]
+  );
+
   const value = useMemo<CreditContextValue>(() => {
     if (!enabled) return InertContext;
 
@@ -350,8 +376,9 @@ export function CreditProvider({
       // because two sources of truth disagreed.
       isToolMetered: (tool) => Boolean(me?.paywall?.tools?.[tool]?.enabled),
       rateLimitFor: (tool) => me?.rate_limit?.tools?.[tool] ?? null,
+      sharedLimitFor: (route) => findSharedAllowance(sharedLimits, route),
     };
-  }, [enabled, me, loading, refresh, applyBalance]);
+  }, [enabled, me, loading, refresh, applyBalance, sharedLimits]);
 
   return <CreditContext.Provider value={value}>{children}</CreditContext.Provider>;
 }
