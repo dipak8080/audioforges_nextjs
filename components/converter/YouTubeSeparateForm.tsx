@@ -63,8 +63,8 @@ interface YouTubeSeparateFormProps {
   hqAvailable?: boolean;
   /**
    * The shared standard-separation allowance, resolved server-side from
-   * /limits. Required for the daily cap to show at all: CreditProvider makes
-   * no request while the paywall is off, so context alone returns null.
+   * /limits. Carries the daily cap on first paint, and for the whole of any
+   * period where PAYWALL_ENABLED is off, since context is null in both cases.
    */
   standardLimit?: SharedAllowanceSpec | null;
 }

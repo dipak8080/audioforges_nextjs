@@ -38,11 +38,13 @@ const GENERIC_HINT = "Wait for the timer, then run it again.";
  * Resolution order: this visitor's own numbers, then the server-rendered ones,
  * then the build-time table.
  *
- * `serverAllowance` is not a nicety. CreditProvider makes no request at all
- * while the paywall is off, so `sharedLimitFor` returns null in production
- * today and the prop is what the form actually renders from. Reading context
- * alone would show nothing. The standard pool is unmetered and tier
- * independent, so the /limits copy is equally correct.
+ * `serverAllowance` is not a nicety. CreditProvider only requests /credits/me
+ * when PAYWALL_ENABLED is on, and that is a settings row an operator can flip
+ * either way with no deploy, so `live` is null for the whole of any period
+ * where it is off. It is also null on first paint whatever the setting, since
+ * the request has not resolved. The prop covers both, and the standard pool is
+ * unmetered and tier-independent, so the /limits copy is equally correct when
+ * it is what gets rendered.
  */
 export function useSharedLimit(
   route: string,

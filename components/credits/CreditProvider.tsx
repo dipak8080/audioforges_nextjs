@@ -115,11 +115,11 @@ interface CreditContextValue {
   /**
    * The pool a backend route draws from, or null.
    *
-   * NULL IS THE NORMAL CASE, not an error: this provider makes no request at
-   * all while the paywall is off, so a caller needs a server-rendered fallback
-   * rather than treating null as "no shared limit". The standard separation
-   * pool is unmetered and tier-independent, so the /limits copy is equally
-   * correct when this returns null.
+   * NULL IS ROUTINE, not an error. This provider requests nothing until
+   * PAYWALL_ENABLED is on, and nothing has resolved on first paint even then,
+   * so a caller needs a server-rendered fallback rather than reading null as
+   * "no shared limit". The standard separation pool is unmetered and
+   * tier-independent, so the /limits copy is equally correct in both cases.
    */
   sharedLimitFor: (route: string) => SharedAllowanceSpec | null;
   /** True when the visitor holds credits, so the credited tier applies. */
