@@ -21,8 +21,8 @@ import { getDurationLabel } from "@/lib/data/tool-limits";
 import { getFeatureFlags } from "@/lib/api/railway";
 import { ogForTool } from "@/lib/og";
 
-const DEMO_STANDARD = "/audio/demo-vocals-standard.wav";
-const DEMO_STUDIO = "/audio/demo-vocals-studio.wav";
+const DEMO_STANDARD = "/audio/demo-vocals-standard.mp3";
+const DEMO_STUDIO = "/audio/demo-vocals-studio.mp3";
 
 const UPDATED = "2026-09-10";
 

@@ -38,8 +38,8 @@ import EmailLink from "@/components/EmailLink";
  *  is separation quality, and demonstrating it with a lossy file invites the
  *  obvious retort. StemCompare keeps them at preload="metadata" until first
  *  play, so the ~6.9MB isn't fetched for visitors who never press it. */
-const DEMO_STANDARD = "/audio/demo-vocals-standard.wav";
-const DEMO_STUDIO = "/audio/demo-vocals-studio.wav";
+const DEMO_STANDARD = "/audio/demo-vocals-standard.mp3";
+const DEMO_STUDIO = "/audio/demo-vocals-studio.mp3";
 
 const UPDATED = "2026-09-10";
 

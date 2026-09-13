@@ -22,8 +22,8 @@ import { getLimits, windowFor, rateLimitLabel, durationLabel } from "@/lib/api/l
 import { ogForTool } from "@/lib/og";
 
 // Shared with /pricing and /vocal-remover: same 41 s clip through both tiers.
-const DEMO_STANDARD = "/audio/demo-vocals-standard.wav";
-const DEMO_STUDIO = "/audio/demo-vocals-studio.wav";
+const DEMO_STANDARD = "/audio/demo-vocals-standard.mp3";
+const DEMO_STUDIO = "/audio/demo-vocals-studio.mp3";
 
 const UPDATED = "2026-09-10";
 
