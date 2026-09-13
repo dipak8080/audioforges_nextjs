@@ -68,6 +68,16 @@ export class ApiError extends Error {
   insufficientCredits?: InsufficientCreditsPayload;
   /** 429 body's `detail` on a METERED route only. Carries `tier`. */
   rateLimit?: RateLimitedPayload;
+  /**
+   * Which window actually fired on a 429, on BOTH shapes.
+   *
+   * Standard separation routes send a string and the four of them share one
+   * allowance over two windows, so the status code alone cannot say whether
+   * the caller hit 10/hour or 30/day. Match `limitMax` against the shared
+   * allowance to find out.
+   */
+  limitMax?: number;
+  limitWindowSeconds?: number;
 
   constructor(
     message: string,
@@ -81,6 +91,8 @@ export class ApiError extends Error {
       retryable?: boolean;
       insufficientCredits?: InsufficientCreditsPayload;
       rateLimit?: RateLimitedPayload;
+      limitMax?: number;
+      limitWindowSeconds?: number;
     } = {}
   ) {
     super(message);
@@ -94,6 +106,8 @@ export class ApiError extends Error {
     this.retryable = opts.retryable;
     this.insufficientCredits = opts.insufficientCredits;
     this.rateLimit = opts.rateLimit;
+    this.limitMax = opts.limitMax;
+    this.limitWindowSeconds = opts.limitWindowSeconds;
   }
 }
 
@@ -130,6 +144,39 @@ async function parseDetail(res: Response): Promise<string> {
     /* body was not JSON — a Cloudflare error page, an empty body, HTML */
   }
   return "";
+}
+
+/**
+ * Pulls the numbers back out of a string 429.
+ *
+ * The backend builds the message from the window that fired
+ * (rate_limit.py::_reject), so "(limit: 30 request(s) per 24 hours)" is the
+ * ONLY structural signal for which cap of a shared allowance blocked the call.
+ * Returns null on any message that doesn't match, which includes every 429
+ * from a route that isn't rate_limit.py's.
+ */
+export function parseLimitMessage(
+  message: string
+): { maxRequests: number; windowSeconds: number } | null {
+  const m = /\(limit:\s*(\d+)\s*request\(s\)\s*per\s*([^)]+)\)/i.exec(message);
+  if (!m) return null;
+
+  const maxRequests = Number(m[1]);
+  if (!Number.isFinite(maxRequests) || maxRequests <= 0) return null;
+
+  const phrase = m[2];
+  let windowSeconds = 0;
+  for (const [pattern, multiplier] of [
+    [/(\d+)\s*hour/i, 3600],
+    [/(\d+)\s*min/i, 60],
+    [/(\d+)\s*sec/i, 1],
+  ] as const) {
+    const part = pattern.exec(phrase);
+    if (part) windowSeconds += Number(part[1]) * multiplier;
+  }
+  if (windowSeconds <= 0) return null;
+
+  return { maxRequests, windowSeconds };
 }
 
 function looksLikeRawError(text: string): boolean {
@@ -279,6 +326,10 @@ async function toApiError(res: Response, context: ErrorContext): Promise<ApiErro
               readRetryAfter(res) ||
               60,
             rateLimit: obj as unknown as RateLimitedPayload,
+            limitMax:
+              typeof obj.max_requests === "number" ? obj.max_requests : undefined,
+            limitWindowSeconds:
+              typeof obj.window_seconds === "number" ? obj.window_seconds : undefined,
           }
         );
       }
@@ -350,12 +401,25 @@ async function toApiError(res: Response, context: ErrorContext): Promise<ApiErro
       );
     case 413:
       return new ApiError(detail || "That file is too large.", 413);
-    case 429:
+    case 429: {
+      // Parsed from rawDetail, not `detail`: looksLikeRawError blanks the
+      // latter, and a message it rejected still carries usable numbers.
+      const parsed = parseLimitMessage(rawDetail);
       return new ApiError(
-        detail || "You're going a little fast — please wait a moment before trying again.",
+        detail || "You're going a little fast. Please wait a moment before trying again.",
         429,
-        { isRateLimit: true, retryAfterSeconds: retryAfter ?? 10 }
+        {
+          isRateLimit: true,
+          // Was `?? 10`. On a daily cap that counted down from ten seconds and
+          // re-enabled the button into a guaranteed second 429. The window that
+          // fired is the correct worst case; the header is better still and is
+          // what the backend actually sends.
+          retryAfterSeconds: retryAfter ?? parsed?.windowSeconds,
+          limitMax: parsed?.maxRequests,
+          limitWindowSeconds: parsed?.windowSeconds,
+        }
       );
+    }
     case 451:
       return new ApiError("This video isn't available from our server's region.", 451);
     case 503:
