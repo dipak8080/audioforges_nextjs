@@ -11,7 +11,7 @@ const PAGE_DESCRIPTION =
 
 /** Update whenever the policy text changes, it's a claim about the text
  *  below it, so a stale date is worse than no date. */
-const LAST_UPDATED = "2026-09-10";
+const LAST_UPDATED = "2026-09-13";
 
 const OG_IMAGE = ogImage(
   "Privacy Policy",
@@ -101,10 +101,13 @@ export default function PrivacyPage() {
 
           <dt>Usage analytics</dt>
           <dd>
-            We use Google Analytics to understand aggregate traffic patterns
-            (pages visited, approximate location, device type). Analytics data is
-            processed according to Google&apos;s own privacy practices; we use it
-            in aggregate and do not use it to individually identify visitors.
+            We use Google Analytics and Ahrefs Analytics to understand aggregate
+            traffic patterns (pages visited, approximate location, device type).
+            Analytics data is processed according to each provider&apos;s own
+            privacy practices; we use it in aggregate and do not use it to
+            individually identify visitors. In the EEA, the UK and Switzerland
+            neither tool stores anything on your device until you accept, as
+            described in Section 6.
           </dd>
 
           <dt>Server logs</dt>
@@ -148,7 +151,8 @@ export default function PrivacyPage() {
 
         <h2 id="third-parties">5. Third-party services</h2>
         <p>
-          We currently use Google Analytics to understand aggregate site usage,
+          We currently use Google Analytics and Ahrefs Analytics to understand
+          aggregate site usage,
           and the following providers to run the site and tools: Vercel for the
           website, VPS Dime for general backend processing, RunPod for the
           GPU-accelerated compute used by separation, transcription and
@@ -161,12 +165,20 @@ export default function PrivacyPage() {
 
         <h2 id="cookies">6. Cookies</h2>
         <p>
-          We use a small number of cookies for basic site functionality
-          (&quot;essential cookies&quot;) and, via Google Analytics, cookies that
-          help us understand aggregate traffic patterns (&quot;analytics
-          cookies&quot;). We do not currently use advertising cookies. You can
-          disable cookies in your browser settings, though this may affect site
-          functionality.
+          We use a small number of cookies and similar browser storage for basic
+          site functionality (&quot;essential cookies&quot;) and, via Google
+          Analytics and Ahrefs Analytics, storage that helps us understand
+          aggregate traffic patterns (&quot;analytics cookies&quot;). We do not
+          currently use advertising cookies.
+        </p>
+        <p>
+          If you are in the EEA, the UK or Switzerland, analytics storage stays
+          off until you accept it. You will see a banner on your first visit
+          asking you to choose. Your choice is remembered in your browser, and
+          you can change it at any time using the Cookie settings link in the
+          footer of any page. Choosing Reject means no analytics cookies are set
+          and the Ahrefs script is never loaded. You can also disable cookies in
+          your browser settings, though this may affect site functionality.
         </p>
 
         <h2 id="how-we-use-it">7. How we use your information</h2>

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AudioWaveform, Coffee } from "lucide-react";
 import { getLiveTools, type Tool } from "@/lib/data/tools";
+import { openConsentSettings } from "@/lib/consent";
 
 /**
  * PREFETCH DISABLED (2026-08-16, extended 2026-08-17).
@@ -203,6 +204,9 @@ export function Footer({ paywallEnabled = false }: { paywallEnabled?: boolean })
                   {link.label}
                 </FooterLink>
               ))}
+              {/* Withdrawing consent has to be as easy as giving it, so this
+                  sits with the legal links on every page. */}
+              <FooterButton onClick={openConsentSettings}>Cookie settings</FooterButton>
             </FooterColumn>
           </div>
         </div>
@@ -244,6 +248,18 @@ function FooterColumn({ title, children }: { title: string; children: React.Reac
         {children}
       </nav>
     </div>
+  );
+}
+
+function FooterButton({ onClick, children }: { onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="w-fit rounded text-left text-sm text-text-muted transition-colors hover:text-text-primary focus:outline-none focus-visible:ring-1 focus-visible:ring-amber-500/60"
+    >
+      {children}
+    </button>
   );
 }
 
