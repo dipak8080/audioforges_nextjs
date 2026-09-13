@@ -55,6 +55,7 @@ import { useCredits } from "@/components/credits/CreditProvider";
 import { AlwaysFreeTag, FreeTierBadge } from "@/components/credits/FreeTierBadge";
 import { UpgradeToHqCard } from "@/components/credits/UpgradeToHqCard";
 import { CreditReceipt, StudioQualityTag } from "@/components/credits/CreditReceipt";
+import { useNotificationPermission } from "@/lib/hooks/useNotificationPermission";
 
 /**
  * ── THIS PASS ──────────────────────────────────────────────────────────
@@ -224,9 +225,8 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
    */
   const [billing, setBilling] = useState<SubmitBilling | null>(null);
   const [notifyEnabled, setNotifyEnabled] = useState(false);
-  const [notifyPermission, setNotifyPermission] = useState<
-    NotificationPermission | "unsupported"
-  >("default");
+  const { permission: notifyPermission, request: requestNotifyPermission } =
+    useNotificationPermission();
 
   const isBusy = status === "uploading" || status === "processing";
   const isFailed = status === "failed" || status === "error";
@@ -300,14 +300,6 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
     getRateLimitLabel(STANDARD_SPEC.rateLimitKey) ?? FALLBACK_RATE_LIMIT_LABEL;
   const hqLimitLabel = getRateLimitLabel(HQ_SPEC.rateLimitKey) ?? FALLBACK_RATE_LIMIT_LABEL;
 
-  useEffect(() => {
-    if (typeof window === "undefined" || !("Notification" in window)) {
-      setNotifyPermission("unsupported");
-      return;
-    }
-    setNotifyPermission(Notification.permission);
-  }, []);
-
   const stopPolling = useCallback(() => {
     if (pollRef.current) {
       clearTimeout(pollRef.current);
@@ -332,8 +324,7 @@ export function VocalRemoverForm({ hqAvailable = false }: VocalRemoverFormProps)
   const handleNotifyToggle = async () => {
     if (notifyPermission === "unsupported") return;
     if (notifyPermission === "default") {
-      const result = await Notification.requestPermission();
-      setNotifyPermission(result);
+      const result = await requestNotifyPermission();
       if (result === "granted") setNotifyEnabled(true);
       return;
     }

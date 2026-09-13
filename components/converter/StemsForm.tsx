@@ -16,6 +16,7 @@ import { useCredits } from "@/components/credits/CreditProvider";
 import { AlwaysFreeTag, FreeTierBadge } from "@/components/credits/FreeTierBadge";
 import type { MeteredToolKey } from "@/lib/types/credits";
 import type { RateLimitRule } from "@/lib/types/credits";
+import { useNotificationPermission } from "@/lib/hooks/useNotificationPermission";
 
 /**
  * KEPT FROM EARLIER PASSES, all still true:
@@ -181,9 +182,8 @@ const HQ_STAGES = [
 export function StemsForm({ hqAvailable = false }: StemsFormProps) {
   const [quality, setQuality] = useState<SeparationQuality>("standard");
   const [notifyEnabled, setNotifyEnabled] = useState(false);
-  const [notifyPermission, setNotifyPermission] = useState<
-    NotificationPermission | "unsupported"
-  >("default");
+  const { permission: notifyPermission, request: requestNotifyPermission } =
+    useNotificationPermission();
 
   const effectiveQuality: SeparationQuality = hqAvailable ? quality : "standard";
   const isHq = effectiveQuality === "hq";
@@ -210,19 +210,10 @@ export function StemsForm({ hqAvailable = false }: StemsFormProps) {
     notifyPermissionRef.current = notifyPermission;
   });
 
-  useEffect(() => {
-    if (typeof window === "undefined" || !("Notification" in window)) {
-      setNotifyPermission("unsupported");
-      return;
-    }
-    setNotifyPermission(Notification.permission);
-  }, []);
-
   const handleNotifyToggle = async () => {
     if (notifyPermission === "unsupported") return;
     if (notifyPermission === "default") {
-      const result = await Notification.requestPermission();
-      setNotifyPermission(result);
+      const result = await requestNotifyPermission();
       if (result === "granted") setNotifyEnabled(true);
       return;
     }
