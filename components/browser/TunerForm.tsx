@@ -844,6 +844,7 @@ export function TunerForm({ initialSettings }: TunerFormProps) {
           <span className="flex items-center overflow-hidden rounded-md border border-graphite-700 bg-graphite-850">
             <input
               type="number"
+              aria-label="Reference pitch in Hz"
               min={REF_PITCH_MIN}
               max={REF_PITCH_MAX}
               value={referencePitch}
