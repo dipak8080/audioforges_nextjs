@@ -20,35 +20,18 @@ const BASELINE_HEADERS = [
   // No `preload`: that is a one-way door enforced by the browsers themselves,
   // and it applies to every subdomain including api.audioforges.com.
   { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },
+  // Framing is denied site-wide now that the /embed widgets are gone. There is
+  // no longer any route meant to be iframed by a third party.
+  { key: "X-Frame-Options", value: "SAMEORIGIN" },
+  { key: "Content-Security-Policy", value: "frame-ancestors 'self'" },
 ];
 
 const nextConfig: NextConfig = {
-  /**
-   * Framing is denied everywhere except the widgets under /embed/, which exist
-   * to be put in an iframe on other people's sites.
-   *
-   * `/embed/:path+` needs the `+` rather than `*`: with `*` the matcher also
-   * catches /embed itself, so the marketing page that sells the widgets was
-   * framable by anyone. The deny rule excludes "embed/" with the slash for the
-   * same reason, so /embed falls under it and a future /embeddable-x cannot
-   * slip through the gap a bare "embed" prefix would leave.
-   */
   async headers() {
     return [
       {
         source: "/(.*)",
         headers: BASELINE_HEADERS,
-      },
-      {
-        source: "/embed/:path+",
-        headers: [{ key: "Content-Security-Policy", value: "frame-ancestors *" }],
-      },
-      {
-        source: "/((?!embed/).*)",
-        headers: [
-          { key: "X-Frame-Options", value: "SAMEORIGIN" },
-          { key: "Content-Security-Policy", value: "frame-ancestors 'self'" },
-        ],
       },
     ];
   },
@@ -61,6 +44,9 @@ const nextConfig: NextConfig = {
    * /audio-converter was never a real route, but Bing crawls it and gets a
    * 404 — something outside the site links to it. Pointing it at /convert
    * turns a dead end into the page the visitor wanted.
+   *
+   * /embed and its two widgets were removed. The landing page was indexed, so
+   * it redirects rather than 404s; the widget routes point at the full tool.
    */
   async redirects() {
     return [
@@ -72,6 +58,21 @@ const nextConfig: NextConfig = {
       {
         source: "/audio-converter",
         destination: "/convert",
+        permanent: true,
+      },
+      {
+        source: "/embed",
+        destination: "/tools",
+        permanent: true,
+      },
+      {
+        source: "/embed/key-finder",
+        destination: "/key-finder",
+        permanent: true,
+      },
+      {
+        source: "/embed/audio-to-midi",
+        destination: "/audio-to-midi",
         permanent: true,
       },
     ];

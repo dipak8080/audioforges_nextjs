@@ -192,7 +192,7 @@ export default async function PricingPage() {
     {
       question: "How do I use credits on another device?",
       answer:
-        "Choose 'Already bought? Sign in' and enter the email you paid with. We'll send a sign-in link that attaches your credits to that browser. The link expires after 30 minutes. If both devices are in front of you, the account menu can show a QR code instead, which is faster.",
+        "Open the sign-in page and enter the email you paid with. We'll send a sign-in link that attaches your credits to that browser. The link expires after 30 minutes. If both devices are in front of you, the account menu can show a QR code instead, which is faster.",
     },
   ];
 
@@ -218,6 +218,14 @@ export default async function PricingPage() {
       <div className="mt-8">
         <PricingTable studioCredits={1} sheetCredits={sheetCharges ? 3 : 0} />
       </div>
+
+      <p className="mt-4 text-sm leading-relaxed text-text-muted">
+        Already bought credits on another device?{" "}
+        <Link href="/signin" className="text-amber-400 underline-offset-4 hover:underline">
+          Sign in to bring them here
+        </Link>
+        . No new payment needed.
+      </p>
 
       <section className="mt-16">
         <h2 className="text-2xl font-bold tracking-tight text-text-primary sm:text-3xl">What one credit buys</h2>

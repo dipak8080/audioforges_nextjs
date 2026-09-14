@@ -378,6 +378,17 @@ export default function HomePage() {
               </div>
             </div>
           </div>
+
+          <p className="mt-8 text-sm leading-relaxed text-text-muted">
+            <Link
+              href="/forge"
+              prefetch={false}
+              className="text-amber-400 underline-offset-4 hover:underline"
+            >
+              See what all three players do
+            </Link>
+            , with the controls and export formats for each.
+          </p>
         </section>
 
         <section className="border-t border-graphite-800 py-14">

@@ -45,10 +45,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     // narrower than the tool pages' head terms. Ranking it above them would
     // be optimising for the wrong visitor.
     { path: "/pricing", priority: 0.7, changeFrequency: "monthly" as const },
-    // Indexable, canonicalised, carries its own FAQ schema, and was in no
-    // sitemap at all. It is also the one page that earns links from other
-    // people's sites, since it hands out the embed snippets.
-    { path: "/embed", priority: 0.6, changeFrequency: "monthly" as const },
+    { path: "/forge", priority: 0.6, changeFrequency: "monthly" as const },
     { path: "/about", priority: 0.6, changeFrequency: "monthly" as const },
     { path: "/contact", priority: 0.4, changeFrequency: "yearly" as const },
     { path: "/privacy", priority: 0.3, changeFrequency: "yearly" as const },
