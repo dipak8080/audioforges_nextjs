@@ -1,10 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  AudioWaveform,
   LayoutDashboard,
   ScrollText,
   Database,
@@ -15,6 +14,7 @@ import {
   X,
   Loader2,
 } from "lucide-react";
+import { BrandMark } from "@/components/brand/BrandMark";
 
 const NAV_ITEMS = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
@@ -30,19 +30,24 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
-  // This layout wraps every /admin/* route, including /admin/login itself —
-  // so it stays mounted across the logout navigation rather than
-  // unmounting. That means isLoggingOut MUST be reset explicitly once the
-  // navigation is underway, or the button is stuck on "Signing out…"
-  // forever (nothing else ever flips it back to false).
+  // This layout wraps every /admin/* route, including /admin/login itself, so
+  // it stays mounted across the logout navigation rather than unmounting.
+  // Transient UI state is therefore reset on route change instead of inline:
+  // resetting it synchronously after push flipped the button back to
+  // "Sign out" while still on the dashboard, one frame before the navigation.
+  useEffect(() => {
+    setIsLoggingOut(false);
+    setMobileOpen(false);
+  }, [pathname]);
+
   async function handleLogout() {
     setIsLoggingOut(true);
     try {
       await fetch("/api/admin/logout", { method: "POST" });
     } finally {
-      router.push("/admin/login");
+      // replace, not push: Back must not return to authenticated chrome.
+      router.replace("/admin/login");
       router.refresh(); // clears any cached authenticated state for this layout
-      setIsLoggingOut(false);
     }
   }
 
@@ -64,8 +69,11 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
       <header className="shrink-0 border-b border-graphite-800 bg-graphite-950">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
           <div className="flex items-center gap-2.5 min-w-0">
-            <AudioWaveform className="h-5 w-5 text-amber-500 shrink-0" />
-            <span className="text-sm font-semibold tracking-tight whitespace-nowrap">AudioForges</span>
+            <BrandMark className="h-5 w-5 text-amber-500 shrink-0" />
+            <span className="text-sm font-mono tracking-tight whitespace-nowrap">
+              <span className="font-normal text-text-secondary">Audio</span>
+              <span className="font-semibold text-text-primary">Forges</span>
+            </span>
             <span className="text-text-subtle text-sm hidden sm:inline">/</span>
             <span className="text-sm text-text-muted hidden sm:inline">Admin</span>
           </div>

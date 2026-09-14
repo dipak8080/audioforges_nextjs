@@ -135,6 +135,26 @@ export default function PitchShiftingGuidePage() {
             </dd>
           </dl>
 
+          <h2 id="which-key">Knowing which key you are starting from</h2>
+          <p>
+            Every use above assumes you know the current key, because the shift amount is
+            the distance between where the track is and where you want it. Our{" "}
+            <Link href="/key-finder">Key and BPM Finder</Link> reads the key, the scale and
+            the Camelot code straight from the file, so the semitone count becomes
+            arithmetic rather than guesswork. For a reference track you only have a link
+            to, the <Link href="/youtube-key-finder">YouTube Key and BPM Finder</Link>{" "}
+            analyses it without a download step first. If you want to know what the
+            detection is actually doing before you trust it,{" "}
+            <Link href="/guides/how-key-and-bpm-detection-works">
+              how key and BPM detection works
+            </Link>{" "}
+            walks through the method, and{" "}
+            <Link href="/guides/camelot-wheel-harmonic-mixing">
+              harmonic mixing with the Camelot wheel
+            </Link>{" "}
+            covers picking a target key rather than a target semitone.
+          </p>
+
           <h2 id="reverse">If you need the opposite: tempo without pitch</h2>
           <p>
             Sometimes the problem runs the other way — you want a track faster or

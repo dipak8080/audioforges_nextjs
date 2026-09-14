@@ -296,6 +296,15 @@ export default async function YouTubeToWavPage() {
               <Link href="/guides/finding-reference-tracks">finding reference tracks</Link> covers what to
               listen for once the WAV is on your drive.
             </p>
+            <p>
+              Three more things people do with a YouTube WAV. If it is going into a DJ set,{" "}
+              <Link href="/guides/dj-tempo-matching-without-pitch-shift">matching tempo without pitch-shifting</Link>{" "}
+              explains how to line it up against the rest of the crate. If the source was a phone recording or a
+              stream rip, <Link href="/noise-remove">remove the background noise</Link> before you cut anything.
+              And if you only want a few seconds of it,{" "}
+              <Link href="/guides/tiktok-sound-to-ringtone">turning a sound into a ringtone</Link> covers the
+              length and format each phone expects.
+            </p>
           </Prose>
         </ToolSection>
 

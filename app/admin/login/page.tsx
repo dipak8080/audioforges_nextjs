@@ -2,7 +2,8 @@
 
 import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Lock, AudioWaveform, Eye, EyeOff } from "lucide-react";
+import { Lock, Eye, EyeOff } from "lucide-react";
+import { BrandMark } from "@/components/brand/BrandMark";
 
 function LoginForm() {
   const router = useRouter();
@@ -51,7 +52,7 @@ function LoginForm() {
       <div className="w-full max-w-sm space-y-8">
         <div className="text-center space-y-3">
           <div className="inline-flex items-center justify-center rounded-xl bg-graphite-900 border border-graphite-800 p-3">
-            <AudioWaveform className="h-6 w-6 text-amber-500" />
+            <BrandMark className="h-6 w-6 text-amber-500" />
           </div>
           <div>
             <h1 className="text-xl font-semibold text-text-primary">Admin Dashboard</h1>

@@ -124,7 +124,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
       ad_personalization: 'denied',
       analytics_storage: 'denied',
       region: ${JSON.stringify(CONSENT_REGIONS)},
-      wait_for_update: 500
+      wait_for_update: 2000
     });
     gtag('consent', 'default', {
       ad_storage: 'granted',

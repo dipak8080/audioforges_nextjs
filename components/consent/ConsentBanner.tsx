@@ -6,6 +6,7 @@ import {
   CONSENT_EVENT,
   applyConsent,
   readConsent,
+  requiresConsent,
   writeConsent,
   type ConsentChoice,
 } from "@/lib/consent";
@@ -32,9 +33,10 @@ export function ConsentBanner() {
     setOpen(false);
   }, []);
 
+  // Everything here is synchronous. The geo decision comes from the cookie
+  // middleware stamped on this same request, so consent resolves inside the
+  // gtag wait_for_update window instead of after a fetch.
   useEffect(() => {
-    let cancelled = false;
-
     const stored = readConsent();
     if (stored) {
       applyConsent(stored);
@@ -42,24 +44,13 @@ export function ConsentBanner() {
       return;
     }
 
-    fetch("/api/geo")
-      .then((res) => (res.ok ? res.json() : { requiresConsent: true }))
-      .then((data: { requiresConsent?: boolean }) => {
-        if (cancelled) return;
-        if (data.requiresConsent === false) {
-          applyConsent("granted");
-          loadAhrefs();
-          return;
-        }
-        setOpen(true);
-      })
-      .catch(() => {
-        if (!cancelled) setOpen(true);
-      });
+    if (!requiresConsent()) {
+      applyConsent("granted");
+      loadAhrefs();
+      return;
+    }
 
-    return () => {
-      cancelled = true;
-    };
+    setOpen(true);
   }, []);
 
   useEffect(() => {
