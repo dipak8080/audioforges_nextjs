@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { AudioWaveform, Coffee } from "lucide-react";
+import { Coffee } from "lucide-react";
+import { BrandMark } from "@/components/brand/BrandMark";
 import { getLiveTools, type Tool } from "@/lib/data/tools";
 import { openConsentSettings } from "@/lib/consent";
 
@@ -137,9 +138,10 @@ export function Footer({ paywallEnabled = false }: { paywallEnabled?: boolean })
         <div className="grid gap-10 lg:grid-cols-12 lg:gap-8">
           <div className="lg:col-span-4">
             <Link href="/" className="inline-flex items-center gap-2">
-              <AudioWaveform className="h-5 w-5 text-amber-500" />
-              <span className="font-mono font-semibold tracking-tight text-text-primary">
-                AudioForges
+              <BrandMark className="h-5 w-5 text-amber-500" />
+              <span className="font-mono tracking-tight">
+                <span className="font-normal text-text-secondary">Audio</span>
+                <span className="font-semibold text-text-primary">Forges</span>
               </span>
             </Link>
 

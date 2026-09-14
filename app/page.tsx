@@ -17,13 +17,13 @@ import { ogImage } from "@/lib/og";
 
 const TOOL_COUNT = getLiveTools().length;
 
-const PAGE_TITLE = "AudioForges – Free Audio Tools for Producers and DJs";
+const PAGE_TITLE = "AudioForges: Free Audio Tools for Producers, DJs, Musicians";
 const PAGE_DESCRIPTION =
-  "Free online audio tools for producers and DJs. Convert, clean up, find key & BPM, transcribe to MIDI or sheet music with live previews. No sign-up.";
+  "Free browser audio tools for producers, DJs and musicians. Every model is named, every limit is published, and results play back before you download.";
 
 const OG_IMAGE = ogImage(
-  "Free audio tools for producers",
-  "Convert, analyse, clean up and take apart audio in the browser.",
+  "Free audio tools for producers, DJs and musicians",
+  "Every model named. Every limit published. Results play back before you download.",
   `${TOOL_COUNT} tools · No sign-up`
 );
 
@@ -130,7 +130,7 @@ export default function HomePage() {
     name: "AudioForges",
     url: SITE_URL,
     description:
-      "Free audio tools for music producers, DJs, musicians, and creators, conversion, editing, cleanup, pitch, tempo, tuning, metronome, BPM, and transcription tools.",
+      "Free browser audio tools for producers, DJs and musicians. Every model is named, every limit is published, and results play back before you download.",
     sameAs: [],
   };
 
@@ -139,7 +139,8 @@ export default function HomePage() {
     "@type": "WebSite",
     name: "AudioForges",
     url: SITE_URL,
-    description: "Free, fast audio tools built for producers and DJs, no sign-up required.",
+    description:
+      "Free browser audio tools for producers, DJs and musicians. Every model is named, every limit is published, and results play back before you download.",
   };
 
   const faqs: FAQItem[] = [

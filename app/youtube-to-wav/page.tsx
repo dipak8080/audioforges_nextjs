@@ -21,7 +21,7 @@ const PAGE_TITLE = "Free YouTube to WAV Converter – Lossless Audio";
 const PAGE_DESCRIPTION =
   "Convert YouTube videos to lossless WAV online for free. No sign-up, no watermark, supports YouTube Shorts, and downloads high-quality audio in seconds.";
 
-const UPDATED = "2026-09-10";
+const UPDATED = "2026-09-14";
 
 const OG_IMAGE = ogForTool("youtube-to-wav", "Free YouTube to WAV Converter");
 
@@ -224,7 +224,7 @@ export default async function YouTubeToWavPage() {
             {
               label: "Output",
               value: "Lossless WAV, or 320kbps MP3",
-              note: "Same converter either way. Pick the format on the tool above.",
+              note: "The same converter does YouTube to WAV and YouTube to MP3. Pick the format on the tool above.",
             },
             {
               label: "Nothing of yours is stored",
@@ -234,11 +234,11 @@ export default async function YouTubeToWavPage() {
           ]}
         />
 
-        <ToolSection id="how-to" title="Three steps, nothing to install" bleed>
+        <ToolSection id="how-to" title="How to convert YouTube to WAV or MP3" bleed>
           <ol className="grid gap-3 sm:grid-cols-3">
             {[
               ["Paste the link", "Any YouTube URL, including Shorts. Copy it from the address bar or the share sheet."],
-              ["Pick a format", "WAV for lossless, MP3 for a file about a quarter the size. The rest is automatic."],
+              ["Pick WAV or MP3", "WAV for lossless, MP3 at 320kbps for a file about a quarter the size. The rest is automatic."],
               ["Download", `Straight to your device. Fair-use limit is ${rateLimitText}, well past a normal session.`],
             ].map(([t, d], i) => (
               <li key={t} className="rounded-xl border border-graphite-800 bg-graphite-900 p-5">
@@ -254,6 +254,11 @@ export default async function YouTubeToWavPage() {
               members-only and region-blocked videos cannot be fetched, and live streams have no finished file to
               pull, so those are the links that fail.
             </p>
+            <p>
+              Converting YouTube to WAV and converting YouTube to MP3 run through the same pipeline here, so the
+              speed and the limits are identical. If MP3 is the format you came for, the{" "}
+              <Link href="/youtube-to-mp3">YouTube to MP3 converter</Link> opens with MP3 already selected.
+            </p>
           </Prose>
         </ToolSection>
 
@@ -263,7 +268,7 @@ export default async function YouTubeToWavPage() {
           anything else we built. These four are what people actually do with
           YouTube audio next.
         */}
-        <ToolSection id="next" title="What to do with the audio next" bleed>
+        <ToolSection id="next" title="What to do with your YouTube audio next" bleed>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {[
               ["Remove the vocals", "Get an instrumental for karaoke, or the acapella on its own.", "/youtube-vocal-remover", "Skip the download step"],
@@ -286,12 +291,15 @@ export default async function YouTubeToWavPage() {
           <Prose className="mt-5">
             <p>
               For the first two you do not need this page at all: paste the same link into those tools and they
-              fetch the audio and separate it in one go.
+              fetch the audio and separate it in one go. If you are pulling YouTube audio to study arrangements
+              or build a reference playlist, the guide on{" "}
+              <Link href="/guides/finding-reference-tracks">finding reference tracks</Link> covers what to
+              listen for once the WAV is on your drive.
             </p>
           </Prose>
         </ToolSection>
 
-        <ToolSection id="what-wav-means" title="What lossless means from a YouTube source" bleed>
+        <ToolSection id="what-wav-means" title="Why YouTube to WAV is lossless, and what that means" bleed>
           <BitrateChainDiagram
             outputLabel="WAV, 1,411 kbps"
             outputWidth={620}
@@ -353,6 +361,14 @@ export default async function YouTubeToWavPage() {
             ]}
             footnote="Neither recovers what YouTube already compressed away. WAV keeps what arrives intact; MP3 compresses it a second time."
           />
+          <Prose className="mt-5">
+            <p>
+              In practice: convert YouTube to WAV when the audio is going into a DAW, a sampler, or DJ software,
+              because nothing has been thrown away for later processing to expose. Convert YouTube to MP3 when
+              you want a small file to listen to or send, because 320kbps CBR is transparent enough that most
+              listeners will not pick it apart from the source. Both come out of the same converter above.
+            </p>
+          </Prose>
           <Prose className="mt-5">
             <p>
               If MP3 is what you actually want, the{" "}

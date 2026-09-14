@@ -3,10 +3,11 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { AudioWaveform, Coffee, Menu, X, ChevronDown, ChevronRight } from "lucide-react";
+import { Coffee, Menu, X, ChevronDown, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { buttonStyles } from "@/components/ui/Button";
 import { TOOLS, CATEGORY_ORDER, CATEGORY_LABELS, getToolsByCategory } from "@/lib/data/tools";
+import { BrandMark } from "@/components/brand/BrandMark";
 import { CreditMenu, CreditChipMobile } from "@/components/credits/CreditMenu";
 import { CreditAccountPanel } from "@/components/credits/CreditAccountPanel";
 import { useCredits } from "@/components/credits/CreditProvider";
@@ -68,16 +69,9 @@ import { useCredits } from "@/components/credits/CreditProvider";
  *
  * ── THIS PASS ──────────────────────────────────────────────────────────
  *
- * 7. DONATE FLASHED IN AND OUT FOR EVERY PAYING USER. `hideDonate` read
- *    `balance > 0`, and CreditProvider starts at `balance: 0` with
- *    `loading: true` until /credits/me answers. So a cold load went: render
- *    Donate → balance arrives → remove Donate. The header shifted, and the
- *    thing it flashed was a tip request aimed at someone who had already paid.
- *
- *    Waiting for `loading` to settle fixes it in the direction that matters.
- *    Repeat visitors are unaffected either way — CreditProvider seeds from its
- *    module cache, so `loading` starts false and the first paint is already
- *    correct.
+ * 7. DONATE HOLDS THE LAST SLOT AND THE ONLY EMPHASIS. Tips are what the
+ *    site actually earns on, so the most prominent position in the bar goes
+ *    to them. Sign in and Credits stay quiet links beside it.
  *
  * 8. THE MEGA PANEL'S aria-label WAS ON A PLAIN <div>. An aria-label only
  *    applies to an element with a role, so "All tools" was announced to
@@ -89,24 +83,17 @@ export function Navbar() {
   const pathname = usePathname();
 
   /**
-   * Asking a paying customer for a tip, in the same row as the balance they
-   * paid for, reads badly. Donate steps aside once there IS a balance — and
-   * only on desktop, where two amber pills would sit side by side and
-   * compete. It stays in the mobile sheet and the footer for everyone, so
-   * the Ko-fi link is never unreachable.
+   * Donate sits last and carries the bar's only emphasis, because tips are
+   * what the site actually earns on today. Sign in and Credits are quiet
+   * links, so nothing competes with it.
+   *
+   * It still steps aside once there IS a balance: asking a paying customer
+   * for a tip beside the balance they paid for reads badly. Gated on
+   * `loading` too, since CreditProvider starts at balance 0 while
+   * /credits/me is in flight, so reading the balance alone would render
+   * Donate on first paint and pull it a moment later.
    */
-  const { balance, loading: creditsLoading } = useCredits();
-  /*
-    `loading` matters here, not just the balance.
-
-    CreditProvider starts at balance 0 while /credits/me is in flight, so
-    reading the balance alone rendered Donate on first paint and removed it a
-    moment later for anyone who actually had credits — a header shift, and the
-    thing that flashed was a tip request aimed at someone who had already paid.
-
-    Held back until the balance is known. Repeat visitors see no delay at all:
-    the provider seeds from its module cache and `loading` starts false.
-  */
+  const { balance, loading: creditsLoading, me } = useCredits();
   const hideDonate = creditsLoading || balance > 0;
 
   const [isToolsOpen, setIsToolsOpen] = useState(false);
@@ -277,9 +264,10 @@ export function Navbar() {
             className="group flex shrink-0 items-center gap-2 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70"
             onClick={() => setIsMobileOpen(false)}
           >
-            <AudioWaveform className="h-5 w-5 text-amber-500 transition-transform duration-200 group-hover:scale-105 motion-reduce:transition-none" />
-            <span className="font-mono font-semibold tracking-tight text-text-primary">
-              AudioForges
+            <BrandMark className="h-5 w-5 text-amber-500 transition-transform duration-200 group-hover:scale-105 motion-reduce:transition-none" />
+            <span className="font-mono tracking-tight">
+              <span className="font-normal text-text-secondary">Audio</span>
+              <span className="font-semibold text-text-primary">Forges</span>
             </span>
           </Link>
 
@@ -341,11 +329,21 @@ export function Navbar() {
           </div>
 
           <div className="flex items-center gap-2">
+            {!me?.authenticated && (
+              <Link
+                href="/signin"
+                className={buttonStyles({
+                  variant: "ghost",
+                  size: "md",
+                  className: "hidden text-text-muted hover:text-amber-400 md:inline-flex",
+                })}
+              >
+                Sign in
+              </Link>
+            )}
+
             <CreditMenu />
 
-            {/* Was hand-rolled, with its own radius, padding, press state and
-                focus ring. Same component as every other button now; the amber
-                treatment is the only thing that stays local to it. */}
             <a
               href="https://ko-fi.com/audioforges"
               target="_blank"
