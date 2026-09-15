@@ -185,9 +185,7 @@ export function CreditMenu({ className }: { className?: string }) {
     ? `${balance} ${balance === 1 ? "credit" : "credits"}`
     : hasFree
       ? `${freeRemaining} free`
-      : // Signed in and empty. Says so plainly rather than reading as a balance
-        // the UI failed to load.
-        "0 credits";
+      : "Get credits";
 
   /* The held figure is visual-only in the pill, so it has to reach the
      accessible name some other way — otherwise a screen reader hears a balance
@@ -311,8 +309,10 @@ export function CreditChipMobile({ onOpenSheet }: { onOpenSheet: () => void }) {
   const value = hasCredits ? balance : freeRemaining;
   const title = hasCredits
     ? `${balance} ${balance === 1 ? "credit" : "credits"}`
-    : isEmpty
-      ? "No free runs left this month — see credit packs"
+    : me?.authenticated && freeRemaining <= 0
+      ? "No credits yet"
+      : isEmpty
+      ? "No free runs left this month. See credit packs"
       : `${freeRemaining} free ${freeRemaining === 1 ? "run" : "runs"} left this month`;
 
   const chipClass = buttonStyles({
