@@ -45,6 +45,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     // narrower than the tool pages' head terms. Ranking it above them would
     // be optimising for the wrong visitor.
     { path: "/pricing", priority: 0.7, changeFrequency: "monthly" as const },
+    { path: "/camelot-wheel", priority: 0.7, changeFrequency: "monthly" as const },
     { path: "/forge", priority: 0.6, changeFrequency: "monthly" as const },
     { path: "/about", priority: 0.6, changeFrequency: "monthly" as const },
     { path: "/contact", priority: 0.4, changeFrequency: "yearly" as const },

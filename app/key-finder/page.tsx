@@ -236,7 +236,8 @@ export default async function KeyFinderPage() {
             </p>
             <p>
               Camelot codes are what Rekordbox, Serato, Traktor and Mixed In Key all display, so a code from here
-              drops straight into your library.{" "}
+              drops straight into your library. Keep the{" "}
+              <Link href="/camelot-wheel">printable Camelot wheel</Link> next to your decks.{" "}
               <Link href="/guides/camelot-wheel-harmonic-mixing">The full harmonic mixing guide</Link> covers
               building a set around it, and the{" "}
               <Link href="/guides/dj-set-prep-checklist">set prep checklist</Link> covers ordering for energy once

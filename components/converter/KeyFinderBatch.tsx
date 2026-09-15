@@ -950,6 +950,8 @@ export function KeyFinderBatch({
   const currentIndex = current ? rows.indexOf(current) : -1;
   const settled = done.length + failed.length;
 
+  const partial = phase === "running" && done.length ? ` (${done.length} of ${valid.length})` : "";
+
   const timed = done.filter((r) => r.ms);
   const avgMs = timed.length ? timed.reduce((s, r) => s + (r.ms as number), 0) / timed.length : 0;
   const active = rows.filter((r) => r.status === "analysing").length;
@@ -1380,7 +1382,7 @@ export function KeyFinderBatch({
             <div className="flex flex-wrap gap-2">
               <Button variant="outline" onClick={downloadCsv} disabled={!done.length}>
                 <Download />
-                Download CSV
+                Download CSV{partial}
               </Button>
               <Button
                 variant={phase === "finished" && done.length ? "primary" : "outline"}
@@ -1390,7 +1392,7 @@ export function KeyFinderBatch({
                 className="min-w-[13.5rem]"
               >
                 {zipPct !== null ? <Loader2 className="animate-spin motion-reduce:animate-none" /> : <FileArchive />}
-                {zipPct !== null ? `Packing ${zipPct}%` : "Download renamed files"}
+                {zipPct !== null ? `Packing ${zipPct}%` : `Download renamed files${partial}`}
               </Button>
             </div>
           </div>

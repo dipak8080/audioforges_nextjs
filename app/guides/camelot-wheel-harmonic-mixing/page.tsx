@@ -102,6 +102,11 @@ export default function CamelotWheelGuidePage() {
             the entire point of the system: it turns music theory into a lookup
             table you can use mid-set.
           </p>
+          <p>
+            Want it on paper? The{" "}
+            <Link href="/camelot-wheel">printable Camelot wheel chart</Link> has
+            all 24 keys and prints on one page.
+          </p>
 
           <h2 id="compatible-moves">The compatible-move rules</h2>
           <p>From any track&apos;s Camelot code, there are four safe moves:</p>

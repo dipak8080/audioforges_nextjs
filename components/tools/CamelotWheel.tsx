@@ -53,9 +53,12 @@ function segPath(index: number, rInner: number, rOuter: number) {
 export function CamelotWheel({
   highlight = "8A",
   className,
+  onPick,
 }: {
   highlight?: string;
   className?: string;
+  /** Makes every segment a button that reports its code. */
+  onPick?: (code: string) => void;
 }) {
   const num = parseInt(highlight, 10);
   const letter = highlight.slice(-1).toUpperCase();
@@ -70,8 +73,8 @@ export function CamelotWheel({
       <svg viewBox="0 0 420 420" className="mx-auto h-auto w-full max-w-md" role="img" aria-label={`Camelot wheel with ${highlight} and its compatible keys marked`}>
         {KEYS.map(([minor, major], i) => {
           const n = i + 1;
-          // Index 0 sits at 12 o'clock and holds Camelot 12, so shift by one.
-          const slot = i;
+          // 12 sits at 12 o'clock, like a clock face.
+          const slot = n % 12;
           const codeB = `${n}B`;
           const codeA = `${n}A`;
           const rows: [string, string, number, number][] = [
@@ -82,8 +85,24 @@ export function CamelotWheel({
             const isHi = code === highlight;
             const isOk = compatible.has(code);
             const [tx, ty] = pt(slot * SEG, (rIn + rOut) / 2);
+            const pick = onPick
+              ? {
+                  role: "button",
+                  tabIndex: 0,
+                  "aria-label": `${code}, ${name}`,
+                  "aria-pressed": isHi,
+                  onClick: () => onPick(code),
+                  onKeyDown: (e: React.KeyboardEvent<SVGGElement>) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      onPick(code);
+                    }
+                  },
+                  className: "cursor-pointer outline-none [&:focus-visible>path]:stroke-amber-300",
+                }
+              : {};
             return (
-              <g key={code}>
+              <g key={code} {...pick}>
                 <path
                   d={segPath(slot, rIn, rOut)}
                   fill={isHi ? "var(--amber-500)" : isOk ? "rgba(232,162,61,0.16)" : "var(--graphite-850)"}
