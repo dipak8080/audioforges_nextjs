@@ -4,4 +4,6 @@
  * server page rendered the "cannot call a client function" error in place of
  * the number.
  */
-export const MAX_BATCH_FILES = 20;
+export const MAX_BATCH_FILES = 50;
+
+export const BATCH_CONCURRENCY = 2;

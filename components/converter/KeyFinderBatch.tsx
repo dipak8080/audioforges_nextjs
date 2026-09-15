@@ -22,7 +22,7 @@ import { toAnalysisResult } from "@/components/converter/AnalysisResultCard";
 import { cn } from "@/lib/utils/cn";
 import { validateAudioFile } from "@/lib/utils/validation";
 import { getRetryAfterFallback } from "@/lib/data/rate-limits";
-import { MAX_BATCH_FILES } from "@/lib/data/key-finder";
+import { BATCH_CONCURRENCY, MAX_BATCH_FILES } from "@/lib/data/key-finder";
 import { analyzeAudioFile, isAbortError, ApiError } from "@/lib/api/railway";
 import type { AnalysisResult } from "@/lib/types/converter";
 
@@ -301,7 +301,7 @@ function ReadingBars() {
 function StepStrip({ rows, slots, onPick }: { rows: Row[]; slots: number; onPick?: (id: string) => void }) {
   const empty = Math.max(0, slots - rows.length);
   return (
-    <div className="flex h-2 items-stretch gap-[3px]" aria-hidden>
+    <div className={cn("flex h-2 items-stretch", slots > 30 ? "gap-px" : "gap-[3px]")} aria-hidden>
       {rows.map((r) => {
         const tone =
           r.status === "done"
@@ -688,7 +688,9 @@ export function KeyFinderBatch({
   const [dragging, setDragging] = useState(false);
 
   const rowsRef = useRef(rows);
-  const abortRef = useRef<AbortController | null>(null);
+  const abortsRef = useRef(new Set<AbortController>());
+  const claimedRef = useRef(new Set<string>());
+  const pauseRef = useRef<Promise<boolean> | null>(null);
   const cancelledRef = useRef(false);
   const runningRef = useRef(false);
   const mountedRef = useRef(true);
@@ -708,10 +710,12 @@ export function KeyFinderBatch({
 
   useEffect(() => {
     mountedRef.current = true;
+    const aborts = abortsRef.current;
     return () => {
       mountedRef.current = false;
       cancelledRef.current = true;
-      abortRef.current?.abort();
+      aborts.forEach((c) => c.abort());
+      aborts.clear();
       wakeRef.current?.();
     };
   }, []);
@@ -769,25 +773,43 @@ export function KeyFinderBatch({
     []
   );
 
+  const pause = useCallback(
+    (seconds: number) => {
+      if (!pauseRef.current) {
+        pauseRef.current = sleep(seconds).finally(() => {
+          pauseRef.current = null;
+        });
+      }
+      return pauseRef.current;
+    },
+    [sleep]
+  );
+
   const runQueue = useCallback(async () => {
     if (runningRef.current) return;
     runningRef.current = true;
     cancelledRef.current = false;
+    claimedRef.current = new Set();
     setNow(Date.now());
     setPhase("running");
     const stopped = () => cancelledRef.current || !mountedRef.current;
 
-    try {
+    const worker = async () => {
       for (;;) {
         if (stopped()) return;
-        const row = rowsRef.current.find((r) => r.status === "waiting");
-        if (!row) break;
+        if (pauseRef.current && !(await pauseRef.current)) return;
+        if (stopped()) return;
+        const row = rowsRef.current.find((r) => r.status === "waiting" && !claimedRef.current.has(r.id));
+        if (!row) return;
+        claimedRef.current.add(row.id);
 
         let busyTries = 0;
         for (;;) {
           if (stopped()) return;
+          if (pauseRef.current && !(await pauseRef.current)) return;
+          if (stopped()) return;
           const controller = new AbortController();
-          abortRef.current = controller;
+          abortsRef.current.add(controller);
           const t0 = Date.now();
           patch(row.id, { status: "analysing", startedAt: t0, error: null });
           try {
@@ -799,13 +821,13 @@ export function KeyFinderBatch({
             if (stopped() || isAbortError(err) || controller.signal.aborted) return;
             if (err instanceof ApiError && err.isRateLimit) {
               patch(row.id, { status: "waiting", startedAt: null });
-              if (!(await sleep(err.retryAfterSeconds ?? getRetryAfterFallback("analyze")))) return;
+              if (!(await pause(err.retryAfterSeconds ?? getRetryAfterFallback("analyze")))) return;
               continue;
             }
             if (err instanceof ApiError && err.isServerBusy && busyTries < BUSY_MAX_TRIES - 1) {
               busyTries += 1;
               patch(row.id, { status: "waiting", startedAt: null });
-              if (!(await sleep(BUSY_RETRY_SECONDS))) return;
+              if (!(await pause(BUSY_RETRY_SECONDS))) return;
               continue;
             }
             patch(row.id, {
@@ -815,20 +837,24 @@ export function KeyFinderBatch({
             });
             break;
           } finally {
-            abortRef.current = null;
+            abortsRef.current.delete(controller);
           }
         }
       }
-      if (mountedRef.current) setPhase("finished");
+    };
+
+    try {
+      await Promise.all(Array.from({ length: BATCH_CONCURRENCY }, () => worker()));
+      if (!stopped()) setPhase("finished");
     } finally {
       runningRef.current = false;
     }
-  }, [patch, sleep]);
+  }, [patch, pause]);
 
   function cancel() {
     cancelledRef.current = true;
-    abortRef.current?.abort();
-    abortRef.current = null;
+    abortsRef.current.forEach((c) => c.abort());
+    abortsRef.current.clear();
     wakeRef.current?.();
     commit((prev) =>
       prev.map((r) =>
@@ -926,9 +952,12 @@ export function KeyFinderBatch({
 
   const timed = done.filter((r) => r.ms);
   const avgMs = timed.length ? timed.reduce((s, r) => s + (r.ms as number), 0) / timed.length : 0;
-  const remaining = rows.filter((r) => r.status === "waiting").length + (current ? 1 : 0);
+  const active = rows.filter((r) => r.status === "analysing").length;
+  const remaining = rows.filter((r) => r.status === "waiting").length + active;
   const elapsed = current?.startedAt && now > current.startedAt ? (now - current.startedAt) / 1000 : 0;
-  const eta = avgMs ? Math.max(0, (avgMs / 1000) * remaining - elapsed) : null;
+  const eta = avgMs
+    ? Math.max(0, ((avgMs / 1000) * remaining) / Math.max(1, Math.min(BATCH_CONCURRENCY, remaining)) - elapsed)
+    : null;
 
   const counts = useMemo(() => {
     const m = new Map<string, number>();

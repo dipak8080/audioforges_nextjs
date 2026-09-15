@@ -23,6 +23,8 @@ import type {
   RateLimitedPayload,
 } from "@/lib/types/credits";
 
+import { trimWavForAnalysis } from "@/lib/audio/wav-trim";
+
 export const RAILWAY_API_BASE =
   process.env.NEXT_PUBLIC_RAILWAY_API_BASE || "https://api.audioforges.com";
 
@@ -665,8 +667,9 @@ export async function analyzeAudioFile(
   file: File,
   opts: RequestOptions = {}
 ): Promise<AnalyzeResponse> {
+  const upload = await trimWavForAnalysis(file);
   const fd = new FormData();
-  fd.append("file", file);
+  fd.append("file", upload, file.name);
   const res = await fetchWithTimeout(
     `${RAILWAY_API_BASE}/analyze`,
     { method: "POST", body: fd, signal: opts.signal },
