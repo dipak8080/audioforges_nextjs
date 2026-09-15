@@ -83,6 +83,7 @@ export function PackRail({
   onSelect,
   label = "How many",
   creditsPerRun,
+  unit,
 }: {
   packs: CreditPack[];
   selectedKey: string | null;
@@ -96,10 +97,11 @@ export function PackRail({
    * there is no single run to price: there the readout says "per credit".
    */
   creditsPerRun?: number;
+  unit?: [string, string];
 }) {
   // 1 keeps the old behaviour exactly for every existing 1-credit tool.
   const runCredits = creditsPerRun && creditsPerRun > 0 ? creditsPerRun : 1;
-  const runLabel = creditsPerRun ? "Per run" : "Per credit";
+  const runLabel = unit ? "Each" : creditsPerRun ? "Per run" : "Per credit";
   const btnRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
   // Computed from the data the server just sent, never authored. A hardcoded
@@ -147,7 +149,7 @@ export function PackRail({
     <div>
       <div className="mb-2.5 flex items-baseline justify-between">
         <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-text-subtle">
-          {label}
+          {unit ? `${selected.credits} credits` : label}
         </span>
         {bestValueKey === selected.key && (
           <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-amber-400">
@@ -176,6 +178,9 @@ export function PackRail({
           const isSelected = pack.key === selected.key;
           const isBestValue = pack.key === bestValueKey;
           const packPerRun = (pack.price_usd / pack.credits) * runCredits;
+          const runs = Math.floor(pack.credits / runCredits);
+          const big = unit ? runs : pack.credits;
+          const small = unit ? (runs === 1 ? unit[0] : unit[1]) : "credits";
           return (
             <button
               key={pack.key}
@@ -189,7 +194,7 @@ export function PackRail({
               /* The whole offer, not just the number. Arrowing along this rail
                  changed the price, the per-run cost and the saving underneath,
                  and announced none of them — the segment said "30". */
-              aria-label={`${pack.credits} credits for $${pack.price_usd.toFixed(
+              aria-label={`${unit ? `${runs} ${runs === 1 ? unit[0] : unit[1]}, ` : ""}${pack.credits} credits for $${pack.price_usd.toFixed(
                 2
               )}, $${packPerRun.toFixed(2)} ${
                 creditsPerRun ? "per run" : "per credit"
@@ -212,7 +217,7 @@ export function PackRail({
                 />
               )}
               <span className="block font-mono text-xl font-semibold tabular-nums sm:text-2xl">
-                {pack.credits}
+                {big}
               </span>
               <span
                 className={cn(
@@ -220,7 +225,7 @@ export function PackRail({
                   isSelected ? "text-graphite-950/70" : "text-text-subtle"
                 )}
               >
-                credits
+                {small}
               </span>
             </button>
           );

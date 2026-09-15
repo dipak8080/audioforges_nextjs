@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils/cn";
 import { Button, buttonStyles } from "@/components/ui/Button";
 import { useCredits } from "./CreditProvider";
 import { CreditGateModal } from "./CreditGateModal";
+import { PackCoverage } from "./PackCoverage";
 import { trackCredits } from "@/lib/analytics";
 import type { CreditPack, InsufficientCreditsPayload } from "@/lib/types/credits";
 
@@ -21,15 +22,7 @@ import type { CreditPack, InsufficientCreditsPayload } from "@/lib/types/credits
  * Checkout still goes through CreditGateModal, so there is exactly one
  * checkout flow in the product.
  */
-export function PricingTable({
-  studioCredits = 1,
-  sheetCredits = 0,
-}: {
-  /** Credits per Studio Quality run, for the "what it buys" line. */
-  studioCredits?: number;
-  /** Credits per sheet-music song, or 0 to hide that line. */
-  sheetCredits?: number;
-}) {
+export function PricingTable() {
   const { me, loading, balance, freeRemaining } = useCredits();
   const [openPayload, setOpenPayload] = useState<InsufficientCreditsPayload | null>(null);
   const [openStep, setOpenStep] = useState<"packs" | "signin">("packs");
@@ -142,8 +135,6 @@ export function PricingTable({
           const perCredit = pack.price_usd / pack.credits;
           const isBest = pack.key === bestValueKey;
           const saving = worstPerCredit ? Math.round((1 - perCredit / worstPerCredit) * 100) : 0;
-          const studioRuns = Math.floor(pack.credits / studioCredits);
-          const sheetSongs = sheetCredits ? Math.floor(pack.credits / sheetCredits) : 0;
           return (
             <div
               key={pack.key}
@@ -180,18 +171,13 @@ export function PricingTable({
                 )}
               </p>
 
-              <ul className="mb-5 mt-4 space-y-1.5 border-t border-graphite-800 pt-4 text-sm text-text-muted">
-                <li>
-                  <span className="text-text-primary">{studioRuns}</span> Studio Quality separations
-                </li>
-                {sheetSongs > 0 && (
-                  <li>
-                    or <span className="text-text-primary">{sheetSongs}</span> sheet-music songs
-                  </li>
-                )}
-                <li>Never expires</li>
-                <li>Refunded if a run fails</li>
-              </ul>
+              <div className="mb-5 mt-4 border-t border-graphite-800 pt-4">
+                <PackCoverage credits={pack.credits} variant="card" />
+                <ul className="mt-3 space-y-0.5 border-t border-graphite-800 pt-3 text-xs text-text-muted">
+                  <li>Never expires</li>
+                  <li>Refunded if a run fails</li>
+                </ul>
+              </div>
 
               <Button
                 variant={isBest ? "primary" : "outline"}

@@ -216,7 +216,7 @@ export default async function PricingPage() {
       </header>
 
       <div className="mt-8">
-        <PricingTable studioCredits={1} sheetCredits={sheetCharges ? 3 : 0} />
+        <PricingTable />
       </div>
 
       <p className="mt-4 text-sm leading-relaxed text-text-muted">
@@ -341,7 +341,7 @@ export default async function PricingPage() {
       <section className="mt-12 rounded-xl border border-graphite-800 bg-graphite-900 p-5">
         <h3 className="text-sm font-medium text-text-primary">Something wrong with a purchase?</h3>
         <p className="mt-1.5 text-sm leading-relaxed text-text-muted">
-          Credits not showing after paying, or a run that charged and never delivered: write to{" "}
+          Credits not showing after paying, or a run that charged and never delivered? Write to{" "}
           <EmailLink user="contact" domain="audioforges.com" className="text-amber-400 underline-offset-4 hover:underline" />{" "}
           with the email you paid with and it gets fixed by hand.
         </p>
