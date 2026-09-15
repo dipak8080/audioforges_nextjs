@@ -920,7 +920,7 @@ export function JobToolForm({
               worst timing on the site. And a coffee ask directly under a
               buy-credits upsell is two money asks stacked — suppress it there.
             */}
-            {status === "error" && !showRateLimitUpsell && !hideSupport && <SupportBlock />}
+            {status === "error" && !showRateLimitUpsell && !hideSupport && <SupportBlock mood="sheepish" />}
           </Section>
         )}
       </FormShell>

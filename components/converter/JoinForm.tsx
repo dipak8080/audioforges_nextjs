@@ -881,7 +881,7 @@ export function JoinForm() {
         <Section>
           <div className="space-y-4">
             <ErrorPanel error={error} />
-            <SupportBlock />
+            <SupportBlock mood="sheepish" />
           </div>
         </Section>
       )}

@@ -850,7 +850,7 @@ export function VocalRemoverForm({ hqAvailable = false, standardLimit }: VocalRe
                 Following "This is taking unusually long" with "Buy us a
                 coffee" is the worst timing on the site.
               */}
-              {status === "error" && <SupportBlock />}
+              {status === "error" && <SupportBlock mood="sheepish" />}
             </div>
           </Section>
         )}

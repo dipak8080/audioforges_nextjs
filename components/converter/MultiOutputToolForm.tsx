@@ -964,7 +964,7 @@ export function MultiOutputToolForm({
             unusually long" with "Enjoying AudioForges? Buy us a coffee" is the
             worst timing on the site.
           */}
-          {status === "error" && <SupportBlock />}
+          {status === "error" && <SupportBlock mood="sheepish" />}
         </Section>
       )}
 

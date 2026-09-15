@@ -725,7 +725,7 @@ export function YouTubeUrlForm({
                 </Link>
               )}
             </ErrorPanel>
-            {status === "error" && <SupportBlock />}
+            {status === "error" && <SupportBlock mood="sheepish" />}
           </Section>
         )}
       </FormShell>

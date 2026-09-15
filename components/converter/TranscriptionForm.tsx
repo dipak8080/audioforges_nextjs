@@ -1247,7 +1247,7 @@ export function TranscriptionForm({ mode, languages: initialLanguages }: Transcr
               {/* Most things that land here aren't the tool breaking — "Audio
                   is too long (35.2 min)" or a rate limit is the form doing its
                   job. */}
-              <SupportBlock />
+              <SupportBlock mood="sheepish" />
             </div>
           </Section>
         )}

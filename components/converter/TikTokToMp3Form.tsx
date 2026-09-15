@@ -291,7 +291,11 @@ export function TikTokToMp3Form() {
         setError({
           message: err.message,
           retryable:
-            err.isRateLimit || Boolean(err.retryable) || err.isTimeout || err.isServerBusy,
+            err.isRateLimit ||
+            Boolean(err.retryable) ||
+            err.isTimeout ||
+            err.isServerBusy ||
+            err.status === 0,
         });
         if (err.isRateLimit) {
           // 30 per HOUR, not the flat 60 seconds this used to guess.
@@ -518,7 +522,7 @@ export function TikTokToMp3Form() {
         <Section>
           <div className="space-y-4">
             <ErrorPanel error={formError} />
-            <SupportBlock />
+            <SupportBlock mood="sheepish" />
           </div>
         </Section>
       )}
