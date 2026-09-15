@@ -551,8 +551,8 @@ function SignInStep({ onBack }: { onBack: () => void }) {
           Check your email
         </h2>
         <p className="text-sm leading-relaxed text-text-muted">
-          If <span className="text-text-primary">{email.trim()}</span> has credits, a sign-in link
-          is on its way. It expires in 30 minutes.
+          A sign-in link is on its way to <span className="text-text-primary">{email.trim()}</span>.
+          It expires in 30 minutes. Not there? Check spam, or use the email you paid with.
         </p>
         <Button variant="outline" size="md" onClick={onBack} className="w-full">
           Back

@@ -94,7 +94,7 @@ export function AuthVerifiedContent({ status }: { status: VerifyStatus }) {
         title="That link was already used"
         // The genuinely likely case first: they may already be signed in on
         // this browser and simply clicked the email a second time.
-        body="Each link works once. If you're already signed in here, your credits are ready — check the balance in the top bar. Otherwise, send yourself a new link."
+        body="Each link works once. If you're already signed in here, your credits are ready. Check the balance in the top bar. Otherwise, send yourself a new link."
       />
     );
   }
@@ -187,6 +187,10 @@ function SignedIn() {
   }
 
   const balance = lookup.state === "ok" ? (lookup.me?.balance ?? 0) : 0;
+  const isEmpty =
+    lookup.state === "ok" && balance <= 0 && (lookup.me?.held_credits ?? 0) <= 0;
+  const neverFunded = isEmpty && (lookup.me?.recent?.length ?? 0) === 0;
+  const freeLeft = lookup.state === "ok" ? (lookup.me?.free_remaining ?? 0) : 0;
 
   return (
     <div className="space-y-6 text-center">
@@ -199,7 +203,11 @@ function SignedIn() {
           You&apos;re signed in
         </h1>
         <p className="text-sm text-text-muted">
-          Your credits are now available in this browser.
+          {isEmpty
+            ? neverFunded
+              ? "There are no credits on this account yet."
+              : "You've used all your credits."
+            : "Your credits are now available in this browser."}
         </p>
       </div>
 
@@ -212,7 +220,7 @@ function SignedIn() {
         */
         <div className="rounded-xl border border-graphite-800 bg-graphite-900 px-5 py-4 text-left">
           <p className="text-sm leading-relaxed text-text-muted">
-            You&apos;re signed in, but we couldn&apos;t read your balance just now — that&apos;s a
+            You&apos;re signed in, but we couldn&apos;t read your balance just now. That&apos;s a
             connection problem on our side, not a problem with your credits.
           </p>
           <Button variant="outline" size="sm" onClick={() => void load()} className="mt-3">
@@ -233,23 +241,45 @@ function SignedIn() {
           </p>
         </div>
       ) : (
-        /*
-          Signed in and genuinely empty — the server answered, and the answer
-          was zero. This is the "I paid and it's not here" case, and it needs a
-          real next step rather than a bare zero: the most common cause is
-          paying with a different address than the one used to sign in.
-        */
         <div className="rounded-xl border border-graphite-800 bg-graphite-900 px-5 py-4 text-left">
           <p className="text-sm leading-relaxed text-text-muted">
-            This account doesn&apos;t have any credits yet. If you&apos;ve paid, it may have gone
-            through with a different email address — send us both addresses and we&apos;ll merge
-            them.{" "}
-            <EmailLink
-              user="contact"
-              domain="audioforges.com"
-              className="text-amber-400 underline-offset-4 hover:underline"
-            />
+            {freeLeft > 0 ? (
+              <>
+                You still have{" "}
+                <span className="font-medium text-amber-400">
+                  {freeLeft} free {freeLeft === 1 ? "run" : "runs"}
+                </span>{" "}
+                this month. Credits are for Studio Quality separation, transcription, high-accuracy MIDI and
+                sheet music once those run out.
+              </>
+            ) : (
+              <>
+                Credits unlock Studio Quality separation, transcription, high-accuracy MIDI and sheet music.
+                Every other tool stays free.
+              </>
+            )}
           </p>
+          <Link
+            href="/pricing"
+            className={buttonStyles({
+              variant: freeLeft > 0 ? "outline" : "primary",
+              size: "md",
+              className: "mt-3 w-full",
+            })}
+          >
+            See credit packs
+          </Link>
+          {neverFunded && (
+            <p className="mt-3 text-xs leading-relaxed text-text-subtle">
+              Already paid? It may be under a different email. Sign in with that one, or write to{" "}
+              <EmailLink
+                user="contact"
+                domain="audioforges.com"
+                className="text-amber-400 underline-offset-4 hover:underline"
+              />
+              .
+            </p>
+          )}
         </div>
       )}
 
@@ -262,7 +292,11 @@ function SignedIn() {
           <>
             <Link
               href={returnTo.path}
-              className={buttonStyles({ variant: "primary", size: "lg", className: "w-full" })}
+              className={buttonStyles({
+                variant: isEmpty && freeLeft <= 0 ? "outline" : "primary",
+                size: "lg",
+                className: "w-full",
+              })}
             >
               Back to {returnTo.label ?? "your track"}
             </Link>
@@ -277,7 +311,11 @@ function SignedIn() {
           <>
             <Link
               href="/vocal-remover"
-              className={buttonStyles({ variant: "primary", size: "lg", className: "w-full" })}
+              className={buttonStyles({
+                variant: isEmpty && freeLeft <= 0 ? "outline" : "primary",
+                size: "lg",
+                className: "w-full",
+              })}
             >
               Back to Vocal Remover
             </Link>
@@ -354,15 +392,9 @@ function RecoverableState({
         {sent ? (
           <p className="flex items-start gap-2 text-sm text-amber-400" role="status">
             <Check className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-            {/*
-              Conditional voice: the backend returns 200 whether or not the
-              account exists, so that this can't be used to discover which
-              emails have credits. Claiming "we sent it" would be false half the
-              time.
-            */}
             <span>
-              If that email has credits, a new sign-in link is on its way. It expires in 30
-              minutes.
+              A new sign-in link is on its way. It expires in 30 minutes. Not there? Check spam, or
+              use the email you paid with.
             </span>
           </p>
         ) : (

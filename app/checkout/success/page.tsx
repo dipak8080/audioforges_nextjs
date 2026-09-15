@@ -416,8 +416,7 @@ function TimeoutState({ returnTo }: { returnTo: ReturnTarget }) {
           >
             <Check className="mt-0.5 h-4 w-4 shrink-0" />
             <span>
-              If that email has credits, a sign-in link is on its way. It
-              expires in 30 minutes.
+              A sign-in link is on its way. It expires in 30 minutes. Not there? Check spam, or use the email you paid with.
             </span>
           </p>
         ) : (
