@@ -1360,7 +1360,7 @@ export function KeyFinderBatch({
             </Button>
             <p className="text-center text-xs text-text-subtle">
               {valid.length
-                ? "They run one at a time, so the first result lands in seconds."
+                ? "They run two at a time, so the first results land in seconds."
                 : "None of these files can be read. Remove them or add others."}
             </p>
           </div>

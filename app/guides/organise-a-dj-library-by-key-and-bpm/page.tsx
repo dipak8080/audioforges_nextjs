@@ -157,7 +157,7 @@ export default function OrganiseDjLibraryGuidePage() {
             Doing this track by track is why most people abandon it. Analyse the whole folder at once
             instead. The{" "}
             <Link href="/key-finder">Key &amp; BPM Finder</Link> takes up to {MAX_BATCH_FILES} files
-            in a batch, runs them one after another, and gives you two exports when it finishes: a
+            in a batch, runs them two at a time, and gives you two exports when it finishes: a
             CSV of every result, and a ZIP of your original files renamed with their key and BPM in
             front. The ZIP is a copy operation, not a re-encode, so the audio is identical to what
             you put in.

@@ -40,8 +40,7 @@ import { ogForTool } from "@/lib/og";
   `absolute`, so the brand suffix doesn't eat the differentiator.
 */
 const PAGE_TITLE = "Song Key Finder & BPM Finder – Free, No Sign-Up";
-const PAGE_DESCRIPTION =
-  "Free key and BPM finder. Detect key, tempo and Camelot code for one track or a batch of 20, then export a CSV or the files renamed. No sign-up.";
+const PAGE_DESCRIPTION = `Free key and BPM finder. Get the key, tempo and Camelot code for one song or a batch of ${MAX_BATCH_FILES}, then export a CSV or renamed files. No sign-up.`;
 
 const UPDATED = "2026-09-11";
 
@@ -122,7 +121,7 @@ export default async function KeyFinderPage() {
   const faqs = [
     {
       question: "Can I analyse several tracks at once?",
-      answer: `Yes. Drop up to ${MAX_BATCH_FILES} files and they run one after another, never in parallel, so the analyser is not overloaded. Sort the results by key, BPM or a suggested mix order, then download a CSV of the results, or the original files renamed with their key and BPM in front, like A minor - 128 - Track.wav. The audio itself is not touched.`,
+      answer: `Yes. Drop up to ${MAX_BATCH_FILES} files and they run two at a time, so a full batch finishes in minutes. Sort the results by key, BPM or a suggested mix order, then download a CSV of the results, or the original files renamed with their key and BPM in front, like A minor - 128 - Track.wav. The audio itself is not touched.`,
     },
     {
       question: "Can I rename my music files with the key and BPM?",
@@ -208,7 +207,7 @@ export default async function KeyFinderPage() {
             },
             {
               label: "A folder at a time",
-              value: `Up to ${MAX_BATCH_FILES} files, one after another`,
+              value: `Up to ${MAX_BATCH_FILES} files, two at a time`,
               note: "Drop a whole crate. Results download as a CSV, or as your files renamed with their key and BPM.",
             },
             {

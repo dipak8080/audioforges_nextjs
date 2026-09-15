@@ -294,7 +294,7 @@ export function KeyFinderForm() {
   return (
     <FormShell
       toolLabel="Key & BPM finder"
-      toolMeta={batchFiles ? `${batchCount} files, one at a time` : "Camelot · cross-checked"}
+      toolMeta={batchFiles ? `${batchCount} files, two at a time` : "Camelot · cross-checked"}
       steps={STEPS}
       step={step}
       busy={isProcessing || batchRunning}

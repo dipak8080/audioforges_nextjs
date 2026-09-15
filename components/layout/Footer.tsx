@@ -37,7 +37,7 @@ const FOOTER_TOOL_SLUGS = [
   "vocal-remover",
   "audio-to-midi",
   "key-finder",
-  "convert",
+  "youtube-to-mp3",
   "audio-to-text",
 ];
 
