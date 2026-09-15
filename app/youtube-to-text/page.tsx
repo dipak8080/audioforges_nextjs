@@ -2,182 +2,75 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { TranscriptionForm } from "@/components/converter/TranscriptionForm";
 import { TranscriptionModeTabs } from "@/components/converter/TranscriptionModeTabs";
-import { SectionHeading } from "@/components/ui/SectionHeading";
-import { Prose } from "@/components/ui/Prose";
-import { FAQSection } from "@/components/faq/FAQSection";
+import { FAQSection, type FAQItem } from "@/components/faq/FAQSection";
+import { ToolPageShell } from "@/components/layout/ToolPageShell";
 import { Breadcrumb } from "@/components/layout/Breadcrumb";
+import { ToolSection } from "@/components/ui/ToolSection";
+import { Prose } from "@/components/ui/Prose";
 import { RelatedToolsGrid } from "@/components/tools/RelatedToolsGrid";
+import { ProofStrip } from "@/components/tools/ProofStrip";
+import { CompareTable } from "@/components/tools/CompareTable";
+import { PageByline } from "@/components/tools/PageByline";
+import {
+  ExportFormats,
+  TranscriptionLimits,
+  modelProof,
+  transcriptionCost,
+} from "@/components/tools/TranscriptionBlocks";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
+import { getFeatureFlags } from "@/lib/api/railway";
 import { TRANSCRIPTION_MODEL, getTranscriptionLanguages } from "@/lib/api/transcription";
 import { ogForTool } from "@/lib/og";
-import {
-  getLimits,
-  windowFor,
-  rateLimitLabel,
-  durationLabel,
-  retentionSentences,
-} from "@/lib/api/limits";
+import { getLimits, windowFor, rateLimitLabel, durationLabel, retentionSentences } from "@/lib/api/limits";
 
-/**
- * TARGETING — READ THIS BEFORE EDITING THE COPY.
- *
- * THIS PAGE DELIBERATELY DOES NOT CHASE "youtube transcript".
- *
- * That term carries >10,000 volume and every result on it — extensions, free
- * web tools, the lot — reads YouTube's EXISTING caption track from the
- * timedtext endpoint. Instant, any length, zero compute cost.
- *
- * We download the audio and run Whisper on a GPU: ~90s cold start, a hard
- * length cap, and a tight rate limit. For a video that already has captions we
- * are strictly worse than the free extension ranking above us. Ranking for the
- * head term would buy bounces.
- *
- * So the page targets the cluster where we are the ONLY answer — videos with
- * captions disabled, languages YouTube won't auto-caption, and auto-captions
- * that are visibly wrong. Lower volume, genuinely winnable, and every visitor
- * who arrives is one the tool actually serves.
- *
- * NOT CHASING THE TERM ISN'T THE SAME AS OMITTING IT. The title carries
- * "YouTube transcript" as an ENTITY; the qualifier after it is what keeps the
- * page off the head intent. Being absent from the entity entirely was the
- * earlier mistake: it cost the match without buying any protection from the
- * wrong intent.
- *
- * THE REAL FIX IS A BACKEND CHANGE.
- *
- * TODO(dipak): caption fast path. On submit, ask YouTube whether a caption
- * track exists (yt-dlp already exposes --list-subs, and we shell out to it
- * anyway). If one does, return it immediately — instant, any length, no GPU,
- * no rate limit. Fall back to Whisper only when there isn't one.
- *
- * That flips every disadvantage at once, and it's the only route to the volume
- * that actually exists here: a gap run returned nothing in the
- * captions-disabled cluster worth targeting, because that cluster genuinely is
- * small. The volume sits on "transcription youtube" (~110k) and "transcript
- * youtube videos" (~22k), both head-intent terms this page can't serve until
- * the fast path ships.
- *
- * When it ships: widen the title toward the head term, rewrite the hero, and
- * drop the length caveat from the comparison table — captions have no length
- * limit.
- */
-
-// `: string` is load-bearing — without it TS narrows both to literal types and
-// flags the LAST_VERIFIED !== PUBLISHED check below as impossible.
-const PUBLISHED: string = "2026-08-20";
-/** Move ONLY after re-checking the limits and the model. It sat at 2026-08-21
- *  through a rate-limit change on the 26th — the exact failure it exists to
- *  prevent. */
-const LAST_VERIFIED: string = "2026-08-30";
-
-const formatDate = (iso: string) =>
-  new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
-
-/*
-  TARGET TERMS — reference only, deliberately NOT emitted as a meta tag.
-
-  The winnable cluster, first:
-    youtube transcript captions disabled
-    transcript from youtube video without captions
-    youtube video no subtitles transcript
-    youtube auto captions wrong
-    transcribe youtube video free
-
-  Entity terms — present in the copy, not targeted. See the note above:
-    youtube to text · youtube transcript · youtube to srt
-    youtube transcript no sign up · get transcript from youtube video
-
-  Head terms surfaced by the gap run. Recorded as targeting HISTORY, not as a
-  claim this page can win them — see the fast-path TODO. Revisit both when it
-  ships:
-    transcription youtube      (~110k)
-    transcript youtube videos  (~22k)
-*/
-
-// 46 chars → 60 with the " | AudioForges" suffix, right at the desktop
-// truncation edge (~580px). "Captions" is the at-risk word and it's also the
-// differentiator, so check a live SERP snippet after this indexes. If it's
-// cutting, drop "Even": "Free YouTube Transcript Without Captions" is 40 → 54
-// and renders guaranteed, at the cost of some of the phrasing's warmth.
+const UPDATED = "2026-09-15";
+const PATH = "/youtube-to-text";
 const PAGE_TITLE = "Free YouTube Transcript, Even Without Captions";
-
-/**
- * `metadata` is evaluated at module scope, where getLimits() can't be awaited.
- * This matches the fallback in lib/api/limits.ts, so head and body can only
- * disagree if the backend moved AND that fallback wasn't updated.
- */
-const DESCRIPTION_MINUTES = 20;
-const PAGE_DESCRIPTION = `Free YouTube transcript with no account or extension. It reads the audio, so it works even when captions are disabled. Export TXT, SRT or VTT, up to ${DESCRIPTION_MINUTES} min.`;
-
-const OG_IMAGE = ogForTool("youtube-to-text", "Free YouTube transcript");
-
-export const metadata: Metadata = {
-  title: PAGE_TITLE,
-  description: PAGE_DESCRIPTION,
-  // `keywords` intentionally absent — see the term list above.
-  alternates: { canonical: `${SITE_URL}/youtube-to-text` },
-  openGraph: {
-    title: PAGE_TITLE,
-    description: PAGE_DESCRIPTION,
-    url: `${SITE_URL}/youtube-to-text`,
-    siteName: SITE_NAME,
-    type: "website",
-    images: [OG_IMAGE],
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: PAGE_TITLE,
-    description: PAGE_DESCRIPTION,
-    images: [OG_IMAGE.url],
-  },
-};
-
-// BreadcrumbList comes from <Breadcrumb />; FAQPage from <FAQSection />.
+const OG_IMAGE = ogForTool("youtube-to-text", "YouTube transcript");
 
 const LONG_VIDEO_ROUTE = [
   { href: "/youtube-to-wav", label: "YouTube to WAV", body: "Pull the audio out of the video." },
-  { href: "/youtube-to-mp3", label: "YouTube to MP3", body: "Same audio, smaller file — up to 320kbps." },
-  {
-    href: "/silence-split",
-    label: "Silence Splitter",
-    body: "Cut it at natural pauses, not fixed times.",
-  },
-  { href: "/audio-to-text", label: "Audio to Text", body: "Transcribe each section in turn." },
+  { href: "/silence-split", label: "Silence Splitter", body: "Cut it at natural pauses." },
+  { href: "/audio-to-text", label: "Audio to Text", body: "Transcribe each part in turn." },
 ];
+
+export async function generateMetadata(): Promise<Metadata> {
+  const { paywallTools } = await getFeatureFlags();
+  const description = paywallTools.transcribe
+    ? "YouTube transcript from a link, no account or extension. It reads the audio, so it works when captions are off. TXT, SRT or VTT. Free monthly runs."
+    : "Free YouTube transcript from a link, no account or extension. It reads the audio, so it works when captions are off. Export TXT, SRT or VTT.";
+  return {
+    title: PAGE_TITLE,
+    description,
+    alternates: { canonical: `${SITE_URL}${PATH}` },
+    openGraph: {
+      title: PAGE_TITLE,
+      description,
+      url: `${SITE_URL}${PATH}`,
+      siteName: SITE_NAME,
+      type: "website",
+      images: [OG_IMAGE],
+    },
+    twitter: { card: "summary_large_image", title: PAGE_TITLE, description, images: [OG_IMAGE.url] },
+  };
+}
 
 export default async function YouTubeToTextPage() {
   const relatedTools = getRelatedTools("youtube-to-text", 4);
+  const [{ paywallTools }, limits, languages] = await Promise.all([
+    getFeatureFlags(),
+    getLimits(),
+    getTranscriptionLanguages().catch(() => null),
+  ]);
 
-  const limits = await getLimits();
-
-  /*
-    Fetched here so the ~99-language dropdown is populated on first paint.
-    TranscriptionForm falls back to fetching it client-side when omitted —
-    which works, but flashes a list containing only "Detect automatically".
-
-    .catch(() => null) is load-bearing: without it a backend blip would fail
-    the whole page render, when the client-side fetch already handles that.
-  */
-  const languages = await getTranscriptionLanguages().catch(() => null);
-
-  const maxMinutesLabel = durationLabel(limits.featureDurations.transcription);
-
-  // Derived end-to-end. The old fallback read "2 per 5 minutes" — the figure
-  // this route carried before 2026-08-26. All three transcription routes
-  // changed in one commit; all three tables were updated; none of the three
-  // fallbacks were.
+  const metered = Boolean(paywallTools.transcribe);
+  const cost = transcriptionCost(metered);
+  const maxLabel = durationLabel(limits.featureDurations.transcription);
   const rateLimit = rateLimitLabel(
     limits.rateLimits.youtube_transcribe ?? 2,
     windowFor(limits, "youtube_transcribe")
   );
-
-  /*
-    OUTPUT half only. retentionSentences().input opens "Your upload is
-    deleted…" and there is no upload on this route — the user sends a link and
-    the server fetches the audio. Using it unchanged would describe something
-    that never happened, which on a privacy answer reads as boilerplate.
-  */
   const retention = retentionSentences(limits.retention.transcription);
 
   const webAppJsonLd = {
@@ -185,417 +78,187 @@ export default async function YouTubeToTextPage() {
     "@type": "WebApplication",
     name: "YouTube to Text Transcript Generator",
     alternateName: ["YouTube Transcript Generator", "YouTube to SRT", "YouTube Video to Text"],
-    url: `${SITE_URL}/youtube-to-text`,
+    url: `${SITE_URL}${PATH}`,
     applicationCategory: "MultimediaApplication",
     operatingSystem: "Any",
     browserRequirements: "Requires JavaScript.",
-    dateModified: LAST_VERIFIED,
+    dateModified: UPDATED,
     offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
     featureList: [
       "Transcribe a YouTube video from its link",
-      "Works on videos with captions disabled — it reads the audio",
+      "Works when captions are disabled, by reading the audio",
       `Runs ${TRANSCRIPTION_MODEL} on a GPU`,
-      "Automatic language detection, or set the language yourself",
-      "Translate non-English speech to English in the same pass",
-      "Timestamped segments",
+      "Automatic language detection or a set language",
+      "Translate to English in the same pass",
       "Export as TXT, SRT or VTT",
-      "No account, no email, no browser extension",
-      `Videos up to ${maxMinutesLabel}`,
+      "No account and no browser extension",
+      `Videos up to ${maxLabel}`,
     ],
   };
 
-  /**
-   * Plain strings only. An earlier "Is this free" entry carried both `answer`
-   * and `answerNode` on the assumption FAQSection renders the node — if it
-   * didn't, the link inside would never appear and nobody would notice, since
-   * the plain answer renders and looks fine. Rather than depend on that, the
-   * internal link lives in body copy where it's visible either way.
-   *
-   * Every answer opens with the answer: extractive summarisers take the first
-   * clause, and AI panels are where a page with no backlinks gets its first
-   * impressions.
-   */
-  const faqs = [
+  const faqs: FAQItem[] = [
     {
       question: "Can I get a transcript if captions are turned off?",
       answer:
-        "Yes — this transcribes the audio directly, so it doesn't depend on whether a caption track exists. That's the one thing browser extensions and most free transcript sites can't do: they read YouTube's existing captions, so when the creator disables them there's nothing for those tools to read.",
+        "Yes. This transcribes the audio itself, so it doesn't need a caption track. Extensions and most transcript sites only read YouTube's existing captions, so they have nothing to show when the creator turns them off.",
     },
     {
       question: "Doesn't YouTube already show a transcript?",
       answer:
-        "Often, yes — under the video, via the three-dot menu, and that's the faster route when it's there and you only need to read it. It falls short when the creator disabled captions, when the language isn't one YouTube auto-captions, when you want a downloadable SRT rather than text you have to clean up by hand, or when the auto-captions are visibly wrong.",
+        "Often, and when it's there and you only want to read it, that's faster. It falls short when captions are off, when the language isn't auto-captioned, when the auto-captions are wrong, or when you need an SRT file to download.",
     },
     {
-      question: "The auto-captions are wrong. Can I get a better transcript?",
-      answer: `Sometimes, and it's worth comparing. YouTube's auto-captions and this run on different systems — ours is ${TRANSCRIPTION_MODEL} — so on accented speech, technical vocabulary or music under the voice they often disagree. Neither is authoritative. Having two independent passes to compare is more useful than either side claiming an accuracy percentage.`,
+      question: "Is it free?",
+      answer: `${cost.sentence} TXT, SRT and VTT always download, whether the run was free or paid.`,
     },
     {
       question: "Do I need to download the video or install an extension?",
-      answer:
-        "Neither. Paste the link and that's it — nothing is downloaded to your device, and there's no extension, no add-on and no permissions to grant.",
-    },
-    {
-      question: `Can I transcribe a video longer than ${maxMinutesLabel}?`,
-      answer: `Not in one pass — ${maxMinutesLabel} is the per-video limit, which rules out most full podcasts and long-form talks. The workaround is to convert the video to audio, split it at natural pauses, and transcribe each section. If the video does have captions, YouTube's own transcript panel has no length limit and is the better route for something that long.`,
-    },
-    {
-      question: "Can I get SRT subtitles from a YouTube video?",
-      answer:
-        "Yes — SRT and VTT both download free, alongside plain text. YouTube's own transcript panel has no download button for viewers, which is usually why people end up here.",
+      answer: "Neither. Paste the link. Nothing is saved to your device and there are no permissions to grant.",
     },
     {
       question: "Does it work with Shorts and youtu.be links?",
       answer:
-        "Yes — standard watch links, youtu.be short links, and /shorts URLs are all accepted. Private, deleted, and region-blocked videos aren't accessible.",
+        "Yes. Watch links, youtu.be links and /shorts URLs all work. Private, deleted and region-blocked videos can't be reached.",
     },
     {
-      question: "Can I get an English transcript from a video in another language?",
+      question: `Can I transcribe a video longer than ${maxLabel}?`,
       answer:
-        "Yes — choose English output and it translates as it transcribes, in one pass. English is the only translation target available.",
+        "Not in one pass. Save the audio with YouTube to WAV, split it at pauses with the Silence Splitter, then transcribe each part. If the video has captions, YouTube's own transcript panel has no length limit.",
     },
     {
-      question: "Is this free, and is there an account?",
-      answer: `Free, with no account, no email and no credits. Exports aren't paywalled. The limits are ${maxMinutesLabel} per video and ${rateLimit}, and they exist to keep the queue moving — there's no paid tier to upgrade to.`,
-    },
-    {
-      /*
-        Written for this route rather than taken from the shared helper. The
-        input sentence there begins "Your upload is deleted…" and nothing is
-        uploaded here — the strongest true fact is that what leaves your
-        browser is a link, not a file. The output half is the helper's,
-        unchanged, because that part is identical across all three
-        transcription routes.
-      */
       question: "What happens to the video and the transcript?",
-      answer: `Nothing is uploaded from your device — you send a link, and the audio is fetched server-side. That downloaded audio is deleted as soon as the transcript is finished, whether the job succeeded or failed. ${retention.output} There are no accounts, so nothing is linked to you.`,
+      answer: `You send a link, not a file. The audio fetched for the job is deleted as soon as it finishes, whether it worked or not. ${retention.output}`,
     },
     {
-      question: "Can I use a YouTube transcript I generate here?",
+      question: "Can I reuse a transcript I make here?",
       answer:
-        "That depends on the video and what you're doing with it. Transcribing someone else's video for personal reference, accessibility, study or quotation is generally reasonable; republishing the transcript as your own content is not. You're responsible for how you use it.",
+        "That depends on the video and the use. Personal reference, study, accessibility and short quotes are generally fine; republishing someone else's words as your own content is not. You're responsible for how you use it.",
     },
   ];
 
   return (
     <>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(webAppJsonLd) }}
-      />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(webAppJsonLd) }} />
 
-      <main id="main" className="mx-auto max-w-3xl px-4 pb-16 pt-10 sm:pt-14">
-        <Breadcrumb
-          items={[{ name: "Tools", href: "/tools" }, { name: "YouTube to Text" }]}
-          className="mb-8"
+      <ToolPageShell
+        breadcrumb={<Breadcrumb items={[{ name: "Tools", href: "/tools" }, { name: "YouTube to Text" }]} />}
+        title={metered ? "YouTube transcript, with or without captions" : "Free YouTube transcript, with or without captions"}
+        lede="Paste a link and get the words back with timestamps. It reads the audio, so it works when captions are off."
+        meta={["No account", "No extension", cost.meta]}
+        tool={
+          <div className="space-y-5">
+            <TranscriptionModeTabs active="/youtube-to-text" />
+            <TranscriptionForm mode="youtube" languages={languages} />
+          </div>
+        }
+      >
+        <ProofStrip
+          proofs={[
+            modelProof(),
+            { label: "Works on", value: "Videos with captions off", note: "Transcribes the audio, not the caption track." },
+            { label: "Price", value: cost.proofValue, note: cost.proofNote },
+          ]}
         />
 
-        {/* The H1 says "with or without" rather than "even with captions off".
-            Same fact, phrased as a capability instead of a condition — the old
-            wording read as a restriction on the tool, which is the opposite of
-            what it does. */}
-        <header>
-          <p className="font-mono text-xs uppercase tracking-[0.16em] text-amber-500">
-            No account · No extension · Free SRT
-          </p>
-          <h1 className="measure-wide mt-5 text-4xl font-bold leading-[1.04] tracking-[-0.025em] text-text-primary sm:text-5xl">
-            Free YouTube transcript, with or without captions
-          </h1>
-          <p className="measure-wide mt-4 text-lg leading-relaxed text-text-muted sm:text-xl">
-            This reads the audio rather than YouTube&apos;s caption track, so it
-            works on videos where the transcript panel and every browser extension
-            come back empty.
-          </p>
-        </header>
-
-        <div className="mt-7">
-          <TranscriptionModeTabs active="/youtube-to-text" />
-        </div>
-
-        <div className="mt-5">
-          <TranscriptionForm mode="youtube" languages={languages} />
-        </div>
-
-        {/* THE SECTION THIS PAGE LIVES OR DIES ON. YouTube's own transcript
-            panel is the real competitor here, not other tools, and a reader who
-            remembers it exists while reading a page that never mentions it will
-            bounce. Naming it first and saying plainly when it's the better
-            option is what buys the right to explain when it isn't — and it's
-            also just true. */}
-        <section className="mt-16 border-t border-graphite-800 py-14">
-          <SectionHeading
-            eyebrow="Start here"
-            title="If the video has captions, YouTube is faster"
-            description="Open the video, click the three dots under it, choose Show transcript. If that works and you only need to read it, you're done — close this tab, no tool required."
+        <ToolSection id="compared" title="Three ways to get a YouTube transcript" bleed>
+          <CompareTable
+            columns={["AudioForges", "Caption extension", "YouTube's panel"]}
+            highlight={0}
+            rows={[
+              {
+                label: "Captions turned off",
+                cells: [
+                  { state: "yes", text: "Works, reads the audio" },
+                  { state: "no", text: "Nothing to read" },
+                  { state: "no", text: "No transcript shown" },
+                ],
+              },
+              {
+                label: "Download SRT or VTT",
+                cells: [
+                  { state: "yes", text: "Yes, every run" },
+                  { state: "partial", text: "Varies, often paid" },
+                  { state: "no", text: "Copy text by hand" },
+                ],
+              },
+              {
+                label: "Speed",
+                cells: [
+                  { state: "partial", text: "Up to about a minute" },
+                  { state: "yes", text: "Instant" },
+                  { state: "yes", text: "Instant" },
+                ],
+              },
+              {
+                label: "Length",
+                cells: [
+                  { state: "partial", text: `${maxLabel} per video` },
+                  { state: "yes", text: "No limit" },
+                  { state: "yes", text: "No limit" },
+                ],
+              },
+              {
+                label: "Install",
+                cells: [
+                  { state: "yes", text: "Nothing" },
+                  { state: "no", text: "Browser extension" },
+                  { state: "yes", text: "Nothing" },
+                ],
+              },
+            ]}
+            footnote="Use YouTube's own panel when captions exist and you only need to read them. Use this when they don't, or when you need a file."
           />
+        </ToolSection>
 
-          <Prose className="mt-6">
-            <p>
-              Worth saying first, because most pages competing for this search
-              quietly hope you&apos;ve forgotten it exists. The same goes for the
-              extensions — they read that same caption track, which is why
-              they&apos;re instant and why they fail in exactly the same places
-              YouTube does.
-            </p>
-            <p>
-              This tool takes a different route. It downloads the audio and
-              transcribes it with {TRANSCRIPTION_MODEL}, which is slower and capped
-              at {maxMinutesLabel} — and which works in four situations where
-              reading the caption track gets you nothing:
-            </p>
-          </Prose>
+        <ToolSection id="exports" title="What you get back" bleed>
+          <ExportFormats />
+        </ToolSection>
 
-          <div className="mt-6 overflow-x-auto rounded-xl border border-graphite-800">
-            <table className="w-full text-left text-sm text-text-muted">
-              <thead className="bg-graphite-900 text-text-primary">
-                <tr>
-                  <th scope="col" className="px-4 py-3 font-semibold">Situation</th>
-                  <th scope="col" className="px-4 py-3 font-semibold">
-                    YouTube&apos;s panel &amp; extensions
-                  </th>
-                  <th scope="col" className="px-4 py-3 font-semibold">Here</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-graphite-800">
-                <tr>
-                  <td className="px-4 py-3">Captions disabled by the creator</td>
-                  <td className="px-4 py-3">Nothing to read</td>
-                  <td className="px-4 py-3 text-text-primary">Works — reads the audio</td>
-                </tr>
-                <tr>
-                  <td className="px-4 py-3">Language YouTube doesn&apos;t auto-caption</td>
-                  <td className="px-4 py-3">Nothing generated</td>
-                  <td className="px-4 py-3 text-text-primary">Around 100 languages</td>
-                </tr>
-                <tr>
-                  <td className="px-4 py-3">Auto-captions are visibly wrong</td>
-                  <td className="px-4 py-3">Copies the same mistakes</td>
-                  <td className="px-4 py-3 text-text-primary">Independent second pass</td>
-                </tr>
-                <tr>
-                  <td className="px-4 py-3">You need a subtitle file</td>
-                  <td className="px-4 py-3">No download for viewers</td>
-                  <td className="px-4 py-3 text-text-primary">SRT or VTT, free</td>
-                </tr>
-                <tr>
-                  <td className="px-4 py-3">Video is over {maxMinutesLabel}</td>
-                  <td className="px-4 py-3 text-text-primary">No length limit</td>
-                  <td className="px-4 py-3">Rejected — see below</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          <Prose className="mt-6">
-            <p>
-              That last row is a real loss, not a hedge. On a long video that
-              already has captions, YouTube&apos;s panel wins outright and this
-              page is the wrong tool. Saying so is cheaper than letting you find
-              out at an error message — and it&apos;s the same reasoning behind{" "}
-              <Link href="/free-transcription-no-sign-up" prefetch={false}>
-                what &quot;free&quot; usually means in this category
-              </Link>
-              .
-            </p>
-          </Prose>
-        </section>
-
-        {/* The quality case. Distinct from the availability case above — this is
-            for people whose captions exist and are wrong, which is its own
-            search intent and one no caption-reading tool can serve by
-            construction. */}
-        <section className="border-t border-graphite-800 py-14">
-          <SectionHeading
-            eyebrow="When the auto-captions are wrong"
-            title="A second opinion, not a verdict"
-            description="Auto-captions mangle names, jargon and accented speech, and they get worse with music under the voice. Reading them from a different tool gets you the same mistakes."
-          />
-
-          <Prose className="mt-6">
-            <p>
-              Every browser extension and free transcript site is reading the same
-              caption track YouTube already generated. If that track is wrong, all
-              of them are wrong in identical ways — there is nothing in that
-              pipeline that could disagree.
-            </p>
-            <p>
-              This runs {TRANSCRIPTION_MODEL} over the audio independently, so
-              where the two disagree you have something to compare. Neither is
-              authoritative and we&apos;re not going to claim ours is: two
-              independent passes on a difficult name is genuinely more useful than
-              one confident number from either side.
-            </p>
-            <p>
-              What actually decides accuracy is the recording, not the tool. A
-              studio podcast transcribes near-perfectly on both. A handheld phone
-              in a busy room is hard for everything.
-            </p>
-          </Prose>
-        </section>
-
-        <section className="border-t border-graphite-800 py-14">
-          <SectionHeading eyebrow="How it works" title="Paste, wait, export" />
-
-          <ol className="mt-8 grid gap-x-8 gap-y-8 sm:grid-cols-3">
-            {[
-              {
-                step: "01",
-                title: "Paste the link",
-                body: "Watch links, youtu.be and Shorts all work. Nothing downloads to your device.",
-              },
-              {
-                step: "02",
-                title: "Set the language",
-                body: "Or leave it on auto-detect. Set it for short clips and mixed-language videos.",
-              },
-              {
-                step: "03",
-                title: "Read or export",
-                body: "Copy the text, or download TXT, SRT or VTT — no account at any point.",
-              },
-            ].map((item) => (
-              <li key={item.step} className="border-t border-graphite-800 pt-4">
-                <p className="font-mono text-xs text-amber-500">{item.step}</p>
-                <h3 className="mt-2 font-semibold text-text-primary">{item.title}</h3>
-                <p className="mt-1.5 text-sm leading-relaxed text-text-muted">{item.body}</p>
-              </li>
-            ))}
-          </ol>
-        </section>
-
-        {/* The length cap is the single most likely reason someone leaves this
-            page unhappy — podcasts and talks are the obvious use case and almost
-            all of them exceed it. Better to own it with a working route through
-            three other tools than to let them find out at the error message. */}
-        <section className="grid gap-10 border-t border-graphite-800 py-14 lg:grid-cols-12">
-          <div className="lg:col-span-7">
-            <SectionHeading
-              eyebrow="Long videos"
-              title={`Past ${maxMinutesLabel}, there's a longer route`}
-            />
-            <Prose className="mt-5">
-              <p>
-                {maxMinutesLabel} covers most interviews, lectures and music
-                videos. It does not cover a two-hour podcast, and pretending
-                otherwise would just waste your time — a longer link is rejected
-                rather than half-transcribed.
-              </p>
-              <p>
-                If the video has captions, stop here and use YouTube&apos;s own
-                transcript panel; it has no length limit. If it doesn&apos;t, the
-                workaround runs through three other tools here and takes a few
-                minutes: pull the audio out of the video, split it at natural
-                pauses so no sentence is cut in half, then transcribe each section.
-                Timestamps restart at zero in each piece, so joining plain text is
-                easy while building one continuous caption file means adding each
-                section&apos;s offset.
-              </p>
-            </Prose>
-          </div>
-
-          <ol className="divide-y divide-graphite-800 border-y border-graphite-800 lg:col-span-5 lg:self-start">
-            {LONG_VIDEO_ROUTE.map((item, i) => (
-              <li key={item.href} className="py-4">
-                <p className="font-mono text-xs text-amber-500">
-                  {String(i + 1).padStart(2, "0")}
-                </p>
+        <ToolSection id="long-videos" title={`Longer than ${maxLabel}?`} bleed>
+          <ol className="grid gap-3 sm:grid-cols-3">
+            {LONG_VIDEO_ROUTE.map((step, i) => (
+              <li key={step.href}>
                 <Link
-                  href={item.href}
+                  href={step.href}
                   prefetch={false}
-                  className="mt-1 block font-medium text-amber-400 hover:underline"
+                  className="block h-full rounded-xl border border-graphite-800 bg-graphite-900 p-4 transition-colors hover:border-amber-500/40"
                 >
-                  {item.label}
+                  <p className="font-mono text-xs text-amber-500">0{i + 1}</p>
+                  <p className="mt-1.5 font-medium text-text-primary">{step.label}</p>
+                  <p className="mt-1 text-sm text-text-muted">{step.body}</p>
                 </Link>
-                <p className="mt-0.5 text-sm text-text-muted">{item.body}</p>
               </li>
             ))}
           </ol>
-        </section>
+        </ToolSection>
 
-        <section className="border-t border-graphite-800 py-14">
-          <SectionHeading
-            eyebrow="Honest limits"
-            title="What this won't do"
-            description="Worth knowing before you paste a link rather than after."
+        <ToolSection id="limits" title="What it won't do" bleed>
+          <TranscriptionLimits
+            items={[
+              ["No playlists or channels", "One video per run."],
+              ["No speaker labels", "An interview comes back as one continuous transcript."],
+              ["Private or blocked videos", "If the server can't reach the video, there is no audio to work from."],
+              ["Limits", `${maxLabel} per video, ${rateLimit}.`],
+            ]}
           />
-
-          {/* Was a <ul> of bold lead-ins with hand-drawn top borders —
-              term/explanation pairs, so the dl renders them properly. */}
-          <Prose className="mt-8">
-            <dl>
-              <dt>Slower than reading the caption track</dt>
-              <dd>
-                Transcribing audio takes up to about a minute; an extension that
-                reads existing captions is instant. That&apos;s the trade for
-                working when there are no captions to read.
-              </dd>
-
-              <dt>No playlists or channels</dt>
-              <dd>One video per run. There&apos;s no bulk mode.</dd>
-
-              <dt>No speaker labels</dt>
-              <dd>
-                An interview comes back as continuous text, not &quot;Host /
-                Guest&quot;.
-              </dd>
-
-              <dt>Private and region-blocked videos won&apos;t load</dt>
-              <dd>
-                If the server can&apos;t reach the video, there&apos;s no audio to
-                work from.
-              </dd>
-
-              <dt>No playback here</dt>
-              <dd>
-                Unlike the file-based tools, there&apos;s no audio to click a
-                transcript line against — watch the video alongside it instead.
-              </dd>
-            </dl>
-
+          <Prose className="mt-5">
             <p>
-              For what actually degrades a transcript and when to set the language
-              manually,{" "}
-              <Link href="/guides/transcribing-audio-accurately" prefetch={false}>
-                read the transcription accuracy guide
-              </Link>
-              .
+              What hurts a transcript and when to set the language yourself is in the{" "}
+              <Link href="/guides/transcribing-audio-accurately">transcription accuracy guide</Link>.
             </p>
           </Prose>
-        </section>
+        </ToolSection>
 
-        <div className="border-t border-graphite-800 py-14">
-          <RelatedToolsGrid tools={relatedTools} />
-        </div>
+        <FAQSection faqs={faqs} />
 
-        <div className="border-t border-graphite-800 py-14">
-          <FAQSection eyebrow="Questions" faqs={faqs} />
-        </div>
+        <RelatedToolsGrid tools={relatedTools} />
 
-        {/* h3, not h2 — a footnote under the page's content rather than a
-            section sitting in the outline beside the real ones. */}
-        <section className="rounded-xl border border-graphite-800 bg-graphite-900 p-5">
-          <h3 className="font-semibold text-text-primary">Copyright &amp; fair use</h3>
-          <p className="mt-2 text-sm leading-relaxed text-text-muted">
-            You&apos;re responsible for how you use a transcript of someone
-            else&apos;s video. Personal reference, accessibility, study and
-            quotation are generally reasonable; republishing a transcript as your
-            own content is not. AudioForges doesn&apos;t host or redistribute
-            video, audio, or the transcripts produced here.
-          </p>
-        </section>
-
-        <p className="mt-8 border-t border-graphite-800 pt-6 font-mono text-xs text-text-subtle">
-          Published <time dateTime={PUBLISHED}>{formatDate(PUBLISHED)}</time>
-          {LAST_VERIFIED !== PUBLISHED && (
-            <>
-              {" · "}limits and model re-checked{" "}
-              <time dateTime={LAST_VERIFIED}>{formatDate(LAST_VERIFIED)}</time>
-            </>
-          )}
-          {". "}
-          {TRANSCRIPTION_MODEL} · {maxMinutesLabel} per video · {rateLimit}.
-        </p>
-      </main>
+        <PageByline
+          updated={UPDATED}
+          note={`${TRANSCRIPTION_MODEL}, ${maxLabel} per video, ${rateLimit}`}
+          legal="You are responsible for having the right to transcribe and use the videos you submit."
+        />
+      </ToolPageShell>
     </>
   );
 }

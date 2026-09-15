@@ -104,7 +104,7 @@ export function FreeTierBadge({
         title={
           balance > 0
             ? `Uses ${costLabel} of your ${balance}`
-            : `Uses ${costLabel} — free runs reset monthly`
+            : `Uses ${costLabel}. Free runs reset monthly`
         }
       >
         {costLabel}

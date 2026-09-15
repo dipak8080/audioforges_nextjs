@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { AlertCircle, Check, Clock, Loader2, Mail, RefreshCw, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
@@ -64,6 +64,18 @@ const inputClass = cn(
   "disabled:opacity-50"
 );
 
+function readReturnTo(): { path: string; label: string | null } | null {
+  const raw = readLocal(RETURN_KEY);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as { path?: string; label?: string | null };
+    if (!parsed.path || !parsed.path.startsWith("/")) return null;
+    return { path: parsed.path, label: parsed.label ?? null };
+  } catch {
+    return null;
+  }
+}
+
 function readLocal(key: string): string | null {
   if (typeof window === "undefined") return null;
   try {
@@ -118,45 +130,32 @@ function SignedIn() {
   const { refresh: refreshProvider } = useCredits();
   const [lookup, setLookup] = useState<Lookup>({ state: "loading" });
 
-  /**
-   * ONE request, not two.
-   *
-   * The provider's refresh returns the payload it fetched, so asking it first
-   * serves both this screen and the navbar. When the paywall is off it returns
-   * null immediately WITHOUT a request — and a magic link can be used in that
-   * state, which is the reason the direct call exists at all. So the fallback
-   * fires exactly when the provider couldn't have answered.
-   */
-  const load = useCallback(async () => {
-    setLookup({ state: "loading" });
+  const fetchLookup = useCallback(async (): Promise<Lookup> => {
     try {
       const viaProvider = await refreshProvider();
       const me = viaProvider ?? (await getCreditsMe());
-      // Null here means the lookup itself failed — NOT that the account is
-      // empty. Those are different screens.
-      setLookup(me ? { state: "ok", me } : { state: "failed" });
+      return me ? { state: "ok", me } : { state: "failed" };
     } catch {
-      setLookup({ state: "failed" });
+      return { state: "failed" };
     }
   }, [refreshProvider]);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const load = useCallback(async () => {
+    setLookup({ state: "loading" });
+    setLookup(await fetchLookup());
+  }, [fetchLookup]);
 
-  /** Where checkout said they were, when the link was opened on the same
-   *  device it was requested from. Better than a guess; often absent. */
-  const returnTo = useMemo(() => {
-    const raw = readLocal(RETURN_KEY);
-    if (!raw) return null;
-    try {
-      const parsed = JSON.parse(raw) as { path?: string; label?: string | null };
-      if (!parsed.path || !parsed.path.startsWith("/")) return null;
-      return { path: parsed.path, label: parsed.label ?? null };
-    } catch {
-      return null;
-    }
-  }, []);
+  useEffect(() => {
+    let cancelled = false;
+    fetchLookup().then((next) => {
+      if (!cancelled) setLookup(next);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchLookup]);
+
+  const [returnTo] = useState(readReturnTo);
 
   /*
     CONSUMED, NOT JUST READ. /checkout/success removes this key after using it;

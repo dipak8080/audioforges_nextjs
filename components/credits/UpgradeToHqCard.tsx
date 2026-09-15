@@ -253,7 +253,7 @@ export function UpgradeToHqCard({
       setError(
         err instanceof ApiError
           ? err.message
-          : "That didn't go through. Nothing was charged — try again."
+          : "That didn't go through. Nothing was charged. Try again."
       );
     }
   }, [submitting, info, family, jobId, applyBalance, refresh, onUpgraded, catchCreditError]);
@@ -345,7 +345,7 @@ export function UpgradeToHqCard({
           */}
           <p className="text-sm font-medium text-text-primary">Hear this cleaner</p>
           <p className="mt-1 text-xs leading-relaxed text-text-muted">
-            Runs a heavier model on the same file — noticeably less bleed between the stems. No
+            Runs a heavier model on the same file, with noticeably less bleed between the stems. No
             re-upload, no waiting for another conversion.
           </p>
 
@@ -386,7 +386,7 @@ export function UpgradeToHqCard({
             {/* One label, not two. `loading` overlays a spinner on top of this
                 and keeps its width — swapping the text underneath changed a
                 string nobody can see and made the button jump on release. */}
-            {isFree ? "Run at Studio Quality — free" : "Run at Studio Quality — 1 credit"}
+            {isFree ? "Run at Studio Quality · free" : "Run at Studio Quality · 1 credit"}
           </Button>
 
           {isFree && freeLeft > 0 && (

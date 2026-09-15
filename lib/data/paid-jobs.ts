@@ -27,7 +27,7 @@ const GROUPS: Array<Omit<PaidJob, "credits">> = [
   {
     id: "midi",
     short: "MIDI",
-    label: "Piano or guitar MIDI",
+    label: "Piano, keys or guitar MIDI",
     detail: "One instrument, high accuracy",
     keys: ["audio-to-midi-hq"],
   },

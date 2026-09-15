@@ -136,7 +136,6 @@ export default function CheckoutSuccessPage() {
     stopped.current = false;
     baselineBalance.current = null;
     startedAt.current = Date.now();
-    setSlow(false);
 
     trackCredits("credits_checkout_returned");
 
@@ -230,7 +229,7 @@ function CheckingState({ slow }: { slow: boolean }) {
       {/* Says what's happening and roughly how long. "Please wait" tells the
           user nothing and makes ten seconds feel like a minute. */}
       <p className="text-sm leading-relaxed text-text-muted">
-        This usually takes a few seconds. Keep this tab open — your credits
+        This usually takes a few seconds. Keep this tab open. Your credits
         appear here on their own.
       </p>
       {slow && (
@@ -327,7 +326,7 @@ function ConfirmedState({
           Better said here than discovered as an empty upload box.
         */}
         <p className="px-2 pt-1 text-center text-xs leading-relaxed text-text-subtle">
-          You&apos;ll need to add your track again — the trip to Ko-fi cleared
+          You&apos;ll need to add your track again. The trip to Ko-fi cleared
           the page. The run itself will use one credit.
         </p>
       </div>

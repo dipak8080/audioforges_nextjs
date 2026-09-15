@@ -270,7 +270,7 @@ export function DeviceLinkQr() {
         )}
 
         <p className="text-center text-[11px] leading-relaxed text-text-subtle">
-          Scan with your phone&apos;s camera. Works once — don&apos;t share this screen or let it
+          Scan with your phone&apos;s camera. Works once. Don&apos;t share this screen or let it
           be photographed.
         </p>
 
@@ -323,7 +323,7 @@ export function DeviceLinkQr() {
         </p>
       ) : (
         <p className="text-[11px] leading-relaxed text-text-subtle">
-          Shows a QR code to scan — no email, no typing.
+          Shows a QR code to scan. No email, no typing.
         </p>
       )}
     </div>

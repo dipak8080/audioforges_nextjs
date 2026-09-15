@@ -19,7 +19,7 @@ const OG_IMAGE = ogImage(
 );
 
 export const metadata: Metadata = {
-  title: PAGE_TITLE,
+  title: { absolute: PAGE_TITLE },
   description: PAGE_DESCRIPTION,
   alternates: { canonical: `${SITE_URL}/about` },
   openGraph: {

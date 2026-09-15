@@ -257,7 +257,7 @@ const INSTRUMENTS: { id: Instrument; label: string; blurb: string; credits: 1 | 
     label: "Piano, keys & synths",
     credits: 1,
     blurb:
-      "Piano, electric piano, synth chords and plucks — anything played on keys. Best on a single sound; for keys inside a song, turn on isolation below.",
+      "Piano, electric piano, synth chords and plucks: anything played on keys. Best on a single sound; for keys inside a song, turn on isolation below.",
   },
   {
     id: "guitar",
@@ -291,7 +291,7 @@ function presetHint(file: File | null, instrument: Instrument, isolate: boolean)
 
   if (looksBassOrVocal && instrument !== "auto") {
     return {
-      text: "Bass and vocal lines are only transcribed by Full mix — there is no single-instrument preset for them.",
+      text: "Bass and vocal lines are only transcribed by Full mix. There is no single-instrument preset for them.",
       action: { label: "Use Full mix", instrument: "auto", isolate: false },
     };
   }
@@ -303,7 +303,7 @@ function presetHint(file: File | null, instrument: Instrument, isolate: boolean)
   }
   if (looksSingle && isolate) {
     return {
-      text: "This looks like a solo recording. Isolation would strip most of it — leave it off.",
+      text: "This looks like a solo recording. Isolation would strip most of it, so leave it off.",
       action: { label: "Turn isolation off", isolate: false },
     };
   }
@@ -326,7 +326,7 @@ function PresetHint({
           Not sure which to pick?
         </summary>
         <ul className="mt-1.5 space-y-1 pl-3">
-          <li>One sound — a loop, a stem, a solo recording: pick that instrument, isolation off.</li>
+          <li>One sound (a loop, a stem, a solo recording): pick that instrument, isolation off.</li>
           <li>Synth chords, plucks, pads: Piano, keys &amp; synths.</li>
           <li>Piano or guitar inside a song: that instrument, isolation on.</li>
           <li>A whole song with bass, keys and vocals: Full mix.</li>
@@ -1150,8 +1150,8 @@ export function AudioToMidiForm({ hqAvailable = false }: { hqAvailable?: boolean
                       {isHq && (
                         <p className="mt-1 text-[11px] leading-snug text-text-subtle">
                           {isGuitar
-                            ? "Off by default. The guitar engine already removes string harmonics and doubled attacks — turn this on only if the result still looks cluttered."
-                            : "Off by default. Each engine already cleans its own output — turn this on only if the result looks cluttered."}
+                            ? "Off by default. The guitar engine already removes string harmonics and doubled attacks. Turn this on only if the result still looks cluttered."
+                            : "Off by default. Each engine already cleans its own output. Turn this on only if the result looks cluttered."}
                         </p>
                       )}
                     </div>

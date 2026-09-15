@@ -210,7 +210,7 @@ export function EmailCaptureStep({
     // rejecting valid addresses, which is a far worse failure than one wasted
     // request.
     if (!trimmed || !trimmed.includes("@") || !trimmed.includes(".")) {
-      setError("That email doesn't look right — check it and try again.");
+      setError("That email doesn't look right. Check it and try again.");
       inputRef.current?.focus();
       return;
     }
@@ -288,18 +288,18 @@ export function EmailCaptureStep({
       // cases it knows about, and we own the copy for the rest.
       if (err instanceof ApiError) {
         if (err.status === 422) {
-          setError("That email doesn't look right — check it and try again.");
+          setError("That email doesn't look right. Check it and try again.");
         } else if (err.kind === "unknown_pack") {
           setError("That pack is no longer available. Pick another one.");
         } else if (err.kind === "checkout_unavailable") {
           setError(
-            "Checkout is unavailable right now. Nothing was charged — try again in a few minutes."
+            "Checkout is unavailable right now. Nothing was charged. Try again in a few minutes."
           );
         } else {
           setError(err.message);
         }
       } else {
-        setError("Something went wrong. Nothing was charged — try again.");
+        setError("Something went wrong. Nothing was charged. Try again.");
       }
       inputRef.current?.focus();
     }
@@ -364,7 +364,7 @@ export function EmailCaptureStep({
           <p className="mt-1.5 text-sm leading-relaxed text-text-muted">
             {blocked ? (
               <>
-                Your browser blocked the new tab. Use the button below — your track stays loaded
+                Your browser blocked the new tab. Use the button below. Your track stays loaded
                 here either way.
               </>
             ) : gaveUp ? (
@@ -376,7 +376,7 @@ export function EmailCaptureStep({
               </>
             ) : (
               <>
-                Ko-fi opened in a new tab. Pay there and come back — your credits appear here on
+                Ko-fi opened in a new tab. Pay there and come back. Your credits appear here on
                 their own, and your track is still loaded.
               </>
             )}
@@ -403,7 +403,7 @@ export function EmailCaptureStep({
           onClick={() => void checkNow()}
           className="w-full"
         >
-          I&apos;ve paid — check now
+          I&apos;ve paid, check now
         </Button>
 
         <button
@@ -482,7 +482,7 @@ export function EmailCaptureStep({
           ) : (
             <p id="claim-email-help" className="text-xs leading-relaxed text-text-subtle">
               Use the same email you&apos;ll pay with. It&apos;s how we match your payment back to
-              this browser — Ko-fi doesn&apos;t tell us who paid.
+              this browser, since Ko-fi doesn&apos;t tell us who paid.
             </p>
           )}
         </div>
@@ -504,7 +504,7 @@ export function EmailCaptureStep({
         <Lock className="mt-0.5 h-3 w-3 shrink-0" aria-hidden="true" />
         <span>
           Ko-fi opens in a new tab so your track stays loaded here. Payment is handled entirely by
-          Ko-fi — we never see your card, and your email is used only to deliver your credits.
+          Ko-fi. We never see your card, and your email is used only to deliver your credits.
         </span>
       </p>
     </div>

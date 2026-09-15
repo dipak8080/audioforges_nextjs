@@ -117,7 +117,7 @@ export default async function PricingPage() {
       detail: `Cleaner vocals and instrumental, or a full four-stem split, from a heavier model. Up to ${hqMaxLabel}. Returns WAV, full quality, no watermark.`,
     },
     {
-      name: "High-accuracy MIDI, piano or guitar",
+      name: "High-accuracy MIDI, keys or guitar",
       cost: 1,
       detail:
         "A model trained for that one instrument. Best on solo recordings; can isolate the part from a mix first. Returns MIDI.",

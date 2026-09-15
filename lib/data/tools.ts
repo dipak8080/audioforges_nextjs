@@ -447,7 +447,7 @@ export const TOOLS: Tool[] = [
   {
     slug: "audio-to-text",
     name: "Audio to Text",
-    shortDescription: "Transcribe audio to text with timestamps, free and without an account.",
+    shortDescription: "Transcribe audio to text with timestamps, no account needed.",
     category: "transcription",
     status: "live",
     // voice-clean and silence-split are the two the page copy actually
@@ -460,7 +460,7 @@ export const TOOLS: Tool[] = [
   {
     slug: "youtube-to-text",
     name: "YouTube to Text",
-    shortDescription: "Paste a YouTube link and get the full transcript, free.",
+    shortDescription: "Paste a YouTube link and get the full transcript, even with captions off.",
     category: "transcription",
     status: "live",
     // youtube-to-wav and silence-split are steps 1 and 2 of the
