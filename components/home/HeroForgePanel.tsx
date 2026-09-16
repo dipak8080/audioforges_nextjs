@@ -27,10 +27,10 @@ const LANES = [
 export function HeroForgePanel() {
   return (
     <div className="relative">
-      <style>{`@keyframes af-playhead{0%{left:2%}100%{left:98%}}`}</style>
+      <style>{`@keyframes af-playhead{0%{transform:translateX(2%)}100%{transform:translateX(98%)}}@keyframes af-eq{0%,100%{transform:scaleY(.3);opacity:.6}50%{transform:scaleY(1);opacity:1}}`}</style>
       <div
         aria-hidden
-        className="absolute -inset-6 -z-10 rounded-[2rem] bg-amber-500/[0.06] blur-3xl"
+        className="absolute -inset-6 -z-10 hidden rounded-[2rem] bg-amber-500/[0.06] blur-3xl lg:block"
       />
 
       <div
@@ -52,8 +52,8 @@ export function HeroForgePanel() {
               {[0, 1, 2, 3, 4].map((i) => (
                 <span
                   key={i}
-                  className="w-[3px] rounded-full bg-amber-500 animate-waveform"
-                  style={{ animationDelay: `${i * 0.12}s` }}
+                  className="h-full w-[3px] origin-bottom rounded-full bg-amber-500 will-change-transform"
+                  style={{ animation: `af-eq 0.9s ease-in-out ${i * 0.12}s infinite` }}
                 />
               ))}
             </span>
@@ -106,9 +106,11 @@ export function HeroForgePanel() {
 
           <div className="pointer-events-none absolute inset-y-0 left-24 right-0">
             <span
-              className="absolute inset-y-0 w-px bg-amber-400/90 shadow-[0_0_8px_rgba(240,184,98,0.8)]"
+              className="absolute inset-0 will-change-transform"
               style={{ animation: "af-playhead 9s linear infinite" }}
-            />
+            >
+              <span className="absolute inset-y-0 left-0 w-px bg-amber-400/90 shadow-[0_0_8px_rgba(240,184,98,0.8)]" />
+            </span>
           </div>
         </div>
 
