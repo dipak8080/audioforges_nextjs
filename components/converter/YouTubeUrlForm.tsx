@@ -45,6 +45,7 @@ import {
   type ProcessingStage,
   type UiState,
   MixerTeaser,
+  SeparationTheater,
   resolveRateLimitMessage,
 } from "@/components/tools/JobFormKit";
 
@@ -106,6 +107,8 @@ interface YouTubeUrlFormProps {
   breakoutOnComplete?: boolean;
   /** Show the Forge Mixer promise strip under the URL input. */
   showMixerTeaser?: boolean;
+  /** Stem labels for the SeparationTheater working visualization. */
+  stemTheaterLanes?: readonly string[];
   /** Receives the idempotency key for this submit. Pass it through to
    *  the API call so a duplicate replays instead of re-charging. */
   onSubmit: (url: string, idempotencyKey: string) => Promise<JobSubmitResponse>;
@@ -139,6 +142,7 @@ export function YouTubeUrlForm({
   endpoint,
   breakoutOnComplete = false,
   showMixerTeaser = false,
+  stemTheaterLanes,
   onSubmit,
   pollIntervalMs = 4000,
   submitLabel,
@@ -671,6 +675,9 @@ export function YouTubeUrlForm({
         {isBusy && (
           <Section>
             <WorkingPanel
+              theater={
+                stemTheaterLanes ? <SeparationTheater lanes={stemTheaterLanes} /> : undefined
+              }
               stageLabel={stageLabel}
               stages={stages}
               stageIndex={stageIndex}

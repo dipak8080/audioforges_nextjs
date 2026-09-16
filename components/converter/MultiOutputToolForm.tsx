@@ -64,6 +64,7 @@ import {
   type ProcessingStage,
   type UiState,
   MixerTeaser,
+  SeparationTheater,
   resolveRateLimitMessage,
 } from "@/components/tools/JobFormKit";
 
@@ -255,6 +256,10 @@ interface MultiOutputToolFormProps {
   /** "mixer" renders the multi-lane StemMixer instead of the row list +
    *  single player. Default "list" keeps silence-split and others unchanged. */
   resultView?: "list" | "mixer";
+  /** Stem labels for the SeparationTheater working visualization. Only
+   *  separation callers set this; other multi-output tools keep the default
+   *  corner waveform. */
+  stemTheaterLanes?: readonly string[];
   /** Expand the card to DAW width on the result step (separation tools). */
   breakoutOnComplete?: boolean;
   maxSubmitRetries?: number;
@@ -305,6 +310,7 @@ export function MultiOutputToolForm({
   formatOutputName = defaultFormatOutputName,
   getOutputIcon = defaultOutputIcon,
   resultView = "list",
+  stemTheaterLanes,
   breakoutOnComplete = false,
   maxSubmitRetries = 1,
   meteredToolKey = null,
@@ -780,6 +786,9 @@ export function MultiOutputToolForm({
       {isBusy && (
         <Section>
           <WorkingPanel
+            theater={
+              stemTheaterLanes ? <SeparationTheater lanes={stemTheaterLanes} /> : undefined
+            }
             stageLabel={stageLabel}
             stages={stages}
             stageIndex={stageIndex}

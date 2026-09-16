@@ -2,11 +2,13 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { SectionHeading } from "@/components/ui/SectionHeading";
 
-function wave(seed: number, n = 44): number[] {
+function wave(seed: number, n = 64): number[] {
   return Array.from({ length: n }, (_, i) => {
     const t = i / n;
-    const env = 0.4 + 0.6 * Math.pow(Math.sin(t * Math.PI), 0.7);
-    return Math.max(0.14, env * Math.abs(Math.sin(i * 0.9 * seed + seed)));
+    const env = 0.35 + 0.65 * Math.pow(Math.sin(t * Math.PI), 0.6);
+    const a = Math.abs(Math.sin(i * 0.9 * seed + seed));
+    const b = Math.abs(Math.sin(i * 2.3 + seed * 1.7));
+    return Math.max(0.08, env * (0.2 + 0.8 * (a * 0.65 + b * 0.35)));
   });
 }
 
@@ -19,7 +21,7 @@ function StemsVisual() {
   return (
     <div aria-hidden className="w-full space-y-1.5">
       {lanes.map((lane, li) => (
-        <div key={li} className="flex h-5 items-center gap-[2px]">
+        <div key={li} className="flex h-5 items-center gap-px">
           {lane.peaks.map((h, i) => (
             <span
               key={i}

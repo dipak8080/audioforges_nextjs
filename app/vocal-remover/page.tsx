@@ -204,6 +204,8 @@ export default async function VocalRemoverPage() {
           <VocalRemoverForm
             hqAvailable={separationHqEnabled}
             standardLimit={standardAllowance}
+            demoStandardSrc={DEMO_STANDARD}
+            demoStudioSrc={DEMO_STUDIO}
           />
         }
       >

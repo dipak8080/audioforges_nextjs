@@ -13,6 +13,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { JobToolForm } from "@/components/converter/JobToolForm";
+import { ForgeTeaser } from "@/components/tools/JobFormKit";
 import type { ProcessingStage } from "@/components/tools/JobFormKit";
 import { OptionCards, type CardOption } from "@/components/converter/ToolControls";
 import { FreeTierBadge } from "@/components/credits/FreeTierBadge";
@@ -170,6 +171,7 @@ export function AudioToSheetForm() {
       })}
       renderControls={(_file, disabled) => (
         <div className="space-y-5">
+          <ForgeTeaser player="score" />
           <OptionCards
             label="Instrument"
             options={instrumentOptions}

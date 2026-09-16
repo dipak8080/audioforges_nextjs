@@ -312,6 +312,7 @@ export function YouTubeStemForm({ hqAvailable = false, standardLimit }: YouTubeS
         ) : undefined,
         meta: option.time,
         detail: option.detail,
+        premium: option.value === "hq",
         // The standard tier draws from the shared pool and has no per-tool
         // entry in rate_limit.tools, so liveLimit is always null for it.
         footnote:
@@ -328,6 +329,7 @@ export function YouTubeStemForm({ hqAvailable = false, standardLimit }: YouTubeS
     <YouTubeUrlForm
         breakoutOnComplete
         showMixerTeaser
+        stemTheaterLanes={["Vocals", "Drums", "Bass", "Other"]}
       endpoint="youtube/stems"
       onSubmit={(url, key) => submitYoutubeStems(url, effectiveQuality, {}, key)}
       // Credits wiring. `meteredToolKey` reflects the CURRENT selection, so it's

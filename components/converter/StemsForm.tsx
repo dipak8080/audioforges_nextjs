@@ -285,6 +285,7 @@ export function StemsForm({ hqAvailable = false, standardLimit }: StemsFormProps
         ) : undefined,
         meta: option.time,
         detail: option.detail,
+        premium: option.value === "hq",
         // Omitted when there's no real figure, rather than filled with a
         // placeholder that reads as a shrug.
         footnote: limitLabelFor(option, liveLimit, sharedLimit.shortLabel),
@@ -296,6 +297,7 @@ export function StemsForm({ hqAvailable = false, standardLimit }: StemsFormProps
     <MultiOutputToolForm
       endpoint="stems"
       resultView="mixer"
+      stemTheaterLanes={["Vocals", "Drums", "Bass", "Other"]}
       breakoutOnComplete
       queryParam="stem"
       onSubmit={(file, key) => submitStems(file, effectiveQuality, {}, key)}

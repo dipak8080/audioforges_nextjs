@@ -276,6 +276,7 @@ export function YouTubeSeparateForm({ hqAvailable = false, standardLimit }: YouT
         ) : undefined,
         meta: option.time,
         detail: option.detail,
+        premium: option.value === "hq",
         // The standard tier draws from the shared pool and has no per-tool
         // entry in rate_limit.tools, so liveLimit is always null for it.
         footnote:
@@ -292,6 +293,7 @@ export function YouTubeSeparateForm({ hqAvailable = false, standardLimit }: YouT
     <YouTubeUrlForm
         breakoutOnComplete
         showMixerTeaser
+        stemTheaterLanes={["Vocals", "Instrumental"]}
       endpoint="youtube/separate"
       onSubmit={(url, key) => submitYoutubeSeparate(url, effectiveQuality, {}, key)}
       // Credits wiring. `meteredToolKey` reflects the CURRENT selection, so it's

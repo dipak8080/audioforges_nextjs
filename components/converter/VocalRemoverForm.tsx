@@ -3,11 +3,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Mic2, Sparkles, Music4, Bell, BellOff, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { DemoQualityStrip } from "@/components/tools/DemoQualityStrip";
 import {
   CooldownBar,
   ErrorPanel,
   FormShell,
   MixerTeaser,
+  SeparationTheater,
   Section,
   ValidationNote,
   WorkingPanel,
@@ -99,6 +101,8 @@ import { useNotificationPermission } from "@/lib/hooks/useNotificationPermission
 
 interface VocalRemoverFormProps {
   hqAvailable?: boolean;
+  demoStandardSrc?: string;
+  demoStudioSrc?: string;
   /**
    * The shared standard-separation allowance, resolved server-side from
    * /limits. Carries the daily cap on first paint, and for the whole of any
@@ -212,7 +216,12 @@ function humanizeError(raw: string): FormError {
   };
 }
 
-export function VocalRemoverForm({ hqAvailable = false, standardLimit }: VocalRemoverFormProps) {
+export function VocalRemoverForm({
+  hqAvailable = false,
+  standardLimit,
+  demoStandardSrc,
+  demoStudioSrc,
+}: VocalRemoverFormProps) {
   const [file, setFile] = useState<File | null>(null);
   const [status, setStatus] = useState<SeparationUiState>("idle");
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -620,6 +629,7 @@ export function VocalRemoverForm({ hqAvailable = false, standardLimit }: VocalRe
         ) : undefined,
         meta: option.time,
         detail: option.detail,
+        premium: option.value === "hq",
         // The standard tier draws from the shared pool and has no per-tool
         // entry in rate_limit.tools, so liveLimit is always null for it.
         footnote:
@@ -690,6 +700,10 @@ export function VocalRemoverForm({ hqAvailable = false, standardLimit }: VocalRe
               {validationError && <ValidationNote message={validationError} />}
 
               <MixerTeaser />
+
+              {hqAvailable && demoStandardSrc && demoStudioSrc && (
+                <DemoQualityStrip standardSrc={demoStandardSrc} studioSrc={demoStudioSrc} />
+              )}
             </div>
           </Section>
         )}
@@ -708,6 +722,7 @@ export function VocalRemoverForm({ hqAvailable = false, standardLimit }: VocalRe
               chargedRun={chargedRun}
               onCancel={handleCancel}
               waveform={<Waveform />}
+              theater={<SeparationTheater lanes={["Vocals", "Instrumental"]} />}
             />
           </Section>
         )}

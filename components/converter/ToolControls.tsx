@@ -244,6 +244,9 @@ export interface CardOption<T extends string> {
   detail?: string;
   /** A second, quieter line — a rate limit, a caveat. Mono. */
   footnote?: string;
+  /** The paid tier's card: amber-edged with a soft glow when selected, so the
+   *  option being charged for reads as the premium one at a glance. */
+  premium?: boolean;
   disabled?: boolean;
 }
 
@@ -359,8 +362,12 @@ export function OptionCards<T extends string>({
               "outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70",
               "disabled:cursor-not-allowed disabled:opacity-40",
               selected
-                ? "border-amber-500/60 bg-amber-500/[0.07]"
-                : "border-graphite-700 bg-graphite-850 hover:border-graphite-600 hover:bg-graphite-800/60"
+                ? option.premium
+                  ? "border-amber-500/70 bg-gradient-to-br from-amber-500/[0.10] to-graphite-850 shadow-[0_0_24px_-8px_rgba(232,162,61,0.45)]"
+                  : "border-amber-500/60 bg-amber-500/[0.07]"
+                : option.premium
+                  ? "border-amber-500/30 bg-gradient-to-br from-graphite-850 to-amber-500/[0.05] hover:border-amber-500/55"
+                  : "border-graphite-700 bg-graphite-850 hover:border-graphite-600 hover:bg-graphite-800/60"
             )}
           >
             <div className="flex items-center justify-between gap-2">

@@ -14,6 +14,7 @@ import {
   Lightbulb,
 } from "lucide-react";
 import { JobToolForm, type ProcessingStage } from "@/components/converter/JobToolForm";
+import { ForgeTeaser } from "@/components/tools/JobFormKit";
 import { OptionCards, type CardOption } from "@/components/converter/ToolControls";
 import { getRateLimitLabel } from "@/lib/data/rate-limits";
 import { cn } from "@/lib/utils/cn";
@@ -862,6 +863,7 @@ export function AudioToMidiForm({ hqAvailable = false }: { hqAvailable?: boolean
     titleAfter: option.id === "hq" ? <FreeTierBadge tool={hqToolKey(instrument)} /> : undefined,
     meta: option.cost || undefined,
     detail: option.blurb,
+    premium: option.id === "hq",
   }));
 
   const instrumentOptions: CardOption<Instrument>[] = INSTRUMENTS.map((option) => {
@@ -957,6 +959,7 @@ export function AudioToMidiForm({ hqAvailable = false }: { hqAvailable?: boolean
       }}
       renderControls={(file, disabled) => (
         <div className="space-y-3">
+          <ForgeTeaser player="roll" />
           {hqAvailable && (
             <fieldset disabled={disabled} className="space-y-2">
               <legend className="mb-2 text-sm font-medium text-text-primary">Quality</legend>

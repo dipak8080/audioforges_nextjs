@@ -18,7 +18,8 @@
  */
 
 import { useEffect, useState, type ReactNode } from "react";
-import { AlertTriangle, Check, Loader2, Sparkles } from "lucide-react";
+import { AlertTriangle, Check, Loader2 } from "lucide-react";
+import { BrandMark } from "@/components/brand/BrandMark";
 import { cn } from "@/lib/utils/cn";
 import { ApiError } from "@/lib/api/railway";
 
@@ -410,20 +411,71 @@ export function Section({ className, children }: { className?: string; children:
   return <section className={cn("p-5 sm:p-8", className)}>{children}</section>;
 }
 
-/** Slim strip under a separation form's dropzone: promises the Forge Mixer
- *  result experience without hijacking the layout before a job exists. */
-export function MixerTeaser() {
+const FORGE_TEASERS = {
+  mixer: {
+    name: "Forge Mixer",
+    copy: "Result opens in a full mixer: mute · solo · volume · pan · A–B loop · export your mix",
+  },
+  roll: {
+    name: "Forge Roll",
+    copy: "Result opens in a piano roll: play it, edit the notes, then export the fixed MIDI",
+  },
+  score: {
+    name: "Forge Score",
+    copy: "Result opens as a playable score: synced cursor, transpose, print or export",
+  },
+} as const;
+
+/** Slim branded strip under a form's dropzone: promises the Forge result
+ *  experience without hijacking the layout before a job exists. */
+export function ForgeTeaser({ player = "mixer" }: { player?: keyof typeof FORGE_TEASERS }) {
+  const t = FORGE_TEASERS[player];
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-xl border border-graphite-800 bg-graphite-950/40 px-3.5 py-2.5">
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-xl border border-amber-500/15 bg-graphite-950/40 px-3.5 py-2.5">
       <span className="flex items-center gap-1.5 font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-500/90">
-        <Sparkles className="h-3 w-3" aria-hidden />
-        Forge Mixer
+        <BrandMark className="h-3 w-3" aria-hidden />
+        {t.name}
       </span>
-      <span className="text-xs text-text-subtle">
-        Result opens in a full mixer — mute · solo · volume · pan · A–B loop · export your mix
-      </span>
+      <span className="text-xs text-text-subtle">{t.copy}</span>
     </div>
   );
+}
+
+/** Working-state visualization for separation jobs: one shimmering lane per
+ *  stem being pulled apart. Decoration only, hidden under reduced motion by
+ *  the caller's wrapper. */
+export function SeparationTheater({ lanes }: { lanes: readonly string[] }) {
+  return (
+    <div className="space-y-1.5 rounded-lg border border-amber-500/10 bg-graphite-950/40 px-3 py-2.5" aria-hidden>
+      {lanes.map((name, li) => (
+        <div key={name} className="flex items-center gap-2.5">
+          <span className="w-20 shrink-0 truncate font-mono text-[9px] uppercase tracking-[0.14em] text-text-subtle">
+            {name}
+          </span>
+          <span className="flex h-4 flex-1 items-center gap-[2px]">
+            {Array.from({ length: 36 }).map((_, i) => (
+              <span
+                key={i}
+                className={cn(
+                  "w-full rounded-[1px] animate-waveform",
+                  li === 0 ? "bg-amber-400/80" : "bg-graphite-500"
+                )}
+                style={{
+                  animationDelay: `${(i * 0.07 + li * 0.35).toFixed(2)}s`,
+                  animationDuration: `${(0.8 + li * 0.15).toFixed(2)}s`,
+                  height: `${20 + ((i * 29 + li * 13) % 60)}%`,
+                }}
+              />
+            ))}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function MixerTeaser() {
+  return <ForgeTeaser player="mixer" />;
 }
 
 /* ------------------------------------------------------------------ */
@@ -453,6 +505,7 @@ export function WorkingPanel({
   chargedRun,
   onCancel,
   waveform,
+  theater,
 }: {
   stageLabel: string;
   stages?: ProcessingStage[];
@@ -466,6 +519,9 @@ export function WorkingPanel({
   chargedRun: boolean;
   onCancel: () => void;
   waveform: ReactNode;
+  /** Full-width working visualization (e.g. SeparationTheater). When set, it
+   *  replaces the small corner waveform. */
+  theater?: ReactNode;
 }) {
   return (
     <div
@@ -503,6 +559,8 @@ export function WorkingPanel({
           style={{ width: `${progress}%` }}
         />
       </div>
+
+      {theater && <div className="motion-reduce:hidden">{theater}</div>}
 
       {/* Passed stages are ordered by elapsed time, so what's behind you gets a
           tick and what's ahead stays dim — the difference between "something is
@@ -542,7 +600,7 @@ export function WorkingPanel({
       )}
 
       <div className="flex items-center justify-between gap-3">
-        <div className="opacity-60 motion-reduce:hidden">{waveform}</div>
+        <div className="opacity-60 motion-reduce:hidden">{theater ? null : waveform}</div>
         {/* Left as a plain button on purpose: this is an underlined text link,
             not a button shape. Running it through Button would mean overriding
             the padding, height, radius and every variant colour.
