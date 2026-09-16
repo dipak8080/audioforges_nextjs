@@ -84,12 +84,11 @@ export default function AiVocalRemovalGuidePage() {
             A center-channel filter works on one assumption: in a typical stereo
             mix, the lead vocal is panned dead-center, while other elements are
             spread left and right. The filter cancels out whatever&apos;s
-            identical in both channels — which, if the vocal really is centered,
+            identical in both channels, which, if the vocal really is centered,
             removes it. The catch is that other things are often centered too:
             kick drum, bass, snare. Cancel the center channel and you don&apos;t
             just lose the vocal, you lose or thin out everything else sitting
-            there with it. And if the vocal isn&apos;t perfectly centered —
-            doubled vocals, wide harmonies, certain mix styles — a meaningful
+            there with it. And if the vocal isn&apos;t perfectly centered (doubled vocals, wide harmonies, certain mix styles), a meaningful
             amount of it survives as audible bleed.
           </p>
 
@@ -98,8 +97,8 @@ export default function AiVocalRemovalGuidePage() {
             AI source separation doesn&apos;t rely on stereo positioning at all. A
             model trained on large amounts of mixed and unmixed audio learns the
             general characteristics that distinguish a human voice from other
-            instruments — timbre, harmonic structure, the way pitch and formants
-            move over time — and uses that learned pattern to separate a track
+            instruments (timbre, harmonic structure, the way pitch and formants
+            move over time), and uses that learned pattern to separate a track
             into stems regardless of where anything sits in the stereo field. This
             is why it works on mixes a center-channel filter would fail on
             entirely, and why it produces a cleaner instrumental with far less
@@ -115,8 +114,8 @@ export default function AiVocalRemovalGuidePage() {
             the rest of the mix, since some of that trailing sound genuinely
             resembles other instrumentation. Doubled or heavily harmonized vocals
             can also leave faint traces in the instrumental, since the model has
-            more vocal-like content to separate out cleanly. Simpler mixes — a
-            clear lead vocal over a straightforward band arrangement — tend to
+            more vocal-like content to separate out cleanly. Simpler mixes (a
+            clear lead vocal over a straightforward band arrangement) tend to
             separate the most cleanly.
           </p>
 
@@ -124,7 +123,7 @@ export default function AiVocalRemovalGuidePage() {
             Instrumental vs. acapella: same process, opposite stem
           </h2>
           <p>
-            Both outputs come from the same separation pass — an{" "}
+            Both outputs come from the same separation pass: an{" "}
             <strong>instrumental</strong> keeps everything except the vocal, and
             an <strong>acapella</strong> keeps only the vocal and discards the
             rest. Which one you want depends on what you&apos;re building: karaoke
@@ -138,7 +137,7 @@ export default function AiVocalRemovalGuidePage() {
           <h2 id="why-slower">Why it&apos;s slower than other audio tools</h2>
           <p>
             Source separation is genuinely more computationally demanding than a
-            format conversion or a simple filter — it&apos;s running a full model
+            format conversion or a simple filter: it&apos;s running a full model
             over the entire track rather than applying a fixed transformation.
             That&apos;s why a separation tool typically takes longer and is
             rate-limited more strictly than something like a converter or a
@@ -146,7 +145,7 @@ export default function AiVocalRemovalGuidePage() {
           </p>
           <p>
             Our <Link href="/vocal-remover">AI Vocal Remover</Link> runs this exact
-            process — upload a track and get back a separated instrumental or
+            process: upload a track and get back a separated instrumental or
             acapella, no account or software install needed.
           </p>
         </Prose>

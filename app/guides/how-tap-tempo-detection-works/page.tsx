@@ -73,7 +73,7 @@ export default function TapTempoGuidePage() {
         <Prose className="mt-10">
           <p>
             Tap along to a beat for a while and you might expect a tap tempo tool
-            to get more and more accurate the longer you keep going — more data,
+            to get more and more accurate the longer you keep going: more data,
             better average. That&apos;s not quite how it works. A well-built tap
             tempo detector deliberately forgets your earliest taps rather than
             folding them all into one giant average, and understanding why
@@ -98,7 +98,7 @@ export default function TapTempoGuidePage() {
             If you stop tapping for more than about two seconds, the next tap
             starts an entirely new session rather than being treated as a
             continuation of the old one. Without that rule, a three-second gap
-            between taps would be read as a single beat lasting three seconds — an
+            between taps would be read as a single beat lasting three seconds: an
             enormous, corrupting outlier that would throw the average tempo
             estimate wildly low. Starting fresh after a pause means an accidental
             gap costs you a few taps to re-establish the rhythm, rather than
@@ -111,7 +111,7 @@ export default function TapTempoGuidePage() {
             each consecutive pair of taps, average those intervals across the
             current window, then convert that average interval into beats per
             minute. There&apos;s no beat-tracking algorithm inferring a tempo from
-            audio here — it&apos;s a direct measurement of how much time elapsed
+            audio here: it&apos;s a direct measurement of how much time elapsed
             between your own taps, which is exactly why tapping consistently
             matters more than tapping a lot.
           </p>
@@ -122,13 +122,13 @@ export default function TapTempoGuidePage() {
             gives the average room to settle rather than being dominated by your
             first couple of taps, which are usually the least steady. A single
             rushed or delayed tap won&apos;t wreck the result on its own, since
-            it&apos;s just one interval among several being averaged — but a
+            it&apos;s just one interval among several being averaged, but a
             consistent, steady rhythm throughout still gives the most reliable
             number.
           </p>
           <p>
-            Our <Link href="/bpm-tapper">BPM Tapper</Link> runs this exact process
-            — tap along to a beat, watch the BPM update live, and send the result
+            Our <Link href="/bpm-tapper">BPM Tapper</Link> runs this exact process:
+            tap along to a beat, watch the BPM update live, and send the result
             straight to the <Link href="/metronome">Metronome</Link> once
             you&apos;ve got it.
           </p>

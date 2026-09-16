@@ -73,20 +73,20 @@ export default function PitchShiftingGuidePage() {
         <Prose className="mt-10">
           <p>
             The old way to change a track&apos;s pitch was to just play it faster
-            or slower — speed it up and the pitch rises, slow it down and the
+            or slower: speed it up and the pitch rises, slow it down and the
             pitch drops. That works, but it comes with a cost most people
             don&apos;t want: the tempo changes right along with it. Real pitch
-            shifting solves a different problem — moving the pitch on its own,
+            shifting solves a different problem: moving the pitch on its own,
             with the tempo left exactly where it was.
           </p>
 
           <h2 id="not-speed">Why speeding up a track isn&apos;t pitch shifting</h2>
           <p>
-            Playing a file faster or slower resamples it — every part of the
+            Playing a file faster or slower resamples it: every part of the
             audio, pitch and tempo alike, scales together by the same factor. A
             track played at 1.06x speed sounds a semitone higher, but it also
             finishes several seconds earlier. That&apos;s a real limitation
-            anytime you need the original timing to stay intact — testing a sample
+            anytime you need the original timing to stay intact: testing a sample
             against a beat, practicing along with a backing track, or transposing
             a vocal without shifting where the downbeats land.
           </p>
@@ -94,7 +94,7 @@ export default function PitchShiftingGuidePage() {
           <h2 id="how-it-works">How true pitch shifting keeps tempo intact</h2>
           <p>
             A dedicated pitch-shifting engine separates the two variables instead
-            of scaling them together — it moves the pitch of the audio while
+            of scaling them together: it moves the pitch of the audio while
             independently preserving the original duration and timing. The
             tradeoff is computational cost: this kind of processing takes
             meaningfully more work than a simple speed change, which is why
@@ -104,7 +104,7 @@ export default function PitchShiftingGuidePage() {
 
           <h2 id="semitones">Thinking in semitones</h2>
           <p>
-            Pitch shift amounts are measured in semitones — the smallest step in
+            Pitch shift amounts are measured in semitones: the smallest step in
             Western music, with 12 semitones making a full octave. A shift of +7
             semitones moves a track up a perfect fifth; +12 moves it up a full
             octave. Small shifts (a semitone or two) are useful for subtle
@@ -157,12 +157,12 @@ export default function PitchShiftingGuidePage() {
 
           <h2 id="reverse">If you need the opposite: tempo without pitch</h2>
           <p>
-            Sometimes the problem runs the other way — you want a track faster or
+            Sometimes the problem runs the other way: you want a track faster or
             slower without the key moving. That&apos;s a separate operation built
             on the same underlying approach, just applied to speed instead of
             pitch. Our <Link href="/pitch">Pitch Shifter</Link> handles up to a
             full octave in either direction with tempo held constant; the{" "}
-            <Link href="/tempo">Tempo Changer</Link> does the reverse — speed
+            <Link href="/tempo">Tempo Changer</Link> does the reverse: speed
             adjusted independently of key.
           </p>
         </Prose>

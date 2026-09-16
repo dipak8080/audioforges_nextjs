@@ -74,21 +74,21 @@ export default function SplittingRecordingGuidePage() {
         <Prose className="mt-10">
           <p>
             If you have one long MP3 or WAV file that&apos;s really several tracks
-            back to back — a recorded DJ set, a digitized vinyl side, a voice memo
-            covering a few different ideas — there are three ways to turn it into
+            back to back (a recorded DJ set, a digitized vinyl side, a voice memo
+            covering a few different ideas), there are three ways to turn it into
             separate files. You can mark exact timestamps by hand in an audio
             editor. You can divide it into equal-length chunks regardless of
             what&apos;s actually in them. Or, if the recording has real quiet gaps
             at the points that matter, you can let a silence detector find those
-            boundaries automatically. This guide covers the third approach — how
+            boundaries automatically. This guide covers the third approach: how
             it actually works, where it holds up, and where it doesn&apos;t.
           </p>
 
           <h2 id="manual-vs-auto">Manual vs. automatic audio splitting</h2>
           <p>
             Manually cutting audio means opening the file in an editor and marking
-            exact start and end points yourself. It&apos;s precise — you decide
-            exactly where every cut lands — but slow for anything with more than a
+            exact start and end points yourself. It&apos;s precise (you decide
+            exactly where every cut lands), but slow for anything with more than a
             couple of boundaries, and it works regardless of whether the recording
             has any silence in it at all.
           </p>
@@ -108,7 +108,7 @@ export default function SplittingRecordingGuidePage() {
           <h2 id="detection">How silence detection finds track boundaries</h2>
           <p>
             Two settings control everything. <strong>Silence threshold</strong> is
-            a decibel level — audio quieter than this counts as potentially
+            a decibel level: audio quieter than this counts as potentially
             silent. A more negative number (like -50dB) demands a quieter moment
             before it qualifies; a less negative number (like -20dB) is more
             lenient and will pick up quieter background noise as well.{" "}
@@ -120,7 +120,7 @@ export default function SplittingRecordingGuidePage() {
             output file.
           </p>
           <p>
-            There&apos;s no single correct combination of these two settings — it
+            There&apos;s no single correct combination of these two settings: it
             depends on how the specific recording was made. A default like -30dB
             threshold with a 0.5 second minimum gap is a reasonable starting point
             for a lot of material, but a noisier recording or one with unusually
@@ -129,13 +129,13 @@ export default function SplittingRecordingGuidePage() {
 
           <h2 id="dj-mix">How to split a DJ mix into tracks</h2>
           <p>
-            This works when the mix has genuine quiet moments between songs — some
+            This works when the mix has genuine quiet moments between songs: some
             mixing styles leave a brief gap or a clean cut between tracks, and
             those gaps are exactly what silence detection is looking for. It
             doesn&apos;t work reliably on a continuously crossfaded mix, where one
             track blends directly into the next with the music never actually
-            stopping. A crossfade is a musical transition, not an acoustic silence
-            — there&apos;s nothing quiet for the detector to find, so no amount of
+            stopping. A crossfade is a musical transition, not an acoustic silence:
+            there&apos;s nothing quiet for the detector to find, so no amount of
             threshold or gap-length tuning will manufacture a boundary that
             isn&apos;t acoustically there.
           </p>
@@ -146,7 +146,7 @@ export default function SplittingRecordingGuidePage() {
             between songs, which makes it a reasonably good fit for this approach.
             Two things can get in the way: surface noise and turntable rumble can
             keep an otherwise-quiet gap from reading as silence, since the
-            detector is measuring actual loudness, not judging musical structure —
+            detector is measuring actual loudness, not judging musical structure:
             lowering the threshold usually helps recover those gaps. And very
             short intros or outros on a track can occasionally get caught up with
             the wrong neighboring section if the pause around them is brief.
@@ -162,15 +162,15 @@ export default function SplittingRecordingGuidePage() {
             segment boundary. If the minimum gap length is set too short, normal
             conversational pauses can get treated as split points, fragmenting the
             recording in ways you didn&apos;t want. Setting a longer minimum gap
-            length — long enough to exceed a typical breath or pause but short
-            enough to catch the actual boundary you&apos;re after — is usually the
+            length (long enough to exceed a typical breath or pause but short
+            enough to catch the actual boundary you&apos;re after) is usually the
             fix.
           </p>
 
           <h2 id="limitations">What automatic splitting can&apos;t do</h2>
           <p>
             It&apos;s worth being direct about this: silence detection identifies
-            quiet gaps based on loudness and duration — it doesn&apos;t know song
+            quiet gaps based on loudness and duration, it doesn&apos;t know song
             titles, artists, chapter markers, or musical structure. It can&apos;t
             recognize &quot;this is where the second song starts&quot; except by
             measuring that the audio actually went quiet at that point. Continuous
@@ -202,7 +202,7 @@ export default function SplittingRecordingGuidePage() {
               If the file has no stretch that meets your current threshold and
               gap-length settings, there&apos;s nothing to split. On a
               continuously crossfaded mix or a recording with constant background
-              noise, this is expected — adjusting settings only helps if
+              noise, this is expected: adjusting settings only helps if
               there&apos;s genuine silence somewhere to find. If there isn&apos;t,
               manual cutting is the more reliable option.
             </dd>
@@ -210,8 +210,7 @@ export default function SplittingRecordingGuidePage() {
 
           <h2 id="split-vs-remove">Splitting vs. removing silence</h2>
           <p>
-            Both approaches detect the same thing — quiet stretches in a recording
-            — and do opposite things with them. Splitting keeps every segment
+            Both approaches detect the same thing (quiet stretches in a recording), and do opposite things with them. Splitting keeps every segment
             between the gaps as its own file, useful when those gaps represent
             real boundaries you want preserved as separate tracks. Removing
             silence instead deletes those same gaps and stitches what&apos;s left

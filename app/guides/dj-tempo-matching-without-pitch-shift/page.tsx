@@ -76,14 +76,14 @@ export default function TempoMatchingGuidePage() {
             effect: speed up one track on a turntable or in a basic player and its
             pitch rises with it, slow it down and the pitch drops. For small
             nudges that&apos;s barely noticeable, but push it further and a track
-            starts sounding like it&apos;s in the wrong key entirely — which is a
+            starts sounding like it&apos;s in the wrong key entirely, which is a
             real problem if you&apos;re also trying to keep two tracks
             harmonically compatible while you blend them.
           </p>
 
           <h2 id="why-linked">Why tempo and pitch are usually linked</h2>
           <p>
-            A basic speed change works by resampling — playing back more or fewer
+            A basic speed change works by resampling: playing back more or fewer
             samples per second than the file was recorded at. That single
             adjustment moves tempo and pitch together, because both are just a
             function of playback rate. There&apos;s no way to separate them with a
@@ -94,7 +94,7 @@ export default function TempoMatchingGuidePage() {
           <h2 id="decoupled">What changes when tempo and pitch are decoupled</h2>
           <p>
             A time-stretching engine solves this by processing the audio
-            differently — it can add or remove tiny slices of audio to change
+            differently: it can add or remove tiny slices of audio to change
             duration while reconstructing the waveform to keep the original pitch.
             The result: a track played at 128% speed keeps its original key, and a
             track slowed to 85% still sounds like it&apos;s in the same key, just
@@ -105,7 +105,7 @@ export default function TempoMatchingGuidePage() {
 
           <h2 id="how-far">How far you can push a tempo change</h2>
           <p>
-            Small tempo nudges — a few BPM in either direction — are close to
+            Small tempo nudges (a few BPM in either direction) are close to
             undetectable to most listeners and are the normal range for matching
             two tracks in a set. Larger changes start to introduce their own
             artifacts: time-stretching too aggressively can make transients (drum
@@ -162,12 +162,12 @@ export default function TempoMatchingGuidePage() {
 
           <h2 id="reverse">If you need the reverse</h2>
           <p>
-            Sometimes the problem is the other way around — you want a different
+            Sometimes the problem is the other way around: you want a different
             key at the same tempo, not a different tempo at the same key. Our{" "}
             <Link href="/tempo">Tempo Changer</Link> covers half-speed to
             double-speed with pitch held constant; the{" "}
             <Link href="/pitch">Pitch Shifter</Link> runs the same underlying
-            approach in the other direction — shifting key while tempo stays
+            approach in the other direction: shifting key while tempo stays
             fixed.
           </p>
         </Prose>

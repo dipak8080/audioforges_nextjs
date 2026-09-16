@@ -75,7 +75,7 @@ export default function DjSetPrepGuidePage() {
             reader linking to "step 4" wants a heading to land on. */}
         <Prose className="mt-10">
           <p>
-            Most set prep problems don&apos;t show up in the studio — they show up
+            Most set prep problems don&apos;t show up in the studio: they show up
             mid-set, when you&apos;re digging for a track you tagged wrong three
             weeks ago. A little structure up front saves you from thinking on your
             feet later.
@@ -83,7 +83,7 @@ export default function DjSetPrepGuidePage() {
 
           <h2 id="step-1">1. Gather wider than you&apos;ll use</h2>
           <p>
-            Pull in more candidate tracks than you actually need for the set —
+            Pull in more candidate tracks than you actually need for the set:
             roughly double. Sets get built by cutting, not by finding exactly the
             right number of tracks on the first pass. If you only gather what you
             think you&apos;ll play, you have no room to swap out a track that
@@ -109,14 +109,14 @@ export default function DjSetPrepGuidePage() {
           </h2>
           <p>
             Once everything&apos;s tagged, cluster tracks by Camelot compatibility
-            first — that gives you pockets of tracks that can transition cleanly
+            first: that gives you pockets of tracks that can transition cleanly
             into each other. Within each cluster, order by energy so you&apos;re
             not jumping around once you&apos;re inside a compatible key zone.
           </p>
 
           <h2 id="step-4">4. Plan two or three deliberate key jumps</h2>
           <p>
-            Don&apos;t stay inside one key cluster for the whole set — it flattens
+            Don&apos;t stay inside one key cluster for the whole set: it flattens
             the arc. Pick two or three moments (a breakdown, a big energy shift, a
             genre change) where you intentionally jump outside the safe Camelot
             zone, and plan the transition technique for that specific jump ahead
@@ -126,7 +126,7 @@ export default function DjSetPrepGuidePage() {
           <h2 id="step-5">5. Cut ruthlessly to your actual set length</h2>
           <p>
             Once the set is roughly sequenced, cut down to your real time slot plus
-            a small buffer — not the full pool of tracks you gathered. Overpacking
+            a small buffer, not the full pool of tracks you gathered. Overpacking
             a set folder makes it harder to find things quickly if you need to
             improvise mid-set, and most of the value of prep is exactly that:
             giving yourself less to think about while playing.
@@ -135,8 +135,8 @@ export default function DjSetPrepGuidePage() {
           <h2 id="step-6">6. Do a full run-through before the gig</h2>
           <p>
             Play the set in order at least once beforehand, even roughly. This is
-            where you catch the transition that looks fine on paper — same Camelot
-            number, close BPM — but doesn&apos;t actually feel right once you hear
+            where you catch the transition that looks fine on paper (same Camelot
+            number, close BPM), but doesn&apos;t actually feel right once you hear
             it. Tagging data gets you close; your ears make the final call.
           </p>
         </Prose>

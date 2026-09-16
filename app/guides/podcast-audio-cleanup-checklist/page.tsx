@@ -76,18 +76,18 @@ export default function PodcastCleanupChecklistPage() {
             low-frequency rumble from handling noise or AC hum, a steady hiss or
             hum sitting under the voice, and loudness that jumps around between
             takes or speakers. The fixes are simple individually, but the order
-            you apply them in actually matters — doing it out of order makes each
+            you apply them in actually matters: doing it out of order makes each
             later step work harder and perform worse.
           </p>
 
           <h2 id="step-1">Step 1: Cut low-frequency rumble first</h2>
           <p>
-            Rumble — the low, muddy energy from handling noise, desk vibration,
-            HVAC hum, or a mic stand picking up footsteps — sits well below the
+            Rumble (the low, muddy energy from handling noise, desk vibration,
+            HVAC hum, or a mic stand picking up footsteps) sits well below the
             range of the human voice. Cutting it is a high-pass filter, not a
             denoiser: it removes a whole frequency band rather than trying to
             distinguish noise from signal. Doing this first matters because rumble
-            can otherwise confuse a denoising step in the next stage — some of
+            can otherwise confuse a denoising step in the next stage: some of
             that low-end energy can get mistaken for part of the noise profile,
             making the denoiser work less precisely than it would on a recording
             that&apos;s already had the rumble cut clean.
@@ -96,8 +96,8 @@ export default function PodcastCleanupChecklistPage() {
           <h2 id="step-2">Step 2: Apply speech-tuned noise reduction</h2>
           <p>
             With rumble already removed, a denoiser tuned specifically for speech
-            can focus entirely on the noise that&apos;s actually left — hiss, hum,
-            background static — without needing to also account for low-end rumble
+            can focus entirely on the noise that&apos;s actually left (hiss, hum,
+            background static) without needing to also account for low-end rumble
             it would otherwise have to work around. A speech-specific preset can
             be more targeted than a general denoiser precisely because it only has
             to protect one type of signal: the frequency range of a human voice,
@@ -109,7 +109,7 @@ export default function PodcastCleanupChecklistPage() {
             Loudness normalization should come after cleanup, not before.
             Normalizing first means you&apos;re setting levels based on a
             recording that still has rumble and noise contributing to its overall
-            level — the normalization ends up calibrated against content
+            level: the normalization ends up calibrated against content
             you&apos;re about to remove. Normalizing after cleanup sets the final
             loudness based on what will actually ship, giving a more accurate and
             consistent result, especially across multiple takes or speakers
@@ -122,7 +122,7 @@ export default function PodcastCleanupChecklistPage() {
             the rumble cut and the denoiser has to work around low-end energy it
             wasn&apos;t designed to prioritize. Normalize before cleanup and
             you&apos;re calibrating loudness against noise you&apos;re about to
-            strip out. The fixed order — rumble, then denoise, then normalize —
+            strip out. The fixed order (rumble, then denoise, then normalize)
             exists because each stage performs better when it&apos;s only solving
             the problem it&apos;s actually built for, not compensating for a step
             that should have happened earlier.
@@ -132,7 +132,7 @@ export default function PodcastCleanupChecklistPage() {
           <p>
             Running these three steps manually with separate tools means getting
             the order right yourself every time. Our{" "}
-            <Link href="/voice-clean">Voice Cleaner</Link> runs this exact chain —
+            <Link href="/voice-clean">Voice Cleaner</Link> runs this exact chain:
             rumble cut, RNNoise denoise, loudness normalization, in the
             correct order automatically, with nothing to configure. It&apos;s
             built specifically for speech content: podcasts, interviews, phone

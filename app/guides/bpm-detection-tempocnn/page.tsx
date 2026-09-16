@@ -82,7 +82,7 @@ export default function BpmDetectionTempoCnnGuidePage() {
           <p>
             The <Link href="/key-finder">key &amp; BPM finder</Link> on this site started life
             with a single tempo detector that got the exact BPM right on 42% of the GiantSteps
-            tempo set. It now gets 85%. This is the write-up of how it got there — three
+            tempo set. It now gets 85%. This is the write-up of how it got there: three
             distinct stages, one dead end, and the part that&apos;s still broken. Every number
             here comes from the same evaluation script, and the script is in the repo, so you
             can reproduce all of it.
@@ -91,13 +91,13 @@ export default function BpmDetectionTempoCnnGuidePage() {
           <h2 id="metric">How &quot;accurate&quot; is measured, before any numbers</h2>
           <p>
             Tempo accuracy figures are easy to inflate, so the metric comes first. The test set
-            is the GiantSteps tempo dataset — EDM tracks with human-verified BPM labels, and
+            is the GiantSteps tempo dataset: EDM tracks with human-verified BPM labels, and
             deliberately the hard case, because electronic music is where detectors fail most.
           </p>
           <p>
             A prediction counts as <strong>exact</strong> if it&apos;s within 3% of the labelled
             tempo. It counts as <strong>octave</strong> if it&apos;s within 3% of the label
-            multiplied by a metrical ratio — 2, ½, 1.5, ⅔, 3, ⅓, 4⁄3, or ¾. That&apos;s the
+            multiplied by a metrical ratio: 2, ½, 1.5, ⅔, 3, ⅓, 4⁄3, or ¾. That&apos;s the
             standard MIREX split: Accuracy 1 is exact, Accuracy 2 is exact-or-octave.
           </p>
           <p>
@@ -107,7 +107,7 @@ export default function BpmDetectionTempoCnnGuidePage() {
             detector quote one accuracy figure, it&apos;s worth asking which one.
           </p>
 
-          <h2 id="stage-1">Stage 1 — one detector: 42%</h2>
+          <h2 id="stage-1">Stage 1: one detector, 42%</h2>
           <p>
             The first version used Essentia&apos;s <code>RhythmExtractor2013</code> with the{" "}
             <code>degara</code> method. It&apos;s fast, it&apos;s the default everyone reaches
@@ -119,23 +119,23 @@ export default function BpmDetectionTempoCnnGuidePage() {
             More importantly, its errors weren&apos;t random. They were almost all the same
             error: locking onto the half-time pulse of fast genres. Drum &amp; bass at 174
             reads as roughly 87. Fast techno folds down the same way. The detector was hearing
-            a real, strong periodicity — it was just the wrong metrical level. That diagnosis
+            a real, strong periodicity: it was just the wrong metrical level. That diagnosis
             shaped everything that came next, because a systematic error is something you can
             correct for, where random error isn&apos;t.
           </p>
 
-          <h2 id="stage-2">Stage 2 — three detectors and a tuned window: 65%</h2>
+          <h2 id="stage-2">Stage 2: three detectors and a tuned window, 65%</h2>
           <p>
             The next version ran three detectors and made them vote: Essentia <code>degara</code>{" "}
             (most trusted), librosa&apos;s tempo estimator on the percussive onset envelope
             after harmonic/percussive separation (second), and Essentia&apos;s Percival
-            estimator (third). The reconciliation isn&apos;t a plain average — averaging 87 and
+            estimator (third). The reconciliation isn&apos;t a plain average: averaging 87 and
             174 gives you 130, which is worse than either. Instead:
           </p>
           <ul>
             <li>
               Anchor on the most trusted detector, then find every other reading that is
-              <em> metrically linked</em> to it — within 4% of the anchor times one of the
+              <em> metrically linked</em> to it: within 4% of the anchor times one of the
               ratios above.
             </li>
             <li>
@@ -145,14 +145,14 @@ export default function BpmDetectionTempoCnnGuidePage() {
             </li>
             <li>
               If the chosen tempo sits outside a preferred window, fold it by a metrical ratio
-              until it lands inside — that&apos;s the half-time correction, applied explicitly.
+              until it lands inside: that&apos;s the half-time correction, applied explicitly.
             </li>
           </ul>
           <p>
             The window itself was not guessed. I swept the lower bound across the GiantSteps
             set and the scores held flat from about 92 BPM upward, so 95–185 was chosen as a
             bound that isn&apos;t knife-edge. It also happens to match how DJs and Beatport
-            label those tracks — a 174 drum &amp; bass record is catalogued as 174, not 87.
+            label those tracks: a 174 drum &amp; bass record is catalogued as 174, not 87.
           </p>
           <p>
             Confidence is derived from agreement rather than borrowed from any one detector:
@@ -164,7 +164,7 @@ export default function BpmDetectionTempoCnnGuidePage() {
             This got to 65%, and then it hit a ceiling that&apos;s worth naming. A voting scheme
             can only choose among answers the detectors actually produced. Replaying the stored
             votes with an oracle that picks the best available answer per track shows the
-            hard limit of this approach — and the DSP detectors simply weren&apos;t producing
+            hard limit of this approach, and the DSP detectors simply weren&apos;t producing
             the right answer often enough for any voting rule to reach it.
           </p>
 
@@ -175,10 +175,10 @@ export default function BpmDetectionTempoCnnGuidePage() {
             doesn&apos;t build against NumPy 2 or current Python, and pinning an old NumPy
             across a FastAPI service that also runs librosa, Essentia and a transcription stack
             wasn&apos;t a trade worth making for one dependency. It was ruled out on
-            engineering grounds, not accuracy — if you can run it, it&apos;s good.
+            engineering grounds, not accuracy: if you can run it, it&apos;s good.
           </p>
 
-          <h2 id="stage-3">Stage 3 — a pretrained model: 85%</h2>
+          <h2 id="stage-3">Stage 3: a pretrained model, 85%</h2>
           <p>
             What worked was Schreiber and Müller&apos;s TempoCNN, available pretrained through{" "}
             <code>essentia-tensorflow</code> as <code>deeptemp-k16-3</code>. It takes audio at
@@ -188,8 +188,8 @@ export default function BpmDetectionTempoCnnGuidePage() {
           <p>
             One design decision is worth stating because it&apos;s counter-intuitive: when
             TempoCNN is present, its answer is used outright. It is <em>not</em> blended into
-            the vote with the DSP detectors. I tried that — replaying stored votes under every
-            combination rule — and every policy that mixed it with the DSP readings scored
+            the vote with the DSP detectors. I tried that (replaying stored votes under every
+            combination rule), and every policy that mixed it with the DSP readings scored
             lower than trusting it alone. The consensus machinery from Stage 2 is still there,
             but only as the fallback when the model isn&apos;t.
           </p>
@@ -200,7 +200,7 @@ export default function BpmDetectionTempoCnnGuidePage() {
             <code>essentia</code> silently lacks the TempoCNN algorithm. The import fails, the
             engine catches it as non-fatal and falls back to the DSP path, and nothing errors.
             You can believe you&apos;ve shipped TempoCNN and be running the 65% path. That
-            fallback is deliberate — it&apos;s better than a 500 on every request — but it
+            fallback is deliberate (it&apos;s better than a 500 on every request), but it
             means the accuracy number has to be checked on the deployed image, not just in
             development.
           </p>
@@ -240,7 +240,7 @@ export default function BpmDetectionTempoCnnGuidePage() {
             Tempo is the success story. Key is not, and it would be dishonest to bury that.
             Key detection uses Essentia&apos;s <code>KeyExtractor</code> on the harmonic
             component of the signal with the <code>bgate</code> key profile. That choice was
-            measured — six profiles across three input signals on 40 GiantSteps tracks, where
+            measured: six profiles across three input signals on 40 GiantSteps tracks, where
             <code> bgate</code> on the harmonic component scored 20 of 40 and the more commonly
             recommended <code>edma</code> profile scored 16 of 40 on the same input. So the
             best configuration is right about half the time.
@@ -249,7 +249,7 @@ export default function BpmDetectionTempoCnnGuidePage() {
             The reason there&apos;s no Stage 3 for key is that there is no pretrained key model
             in Essentia to reach for the way there was for tempo. The current mitigation is a
             second opinion from a librosa profile match, with confidence penalised when the two
-            disagree — which improves calibration but not the underlying accuracy.
+            disagree, which improves calibration but not the underlying accuracy.
           </p>
           <p>
             The lenient figure, where a relative major/minor is accepted as correct, is
@@ -266,8 +266,8 @@ export default function BpmDetectionTempoCnnGuidePage() {
             Two scripts in the backend repo do all of this. <code>eval_keybpm.py</code> runs
             the engine over a CSV of file paths and ground-truth labels and prints per-track
             hits plus the exact and exact-or-octave summaries. <code>tune_bpm_policy.py</code>{" "}
-            then replays the stored per-detector votes under different selection rules — single
-            detector, priority order, consensus, window folding, oracle — without touching audio
+            then replays the stored per-detector votes under different selection rules (single
+            detector, priority order, consensus, window folding, oracle) without touching audio
             again, so you can compare policies in seconds and pick one from data before
             changing the engine. That replay is how the &quot;don&apos;t blend TempoCNN&quot;
             decision was made.

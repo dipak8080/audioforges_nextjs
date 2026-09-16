@@ -73,7 +73,7 @@ export default function AiStemSeparationGuidePage() {
         <Prose className="mt-10">
           <p>
             Splitting a song into vocals and instrumental is a 2-way split. Stem
-            separation goes further — it pulls a full mix apart into{" "}
+            separation goes further: it pulls a full mix apart into{" "}
             <strong>four</strong> independent parts: vocals, drums, bass, and
             everything else. Same underlying idea as vocal removal, but a
             meaningfully harder problem, and one that opens up a different set of
@@ -83,7 +83,7 @@ export default function AiStemSeparationGuidePage() {
           <h2 id="two-to-four">From 2 stems to 4 stems</h2>
           <p>
             A vocal remover only has to decide what&apos;s voice and what
-            isn&apos;t — everything non-vocal gets lumped into one instrumental
+            isn&apos;t: everything non-vocal gets lumped into one instrumental
             track. A stem splitter has to make that same vocal/non-vocal
             distinction, and then keep subdividing the non-vocal portion into
             drums, bass, and other. That&apos;s a harder task for the model:
@@ -97,7 +97,7 @@ export default function AiStemSeparationGuidePage() {
             Vocals tend to separate cleanly regardless of stem count, because a
             voice has a distinctive harmonic and formant structure that
             doesn&apos;t closely resemble any instrument. Bass and low guitar are
-            a different story — they often occupy an overlapping low-frequency
+            a different story: they often occupy an overlapping low-frequency
             range, so the model has less to distinguish them by. Programmed or
             heavily processed drums can also separate less cleanly than an
             acoustic kit, since processing can blur the transient characteristics
@@ -107,8 +107,8 @@ export default function AiStemSeparationGuidePage() {
 
           <h2 id="other-stem">What &quot;other&quot; actually contains</h2>
           <p>
-            The fourth stem isn&apos;t a leftover bucket for separation failures —
-            it&apos;s a genuine category: guitars, keys, pads, synths, strings,
+            The fourth stem isn&apos;t a leftover bucket for separation failures.
+            It&apos;s a genuine category: guitars, keys, pads, synths, strings,
             anything that isn&apos;t vocals, drums, or bass. In a guitar-driven
             rock track, &quot;other&quot; might carry most of the melodic content.
             In an electronic track built around synth bass and drum programming,
@@ -123,8 +123,7 @@ export default function AiStemSeparationGuidePage() {
             Quality runs a larger, ensembled model instead of a single pass, which
             produces noticeably cleaner separation across all four stems, at the
             cost of 1 to 2 minutes instead of 20 seconds to 1 minute. The extra
-            time buys real improvement specifically on the harder cases —
-            bass/guitar overlap and busy drum programming — which is why
+            time buys real improvement specifically on the harder cases (bass/guitar overlap and busy drum programming), which is why
             it&apos;s worth it when a stem is headed into an actual mix rather
             than just a preview.
           </p>
@@ -132,20 +131,20 @@ export default function AiStemSeparationGuidePage() {
           <h2 id="stems-vs-instrumental">Stems vs. a plain instrumental</h2>
           <p>
             If all you need is vocals removed, a full 4-stem split is more than
-            the job requires — a <Link href="/vocal-remover">Vocal Remover</Link>{" "}
+            the job requires: a <Link href="/vocal-remover">Vocal Remover</Link>{" "}
             (or the{" "}
             <Link href="/youtube-vocal-remover">YouTube Vocal Remover</Link> if
             you&apos;re starting from a link) does the same underlying separation
             and hands back one instrumental instead of three additional stems to
             sort through. Reach for stem separation specifically when you need to
             isolate or rebuild around drums, bass, or another instrument on its
-            own — sampling a bassline, remixing with someone else&apos;s drum
+            own: sampling a bassline, remixing with someone else&apos;s drum
             pattern, or studying a part note-for-note without the rest of the mix
             in the way.
           </p>
           <p>
             Our <Link href="/stems">AI Stem Splitter</Link> runs this exact
-            process — upload a track and get back all four stems individually, no
+            process: upload a track and get back all four stems individually, no
             account or software install needed. Working from a YouTube link
             instead of a file already saved on your device? The{" "}
             <Link href="/youtube-stem-splitter">YouTube Stem Splitter</Link> runs

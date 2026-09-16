@@ -76,7 +76,7 @@ export default function SampleRateGuidePage() {
             It&apos;s a natural assumption: 96kHz is a bigger number than
             44.1kHz, so converting a file up to 96kHz should make it sound better.
             It doesn&apos;t. Sample rate and bit depth are both about how audio is
-            measured and stored, not how good the underlying recording is —
+            measured and stored, not how good the underlying recording is:
             converting between them changes the format, not the quality that was
             captured in the first place.
           </p>
@@ -84,7 +84,7 @@ export default function SampleRateGuidePage() {
           <h2 id="sample-rate">What sample rate actually measures</h2>
           <p>
             Sample rate is how many times per second an audio signal is measured
-            when it&apos;s digitized. 44.1kHz — 44,100 samples per second — is the
+            when it&apos;s digitized. 44.1kHz (44,100 samples per second) is the
             CD standard and still extremely common for music. 48kHz is the
             standard for video and broadcast audio. 96kHz shows up in some
             high-resolution audio and production workflows. None of these numbers
@@ -95,7 +95,7 @@ export default function SampleRateGuidePage() {
           <h2 id="upsampling">Why converting up doesn&apos;t add quality</h2>
           <p>
             Converting a 44.1kHz file up to 96kHz doesn&apos;t recover detail that
-            was never captured — it represents the same underlying information
+            was never captured: it represents the same underlying information
             with more samples, effectively filling in the gaps mathematically
             rather than pulling in new information from the original recording. If
             a recording was made at 44.1kHz, that rate set the ceiling on what was
@@ -106,12 +106,12 @@ export default function SampleRateGuidePage() {
           <h2 id="bit-depth">What bit depth actually controls</h2>
           <p>
             Bit depth is a separate setting that controls how finely each
-            individual sample&apos;s amplitude is measured — think of it as
+            individual sample&apos;s amplitude is measured: think of it as
             resolution in the vertical direction, where sample rate is resolution
             in the horizontal (time) direction. 16-bit is the CD standard; 24-bit
             and 32-bit are common in production for the extra headroom they give
             during mixing and processing. This only applies to uncompressed
-            formats like WAV and AIFF — compressed formats like MP3 or AAC
+            formats like WAV and AIFF: compressed formats like MP3 or AAC
             don&apos;t expose a user-facing bit depth to convert, since they
             don&apos;t store audio as raw PCM samples in the first place.
           </p>
@@ -138,23 +138,23 @@ export default function SampleRateGuidePage() {
             recording down to 44.1kHz does discard some of what was captured,
             since fewer samples per second means less of the original signal is
             represented afterward. This matters far less than it sounds for most
-            practical purposes — 44.1kHz already captures everything within normal
-            human hearing range — but it&apos;s worth knowing that this direction,
+            practical purposes (44.1kHz already captures everything within normal
+            human hearing range), but it&apos;s worth knowing that this direction,
             unlike upsampling, is not a lossless round trip.
           </p>
           <p>
             Our <Link href="/sample-rate-converter">Sample Rate Converter</Link>{" "}
-            handles both directions across the full practical range — 8, 16,
-            22.05, 44.1, 48 and 96 kHz — with an optional bit depth change for
+            handles both directions across the full practical range (8, 16,
+            22.05, 44.1, 48 and 96 kHz) with an optional bit depth change for
             WAV and AIFF files. Upload a file, pick a target, and download the
             result, no account or software install needed. The low end of that
             range exists for telephony: hold music and IVR prompts need 8 kHz
-            (or 16 kHz for wideband systems) — see{" "}
+            (or 16 kHz for wideband systems), see{" "}
             <Link href="/guides/convert-audio-for-phone-systems-3cx-asterisk-ivr">
               Convert Audio to 8 kHz Mono WAV for Phone Systems
             </Link>
             . And if the target is a hardware sampler, each box has one native
-            rate worth matching —{" "}
+            rate worth matching: {" "}
             <Link href="/guides/prepare-samples-for-sp404-digitakt-mpc">
               Prepare Samples for the SP-404, Digitakt &amp; MPC
             </Link>{" "}

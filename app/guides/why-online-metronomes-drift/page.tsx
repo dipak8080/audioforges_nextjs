@@ -73,7 +73,7 @@ export default function MetronomeDriftGuidePage() {
         <Prose className="mt-10">
           <p>
             Leave a lot of online metronomes running for a couple of minutes and
-            the click gradually stops lining up with where it should be — a
+            the click gradually stops lining up with where it should be: a
             fraction of a second early or late at first, more noticeable the
             longer it runs. This isn&apos;t random bad luck. It&apos;s a
             well-understood consequence of how browsers handle timing, and
@@ -86,7 +86,7 @@ export default function MetronomeDriftGuidePage() {
             The obvious way to build a metronome is a repeating timer that fires
             once per beat and plays a sound each time. The problem is that a
             JavaScript timer is never guaranteed to fire at exactly the interval
-            you asked for — browser throttling, other activity in the same tab,
+            you asked for: browser throttling, other activity in the same tab,
             and brief pauses for garbage collection all introduce small delays.
             Any individual delay is tiny and inaudible on its own, but they
             accumulate. A metronome that&apos;s a few milliseconds late on every
@@ -98,14 +98,14 @@ export default function MetronomeDriftGuidePage() {
           <p>
             The fix separates two things that a naive approach conflates: deciding
             when to schedule the next beats, and actually playing them. A
-            lightweight timer still runs frequently in the background — every 25
-            milliseconds — but instead of playing a click the moment it fires, it
+            lightweight timer still runs frequently in the background, every 25
+            milliseconds, but instead of playing a click the moment it fires, it
             looks ahead about a tenth of a second and schedules any beats that
             fall within that window directly against the audio hardware&apos;s own
             clock, which is sample-accurate in a way a JavaScript timer never is.
             That audio clock, not the background timer, is what actually
             determines the exact moment each click plays. The background timer
-            only decides when to schedule the next batch of beats — a small
+            only decides when to schedule the next batch of beats: a small
             imprecision there doesn&apos;t translate into audible drift, because
             playback itself is locked to hardware timing rather than to the timer
             that triggered the scheduling.
@@ -118,7 +118,7 @@ export default function MetronomeDriftGuidePage() {
             it can fall out of sync with the audio even if the audio itself is
             perfectly scheduled. The fix is to drive the visual indicator off the
             exact same scheduled beat times used for the audio, checked against
-            the audio clock rather than a separate visual timer — so what you see
+            the audio clock rather than a separate visual timer, so what you see
             stays locked to what you actually hear instead of slowly drifting
             apart from it.
           </p>
@@ -129,13 +129,13 @@ export default function MetronomeDriftGuidePage() {
             slightly louder volume than the other beats, the same way a physical
             metronome or a drummer distinguishes beat one from the rest of the
             bar. Rather than loading a separate audio file for the accent, each
-            click is a short synthesized tone with a fast decay — the accented
+            click is a short synthesized tone with a fast decay: the accented
             beat just uses a higher frequency and more gain than the regular
             beats, generated the same way every time.
           </p>
           <p>
             Our <Link href="/metronome">Online Metronome</Link> uses this exact
-            scheduling approach — set a tempo from 30 to 300 BPM, pick your time
+            scheduling approach: set a tempo from 30 to 300 BPM, pick your time
             signature, and it holds steady for as long as you leave it running, no
             account or software install needed.
           </p>

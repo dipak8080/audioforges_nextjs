@@ -102,7 +102,7 @@ export default function SongscriptionAlternativesPage() {
         <Prose className="mt-10">
           <p>
             Songscription is good software, and most people who look for an
-            alternative aren&apos;t unhappy with the transcription — they hit the
+            alternative aren&apos;t unhappy with the transcription: they hit the
             thirty-second wall on the free tier and want to know what else exists
             before paying a subscription. This is an honest comparison, written by
             someone who runs one of the alternatives, so read the trade-offs
@@ -112,7 +112,7 @@ export default function SongscriptionAlternativesPage() {
           <h2 id="what-songscription-does">What Songscription actually gives you</h2>
           <p>
             The free tier is unlimited transcriptions of up to thirty seconds
-            each, which is a real free tier rather than a trial — enough for a
+            each, which is a real free tier rather than a trial: enough for a
             riff, a phrase, or checking whether the accuracy suits your material.
             Paid plans start around $9.99/month and lift the limit to several
             minutes per track. It handles about ten instruments individually,
@@ -151,7 +151,7 @@ export default function SongscriptionAlternativesPage() {
                   <td className={td}>Free</td>
                   <td className={td}>Full track</td>
                   <td className={td}>Whole songs, no account, PDF + MusicXML + MIDI</td>
-                  <td className={td}>No per-instrument picker or built-in editor — clean up in MuseScore</td>
+                  <td className={td}>No per-instrument picker or built-in editor: clean up in MuseScore</td>
                 </tr>
                 <tr className="border-t border-graphite-800">
                   <td className={td}><strong>AnthemScore</strong></td>
@@ -172,7 +172,7 @@ export default function SongscriptionAlternativesPage() {
                   <td className={td}>Free</td>
                   <td className={td}>Full track</td>
                   <td className={td}>Full control, everything open source</td>
-                  <td className={td}>Two steps — MIDI first, then import and engrave yourself</td>
+                  <td className={td}>Two steps: MIDI first, then import and engrave yourself</td>
                 </tr>
               </tbody>
             </table>
@@ -196,7 +196,7 @@ export default function SongscriptionAlternativesPage() {
             <li><strong>You transcribe often and want per-instrument control:</strong> Songscription&apos;s paid tier is genuinely built for that, and $9.99 is less than one hour of a human transcriber.</li>
             <li><strong>You want to own the software and work offline:</strong> AnthemScore, one-time purchase.</li>
             <li><strong>You want maximum control and don&apos;t mind two steps:</strong> Basic Pitch to MIDI, then MuseScore to engrave.</li>
-            <li><strong>You only need the notes, not a score:</strong> skip notation entirely and use an <Link href="/audio-to-midi">audio-to-MIDI converter</Link> — most DAW work doesn&apos;t need engraving.</li>
+            <li><strong>You only need the notes, not a score:</strong> skip notation entirely and use an <Link href="/audio-to-midi">audio-to-MIDI converter</Link>: most DAW work doesn&apos;t need engraving.</li>
           </ul>
 
           <h2 id="cleanup">Whatever you pick, budget for cleanup</h2>

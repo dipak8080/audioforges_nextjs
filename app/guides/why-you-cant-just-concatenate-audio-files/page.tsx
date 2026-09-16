@@ -73,7 +73,7 @@ export default function AudioJoinerGuidePage() {
         <Prose className="mt-10">
           <p>
             Joining audio files sounds like it should be the simplest editing task
-            there is — stick file two onto the end of file one, done. But audio
+            there is: stick file two onto the end of file one, done. But audio
             files aren&apos;t just interchangeable streams of sound; they&apos;re
             a specific number of samples per second, in a specific channel layout,
             and mixing those specifics without correcting for them first is
@@ -84,7 +84,7 @@ export default function AudioJoinerGuidePage() {
           <h2 id="mismatch">What actually happens when formats don&apos;t match</h2>
           <p>
             A digital audio file&apos;s sample rate tells a player how many
-            samples to play back per second — 44,100 for a file recorded at
+            samples to play back per second: 44,100 for a file recorded at
             44.1kHz, 48,000 for one recorded at 48kHz. If two files with different
             sample rates get concatenated at the raw data level without
             correction, the player has no way to know that the second half of the
@@ -92,7 +92,7 @@ export default function AudioJoinerGuidePage() {
             Depending on how the join was done, the result is either a section
             that plays at the wrong speed and pitch, or a file that fails to play
             back correctly at the boundary at all. The same kind of problem
-            applies to channel layout — joining a mono file directly onto a stereo
+            applies to channel layout: joining a mono file directly onto a stereo
             one can produce similarly broken playback.
           </p>
 
@@ -100,7 +100,7 @@ export default function AudioJoinerGuidePage() {
           <p>
             The fix is to resample every input file to one common sample rate and
             match every file to one common channel layout before any joining
-            happens — so by the time the actual concatenation occurs, every file
+            happens, so by the time the actual concatenation occurs, every file
             being combined shares identical technical specifications, and
             there&apos;s nothing left to mismatch at the boundary. Our own Audio
             Joiner resamples every input to 44.1kHz before joining, which is why a
@@ -114,7 +114,7 @@ export default function AudioJoinerGuidePage() {
           <p>
             Joining files end-to-end is different from mixing them with a
             transition. No gap is inserted between files, and no crossfade is
-            algorithmically applied at the seam — whatever silence, or lack of
+            algorithmically applied at the seam: whatever silence, or lack of
             silence, already exists at the very end of one file and the very start
             of the next is exactly what carries over into the joined result. If a
             file has a half-second of dead air trailing off before it ends, that
@@ -139,14 +139,14 @@ export default function AudioJoinerGuidePage() {
           <h2 id="limits">Limits worth knowing</h2>
           <p>
             One join can combine up to 10 files, with a combined total of 150MB
-            and up to 30 minutes of audio across all files together — not per
+            and up to 30 minutes of audio across all files together, not per
             file, but as a running total, since re-encoding ten four-minute files
             is a forty-minute job regardless of how short each one looks
             individually.
           </p>
           <p>
             Our <Link href="/audio-joiner">Audio Joiner</Link> handles the
-            normalization and joining automatically — add your files, set the
+            normalization and joining automatically: add your files, set the
             order, choose an output format, and download one merged track, no
             account or software install needed.
           </p>

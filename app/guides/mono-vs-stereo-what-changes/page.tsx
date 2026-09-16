@@ -73,7 +73,7 @@ export default function MonoStereoGuidePage() {
         <Prose className="mt-10">
           <p>
             It&apos;s easy to assume stereo is just &quot;better&quot; than mono,
-            so converting a file to stereo must be an upgrade. It isn&apos;t —
+            so converting a file to stereo must be an upgrade. It isn&apos;t:
             mono and stereo describe channel count, not quality, and converting
             between them doesn&apos;t add or remove any fidelity. What it actually
             does depends on which direction you&apos;re going, and it&apos;s worth
@@ -82,21 +82,21 @@ export default function MonoStereoGuidePage() {
 
           <h2 id="definitions">What mono and stereo actually are</h2>
           <p>
-            Mono audio is a single channel — the same signal plays from every
+            Mono audio is a single channel: the same signal plays from every
             speaker. Stereo audio is two independent channels, left and right,
             which can carry different content to create a sense of width and
             position in the sound field. A stereo recording of a band, for
             example, might have the guitar sitting slightly left and the keys
             slightly right, because those are genuinely two different signals. A
             mono recording of the same performance has no such separation to begin
-            with — there&apos;s only one signal, period.
+            with: there&apos;s only one signal, period.
           </p>
 
           <h2 id="stereo-to-mono">What happens converting stereo to mono</h2>
           <p>
             Converting stereo to mono combines the left and right channels into
-            one. Whatever separation existed between them — instruments panned to
-            one side, a wide stereo effect, anything placed off-center — collapses
+            one. Whatever separation existed between them (instruments panned to
+            one side, a wide stereo effect, anything placed off-center) collapses
             into a single centered signal. The result isn&apos;t damaged audio,
             but it is a genuinely different listening experience from the
             original: anything that relied on stereo separation to be heard
@@ -107,8 +107,8 @@ export default function MonoStereoGuidePage() {
           <h2 id="mono-to-stereo">What happens converting mono to stereo</h2>
           <p>
             This direction surprises people more often. Converting mono to stereo
-            duplicates the identical signal onto both the left and right channels
-            — it doesn&apos;t invent new stereo information that wasn&apos;t
+            duplicates the identical signal onto both the left and right channels:
+            it doesn&apos;t invent new stereo information that wasn&apos;t
             there. There&apos;s nothing to separate in a single-channel source, so
             the result is technically two-channel audio, but it sounds exactly as
             centered and &quot;flat&quot; as the mono original. If a platform
@@ -126,25 +126,24 @@ export default function MonoStereoGuidePage() {
             equivalent for the same content. Converting to stereo comes up when an
             upload target rejects or mishandles mono files outright and simply
             needs two channels present, regardless of whether they carry different
-            information — a formatting requirement rather than a creative choice.
+            information: a formatting requirement rather than a creative choice.
           </p>
 
           <h2 id="not-widening">This isn&apos;t the same as adding stereo width</h2>
           <p>
             It&apos;s worth being clear about what this conversion can and
-            can&apos;t do. Techniques that actually create a sense of stereo width
-            — panning different elements to different sides, stereo-widening
-            effects, genuine multi-mic recording — work by putting different
+            can&apos;t do. Techniques that actually create a sense of stereo width (panning different elements to different sides, stereo-widening
+            effects, genuine multi-mic recording) work by putting different
             content in the left and right channels. Converting a mono file to
             stereo doesn&apos;t do any of that; it&apos;s a format change, not a
             creative effect. If what you&apos;re after is width that wasn&apos;t
-            in the source, this tool isn&apos;t the way to get there — it&apos;s
+            in the source, this tool isn&apos;t the way to get there: it&apos;s
             the way to satisfy a channel-count requirement without altering how
             the audio actually sounds.
           </p>
           <p>
             Our <Link href="/mono-stereo-converter">Mono/Stereo Converter</Link>{" "}
-            runs this exact conversion in either direction — upload a file, pick
+            runs this exact conversion in either direction: upload a file, pick
             the target, and download the result, no account or software install
             needed.
           </p>

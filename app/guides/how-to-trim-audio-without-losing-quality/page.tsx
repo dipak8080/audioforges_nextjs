@@ -75,13 +75,13 @@ export default function HowToTrimAudioGuidePage() {
             &quot;Trimming loses quality&quot; and &quot;trimming is always
             safe&quot; are both oversimplifications. The real answer depends on
             what format you&apos;re trimming and exactly where you place your cut
-            point — and once you know why, it&apos;s easy to avoid the one
+            point, and once you know why, it&apos;s easy to avoid the one
             artifact that actually shows up: a click or pop right at the edit.
           </p>
 
           <h2 id="no-quality-loss">What &quot;no quality loss&quot; actually means</h2>
           <p>
-            Trimming isn&apos;t re-encoding — it&apos;s selecting a range and
+            Trimming isn&apos;t re-encoding: it&apos;s selecting a range and
             discarding everything outside it. That means the audio data inside
             your selected range is untouched; you&apos;re not passing it back
             through a lossy encoder and taking a second hit of compression. Any
@@ -94,7 +94,7 @@ export default function HowToTrimAudioGuidePage() {
           <p>
             For WAV, FLAC, and AIFF, samples are stored individually with no
             compression, so a trim can land exactly on the sample you want. Cut at
-            12.487 seconds and you get audio starting at exactly 12.487 seconds —
+            12.487 seconds and you get audio starting at exactly 12.487 seconds:
             no rounding, no nearby frame standing in for the point you actually
             picked.
           </p>
@@ -103,7 +103,7 @@ export default function HowToTrimAudioGuidePage() {
           <p>
             MP3, AAC, and OGG store audio in compressed frames, each covering a
             small fixed slice of time (for MP3, roughly 26 milliseconds per
-            frame). A cut can only land cleanly on a frame boundary — if your
+            frame). A cut can only land cleanly on a frame boundary: if your
             selected point falls in the middle of a frame, the trim snaps to the
             nearest boundary, which can shift your cut by a few milliseconds. For
             almost every real use case that&apos;s inaudible, but it&apos;s why
@@ -118,11 +118,10 @@ export default function HowToTrimAudioGuidePage() {
             This is the thing that actually ruins a trimmed clip, and it has
             nothing to do with format. If your cut point lands mid-waveform rather
             than at a zero-crossing (where the waveform crosses silence), you get
-            an abrupt jump in amplitude — heard as a click or pop right at the
+            an abrupt jump in amplitude: heard as a click or pop right at the
             start or end of the clip. It&apos;s the single most common reason a
             trimmed file sounds &quot;off&quot; even though no data was lost.
-            Picking a cut point right before or after a natural pause in the audio
-            — a breath, a beat gap, a moment of near-silence — avoids this almost
+            Picking a cut point right before or after a natural pause in the audio (a breath, a beat gap, a moment of near-silence) avoids this almost
             entirely.
           </p>
 
@@ -130,8 +129,8 @@ export default function HowToTrimAudioGuidePage() {
           <p>
             Zoom in on the waveform around your intended start and end points
             rather than trusting a rough timestamp. Look for a spot where the
-            waveform is at or near zero amplitude — a pause, a breath, the tail of
-            a note decaying — and place your cut there instead of mid-sound. If
+            waveform is at or near zero amplitude (a pause, a breath, the tail of
+            a note decaying), and place your cut there instead of mid-sound. If
             you need the clip in a different format afterward, trim first, then
             convert; trimming a smaller file is faster and keeps the original
             quality intact through the process. Our{" "}

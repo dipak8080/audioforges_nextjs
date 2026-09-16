@@ -73,7 +73,7 @@ export default function KeyBpmDetectionGuidePage() {
         <Prose className="mt-10">
           <p>
             Run the same song through two different key-and-BPM detectors and
-            it&apos;s not unusual to get two different answers — a BPM reading
+            it&apos;s not unusual to get two different answers: a BPM reading
             that&apos;s exactly half or double what you&apos;d tap out by hand, or
             a key a few steps away from what another tool reported. This
             isn&apos;t random noise. Both of those patterns have real,
@@ -84,12 +84,12 @@ export default function KeyBpmDetectionGuidePage() {
           <p>
             Analyzing a full track in detail takes real processing time, and for
             the vast majority of songs, the key and tempo established in the first
-            few minutes hold for the rest of the track anyway — so detection here
+            few minutes hold for the rest of the track anyway, so detection here
             analyzes up to the first 180 seconds of audio rather than the entire
             file. This keeps results fast without meaningfully changing accuracy
             for typical song structures. The exception is a track with a genuine
-            structural shift later on — a key change in a bridge or outro, or a
-            tempo ramp deep into an extended mix — which won&apos;t be reflected
+            structural shift later on (a key change in a bridge or outro, or a
+            tempo ramp deep into an extended mix), which won&apos;t be reflected
             in a result based on the earlier portion of the track.
           </p>
 
@@ -97,13 +97,13 @@ export default function KeyBpmDetectionGuidePage() {
           <p>
             Tempo detection algorithms work by finding the strongest repeating
             rhythmic pulse in a track, and that pulse is genuinely ambiguous in a
-            lot of music — a track built around a strong backbeat can have its
+            lot of music: a track built around a strong backbeat can have its
             detector lock onto either the underlying beat or a subdivision of it,
             producing a BPM reading exactly half or double the tempo a human would
             tap along to. This is a well-known challenge in tempo detection
             generally, not a bug specific to any one tool. Detection here nudges
-            results toward the range most music actually falls into — roughly 70
-            to 180 BPM — specifically to correct for this kind of octave error.
+            results toward the range most music actually falls into (roughly 70
+            to 180 BPM) specifically to correct for this kind of octave error.
             That sanity check helps in the common case, but a track genuinely
             outside that typical range can occasionally get nudged toward an
             incorrect reading as a side effect.
@@ -112,12 +112,12 @@ export default function KeyBpmDetectionGuidePage() {
           <h2 id="confidence">Why confidence can be lower on some tracks</h2>
           <p>
             Detection doesn&apos;t rely on a single pass and present whatever
-            comes out as certain — key and tempo are each checked in more than one
+            comes out as certain: key and tempo are each checked in more than one
             way, and when those checks disagree with each other, the confidence
             attached to the result is reduced rather than silently picking one
             answer and hiding the disagreement. A lower confidence score is the
             tool telling you honestly that the source material gave it a genuinely
-            harder read — often a track with an ambiguous or shifting tempo,
+            harder read, often a track with an ambiguous or shifting tempo,
             unusual harmonic content, or heavy processing that obscures the
             underlying pulse or pitch center.
           </p>
@@ -127,7 +127,7 @@ export default function KeyBpmDetectionGuidePage() {
           </h2>
           <p>
             Getting a different key or BPM reading from another tool for the same
-            track isn&apos;t necessarily a sign either tool is wrong — different
+            track isn&apos;t necessarily a sign either tool is wrong: different
             detectors use different methods, and both of the patterns above
             (octave ambiguity, structural changes later in a track) can cause two
             reasonable analyses to land on different answers. For harmonic mixing
@@ -138,7 +138,7 @@ export default function KeyBpmDetectionGuidePage() {
           <p>
             Our <Link href="/key-finder">Key &amp; BPM Finder</Link> and{" "}
             <Link href="/youtube-key-finder">YouTube Key &amp; BPM Finder</Link>{" "}
-            both run this same analysis — upload a file or paste a link, and get
+            both run this same analysis: upload a file or paste a link, and get
             back the detected key, BPM, and Camelot code, no account or software
             install needed.
           </p>

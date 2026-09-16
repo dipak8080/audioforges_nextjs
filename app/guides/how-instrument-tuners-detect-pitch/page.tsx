@@ -74,7 +74,7 @@ export default function TunerPitchDetectionGuidePage() {
           <p>
             It&apos;s tempting to assume a tuner just listens for &quot;the
             loudest frequency&quot; and reports that back as the note being
-            played. A good tuner does something more deliberate than that — and
+            played. A good tuner does something more deliberate than that, and
             the specific technique it uses is exactly why it can tell 440Hz and
             442Hz apart instead of blurring them into the same reading.
           </p>
@@ -85,7 +85,7 @@ export default function TunerPitchDetectionGuidePage() {
             frequency bands and report whichever one has the most energy. The
             problem is resolution: at the buffer sizes practical for real-time
             detection, that frequency-domain approach simply isn&apos;t precise
-            enough to distinguish two pitches that are close together — the
+            enough to distinguish two pitches that are close together: the
             difference between being perfectly in tune and being noticeably sharp
             can be a couple of Hz, well below what that method can reliably
             separate.
@@ -97,7 +97,7 @@ export default function TunerPitchDetectionGuidePage() {
           <p>
             Instead, an accurate tuner analyzes the actual shape of the sound wave
             over time and measures how closely it matches itself when shifted
-            forward by different amounts — a technique called autocorrelation. A
+            forward by different amounts: a technique called autocorrelation. A
             pitched sound repeats at a regular interval; autocorrelation finds
             that interval directly by testing how well the wave lines up with a
             delayed copy of itself, and the delay that produces the strongest
@@ -112,7 +112,7 @@ export default function TunerPitchDetectionGuidePage() {
             Before any pitch is calculated at all, the incoming signal has to
             clear a minimum loudness threshold. Room hum, a quiet background, or
             the moment just before you start playing all sit below that threshold
-            and are treated as silence rather than analyzed for a pitch — without
+            and are treated as silence rather than analyzed for a pitch: without
             this check, a tuner would flicker to random, meaningless notes any
             time the room wasn&apos;t perfectly quiet, even with no instrument
             being played at all.
@@ -122,8 +122,8 @@ export default function TunerPitchDetectionGuidePage() {
             Why a tuner turns off echo cancellation and noise suppression
           </h2>
           <p>
-            Most apps that use your microphone — voice chat, video calls, voice
-            recorders — leave your browser&apos;s built-in echo cancellation,
+            Most apps that use your microphone (voice chat, video calls, voice
+            recorders) leave your browser&apos;s built-in echo cancellation,
             noise suppression, and automatic gain control turned on, since those
             features genuinely help spoken audio sound clearer. A tuner
             deliberately turns all three off instead. That processing is built and
@@ -140,13 +140,13 @@ export default function TunerPitchDetectionGuidePage() {
             nearest musical note using the standard equal-temperament reference of
             A4 = 440Hz, the same reference virtually all modern tuning is built
             around. The difference between the detected frequency and the nearest
-            in-tune note is expressed in cents — hundredths of a semitone — which
+            in-tune note is expressed in cents, hundredths of a semitone, which
             is why a tuner can show you &quot;how far off&quot; you are rather
             than just which note is closest.
           </p>
           <p>
             Our <Link href="/tuner">Online Tuner</Link> runs this exact
-            autocorrelation-based detection live from your microphone — no account
+            autocorrelation-based detection live from your microphone: no account
             or software install needed, and nothing you play is ever recorded or
             uploaded.
           </p>

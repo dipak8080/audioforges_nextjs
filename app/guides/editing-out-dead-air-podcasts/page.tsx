@@ -72,8 +72,8 @@ export default function DeadAirGuidePage() {
 
         <Prose className="mt-10">
           <p>
-            Cutting dead air sounds like a one-setting job — find the quiet parts,
-            remove them — but automatic silence removal actually depends on two
+            Cutting dead air sounds like a one-setting job (find the quiet parts,
+            remove them), but automatic silence removal actually depends on two
             settings working together, and getting either one wrong produces a
             recognizably bad result: choppy, unnatural pacing where pauses used to
             be.
@@ -103,7 +103,7 @@ export default function DeadAirGuidePage() {
             Threshold decides what counts as quiet enough; minimum gap length
             decides how long that quiet has to persist before it gets treated as
             removable dead air rather than a normal breath or pause. A strict
-            threshold with a short minimum gap will cut aggressively — catching
+            threshold with a short minimum gap will cut aggressively: catching
             quiet room tone and even brief pauses between words. A relaxed
             threshold with a long minimum gap will barely cut anything, only
             removing stretches that are both very quiet and very long. Most real
@@ -114,7 +114,7 @@ export default function DeadAirGuidePage() {
           <h2 id="too-aggressive">What happens when you cut too aggressively</h2>
           <p>
             Push the threshold too strict and the minimum gap too short, and you
-            start removing the natural breathing room in speech — the small pauses
+            start removing the natural breathing room in speech: the small pauses
             between sentences that give a listener a moment to process what was
             just said. The result sounds rushed and slightly unnatural, even
             though technically nothing except silence was removed. This is the

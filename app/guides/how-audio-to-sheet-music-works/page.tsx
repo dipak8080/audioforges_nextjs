@@ -73,10 +73,10 @@ export default function AudioToSheetMusicGuidePage() {
         <Prose className="mt-10">
           <p>
             Detecting the notes in a recording is only half the job. A pile of
-            correct pitches with exact timestamps is a piano roll, not a score —
+            correct pitches with exact timestamps is a piano roll, not a score,
             and the two are not the same thing. Sheet music is a set of
             instructions a human sight-reads: notes grouped into beats and bars,
-            in a key, at a tempo, with a time signature, and — for piano — split
+            in a key, at a tempo, with a time signature, and, for piano, split
             across two hands. Turning a performance into that is a harder, more
             opinionated problem than simply hearing the notes, and it&apos;s where
             most of the interesting decisions get made.
@@ -94,7 +94,7 @@ export default function AudioToSheetMusicGuidePage() {
             Notation is the readable interpretation of that data. It rounds the
             messy human timing into clean note values, picks a key so the
             accidentals are spelled sensibly, groups notes into bars under a time
-            signature, and — for piano — decides which hand plays what. MIDI keeps
+            signature, and, for piano, decides which hand plays what. MIDI keeps
             the raw performance; a score is the tidy, human-facing version of it.
             If you only need the notes in a DAW, our{" "}
             <Link href="/guides/how-audio-to-midi-transcription-works">
@@ -112,7 +112,7 @@ export default function AudioToSheetMusicGuidePage() {
           <dl>
             <dt>Transcribe</dt>
             <dd>
-              A model listens to the recording and detects every note — pitch and
+              A model listens to the recording and detects every note: pitch and
               timing. Piano is routed to a solo-piano specialist model, because a
               model trained on one instrument beats a generalist at that
               instrument.
@@ -122,7 +122,7 @@ export default function AudioToSheetMusicGuidePage() {
             <dd>
               Tempo and key are estimated. Both matter: without a tempo there&apos;s
               no beat grid to place notes onto, and without a key every accidental
-              would be spelled awkwardly — all sharps and no flats, or the reverse.
+              would be spelled awkwardly, all sharps and no flats, or the reverse.
             </dd>
 
             <dt>Notate</dt>
@@ -135,7 +135,7 @@ export default function AudioToSheetMusicGuidePage() {
 
             <dt>Engrave</dt>
             <dd>
-              The notation is typeset into a clean image — noteheads, stems, beams
+              The notation is typeset into a clean image: noteheads, stems, beams
               and barlines positioned by an engraving engine. This is the score you
               actually see and print.
             </dd>
@@ -145,7 +145,7 @@ export default function AudioToSheetMusicGuidePage() {
           <p>
             The hardest decision in the whole pipeline is the one in the Notate
             stage: how hard to snap the timing to the grid. A human never plays
-            exactly on the beat — they push ahead of it and lag behind it, and
+            exactly on the beat: they push ahead of it and lag behind it, and
             that push-and-pull is most of what makes a performance feel human.
           </p>
           <p>
@@ -164,7 +164,7 @@ export default function AudioToSheetMusicGuidePage() {
             Piano is about the friendliest instrument you can hand a transcription
             model. The pitches are discrete and fixed, the onsets are sharp, and
             there&apos;s no pitch bend, slide or continuous glide to confuse the
-            note boundaries — a key is either down or it isn&apos;t. Pair that with
+            note boundaries: a key is either down or it isn&apos;t. Pair that with
             a model trained specifically on solo piano and the results come back
             close to right.
           </p>
@@ -173,20 +173,20 @@ export default function AudioToSheetMusicGuidePage() {
             Dense mixes bury notes under other notes. Polyphonic guitar and
             overlapping vocal lines force the model to separate sounds that arrive
             at once. Vibrato and slides smear a single pitch across a range. And
-            rubato — deliberately bending the tempo for effect — attacks the beat
+            rubato (deliberately bending the tempo for effect) attacks the beat
             grid the notation depends on. That&apos;s why clean, single-instrument
             recordings transcribe closest to usable, and a full band track comes
             back as a rough scaffold.
           </p>
 
-          <h2 id="formats">PDF, MusicXML, MIDI — which one to keep</h2>
+          <h2 id="formats">PDF, MusicXML or MIDI: which one to keep</h2>
           <p>
             A good transcription tool hands you the same result in a few formats,
             each for a different job:
           </p>
           <dl>
             <dt>PDF</dt>
-            <dd>The finished score to read or print. Not editable — it&apos;s the output, not the source.</dd>
+            <dd>The finished score to read or print. Not editable: it&apos;s the output, not the source.</dd>
 
             <dt>MusicXML</dt>
             <dd>
@@ -213,7 +213,7 @@ export default function AudioToSheetMusicGuidePage() {
             <dd>Play the recording alongside the score and correct the few pitches the model misheard, usually in the busiest passages.</dd>
 
             <dt>Check the time signature</dt>
-            <dd>If the bars don&apos;t line up with where you hear the downbeat, the tool guessed the meter wrong — reset it and the bars re-flow.</dd>
+            <dd>If the bars don&apos;t line up with where you hear the downbeat, the tool guessed the meter wrong: reset it and the bars re-flow.</dd>
 
             <dt>Re-beam and tidy rhythm</dt>
             <dd>Runs that got split across beats oddly are quick to re-group, and any spurious ultra-short notes from a dense moment can be deleted.</dd>
@@ -227,7 +227,7 @@ export default function AudioToSheetMusicGuidePage() {
           <p>
             On a clean solo-piano recording, expect something close to playable
             with light edits. On a full mix or a very expressive performance, treat
-            the output as a scaffold — the pitches and the overall shape are a large
+            the output as a scaffold: the pitches and the overall shape are a large
             head start, but the rhythm and voicing will want your ear. As always
             with detection, trust the recording over the tag: if a bar reads wrong
             on the page but sounds right in your ears, believe your ears and fix the
@@ -237,7 +237,7 @@ export default function AudioToSheetMusicGuidePage() {
           <p>
             If you want to try it on your own audio, our{" "}
             <Link href="/audio-to-sheet-music">Audio to Sheet Music</Link> tool runs
-            this whole pipeline — transcription, analysis, notation and engraving —
+            this whole pipeline (transcription, analysis, notation and engraving),
             and shows you the engraved score before you download anything. Clips of
             30 seconds or less are free, so you can check the quality on your own
             recording first.

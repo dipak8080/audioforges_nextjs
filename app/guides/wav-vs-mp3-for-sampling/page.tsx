@@ -73,14 +73,14 @@ export default function WavVsMp3GuidePage() {
         <Prose className="mt-10">
           <p>
             &quot;Always use WAV&quot; is the advice you&apos;ll see repeated
-            everywhere, and it&apos;s not wrong — but it skips the actual reason,
+            everywhere, and it&apos;s not wrong, but it skips the actual reason,
             which means people apply it in situations where it doesn&apos;t matter
             and ignore it in situations where it really does.
           </p>
 
           <h2 id="technical-difference">What&apos;s technically different</h2>
           <p>
-            WAV stores audio uncompressed — every sample, bit for bit. MP3 throws
+            WAV stores audio uncompressed: every sample, bit for bit. MP3 throws
             away data the format&apos;s psychoacoustic model predicts you
             won&apos;t notice, which is how it shrinks a file to roughly a tenth
             the size. At 320kbps, that prediction is good enough that most
@@ -88,7 +88,7 @@ export default function WavVsMp3GuidePage() {
             on a finished track.
           </p>
           <p>
-            The problem isn&apos;t how MP3 sounds on first listen — it&apos;s what
+            The problem isn&apos;t how MP3 sounds on first listen: it&apos;s what
             happens when you process it further.
           </p>
 
@@ -98,7 +98,7 @@ export default function WavVsMp3GuidePage() {
             high-frequency detail, transient sharpness, and stereo image
             precision. On a finished, mastered track played straight through,
             that loss is usually inaudible. But sampling isn&apos;t playing a
-            track straight through — it&apos;s pitching, stretching, EQ&apos;ing,
+            track straight through: it&apos;s pitching, stretching, EQ&apos;ing,
             and layering small slices of it, which is exactly the kind of
             processing that exposes what&apos;s missing.
           </p>

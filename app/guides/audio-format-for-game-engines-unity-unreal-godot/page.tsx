@@ -104,7 +104,7 @@ export default function GameAudioFormatGuidePage() {
           <p>
             Game engines are forgiving about what you import and unforgiving
             about what it costs at runtime. A 96 kHz stereo WAV footstep will
-            play fine in Unity, Unreal or Godot — it will also be resampled on
+            play fine in Unity, Unreal or Godot: it will also be resampled on
             every trigger, take ten times the memory it needs, and bloat the
             build. Getting the format right before import is a two-minute job
             that saves you from chasing audio pops and load stutter later.
@@ -112,7 +112,7 @@ export default function GameAudioFormatGuidePage() {
 
           <h2 id="the-short-answer">The short answer</h2>
           <ul>
-            <li><strong>Sample rate:</strong> 48 kHz for everything. 44.1 kHz is fine too — just pick one and never mix them.</li>
+            <li><strong>Sample rate:</strong> 48 kHz for everything. 44.1 kHz is fine too, just pick one and never mix them.</li>
             <li><strong>Bit depth:</strong> 16-bit. 24-bit buys nothing once the engine mixes to its output.</li>
             <li><strong>Short SFX</strong> (footsteps, UI, impacts, weapons): WAV, mono.</li>
             <li><strong>Music and long ambience:</strong> OGG Vorbis, stereo, quality 5–7 (roughly 160–224 kbps).</li>
@@ -122,8 +122,8 @@ export default function GameAudioFormatGuidePage() {
 
           <h2 id="why-48">Why 48 kHz, and why consistency matters more than the number</h2>
           <p>
-            Almost every playback device — Windows, macOS, Android, iOS, consoles,
-            HDMI — runs its audio output at 48 kHz. If your clips are 44.1 kHz
+            Almost every playback device (Windows, macOS, Android, iOS, consoles,
+            HDMI) runs its audio output at 48 kHz. If your clips are 44.1 kHz
             the engine resamples every one of them at runtime. It&apos;s cheap,
             but it isn&apos;t free, and on a mobile target with dozens of
             simultaneous voices it adds up. 48 kHz sidesteps it entirely.
@@ -142,7 +142,7 @@ export default function GameAudioFormatGuidePage() {
             triggered. OGG has to be decoded, which costs a little CPU each time
             the clip starts. For a footstep that fires twenty times a second in
             a crowd scene, that matters. For a three-minute music loop that
-            starts once, it doesn&apos;t — and the OGG is a tenth of the size.
+            starts once, it doesn&apos;t, and the OGG is a tenth of the size.
           </p>
           <p>
             Rule of thumb: under about ten seconds and played often → WAV. Over
@@ -153,7 +153,7 @@ export default function GameAudioFormatGuidePage() {
 
           <h2 id="mono-vs-stereo">Mono for anything positioned in 3D</h2>
           <p>
-            A sound placed in the world — a gunshot, a door, an NPC line — should
+            A sound placed in the world (a gunshot, a door, an NPC line) should
             be mono. The engine spatialises it by panning and attenuating a
             single channel; a stereo source gets collapsed or, worse, plays wide
             no matter where it is. Keep stereo for music, UI stingers and
@@ -185,7 +185,7 @@ export default function GameAudioFormatGuidePage() {
                   <td className={td}><strong>Unreal Engine</strong></td>
                   <td className={td}>WAV (16-bit PCM), OGG, FLAC, AIFF</td>
                   <td className={td}>48 kHz 16-bit WAV for everything</td>
-                  <td className={td}>Unreal compresses on cook (Bink/ADPCM/Vorbis per platform). Importing 24-bit or 32-bit float WAV can fail on older versions — export 16-bit.</td>
+                  <td className={td}>Unreal compresses on cook (Bink/ADPCM/Vorbis per platform). Importing 24-bit or 32-bit float WAV can fail on older versions: export 16-bit.</td>
                 </tr>
                 <tr className="border-t border-graphite-800">
                   <td className={td}><strong>Godot</strong></td>
@@ -236,19 +236,19 @@ export default function GameAudioFormatGuidePage() {
             <li>
               <strong>Level-match</strong> with the{" "}
               <Link href="/loudness-normalizer">Loudness Normalizer</Link> so
-              you&apos;re not fighting volume sliders in the mixer — around −16
+              you&apos;re not fighting volume sliders in the mixer: around −16
               LUFS for music beds, −12 to −10 for SFX, peaks at −1 dBTP.
             </li>
           </ol>
 
           <h2 id="common-problems">Common problems and the format fix</h2>
           <ul>
-            <li><strong>Clicks or pops at the start</strong> — the file doesn&apos;t start at a zero crossing, or the engine is resampling. Trim to a zero crossing and match the project rate.</li>
-            <li><strong>Sound plays late</strong> — leading silence, or a compressed clip set to stream. Trim, and set short SFX to decompress on load.</li>
-            <li><strong>Positional sound isn&apos;t panning</strong> — the source is stereo. Convert to mono.</li>
-            <li><strong>Import fails in Unreal</strong> — 24/32-bit or float WAV. Export 16-bit PCM.</li>
-            <li><strong>Build size exploded</strong> — music stored as WAV. Convert to OGG and set to streaming.</li>
-            <li><strong>Loop has a gap</strong> — MP3 adds encoder padding; use OGG or WAV for loops.</li>
+            <li><strong>Clicks or pops at the start</strong>: the file doesn&apos;t start at a zero crossing, or the engine is resampling. Trim to a zero crossing and match the project rate.</li>
+            <li><strong>Sound plays late</strong>: leading silence, or a compressed clip set to stream. Trim, and set short SFX to decompress on load.</li>
+            <li><strong>Positional sound isn&apos;t panning</strong>: the source is stereo. Convert to mono.</li>
+            <li><strong>Import fails in Unreal</strong>: 24/32-bit or float WAV. Export 16-bit PCM.</li>
+            <li><strong>Build size exploded</strong>: music stored as WAV. Convert to OGG and set to streaming.</li>
+            <li><strong>Loop has a gap</strong>: MP3 adds encoder padding; use OGG or WAV for loops.</li>
           </ul>
         </Prose>
 

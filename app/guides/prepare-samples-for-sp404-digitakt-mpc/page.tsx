@@ -65,7 +65,7 @@ const faqJsonLd = {
       name: "Why does my stereo sample sound wrong on the Digitakt?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "The original Digitakt is a mono sampler, and Elektron Transfer converts stereo files by keeping only the left channel — anything panned right disappears. Sum the file to mono yourself before transferring so both channels end up in the sample. The Digitakt II plays stereo natively.",
+        text: "The original Digitakt is a mono sampler, and Elektron Transfer converts stereo files by keeping only the left channel: anything panned right disappears. Sum the file to mono yourself before transferring so both channels end up in the sample. The Digitakt II plays stereo natively.",
       },
     },
     {
@@ -103,8 +103,7 @@ export default function HardwareSamplerGuidePage() {
         <Prose className="mt-10">
           <p>
             Hardware samplers are less forgiving than a DAW. A DAW quietly
-            resamples whatever you drag in; a sampler either converts on import
-            — slowly, and sometimes badly — or plays the file at the wrong
+            resamples whatever you drag in; a sampler either converts on import (slowly, and sometimes badly), or plays the file at the wrong
             speed. Every box also has one native format it actually stores, and
             feeding it exactly that format makes imports instant and removes a
             whole category of &ldquo;why does this sound different on the
@@ -116,7 +115,7 @@ export default function HardwareSamplerGuidePage() {
           <h2 id="the-short-answer">The short answer</h2>
           <ul>
             <li><strong>SP-404MKII:</strong> 48 kHz, 16-bit WAV.</li>
-            <li><strong>Digitakt:</strong> 48 kHz, 16-bit, <strong>mono</strong> WAV — sum stereo files yourself first.</li>
+            <li><strong>Digitakt:</strong> 48 kHz, 16-bit, <strong>mono</strong> WAV: sum stereo files yourself first.</li>
             <li><strong>Digitakt II:</strong> 48 kHz WAV, stereo is fine.</li>
             <li><strong>MPC One / Live / X / Key:</strong> 44.1 kHz, 16- or 24-bit WAV.</li>
             <li><strong>Octatrack:</strong> 44.1 kHz, 16- or 24-bit WAV, stereo supported.</li>
@@ -145,7 +144,7 @@ export default function HardwareSamplerGuidePage() {
                   <td className={td}><strong>Elektron Digitakt</strong></td>
                   <td className={td}>48 kHz, 16-bit, mono</td>
                   <td className={td}>WAV via Elektron Transfer</td>
-                  <td className={td}>Transfer converts anything — but takes <em>only the left channel</em> of stereo files. Sum to mono before sending.</td>
+                  <td className={td}>Transfer converts anything, but takes <em>only the left channel</em> of stereo files. Sum to mono before sending.</td>
                 </tr>
                 <tr className="border-t border-graphite-800">
                   <td className={td}><strong>Elektron Digitakt II</strong></td>
@@ -163,13 +162,13 @@ export default function HardwareSamplerGuidePage() {
                   <td className={td}><strong>Elektron Octatrack</strong></td>
                   <td className={td}>44.1 kHz, 16/24-bit</td>
                   <td className={td}>WAV, AIFF (44.1 kHz only)</td>
-                  <td className={td}>No import conversion at all — a 48 kHz file simply plays back slow and flat. Convert before it touches the CF card.</td>
+                  <td className={td}>No import conversion at all: a 48 kHz file simply plays back slow and flat. Convert before it touches the CF card.</td>
                 </tr>
                 <tr className="border-t border-graphite-800">
                   <td className={td}><strong>Anything older or unlisted</strong></td>
                   <td className={td}>Usually 44.1 kHz, 16-bit, mono</td>
                   <td className={td}>Check the manual</td>
-                  <td className={td}>44.1/16 mono WAV is the safest default for legacy hardware — small, universal, and pre-2010 boxes rarely accept anything else.</td>
+                  <td className={td}>44.1/16 mono WAV is the safest default for legacy hardware: small, universal, and pre-2010 boxes rarely accept anything else.</td>
                 </tr>
               </tbody>
             </table>
@@ -178,14 +177,14 @@ export default function HardwareSamplerGuidePage() {
           <h2 id="left-channel-trap">The left-channel trap</h2>
           <p>
             The single most common &ldquo;my sample sounds wrong on the
-            Digitakt&rdquo; report isn&apos;t a rate problem — it&apos;s the
+            Digitakt&rdquo; report isn&apos;t a rate problem: it&apos;s the
             stereo conversion. When Transfer meets a stereo file it doesn&apos;t
             sum the channels; it keeps the left one and discards the right. A
             wide pad, a ping-pong delay tail, a hi-hat panned right: gone or
             lopsided, and it&apos;s easy to blame the hardware. Converting to
-            mono yourself with a proper L+R sum — the{" "}
+            mono yourself with a proper L+R sum (the{" "}
             <Link href="/mono-stereo-converter">Mono/Stereo Converter</Link>{" "}
-            does this — means <em>you</em> decide what the mono version sounds
+            does this) means <em>you</em> decide what the mono version sounds
             like, not the transfer tool.
           </p>
 
@@ -224,7 +223,7 @@ export default function HardwareSamplerGuidePage() {
           <ol>
             <li>
               <strong>Trim</strong> each sample tight with the{" "}
-              <Link href="/trim">Audio Trimmer</Link> — memory is measured in
+              <Link href="/trim">Audio Trimmer</Link>: memory is measured in
               minutes on these boxes, and silence is the first thing worth
               cutting.
             </li>
@@ -246,19 +245,19 @@ export default function HardwareSamplerGuidePage() {
               pad volume differences reflect your mixing, not the source files.
             </li>
             <li>
-              <strong>Rename before copying</strong> to the card — renaming on
+              <strong>Rename before copying</strong> to the card: renaming on
               the device is the worst text-entry experience in music hardware.
             </li>
           </ol>
 
           <h2 id="common-problems">Common problems and the format fix</h2>
           <ul>
-            <li><strong>Sample plays slow and flat</strong> — rate mismatch on a non-converting device. Resample to the machine&apos;s native rate.</li>
-            <li><strong>Stereo image collapsed or elements missing on Digitakt</strong> — Transfer kept the left channel only. Sum to mono first.</li>
-            <li><strong>Import takes forever</strong> — the device is converting every file. Deliver the native format.</li>
-            <li><strong>File refuses to load</strong> — wrong container or exotic characters in the name. Export plain WAV, rename to ASCII.</li>
-            <li><strong>Ran out of sample memory</strong> — stereo files where mono would do, or untrimmed tails. Mono halves the footprint; trimming does the rest.</li>
-            <li><strong>Two files look identical in the browser</strong> — names differ only after the screen truncates. Put the distinguishing part first.</li>
+            <li><strong>Sample plays slow and flat</strong>: rate mismatch on a non-converting device. Resample to the machine&apos;s native rate.</li>
+            <li><strong>Stereo image collapsed or elements missing on Digitakt</strong>: Transfer kept the left channel only. Sum to mono first.</li>
+            <li><strong>Import takes forever</strong>: the device is converting every file. Deliver the native format.</li>
+            <li><strong>File refuses to load</strong>: wrong container or exotic characters in the name. Export plain WAV, rename to ASCII.</li>
+            <li><strong>Ran out of sample memory</strong>: stereo files where mono would do, or untrimmed tails. Mono halves the footprint; trimming does the rest.</li>
+            <li><strong>Two files look identical in the browser</strong>: names differ only after the screen truncates. Put the distinguishing part first.</li>
           </ul>
         </Prose>
 

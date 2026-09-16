@@ -83,7 +83,7 @@ export default function FixingEchoGuidePage() {
           <dl>
             <dt>Slap-back echo</dt>
             <dd>
-              A distinct, repeated reflection — a single clear bounce off a hard
+              A distinct, repeated reflection: a single clear bounce off a hard
               surface, close enough that you hear it as a separate quiet repeat
               rather than a blur. Common in small hard-surfaced spaces: a tiled
               bathroom, a hallway, an empty room with bare walls.
@@ -92,7 +92,7 @@ export default function FixingEchoGuidePage() {
             <dt>Room reverb</dt>
             <dd>
               The accumulated effect of countless overlapping reflections bouncing
-              around a larger space — not a single distinct repeat, but a wash of
+              around a larger space, not a single distinct repeat, but a wash of
               trailing sound that blurs into the original. A cathedral or an empty
               concert hall produces reverb, not a single slap-back.
             </dd>
@@ -102,7 +102,7 @@ export default function FixingEchoGuidePage() {
             Why one can be gated out and the other can&apos;t
           </h2>
           <p>
-            Slap-back echo responds well to gating — the technique of detecting
+            Slap-back echo responds well to gating: the technique of detecting
             and suppressing the quiet trailing reflections that create the echo
             sensation, since they sit clearly below the level of the direct sound.
             Because it&apos;s a distinct, separable repeat, a gate can target it
@@ -112,7 +112,7 @@ export default function FixingEchoGuidePage() {
             Room reverb doesn&apos;t offer that same separation. Its reflections
             are so numerous and overlapping that there&apos;s no clean boundary
             between &quot;direct sound&quot; and &quot;reflection&quot; to gate
-            against — the reverb is woven into the sound itself, not sitting
+            against: the reverb is woven into the sound itself, not sitting
             quietly underneath it. Fully removing that requires acoustic
             dereverberation, a fundamentally different and far more
             computationally demanding process than gating, and even then it
@@ -123,7 +123,7 @@ export default function FixingEchoGuidePage() {
           <p>
             For a phone recording made in a tiled bathroom, a voice memo with a
             faint repeat, or an interview recorded in a slightly echoey room,
-            expect a genuinely cleaner, tighter-sounding result — the gating
+            expect a genuinely cleaner, tighter-sounding result: the gating
             approach handles exactly that kind of problem well. For a recording
             made in a large or empty room with heavy, washy reverb, expect
             improvement, not elimination. That&apos;s a limitation of what&apos;s

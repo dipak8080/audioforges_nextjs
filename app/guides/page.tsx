@@ -19,7 +19,7 @@ const PAGE_DESCRIPTION =
 
 const OG_IMAGE = ogImage(
   "Guides for producers & DJs",
-  "Harmonic mixing, sampling, set prep and cleanup — written from the studio.",
+  "Harmonic mixing, sampling, set prep and cleanup, written from the studio.",
   `${guides.length} guides · Free to read`
 );
 

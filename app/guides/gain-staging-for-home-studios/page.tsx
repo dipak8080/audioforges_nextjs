@@ -74,15 +74,15 @@ export default function GainStagingGuidePage() {
           <p>
             &quot;Just turn it up&quot; is the most common gain-staging mistake in
             a home studio. Volume isn&apos;t a single knob you crank until
-            something sounds loud enough — it&apos;s a budget you spend across
+            something sounds loud enough: it&apos;s a budget you spend across
             every stage of a recording, and running out of it at the wrong point
             is what causes distortion, not the loudness itself.
           </p>
 
           <h2 id="what-is-a-decibel">What a decibel actually represents</h2>
           <p>
-            Digital audio has a hard ceiling — 0dBFS (decibels relative to full
-            scale) — above which a format simply cannot represent a louder sample.
+            Digital audio has a hard ceiling, 0dBFS (decibels relative to full
+            scale), above which a format simply cannot represent a louder sample.
             Every gain adjustment is measured relative to that ceiling or relative
             to the file&apos;s current level, not as an absolute loudness value. A
             +6dB boost roughly doubles perceived loudness; a +10dB boost is a
@@ -93,7 +93,7 @@ export default function GainStagingGuidePage() {
 
           <h2 id="clipping">Why clipping happens at the top of the range</h2>
           <p>
-            Clipping isn&apos;t a separate bug you can avoid with a setting —
+            Clipping isn&apos;t a separate bug you can avoid with a setting:
             it&apos;s what happens whenever a boosted sample tries to exceed 0dBFS
             and gets flattened at the ceiling instead. The louder your source
             material already is, the less headroom you have before a boost pushes
@@ -101,7 +101,7 @@ export default function GainStagingGuidePage() {
             take a large boost cleanly; a recording that&apos;s already close to
             peaking will clip at a much smaller boost. This is why the same gain
             value can sound perfectly clean on one recording and distorted on
-            another — it depends entirely on how much headroom the source had to
+            another: it depends entirely on how much headroom the source had to
             begin with.
           </p>
 
@@ -113,20 +113,20 @@ export default function GainStagingGuidePage() {
             material. On the reduction side, <strong>-6dB to -10dB</strong> is
             enough to bring a too-loud recording down to a comfortable level while
             keeping it clearly audible. Anything pushed much further toward either
-            extreme starts trading audibility for distortion or near-silence —
+            extreme starts trading audibility for distortion or near-silence:
             that&apos;s the physical tradeoff of gain, not a limitation of a
             specific tool.
           </p>
 
           <h2 id="workflow">Where gain staging fits in your workflow</h2>
           <p>
-            Set your overall gain level early, before other processing — EQ,
+            Set your overall gain level early, before other processing: EQ,
             compression, and effects all respond differently depending on how hot
             the signal coming into them already is. Boosting gain after heavy
             processing means you&apos;re also boosting whatever artifacts that
             processing introduced. If you&apos;re not sure whether a recording
             needs a level fix, that&apos;s usually the first thing to check before
-            reaching for any other tool — a recording that&apos;s too quiet or too
+            reaching for any other tool: a recording that&apos;s too quiet or too
             hot will make every later step harder to judge accurately.
           </p>
           <p>

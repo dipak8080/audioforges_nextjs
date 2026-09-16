@@ -72,7 +72,7 @@ export default function AudioToMidiGuidePage() {
 
         <Prose className="mt-10">
           <p>
-            A MIDI file doesn&apos;t contain any sound at all — no waveform, no
+            A MIDI file doesn&apos;t contain any sound at all: no waveform, no
             samples, nothing you could play back on its own. It&apos;s a list of
             instructions: which note, how loud, when it starts, and how long it
             lasts. Converting audio to MIDI means pulling that note-and-timing
@@ -83,26 +83,26 @@ export default function AudioToMidiGuidePage() {
 
           <h2 id="what-it-does">What audio-to-MIDI transcription actually does</h2>
           <p>
-            An audio file is a waveform — a record of air pressure over time. A
+            An audio file is a waveform: a record of air pressure over time. A
             MIDI file is closer to sheet music: a sequence of note-on and note-off
             events, each with a pitch, a velocity, and a timestamp. Audio-to-MIDI
             transcription analyzes a waveform and detects what that underlying
-            note sequence probably was — reconstructing the score from the
+            note sequence probably was: reconstructing the score from the
             performance, in effect, rather than reading the score directly.
           </p>
 
           <h2 id="note-detection">How a note gets detected</h2>
           <p>
             The detector scans the audio for two related signals: an{" "}
-            <strong>onset</strong> — a sudden rise in energy at a particular
-            pitch, which usually marks the start of a note — and a{" "}
+            <strong>onset</strong> (a sudden rise in energy at a particular
+            pitch, which usually marks the start of a note), and a{" "}
             <strong>sustained frame</strong> of energy at that same pitch, which
             marks the note continuing to ring out. Two threshold settings control
             how sensitive each check is. A lower onset threshold catches quieter
             or more subtle note starts, but also picks up more false positives
             from noise or bleed. A lower frame threshold holds notes open longer
             and catches quieter sustain, at the same trade-off. There&apos;s no
-            single correct setting — it&apos;s a real trade-off between missing
+            single correct setting: it&apos;s a real trade-off between missing
             genuine notes and registering ones that were never played, and the
             right balance depends on the source recording.
           </p>
@@ -115,11 +115,11 @@ export default function AudioToMidiGuidePage() {
             the detector an unambiguous signal. A dense mix with multiple
             instruments overlapping in the same frequency range, or a chord where
             several notes ring simultaneously, means disentangling overlapping
-            energy at once — a genuinely harder detection problem, not just a
+            energy at once: a genuinely harder detection problem, not just a
             matter of turning the sensitivity up. This is also why a
             stem-separated track (an isolated vocal or bass line, for example)
             transcribes far more reliably than the same part still buried in a
-            full mix — thinning out the signal before transcription starts makes a
+            full mix: thinning out the signal before transcription starts makes a
             real difference.
           </p>
 
@@ -139,8 +139,8 @@ export default function AudioToMidiGuidePage() {
 
           <h2 id="minimum-note-length">What a minimum note length filters out</h2>
           <p>
-            Short spurious blips — a transient click, a bit of noise that briefly
-            crosses the onset threshold — can register as extremely short
+            Short spurious blips (a transient click, a bit of noise that briefly
+            crosses the onset threshold) can register as extremely short
             &quot;notes&quot; that were never actually played. Raising the minimum
             note length discards anything shorter than that duration, which cleans
             up a lot of stray notes at the cost of also discarding any genuinely
@@ -151,7 +151,7 @@ export default function AudioToMidiGuidePage() {
           <h2 id="what-its-for">What a transcribed MIDI file is actually useful for</h2>
           <p>
             A resulting MIDI file isn&apos;t a substitute for the original
-            recording — it&apos;s a starting point. Producers use it to pull a
+            recording: it&apos;s a starting point. Producers use it to pull a
             melody or bassline out of a reference track and reassign it to a
             different instrument or synth patch in a DAW. It works as a rough
             first pass for building sheet music or a lead sheet in notation
@@ -164,7 +164,7 @@ export default function AudioToMidiGuidePage() {
           <p>
             Dense chords, fast polyphonic passages, and full-band mixes remain
             genuinely hard for any automatic transcription approach, not just this
-            one — that&apos;s an open problem in audio processing generally, not a
+            one: that&apos;s an open problem in audio processing generally, not a
             limitation specific to one implementation. Drums and unpitched
             percussion don&apos;t transcribe meaningfully at all, since the whole
             approach is built around tracking pitch over time. The most reliable
@@ -175,8 +175,8 @@ export default function AudioToMidiGuidePage() {
           <h2 id="settings-here">How AudioForges uses these settings</h2>
           <p>
             AudioForges exposes onset sensitivity, frame sensitivity, minimum note
-            length, and frequency range directly, plus a set of presets — vocal,
-            piano, bass, guitar, and fast passages — that start from a sensible
+            length, and frequency range directly, plus a set of presets (vocal,
+            piano, bass, guitar, and fast passages) that start from a sensible
             combination of these for common sources. Pick the closest preset, or
             adjust the controls above manually if the default result isn&apos;t
             quite right. For a practical example, open the{" "}

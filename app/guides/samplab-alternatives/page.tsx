@@ -14,7 +14,7 @@ const guide = getGuideBySlug("samplab-alternatives")!;
 const OG_IMAGE = ogForGuide(guide);
 
 export const metadata: Metadata = {
-  title: { absolute: "Samplab Is Shutting Down — Free Alternatives (2026)" },
+  title: { absolute: "Samplab Is Shutting Down: Free Alternatives (2026)" },
   description: guide.description,
   alternates: { canonical: `${SITE_URL}/guides/${guide.slug}` },
   openGraph: {
@@ -64,7 +64,7 @@ const faqJsonLd = {
       name: "What is the best free replacement for Samplab's audio-to-MIDI?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "For browser-based conversion with no install, AudioForges and Spotify's Basic Pitch both convert audio to MIDI free with no length limit. For polyphonic note editing that preserves the original timbre — the thing Samplab was uniquely good at — there is no free replacement; Melodyne and Hit'n'Mix Infinity are the paid options.",
+        text: "For browser-based conversion with no install, AudioForges and Spotify's Basic Pitch both convert audio to MIDI free with no length limit. For polyphonic note editing that preserves the original timbre (the thing Samplab was uniquely good at) there is no free replacement; Melodyne and Hit'n'Mix Infinity are the paid options.",
       },
     },
     {
@@ -105,7 +105,7 @@ export default function SamplabAlternativesPage() {
             After that you can&apos;t upload new audio, and older versions of the
             software stop working entirely. Yearly subscriptions extending past
             that date are being refunded. If your workflow depended on it, the
-            honest first step isn&apos;t picking a replacement — it&apos;s
+            honest first step isn&apos;t picking a replacement: it&apos;s
             exporting what you still need while the service is up.
           </p>
 
@@ -113,7 +113,7 @@ export default function SamplabAlternativesPage() {
           <ol>
             <li>Open every project you might come back to and export the MIDI.</li>
             <li>Export the rendered audio too, for anything where you edited notes and want the result preserved.</li>
-            <li>Save your stems separately if you used the stem split — those aren&apos;t recoverable later.</li>
+            <li>Save your stems separately if you used the stem split: those aren&apos;t recoverable later.</li>
             <li>Only then start testing replacements, with files you already have.</li>
           </ol>
 
@@ -128,7 +128,7 @@ export default function SamplabAlternativesPage() {
             converter is a like-for-like swap.
           </p>
           <p>
-            The rest — conversion, stems, chords — is well covered, including
+            The rest (conversion, stems, chords) is well covered, including
             free. So the right replacement depends on which part of Samplab you
             actually used.
           </p>
@@ -148,14 +148,14 @@ export default function SamplabAlternativesPage() {
                 <tr className="border-t border-graphite-800">
                   <td className={td}><strong>AudioForges</strong> (this site)</td>
                   <td className={td}>Free</td>
-                  <td className={td}>Audio-to-MIDI, stem separation, key/BPM — in the browser, no account</td>
+                  <td className={td}>Audio-to-MIDI, stem separation, key/BPM: in the browser, no account</td>
                   <td className={td}>No note editing inside the audio; you get MIDI and stems, not a resynthesised sample</td>
                 </tr>
                 <tr className="border-t border-graphite-800">
                   <td className={td}><strong>Basic Pitch</strong> (Spotify)</td>
                   <td className={td}>Free</td>
                   <td className={td}>Audio-to-MIDI only</td>
-                  <td className={td}>Conversion alone — no stems, no chord detection, no editing</td>
+                  <td className={td}>Conversion alone: no stems, no chord detection, no editing</td>
                 </tr>
                 <tr className="border-t border-graphite-800">
                   <td className={td}><strong>Melodyne</strong></td>
@@ -182,10 +182,10 @@ export default function SamplabAlternativesPage() {
           <h2 id="by-use-case">Pick by what you used it for</h2>
           <ul>
             <li><strong>You converted loops to MIDI to re-voice them:</strong> the <Link href="/audio-to-midi">AudioForges audio-to-MIDI converter</Link> does this free with no length limit, and shows the result on a piano roll so you can hear it before downloading. Basic Pitch works too.</li>
-            <li><strong>You split a sample then converted a part:</strong> run the <Link href="/stems">stem splitter</Link> first, then convert the isolated part — same two-step flow, free, no install.</li>
+            <li><strong>You split a sample then converted a part:</strong> run the <Link href="/stems">stem splitter</Link> first, then convert the isolated part: same two-step flow, free, no install.</li>
             <li><strong>You needed the key and tempo to match samples:</strong> the <Link href="/key-finder">key &amp; BPM finder</Link> covers that step.</li>
             <li><strong>You edited notes inside audio and kept the timbre:</strong> Melodyne or Hit&apos;n&apos;Mix. There is no free equivalent, and any page telling you otherwise is selling something.</li>
-            <li><strong>You worked inside a DAW via the plugin:</strong> check what your DAW already ships before buying anything — Ableton, Logic and Cubase all have audio-to-MIDI built in.</li>
+            <li><strong>You worked inside a DAW via the plugin:</strong> check what your DAW already ships before buying anything: Ableton, Logic and Cubase all have audio-to-MIDI built in.</li>
           </ul>
 
           <h2 id="lesson">One takeaway worth keeping</h2>
@@ -194,7 +194,7 @@ export default function SamplabAlternativesPage() {
             keep your work in formats that outlive the tool. MIDI, WAV and
             MusicXML open anywhere in twenty years; a proprietary project file
             opens as long as the company exists. Export the portable version
-            while you still can — of everything, not just Samplab.
+            while you still can: of everything, not just Samplab.
           </p>
         </Prose>
 

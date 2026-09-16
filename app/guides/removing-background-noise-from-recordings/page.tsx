@@ -72,7 +72,7 @@ export default function NoiseRemovalGuidePage() {
 
         <Prose className="mt-10">
           <p>
-            Background noise removal isn&apos;t magic — it&apos;s a tradeoff
+            Background noise removal isn&apos;t magic: it&apos;s a tradeoff
             between how much noise gets pulled out and how much of the wanted
             audio gets damaged in the process. Understanding that tradeoff is what
             separates a clean result from one that sounds worse than the noise you
@@ -83,14 +83,14 @@ export default function NoiseRemovalGuidePage() {
           <p>
             Most denoisers, including FFT-based ones, work by analyzing the
             audio&apos;s frequency content over time and identifying a noise
-            profile — the frequencies where hiss, hum, or static consistently sit.
+            profile: the frequencies where hiss, hum, or static consistently sit.
             It then reduces energy at those frequencies throughout the file, on
             the assumption that steady background noise occupies roughly the same
             frequency range the whole way through, while the wanted audio (voice,
             instruments) moves around more.
           </p>
           <p>
-            That assumption is usually solid for genuinely steady noise — tape
+            That assumption is usually solid for genuinely steady noise: tape
             hiss, fan hum, electrical buzz. It breaks down when the noise overlaps
             heavily with frequencies your wanted audio also uses, which is exactly
             what happens when you push reduction strength too far.
@@ -98,13 +98,13 @@ export default function NoiseRemovalGuidePage() {
 
           <h2 id="warbling">Why aggressive settings cause warbling</h2>
           <p>
-            Warbling — a fluttery, underwater-sounding artifact — shows up when
+            Warbling (a fluttery, underwater-sounding artifact) shows up when
             the denoiser starts removing energy from frequencies the wanted audio
             actually needs, not just the noise. At low-to-moderate strength, the
             algorithm can be conservative about where the line sits between noise
             and signal. Push it higher and it gets more aggressive about cutting
             anything resembling the noise profile, which starts carving into the
-            wanted audio&apos;s own frequency content too — especially on music,
+            wanted audio&apos;s own frequency content too, especially on music,
             where instruments and vocals legitimately occupy a wide frequency
             range that can overlap with the noise being targeted.
           </p>
@@ -120,12 +120,12 @@ export default function NoiseRemovalGuidePage() {
           <p>
             A general-purpose denoiser has to work across music, field recordings,
             and speech, which means it can&apos;t make assumptions specific to any
-            one of them — you control the strength directly and accept the
+            one of them: you control the strength directly and accept the
             resulting tradeoff yourself. A speech-tuned preset can afford to be
             more targeted, since it only needs to preserve one type of signal: the
             human voice&apos;s frequency range. That lets it combine noise
-            reduction with other speech-specific steps — like cutting
-            low-frequency rumble and normalizing loudness — in a fixed chain
+            reduction with other speech-specific steps (like cutting
+            low-frequency rumble and normalizing loudness) in a fixed chain
             that&apos;s already tuned for exactly that content.
           </p>
           <p>
@@ -140,7 +140,7 @@ export default function NoiseRemovalGuidePage() {
           <h2 id="approach">A practical approach</h2>
           <p>
             Start at the default strength and only increase it if noise is still
-            clearly audible — don&apos;t jump straight to an aggressive setting
+            clearly audible: don&apos;t jump straight to an aggressive setting
             expecting a cleaner result. If you hear warbling or a hollowed-out
             quality after processing, that&apos;s a sign the strength was pushed
             past what the source material could tolerate; back it off rather than

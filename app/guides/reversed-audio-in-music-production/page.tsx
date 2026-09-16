@@ -75,18 +75,18 @@ export default function ReversedAudioGuidePage() {
           <p>
             Reversing audio is one of the oldest tricks in production, and
             it&apos;s stayed relevant precisely because reversed sound
-            doesn&apos;t just sound &quot;backwards&quot; — it changes the shape
+            doesn&apos;t just sound &quot;backwards&quot;: it changes the shape
             of how a sound builds and decays, which is genuinely useful, not just
             a novelty.
           </p>
 
           <h2 id="waveform">What reversing actually does to a waveform</h2>
           <p>
-            A normal sound — a cymbal hit, a plucked string, a spoken word — has a
+            A normal sound (a cymbal hit, a plucked string, a spoken word) has a
             sharp attack followed by a decay: loud at the start, fading out.
             Reverse that same waveform and the shape flips entirely: it now builds
             slowly from silence into a sudden stop. That build shape is the whole
-            reason reversed audio is useful in production — it creates
+            reason reversed audio is useful in production: it creates
             anticipation and momentum that a normal decay can&apos;t.
           </p>
 
@@ -97,15 +97,15 @@ export default function ReversedAudioGuidePage() {
             sweep, reverse it, and place it right before a drop or section change.
             Because the reversed sound builds rather than decays, it creates a
             natural sense of rising tension that resolves exactly on the downbeat
-            where the next section begins — that&apos;s the mechanism behind most
+            where the next section begins: that&apos;s the mechanism behind most
             &quot;riser&quot; effects, whether they&apos;re built from a sample
             pack or made from scratch by reversing something you already have.
           </p>
 
           <h2 id="vocal-chops">Reversed vocal chops</h2>
           <p>
-            Reversing a short vocal phrase or chop before it plays forward — or
-            blending a reversed lead-in with the forward version — gives a vocal a
+            Reversing a short vocal phrase or chop before it plays forward (or
+            blending a reversed lead-in with the forward version) gives a vocal a
             distinctive, slightly otherworldly texture that&apos;s become a
             signature sound in melodic house and future bass. The technique works
             because a reversed vocal onset doesn&apos;t match how speech normally
@@ -115,12 +115,12 @@ export default function ReversedAudioGuidePage() {
 
           <h2 id="backmasking">Backmasking: the reason reversing became famous</h2>
           <p>
-            Reversing audio to check for hidden or unintentional content — often
-            called backmasking — is where a lot of people first encounter the
+            Reversing audio to check for hidden or unintentional content, often
+            called backmasking, is where a lot of people first encounter the
             idea, thanks to decades of claims about hidden messages in recordings
             played backward. Most of what gets &quot;found&quot; this way is
-            pareidolia — the brain finding speech-like patterns in essentially
-            random reversed sound — but reversing a track to listen through it is
+            pareidolia (the brain finding speech-like patterns in essentially
+            random reversed sound), but reversing a track to listen through it is
             a real and easy way to satisfy that curiosity yourself.
           </p>
 
@@ -132,7 +132,7 @@ export default function ReversedAudioGuidePage() {
             format, you can drop a reversed WAV stem straight back into your DAW
             without an extra conversion step. Our{" "}
             <Link href="/reverse">Audio Reverser</Link> flips any upload with one
-            click — no settings, just upload and download the reversed file.
+            click: no settings, just upload and download the reversed file.
           </p>
         </Prose>
 

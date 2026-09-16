@@ -122,7 +122,7 @@ export default function PhoneSystemAudioGuidePage() {
             8 kHz sounds low because it is: the top of the audible range is cut
             at 4 kHz, which is why phone calls sound the way they do. That is the
             G.711 codec standard the whole telephone network runs on. Uploading
-            a 44.1 kHz file does not give callers better sound — the system
+            a 44.1 kHz file does not give callers better sound: the system
             either refuses it or downsamples it badly on the fly, which is where
             distortion comes from.
           </p>
@@ -130,7 +130,7 @@ export default function PhoneSystemAudioGuidePage() {
           <h2 id="by-system">Requirements by system</h2>
           <p>
             These are the most common documented requirements. Vendors change
-            things, so if an upload fails, check the current spec — but the 8 kHz
+            things, so if an upload fails, check the current spec, but the 8 kHz
             / 16-bit / mono WAV below works on all of them.
           </p>
           <div className="not-prose my-6 overflow-x-auto rounded-xl border border-graphite-800">
@@ -217,7 +217,7 @@ export default function PhoneSystemAudioGuidePage() {
           <p>
             Both tools run in the browser, no account, no install. The whole
             thing takes under a minute. If you have a batch of prompts, do the
-            mono step on all of them first, then the resample step — it&apos;s
+            mono step on all of them first, then the resample step: it&apos;s
             faster than alternating.
           </p>
 
@@ -226,7 +226,7 @@ export default function PhoneSystemAudioGuidePage() {
             Phone audio is quiet by design, and a hold-music file mastered at
             modern streaming loudness will clip and buzz through the codec.
             Before converting, aim for peaks around <strong>−6 to −3 dBFS</strong>{" "}
-            and no heavy limiting — the{" "}
+            and no heavy limiting: the{" "}
             <Link href="/loudness-normalizer">Loudness Normalizer</Link> set to
             around −16 LUFS is a safe target. Voice prompts should be a touch
             louder than music beds so they cut through.
@@ -235,24 +235,24 @@ export default function PhoneSystemAudioGuidePage() {
           <h2 id="common-errors">Common errors and what they mean</h2>
           <ul>
             <li>
-              <strong>&ldquo;Invalid file format&rdquo; / &ldquo;File not supported&rdquo;</strong> —
+              <strong>&ldquo;Invalid file format&rdquo; / &ldquo;File not supported&rdquo;</strong>:
               usually a compressed WAV (ADPCM, MP3-in-WAV) or wrong sample rate.
               Re-export as plain PCM at 8 kHz.
             </li>
             <li>
-              <strong>Sped-up, chipmunk audio</strong> — a 44.1 or 48 kHz file
+              <strong>Sped-up, chipmunk audio</strong>: a 44.1 or 48 kHz file
               being played as 8 kHz. Resample it.
             </li>
             <li>
-              <strong>Slow, deep audio</strong> — the reverse: an 8 kHz file
+              <strong>Slow, deep audio</strong>: the reverse, an 8 kHz file
               tagged as 44.1 kHz. Re-convert from the original.
             </li>
             <li>
-              <strong>Only one side plays / sounds thin</strong> — stereo file on
+              <strong>Only one side plays / sounds thin</strong>: stereo file on
               a system that reads the left channel only. Convert to mono first.
             </li>
             <li>
-              <strong>Crackle or buzz on loud parts</strong> — file is too hot for
+              <strong>Crackle or buzz on loud parts</strong>: file is too hot for
               the codec. Lower the level, don&apos;t limit harder.
             </li>
           </ul>
@@ -261,8 +261,8 @@ export default function PhoneSystemAudioGuidePage() {
           <p>
             8 kHz works everywhere and is what callers on the public phone network
             hear regardless. 16 kHz (wideband, G.722, &ldquo;HD voice&rdquo;) only
-            helps for calls that stay inside your own system — desk phone to desk
-            phone, or a softphone app — and only if the system is configured for
+            helps for calls that stay inside your own system (desk phone to desk
+            phone, or a softphone app), and only if the system is configured for
             it. When in doubt, use 8 kHz.
           </p>
         </Prose>

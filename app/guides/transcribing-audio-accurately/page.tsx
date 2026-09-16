@@ -64,7 +64,7 @@ const faqs: FAQItem[] = [
   {
     question: "Should I pick the language or let it detect automatically?",
     answer:
-      "Auto-detection is reliable for a clear recording in a single language. Choose the language yourself for clips under about thirty seconds, heavy accents, or audio that mixes two languages — detection works from the opening seconds, so a short or ambiguous start is where it goes wrong.",
+      "Auto-detection is reliable for a clear recording in a single language. Choose the language yourself for clips under about thirty seconds, heavy accents, or audio that mixes two languages, detection works from the opening seconds, so a short or ambiguous start is where it goes wrong.",
   },
   {
     question: "What's the difference between SRT and VTT?",
@@ -74,12 +74,12 @@ const faqs: FAQItem[] = [
   {
     question: "Can I transcribe a file longer than 20 minutes?",
     answer:
-      "Not in one pass — 20 minutes is the per-file limit. Split the recording into sections first and transcribe each one, then join the transcripts. Timestamps restart at zero for each section, so add the offset if you're building captions.",
+      "Not in one pass: 20 minutes is the per-file limit. Split the recording into sections first and transcribe each one, then join the transcripts. Timestamps restart at zero for each section, so add the offset if you're building captions.",
   },
   {
     question: "Can I get an English transcript from audio in another language?",
     answer:
-      "Yes. Choosing English output translates as it transcribes, in a single pass, at no extra cost. English is the only target language available — for any other pairing you'd need to translate the finished transcript separately.",
+      "Yes. Choosing English output translates as it transcribes, in a single pass, at no extra cost. English is the only target language available: for any other pairing you'd need to translate the finished transcript separately.",
   },
 ];
 
@@ -109,7 +109,7 @@ export default function TranscribingAccuratelyGuidePage() {
         <Prose className="mt-10">
           <p>
             Transcription accuracy isn&apos;t only a property of the model doing
-            the work — it&apos;s heavily shaped by the audio you feed it and the
+            the work: it&apos;s heavily shaped by the audio you feed it and the
             settings you choose. The same engine can produce a near-perfect
             transcript from a clean recording and a noticeably rougher one from a
             noisy file, with nothing about the model changing at all. Most of what
@@ -163,8 +163,8 @@ export default function TranscribingAccuratelyGuidePage() {
             and the most fixable one, which makes it the biggest lever you
             actually control. Running a noisy recording through a cleanup step
             first addresses the problem at source. This matters most for audio
-            recorded outside a controlled environment — phone recordings, field
-            interviews, voice memos picked up in a busy room — where the recording
+            recorded outside a controlled environment (phone recordings, field
+            interviews, voice memos picked up in a busy room), where the recording
             itself, not the transcription engine, is what&apos;s limiting the
             result.
           </p>
@@ -189,7 +189,7 @@ export default function TranscribingAccuratelyGuidePage() {
           <p>
             Choosing the language yourself removes that guesswork entirely.
             It&apos;s worth doing whenever the clip is short, the speaker has a
-            strong accent, or the audio mixes languages — and it costs nothing,
+            strong accent, or the audio mixes languages, and it costs nothing,
             since the model is the same either way. For clear, single-language
             recordings over a minute or so, auto-detection is reliable enough that
             setting it manually gains you little.
@@ -200,7 +200,7 @@ export default function TranscribingAccuratelyGuidePage() {
             These are two different operations that people often conflate.
             Transcribing writes down what was said in the language it was said in.
             Translating produces English text from non-English speech, in the same
-            single pass — you don&apos;t transcribe first and translate
+            single pass: you don&apos;t transcribe first and translate
             afterwards.
           </p>
           <p>
@@ -274,7 +274,7 @@ export default function TranscribingAccuratelyGuidePage() {
           <h2 id="long-recordings">Working with recordings longer than 20 minutes</h2>
           <p>
             Twenty minutes is the per-file limit. A longer recording needs
-            splitting first — either at a sensible break point with a{" "}
+            splitting first: either at a sensible break point with a{" "}
             <Link href="/trim">trim</Link>, or automatically at the natural pauses
             using the <Link href="/silence-split">silence splitter</Link>, which
             tends to produce cleaner boundaries than cutting at a fixed time.
@@ -308,7 +308,7 @@ export default function TranscribingAccuratelyGuidePage() {
           </p>
           <ol>
             <li>
-              Trim to just the part you need — shorter audio means less to go
+              Trim to just the part you need: shorter audio means less to go
               wrong, and it keeps you under the length limit.
             </li>
             <li>
@@ -325,7 +325,7 @@ export default function TranscribingAccuratelyGuidePage() {
               download step entirely.
             </li>
             <li>
-              Export TXT to read, SRT or VTT to caption — and check the transcript
+              Export TXT to read, SRT or VTT to caption, and check the transcript
               against the audio before you publish it.
             </li>
           </ol>

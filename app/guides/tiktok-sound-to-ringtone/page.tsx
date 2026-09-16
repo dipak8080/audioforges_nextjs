@@ -76,7 +76,7 @@ export default function TikTokSoundToRingtoneGuidePage() {
             A TikTok sound makes a good ringtone for the same reason it works on
             TikTok: it&apos;s short, front-loaded, and recognisable in about two
             seconds. Getting one onto your phone is four steps of actual audio
-            work and one step of phone admin — and the phone admin is the part
+            work and one step of phone admin, and the phone admin is the part
             most guides skip, which is why people end up with a perfect 25-second
             clip sitting in their Downloads folder doing nothing.
           </p>
@@ -84,7 +84,7 @@ export default function TikTokSoundToRingtoneGuidePage() {
           <h2 id="start-with-audio">Start with the audio, not the video</h2>
           <p>
             Pull the sound out first with the{" "}
-            <Link href="/tiktok-to-mp3">TikTok to MP3 converter</Link> — paste the
+            <Link href="/tiktok-to-mp3">TikTok to MP3 converter</Link>: paste the
             share link and you get the audio on its own. Working from the MP3
             rather than a screen recording matters here: a recording captures your
             phone&apos;s speaker, room noise and all, and a ringtone is the one
@@ -95,14 +95,14 @@ export default function TikTokSoundToRingtoneGuidePage() {
           <p>
             A ringtone plays for four or five seconds before someone reaches the
             phone. If the first four seconds are a build-up, an intro, or a spoken
-            lead-in, the ringtone is those four seconds — the part you actually
+            lead-in, the ringtone is those four seconds: the part you actually
             wanted never arrives. Find the moment the sound becomes recognisable
             and start a beat or two before it.
           </p>
           <p>
             The <Link href="/trim">Audio Trimmer</Link> shows the waveform, so the
             hook is usually visible as the point where the shape gets denser. Drag
-            the handles around it, preview, and adjust — most sounds take two or
+            the handles around it, preview, and adjust: most sounds take two or
             three attempts to land on the right entry point.
           </p>
 
@@ -121,7 +121,7 @@ export default function TikTokSoundToRingtoneGuidePage() {
             Cutting audio at an arbitrary point almost always lands mid-waveform,
             and the jump from that value to silence is a sharp transient your
             speaker reproduces as a click or pop. On a ringtone it&apos;s
-            especially obvious, because the clip loops — so the click repeats every
+            especially obvious, because the clip loops, so the click repeats every
             time round.
           </p>
           <p>
@@ -148,7 +148,7 @@ export default function TikTokSoundToRingtoneGuidePage() {
           <h2 id="format">Export the right format</h2>
           <p>
             Android takes the MP3 as-is. iPhone needs <strong>M4R</strong>, which
-            is AAC audio with a different extension — the{" "}
+            is AAC audio with a different extension: the{" "}
             <Link href="/ringtone-maker">Ringtone Maker</Link> handles the trim
             and the M4R export in one step, so you can skip straight there if your
             clip doesn&apos;t need loudness work.{" "}
@@ -163,8 +163,8 @@ export default function TikTokSoundToRingtoneGuidePage() {
             This is where most guides stop short, so to be direct about it:{" "}
             <strong>an M4R in your Files app does not become a ringtone on its
             own</strong>. iOS doesn&apos;t let a downloaded file register itself
-            as a system sound. You need either GarageBand on the phone — import
-            the file into a project, then Share &rarr; Ringtone — or a computer,
+            as a system sound. You need either GarageBand on the phone (import
+            the file into a project, then Share &rarr; Ringtone), or a computer,
             with the phone connected and the M4R dragged into the device&apos;s
             Tones section in Finder or iTunes. Both work; neither is one tap, and
             any site promising otherwise on iOS is overselling.
@@ -180,7 +180,7 @@ export default function TikTokSoundToRingtoneGuidePage() {
           <p>
             Most sounds on TikTok are commercial music licensed to TikTok, not to
             the person who posted them. For a ringtone on your own phone
-            that&apos;s a non-issue — personal use of audio you&apos;ve
+            that&apos;s a non-issue: personal use of audio you&apos;ve
             legitimately obtained is the least contentious case there is. It
             matters if you plan to distribute the file, sell a ringtone pack, or
             use the clip in something monetised. Keep it personal and there&apos;s

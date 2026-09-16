@@ -74,7 +74,7 @@ export default function VoiceRecorderGuidePage() {
           <p>
             Almost every other tool on AudioForges works the same basic way: you
             upload a file, a server does the actual processing, and you download
-            the result. The Voice Recorder breaks that pattern entirely — nothing
+            the result. The Voice Recorder breaks that pattern entirely: nothing
             gets uploaded, because nothing needs to be. The reason comes down to
             what the browser itself is capable of doing on its own.
           </p>
@@ -86,8 +86,8 @@ export default function VoiceRecorderGuidePage() {
             to access your microphone and receive a live audio stream from it. The
             other takes that stream and encodes it into a playable audio file in
             real time, directly in the browser, as you record. Everything
-            AudioForges&apos; other tools need a server for — decoding,
-            processing, re-encoding — either isn&apos;t necessary here or is
+            AudioForges&apos; other tools need a server for (decoding,
+            processing, re-encoding) either isn&apos;t necessary here or is
             handled by the browser&apos;s own built-in recording capability
             instead. There&apos;s no heavy lifting like AI separation or format
             conversion happening during recording, so there&apos;s nothing that
@@ -100,7 +100,7 @@ export default function VoiceRecorderGuidePage() {
             audio formats natively, and that choice isn&apos;t something a website
             running in the browser gets to override. Chrome, Firefox, and Edge
             typically produce WebM; Safari typically produces M4A. This
-            isn&apos;t inconsistency on AudioForges&apos; part — it reflects a
+            isn&apos;t inconsistency on AudioForges&apos; part: it reflects a
             genuine difference in what each browser has built in. If you need a
             specific format like MP3 or WAV afterward, that&apos;s a separate
             conversion step once the recording is already saved.
@@ -129,7 +129,7 @@ export default function VoiceRecorderGuidePage() {
           </p>
           <p>
             Our <Link href="/voice-recorder">Online Voice Recorder</Link> handles
-            the capture itself — tap the mic, speak, and download, with nothing
+            the capture itself: tap the mic, speak, and download, with nothing
             ever leaving your device during the recording step.
           </p>
         </Prose>

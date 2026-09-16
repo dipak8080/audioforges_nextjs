@@ -74,7 +74,7 @@ export default function LufsGuidePage() {
           <p>
             Two tracks can both peak at 0dB and still sound noticeably different
             in loudness when you play them back to back. That&apos;s the gap LUFS
-            is built to close — it measures how loud something actually sounds
+            is built to close: it measures how loud something actually sounds
             over time, not just how high its loudest instant happens to reach.
             Understanding that difference explains both why streaming platforms
             normalize playback and why mastering to a LUFS target matters more
@@ -84,7 +84,7 @@ export default function LufsGuidePage() {
           <h2 id="lufs-vs-peak">LUFS vs. peak level</h2>
           <p>
             Peak level (measured in dBFS) is the highest instantaneous point the
-            waveform reaches — a single spike can hit 0dB while the rest of the
+            waveform reaches: a single spike can hit 0dB while the rest of the
             track sits far quieter around it. LUFS (Loudness Units relative to
             Full Scale) instead measures perceived loudness across the whole
             track, weighted to roughly match how human hearing responds to
@@ -97,7 +97,7 @@ export default function LufsGuidePage() {
           <h2 id="normalization">Why streaming platforms normalize playback</h2>
           <p>
             Spotify, YouTube, and Apple Music don&apos;t play tracks at whatever
-            level they were mastered — each platform normalizes playback to its
+            level they were mastered: each platform normalizes playback to its
             own loudness target, turning louder tracks down to match it. All three
             land in the same general neighborhood, around -14 LUFS. A track
             mastered significantly louder than that gets turned down on playback,
@@ -115,14 +115,14 @@ export default function LufsGuidePage() {
             follows the EBU R128 / ATSC A/85 standard of -23 LUFS, considerably
             quieter than either, reflecting a different listening environment and
             regulatory standard entirely. None of these is the &quot;correct&quot;
-            loudness in any absolute sense — each is calibrated to where the audio
+            loudness in any absolute sense: each is calibrated to where the audio
             is actually going to be heard.
           </p>
 
           <h2 id="two-pass">Why two-pass measurement matters</h2>
           <p>
             A single-pass loudness correction estimates the needed adjustment in
-            real time as it streams through the file — a reasonable approximation,
+            real time as it streams through the file: a reasonable approximation,
             but one that can miss the actual target by a noticeable margin on a
             track with uneven loudness throughout, since it never gets a full
             picture of the whole file before adjusting. Two-pass processing
@@ -139,7 +139,7 @@ export default function LufsGuidePage() {
           </h2>
           <p>
             Normalizing to a LUFS target adjusts the track&apos;s overall level to
-            match a destination&apos;s expected loudness — it doesn&apos;t
+            match a destination&apos;s expected loudness: it doesn&apos;t
             rebalance a mix, fix clipping or distortion that&apos;s already baked
             into the source, or add dynamics back into something that was
             over-compressed during mastering. If the underlying mix has problems,
@@ -148,7 +148,7 @@ export default function LufsGuidePage() {
           </p>
           <p>
             Our <Link href="/loudness-normalizer">LUFS Loudness Normalizer</Link>{" "}
-            runs this exact two-pass process — upload a track, pick a streaming,
+            runs this exact two-pass process: upload a track, pick a streaming,
             club, or broadcast target (or set a custom LUFS value), and download
             the result, no account or software install needed.
           </p>

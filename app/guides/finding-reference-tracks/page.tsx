@@ -74,7 +74,7 @@ export default function FindingReferenceTracksGuidePage() {
           <p>
             A reference track only helps if it&apos;s actually comparable to what
             you&apos;re making. A vague &quot;I like the vibe of this&quot; pick
-            rarely holds up once you&apos;re deep into a session — the useful
+            rarely holds up once you&apos;re deep into a session: the useful
             references are the ones you chose for specific, nameable reasons.
           </p>
 
@@ -82,7 +82,7 @@ export default function FindingReferenceTracksGuidePage() {
             Pick references for a specific reason, not a general one
           </h2>
           <p>
-            &quot;I like this track&quot; isn&apos;t a reference criterion —
+            &quot;I like this track&quot; isn&apos;t a reference criterion:
             it&apos;s a mood. A useful reference is chosen for something you can
             point to: the low-end weight, the vocal chain, the arrangement pacing,
             the way a specific transition is built. If you can&apos;t name what
@@ -102,12 +102,12 @@ export default function FindingReferenceTracksGuidePage() {
 
           <h2 id="usable-format">Get it into a format you can actually use</h2>
           <p>
-            A reference track you can only stream isn&apos;t much use in a session
-            — you want it sitting in your DAW next to your project, switchable
+            A reference track you can only stream isn&apos;t much use in a session:
+            you want it sitting in your DAW next to your project, switchable
             with one click for A/B comparison. That means having a local WAV or
             high-bitrate MP3, not a browser tab. For anything you have the rights
-            to pull locally — your own uploads, Creative Commons tracks,
-            royalty-free material — our{" "}
+            to pull locally (your own uploads, Creative Commons tracks,
+            royalty-free material) our{" "}
             <Link href="/youtube-to-wav">YouTube to WAV converter</Link> gets you
             a usable local file in seconds instead of digging through an ad-heavy
             downloader site.
@@ -125,8 +125,8 @@ export default function FindingReferenceTracksGuidePage() {
 
           <h2 id="keep-it-small">Keep the reference folder small and current</h2>
           <p>
-            A reference folder with 200 tracks in it isn&apos;t a reference folder
-            — it&apos;s a graveyard. Keep it to what&apos;s actually relevant to
+            A reference folder with 200 tracks in it isn&apos;t a reference folder:
+            it&apos;s a graveyard. Keep it to what&apos;s actually relevant to
             your current session or project phase, and clear it out between
             projects. A handful of tracks you actually revisit is more useful than
             a huge archive you never open.

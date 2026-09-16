@@ -12,6 +12,7 @@ import { ForgeMixerCard } from "@/components/tools/ForgeMixerCard";
 import { PianoRollCard } from "@/components/tools/PianoRollCard";
 import { EngravedScore } from "@/components/ui/EngravedScore";
 import { PageByline } from "@/components/tools/PageByline";
+import { FeaturedOn } from "@/components/home/FeaturedOn";
 import { TRANSCRIPTION_MODEL } from "@/lib/api/transcription";
 import { ogImage } from "@/lib/og";
 
@@ -467,6 +468,8 @@ export default function HomePage() {
             <PageByline updated="2026-09-10" note="Every tool page rebuilt with named models, published limits and playable results" />
           </div>
         </div>
+
+        <FeaturedOn />
       </main>
     </>
   );

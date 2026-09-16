@@ -74,7 +74,7 @@ export default function YouTubeToolsArchitectureGuidePage() {
           <p>
             The YouTube Key &amp; BPM Finder, YouTube Vocal Remover, and YouTube
             Stem Splitter all look like simpler versions of their file-based
-            counterparts — paste a link instead of uploading a file. Under the
+            counterparts: paste a link instead of uploading a file. Under the
             hood, they&apos;re doing more work, not less: each one chains a
             YouTube fetch together with whatever processing the tool actually
             does, and understanding that chain explains why these tools behave a
@@ -87,7 +87,7 @@ export default function YouTubeToolsArchitectureGuidePage() {
             YouTube-linked tool has an extra step first: the audio has to be
             fetched from YouTube before any analysis or separation can even begin.
             That fetch step adds real time on top of whatever the actual
-            processing takes — which is why the YouTube Key &amp; BPM Finder runs
+            processing takes, which is why the YouTube Key &amp; BPM Finder runs
             20&ndash;60 seconds instead of a near-instant file analysis, and why
             the YouTube Vocal Remover takes minutes rather than however long
             file-based separation alone would take.
@@ -96,8 +96,8 @@ export default function YouTubeToolsArchitectureGuidePage() {
           <h2 id="rate-limits">Why rate limits are stricter here</h2>
           <p>
             Chaining a YouTube fetch with CPU-intensive analysis or AI separation
-            costs meaningfully more server resources than either step would alone
-            — a single request can occupy both the download process and the
+            costs meaningfully more server resources than either step would alone:
+            a single request can occupy both the download process and the
             processing queue in sequence. Because of that, these chained tools use
             a stricter, separate rate limit from their file-based equivalents
             rather than sharing the same allowance.
@@ -108,7 +108,7 @@ export default function YouTubeToolsArchitectureGuidePage() {
             Fetching audio depends entirely on whether the video is actually
             accessible to the downloader in the first place. Private videos,
             age-restricted content, and region-locked videos can all fail at that
-            first step, before analysis or separation ever gets a chance to run —
+            first step, before analysis or separation ever gets a chance to run:
             this isn&apos;t a limitation of the analysis or separation itself,
             it&apos;s a limitation of what the fetch step can reach.
           </p>
@@ -119,13 +119,13 @@ export default function YouTubeToolsArchitectureGuidePage() {
           <p>
             Without one of these tools, getting a YouTube video&apos;s audio into
             a file-based tool means downloading it with a separate converter,
-            saving the result, then uploading that file somewhere else — three
+            saving the result, then uploading that file somewhere else: three
             separate steps across two different tools. Chaining the fetch into the
             same tool as the processing collapses that into pasting one link, at
             the cost of the combined wait time both steps take together.
           </p>
           <p>
-            These tools all work the same underlying way — try the{" "}
+            These tools all work the same underlying way: try the{" "}
             <Link href="/youtube-key-finder">YouTube Key &amp; BPM Finder</Link>,
             the <Link href="/youtube-vocal-remover">YouTube Vocal Remover</Link>,
             or the{" "}

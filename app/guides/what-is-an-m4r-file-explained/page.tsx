@@ -86,13 +86,13 @@ export default function RingtoneGuidePage() {
             audio, identical to what&apos;s inside a standard M4A file, with the
             extension changed from .m4a to .m4r. That extension alone is what
             tells iOS&apos;s Tones system to treat the file as a ringtone rather
-            than a regular song — the audio data itself isn&apos;t processed any
+            than a regular song: the audio data itself isn&apos;t processed any
             differently.
           </p>
 
           <h2 id="30-seconds">Why the 30-second limit exists</h2>
           <p>
-            This isn&apos;t an arbitrary restriction — it&apos;s Apple&apos;s own
+            This isn&apos;t an arbitrary restriction: it&apos;s Apple&apos;s own
             maximum length for a ringtone. A clip longer than 30 seconds
             isn&apos;t a valid ringtone on iOS no matter how it was created or
             what tool made it, so any ringtone maker worth using caps length at
@@ -104,7 +104,7 @@ export default function RingtoneGuidePage() {
           <p>
             With 30 seconds to work with, the chorus or hook of a song usually
             makes a better ringtone than the intro, since intros are often quieter
-            or slower to get going — not ideal for something that needs to grab
+            or slower to get going, not ideal for something that needs to grab
             attention immediately when a call comes in. It&apos;s also worth
             avoiding a cut that lands mid-word in a vocal or mid-beat in a
             rhythmic section, since that kind of cut is far more noticeable on a
@@ -115,7 +115,7 @@ export default function RingtoneGuidePage() {
           <p>
             Cutting a clip out of the middle of a song means the start and end
             points weren&apos;t originally silent, which can produce a small click
-            or pop right at the cut — an abrupt jump in the waveform&apos;s
+            or pop right at the cut: an abrupt jump in the waveform&apos;s
             amplitude rather than a clean edge. A short fade in and/or fade out
             smooths that over. Since a ringtone often plays on a loop while a call
             rings, a clean loop point matters more here than it does for a one-off
@@ -130,7 +130,7 @@ export default function RingtoneGuidePage() {
           <h2 id="android">Ringtones on Android</h2>
           <p>
             Android doesn&apos;t require the .m4r extension or the 30-second cap
-            the way iOS does — a standard MP3 works as a notification or ringtone
+            the way iOS does: a standard MP3 works as a notification or ringtone
             sound without any special formatting. The{" "}
             <Link href="/convert">Audio Converter</Link> handles exporting a clip
             to MP3 for that purpose.
@@ -138,8 +138,8 @@ export default function RingtoneGuidePage() {
 
           <h2 id="without-itunes">Getting it onto your iPhone without iTunes</h2>
           <p>
-            On a Mac running Catalina or later, Finder replaced iTunes for syncing
-            — add the .m4r file to your device&apos;s Tones section there.
+            On a Mac running Catalina or later, Finder replaced iTunes for syncing:
+            add the .m4r file to your device&apos;s Tones section there.
             Directly on the phone, newer iOS versions let you import a file
             through the Files app and share sheet, or via GarageBand&apos;s
             ringtone export workflow, without touching a computer at all. Apple
@@ -150,7 +150,7 @@ export default function RingtoneGuidePage() {
           </p>
           <p>
             Our <Link href="/ringtone-maker">Ringtone Maker</Link> handles the
-            trimming and .m4r conversion — upload a track, pick your start point
+            trimming and .m4r conversion: upload a track, pick your start point
             and length, and download the result, no iTunes or account needed.
           </p>
         </Prose>

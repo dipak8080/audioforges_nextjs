@@ -75,7 +75,7 @@ export default function TikTokAudioQualityGuidePage() {
           <p>
             Search for a TikTok downloader and you&apos;ll find a dozen of them
             promising 320 kbps MP3. It&apos;s a compelling number, and it is
-            almost entirely meaningless — because the audio inside a TikTok video
+            almost entirely meaningless, because the audio inside a TikTok video
             was never anywhere near that quality to begin with. Knowing
             what&apos;s actually in the file changes what you should expect from
             it, and what you should do with it afterwards.
@@ -84,7 +84,7 @@ export default function TikTokAudioQualityGuidePage() {
           <h2 id="what-tiktok-stores">What TikTok actually stores</h2>
           <p>
             We measured the audio streams inside two unrelated TikTok posts in
-            August 2026. Both came back at roughly <strong>64 kbps AAC</strong> —
+            August 2026. Both came back at roughly <strong>64 kbps AAC</strong>:
             64,208 bps on one, 64,544 on the other. That&apos;s not a fluke or a
             bad sample: TikTok is a mobile-first video platform serving enormous
             volumes of traffic, and aggressive audio compression is a sensible
@@ -102,7 +102,7 @@ export default function TikTokAudioQualityGuidePage() {
             Lossy compression discards audio information permanently. When AAC
             encoding decided which frequency content to throw away at 64 kbps,
             that content stopped existing in the file. Encoding the result to a
-            320 kbps MP3 gives the encoder more room to store what it receives —
+            320 kbps MP3 gives the encoder more room to store what it receives,
             but what it receives is already the reduced version. There is nothing
             left to recover.
           </p>
@@ -113,7 +113,7 @@ export default function TikTokAudioQualityGuidePage() {
             </Link>
             . A bigger container doesn&apos;t refill itself. What a 320 kbps
             export of TikTok audio produces is a file two and a half times larger
-            than necessary, containing bit-for-bit the same audible content — and
+            than necessary, containing bit-for-bit the same audible content, and
             anyone can verify that by opening it in Audacity or running ffprobe.
           </p>
 
@@ -121,8 +121,8 @@ export default function TikTokAudioQualityGuidePage() {
           <p>
             Every lossy re-encode is a generation loss: the second encoder makes
             its own decisions about what to discard, working from material that
-            has already been through that process once. Encoding at 128 kbps —
-            double the source rate — gives the MP3 encoder enough headroom that it
+            has already been through that process once. Encoding at 128 kbps,
+            double the source rate, gives the MP3 encoder enough headroom that it
             isn&apos;t forced to throw away anything the source still contains.
             The result is transparent to the original, at a file size that matches
             what&apos;s actually in it.
@@ -141,7 +141,7 @@ export default function TikTokAudioQualityGuidePage() {
             place. A sound uploaded from a producer&apos;s export is in far better
             shape than the same sound recorded off a laptop speaker on a phone
             microphone, or one that&apos;s been duetted and re-uploaded through
-            several accounts — each pass adding another round of compression and,
+            several accounts: each pass adding another round of compression and,
             often, another layer of room noise.
           </p>
           <p>
@@ -152,8 +152,8 @@ export default function TikTokAudioQualityGuidePage() {
 
           <h2 id="when-it-shows">When the source quality actually shows</h2>
           <p>
-            For most uses — a ringtone, a reference clip, a sound you want to
-            listen back to — 64 kbps source audio is completely fine. You will not
+            For most uses (a ringtone, a reference clip, a sound you want to
+            listen back to), 64 kbps source audio is completely fine. You will not
             hear the difference on a phone or laptop speaker, which is where it
             was designed to be heard.
           </p>
@@ -161,7 +161,7 @@ export default function TikTokAudioQualityGuidePage() {
             It shows up when you process it hard. Pitch shifting and time
             stretching both expose compression artifacts, because they
             redistribute frequency content that the encoder had already thinned
-            out — the smearing that was masked at original speed becomes audible
+            out: the smearing that was masked at original speed becomes audible
             once it&apos;s stretched. Heavy EQ boosts in the high end can do the
             same, since that region is the first thing a low-bitrate encoder
             sacrifices. If you&apos;re sampling a TikTok sound into a track and
@@ -172,7 +172,7 @@ export default function TikTokAudioQualityGuidePage() {
           <p>
             Our <Link href="/tiktok-to-mp3">TikTok to MP3 converter</Link> pulls
             the audio track straight out of the video and encodes it once at 128
-            kbps — no upscaling, no inflated claims, no account. From there, most
+            kbps: no upscaling, no inflated claims, no account. From there, most
             TikTok sounds want the same two steps:{" "}
             <Link href="/trim">trim</Link> the clip to just the part you need, and
             add a short <Link href="/fade">fade in and out</Link> so the cut
@@ -182,10 +182,10 @@ export default function TikTokAudioQualityGuidePage() {
             If you&apos;re building around the sound rather than just keeping it,
             run it through the{" "}
             <Link href="/key-finder">Key &amp; BPM Finder</Link> before you drop
-            it into a session — a sound that fights your project&apos;s key is a
+            it into a session: a sound that fights your project&apos;s key is a
             far bigger problem than 64 kbps ever was. And if it&apos;s headed for
             a phone, the <Link href="/ringtone-maker">Ringtone Maker</Link>{" "}
-            handles the 30-second cap and the M4R format iPhones expect —{" "}
+            handles the 30-second cap and the M4R format iPhones expect: {" "}
             <Link href="/guides/tiktok-sound-to-ringtone">
               read How to Make a Ringtone from a TikTok Sound
             </Link>{" "}

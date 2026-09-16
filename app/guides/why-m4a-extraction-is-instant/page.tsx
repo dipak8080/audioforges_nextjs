@@ -75,7 +75,7 @@ export default function VideoToAudioGuidePage() {
             Extract audio from a video to M4A and it&apos;s done almost instantly,
             regardless of how long the video is. Pick WAV instead and suddenly
             there&apos;s real processing time involved. That asymmetry isn&apos;t
-            a quirk — it comes down to what the two output formats actually
+            a quirk: it comes down to what the two output formats actually
             require the tool to do, and understanding it also explains why WAV or
             FLAC output doesn&apos;t give you &quot;better&quot; audio than M4A
             did.
@@ -83,13 +83,13 @@ export default function VideoToAudioGuidePage() {
 
           <h2 id="stream-copy">Why M4A/AAC extraction is nearly instant</h2>
           <p>
-            Most video files already carry their audio track encoded as AAC —
+            Most video files already carry their audio track encoded as AAC:
             that&apos;s the standard audio codec inside an MP4 container, and
             it&apos;s common across MOV, MKV, and most other video formats too.
             When the requested output is M4A or AAC, the existing audio stream can
             simply be copied out of the video container and placed into an
             audio-only one, with no decoding or re-encoding involved at all. This
-            is sometimes called a &quot;stream copy&quot; or &quot;remux&quot; —
+            is sometimes called a &quot;stream copy&quot; or &quot;remux&quot;:
             moving data between containers rather than transforming it. Since
             nothing about the audio itself is being processed, the operation
             finishes in about a second regardless of whether the source video is
@@ -102,7 +102,7 @@ export default function VideoToAudioGuidePage() {
             audio has to be fully decoded back into raw audio samples, and then
             encoded again into the new target format. Both steps take real
             computation, and that computation scales with how long the video
-            actually is — a 45-minute video takes proportionally longer to decode
+            actually is: a 45-minute video takes proportionally longer to decode
             and re-encode than a 3-minute one, unlike the stream-copy path, which
             barely notices the difference.
           </p>
@@ -112,11 +112,11 @@ export default function VideoToAudioGuidePage() {
           </h2>
           <p>
             It&apos;s a reasonable assumption that a lossless format like WAV or
-            FLAC should sound better than AAC — lossless formats generally do
+            FLAC should sound better than AAC: lossless formats generally do
             preserve more detail than lossy ones. But that assumption only holds
             when the lossless format is wrapping audio that was never compressed
             in the first place. If the video&apos;s original audio track was
-            already AAC — which is the common case — that compression already
+            already AAC (which is the common case), that compression already
             happened, and it already discarded whatever detail AAC&apos;s encoding
             process discards. Converting that AAC audio into WAV or FLAC afterward
             doesn&apos;t undo any of that; it just repackages the identical,
@@ -127,7 +127,7 @@ export default function VideoToAudioGuidePage() {
           <h2 id="when-lossless-helps">When lossless output actually helps</h2>
           <p>
             The exception is when the source video&apos;s audio track was itself
-            uncompressed or losslessly encoded to begin with — something that
+            uncompressed or losslessly encoded to begin with: something that
             shows up occasionally in professional camera footage or certain
             production workflows, though it&apos;s uncommon in typical phone
             videos, screen recordings, or downloaded clips. In that specific case,
@@ -144,13 +144,13 @@ export default function VideoToAudioGuidePage() {
             reference, or general listening, M4A or AAC is the faster choice with
             no real downside for typical video sources. If you&apos;re archiving
             audio for long-term storage or feeding it into a workflow that
-            specifically requires WAV or FLAC, those formats work fine too —
+            specifically requires WAV or FLAC, those formats work fine too:
             you&apos;re just not gaining fidelity over M4A in the process, only
             compatibility with whatever expects an uncompressed file.
           </p>
           <p>
             Our <Link href="/video-to-audio">Video to Audio Converter</Link> runs
-            this exact process — upload MP4, MOV, MKV, or another supported video
+            this exact process: upload MP4, MOV, MKV, or another supported video
             format, choose your output, and download the audio, no account or
             software install needed.
           </p>
