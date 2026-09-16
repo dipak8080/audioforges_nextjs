@@ -17,6 +17,17 @@ const RENDER_INTERVAL_MS = 80;
 // guessing a pitch from noise floor / room hum.
 const SILENCE_RMS_THRESHOLD = 0.01;
 
+const ANALYSER_FFT_SIZE = 4096;
+const DETECT_INTERVAL_MS = 40;
+const MIN_DETECT_HZ = 27;
+const MAX_DETECT_HZ = 2000;
+const MIN_CLARITY = 0.6;
+const PEAK_PICK_RATIO = 0.9;
+
+// Within this many cents of another string, a manual target mismatch is
+// treated as "you're playing a different string", not as a snap risk.
+const OTHER_STRING_CENTS = 50;
+
 const REF_PITCH_MIN = 415;
 const REF_PITCH_MAX = 466;
 const REF_PITCH_DEFAULT = 440;
@@ -113,65 +124,60 @@ function centsBetween(frequency: number, targetFrequency: number): number {
   return 1200 * Math.log2(frequency / targetFrequency);
 }
 
-// Standard autocorrelation-based pitch detector (ACF2+). Time-domain
-// autocorrelation resolves the fundamental far more precisely than
-// picking the loudest FFT bin at typical buffer sizes.
-function autoCorrelate(buffer: Float32Array, sampleRate: number): number {
-  const SIZE = buffer.length;
+// McLeod pitch method (normalized square difference). Unlike plain
+// autocorrelation it has no lag bias, so low strings don't read sharp.
+function detectPitch(buffer: Float32Array, sampleRate: number, nsdf: Float32Array): number {
+  const size = buffer.length;
 
   let rms = 0;
-  for (let i = 0; i < SIZE; i++) rms += buffer[i] * buffer[i];
-  rms = Math.sqrt(rms / SIZE);
+  for (let i = 0; i < size; i++) rms += buffer[i] * buffer[i];
+  rms = Math.sqrt(rms / size);
   if (rms < SILENCE_RMS_THRESHOLD) return -1;
 
-  let r1 = 0;
-  let r2 = SIZE - 1;
-  const threshold = 0.2;
-  for (let i = 0; i < SIZE / 2; i++) {
-    if (Math.abs(buffer[i]) < threshold) {
-      r1 = i;
-      break;
+  const minLag = Math.floor(sampleRate / MAX_DETECT_HZ);
+  const maxLag = Math.min(Math.floor(sampleRate / MIN_DETECT_HZ), size - 1 - (size >> 2), nsdf.length - 2);
+
+  let energy = 2 * rms * rms * size;
+  for (let lag = 0; lag <= maxLag + 1; lag++) {
+    let acf = 0;
+    for (let i = 0, n = size - lag; i < n; i++) acf += buffer[i] * buffer[i + lag];
+    nsdf[lag] = energy > 0 ? (2 * acf) / energy : 0;
+    const head = buffer[lag];
+    const tail = buffer[size - lag - 1];
+    energy -= head * head + tail * tail;
+  }
+
+  const peaks: number[] = [];
+  let lag = 0;
+  while (lag <= maxLag && nsdf[lag] > 0) lag++;
+  while (lag <= maxLag) {
+    while (lag <= maxLag && nsdf[lag] <= 0) lag++;
+    let best = -Infinity;
+    let bestLag = -1;
+    while (lag <= maxLag && nsdf[lag] > 0) {
+      if (nsdf[lag] > best) {
+        best = nsdf[lag];
+        bestLag = lag;
+      }
+      lag++;
     }
+    if (bestLag >= minLag) peaks.push(bestLag);
   }
-  for (let i = 1; i < SIZE / 2; i++) {
-    if (Math.abs(buffer[SIZE - i]) < threshold) {
-      r2 = SIZE - i;
-      break;
-    }
-  }
+  if (peaks.length === 0) return -1;
 
-  const trimmed = buffer.slice(r1, r2);
-  const n = trimmed.length;
+  let highest = 0;
+  for (const p of peaks) highest = Math.max(highest, nsdf[p]);
+  if (highest < MIN_CLARITY) return -1;
 
-  const c = new Array(n).fill(0);
-  for (let lag = 0; lag < n; lag++) {
-    for (let i = 0; i < n - lag; i++) {
-      c[lag] += trimmed[i] * trimmed[i + lag];
-    }
-  }
+  const pick = peaks.find((p) => nsdf[p] >= PEAK_PICK_RATIO * highest) ?? peaks[0];
+  const x1 = nsdf[pick - 1];
+  const x2 = nsdf[pick];
+  const x3 = nsdf[pick + 1];
+  const denom = x1 - 2 * x2 + x3;
+  const period = denom !== 0 ? pick + (0.5 * (x1 - x3)) / denom : pick;
 
-  let d = 0;
-  while (d < n - 1 && c[d] > c[d + 1]) d++;
-
-  let maxVal = -1;
-  let maxPos = -1;
-  for (let i = d; i < n; i++) {
-    if (c[i] > maxVal) {
-      maxVal = c[i];
-      maxPos = i;
-    }
-  }
-
-  let foundPeriod = maxPos;
-  if (maxPos > 0 && maxPos < n - 1) {
-    const [x1, x2, x3] = [c[maxPos - 1], c[maxPos], c[maxPos + 1]];
-    const a = (x1 + x3 - 2 * x2) / 2;
-    const b = (x3 - x1) / 2;
-    if (a !== 0) foundPeriod = maxPos - b / (2 * a);
-  }
-
-  if (foundPeriod <= 0) return -1;
-  return sampleRate / foundPeriod;
+  if (period <= 0) return -1;
+  return sampleRate / period;
 }
 
 function frequencyToPitch(frequency: number, referencePitch: number): { note: string; octave: number; cents: number } {
@@ -244,6 +250,7 @@ export function TunerForm({ initialSettings }: TunerFormProps) {
   });
   const [autoAdvance, setAutoAdvance] = useState(true);
   const [targetCents, setTargetCents] = useState<number | null>(null);
+  const [heardString, setHeardString] = useState<number | null>(null);
   const [showLowStringHint, setShowLowStringHint] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
 
@@ -262,6 +269,9 @@ export function TunerForm({ initialSettings }: TunerFormProps) {
   const centsHistoryRef = useRef<number[]>([]);
   const silentTicksRef = useRef(0);
   const wakeLockRef = useRef<WakeLockSentinel | null>(null);
+  const bufferRef = useRef<Float32Array<ArrayBuffer> | null>(null);
+  const nsdfRef = useRef<Float32Array | null>(null);
+  const lastDetectRef = useRef(0);
 
   const manualStringRef = useRef(manualString);
   const doneStringsRef = useRef(doneStrings);
@@ -325,6 +335,7 @@ export function TunerForm({ initialSettings }: TunerFormProps) {
     setPitch(null);
     setIsLocked(false);
     setTargetCents(null);
+    setHeardString(null);
     setAutoString(null);
     setShowLowStringHint(false);
     setState("idle");
@@ -342,13 +353,21 @@ export function TunerForm({ initialSettings }: TunerFormProps) {
     const ctx = audioCtxRef.current;
     if (!analyser || !ctx) return;
 
-    const buffer = new Float32Array(analyser.fftSize);
-    analyser.getFloatTimeDomainData(buffer);
-    const frequency = autoCorrelate(buffer, ctx.sampleRate);
+    const now = performance.now();
+    if (now - lastDetectRef.current >= DETECT_INTERVAL_MS) {
+      lastDetectRef.current = now;
+      if (!bufferRef.current || bufferRef.current.length !== analyser.fftSize) {
+        bufferRef.current = new Float32Array(analyser.fftSize);
+        nsdfRef.current = new Float32Array(analyser.fftSize);
+      }
+      const buffer = bufferRef.current;
+      analyser.getFloatTimeDomainData(buffer);
+      const frequency = detectPitch(buffer, ctx.sampleRate, nsdfRef.current!);
 
-    latestFrequencyRef.current = frequency;
-    latestPitchRef.current =
-      frequency > 0 ? { frequency, ...frequencyToPitch(frequency, referencePitchRef.current) } : null;
+      latestFrequencyRef.current = frequency;
+      latestPitchRef.current =
+        frequency > 0 ? { frequency, ...frequencyToPitch(frequency, referencePitchRef.current) } : null;
+    }
 
     rafRef.current = requestAnimationFrame(() => detectLoopRef.current());
   }, []);
@@ -392,6 +411,7 @@ export function TunerForm({ initialSettings }: TunerFormProps) {
         setIsLocked(false);
         setSmoothedCents(0);
         setTargetCents(null);
+        setHeardString(null);
         return;
       }
 
@@ -401,21 +421,27 @@ export function TunerForm({ initialSettings }: TunerFormProps) {
       let cents: number;
       if (isInstrumentMode) {
         const ref = referencePitchRef.current;
+        let nearest = 0;
+        let nearestDist = Infinity;
+        currentStrings.forEach((str, i) => {
+          const dist = Math.abs(centsBetween(frequency, midiToFrequency(str.midi, ref)));
+          if (dist < nearestDist) {
+            nearestDist = dist;
+            nearest = i;
+          }
+        });
         let stringIndex: number;
         if (manualStringRef.current !== null && manualStringRef.current < currentStrings.length) {
           stringIndex = manualStringRef.current;
+          const differentString =
+            nearest !== stringIndex &&
+            nearestDist <= OTHER_STRING_CENTS &&
+            currentStrings[nearest].midi !== currentStrings[stringIndex].midi;
+          setHeardString(differentString ? nearest : null);
         } else {
-          let best = 0;
-          let bestDist = Infinity;
-          currentStrings.forEach((str, i) => {
-            const dist = Math.abs(centsBetween(frequency, midiToFrequency(str.midi, ref)));
-            if (dist < bestDist) {
-              bestDist = dist;
-              best = i;
-            }
-          });
-          stringIndex = best;
-          setAutoString(best);
+          stringIndex = nearest;
+          setAutoString(nearest);
+          setHeardString(null);
         }
         cents = centsBetween(frequency, midiToFrequency(currentStrings[stringIndex].midi, referencePitchRef.current));
         setTargetCents(cents);
@@ -475,7 +501,7 @@ export function TunerForm({ initialSettings }: TunerFormProps) {
       const ctx = new Ctx();
       const source = ctx.createMediaStreamSource(stream);
       const analyser = ctx.createAnalyser();
-      analyser.fftSize = 2048;
+      analyser.fftSize = ANALYSER_FFT_SIZE;
       source.connect(analyser);
 
       audioCtxRef.current = ctx;
@@ -534,6 +560,7 @@ export function TunerForm({ initialSettings }: TunerFormProps) {
     setManualString(null);
     setAutoString(null);
     setTargetCents(null);
+    setHeardString(null);
     centsHistoryRef.current = [];
   };
 
@@ -622,10 +649,13 @@ export function TunerForm({ initialSettings }: TunerFormProps) {
   let action: { text: string; className: string } | null = null;
   if (state === "listening" && pitch) {
     if (isInstrumentMode && activeTarget) {
-      if (wayTooHigh) {
-        action = { text: `Much too high — stop tightening! You may be an octave above ${activeTarget.label}.`, className: "text-red-400" };
+      const heard = heardString !== null && heardString < strings.length ? strings[heardString] : null;
+      if (heard) {
+        action = { text: `That sounds like the ${heard.label} string. Play ${activeTarget.label}, or tap ${heard.label} to tune it.`, className: "text-amber-400" };
+      } else if (wayTooHigh) {
+        action = { text: `Much too high. Stop tightening! You may be an octave above ${activeTarget.label}.`, className: "text-red-400" };
       } else if (wayTooLow) {
-        action = { text: `Much too low — check you're playing the right string for ${activeTarget.label}.`, className: "text-red-400" };
+        action = { text: `Much too low. Check you're playing the right string for ${activeTarget.label}.`, className: "text-red-400" };
       } else if (isInTune) {
         action = { text: "In tune ✓", className: "text-teal-400" };
       } else if (displayCents !== null && displayCents < 0) {
@@ -755,7 +785,7 @@ export function TunerForm({ initialSettings }: TunerFormProps) {
           {allDone && (
             <div className="flex items-center justify-center gap-2 rounded-lg border border-teal-400/25 bg-teal-400/[0.07] px-3.5 py-2 text-xs text-teal-400">
               <Check className="h-3.5 w-3.5 shrink-0" />
-              All strings in tune — you&apos;re ready to play.
+              All strings in tune. You&apos;re ready to play.
             </div>
           )}
         </div>
@@ -764,7 +794,7 @@ export function TunerForm({ initialSettings }: TunerFormProps) {
       <div className="space-y-2 text-center">
         <div className="flex items-center justify-center gap-2">
           <p className={cn("font-mono text-7xl font-bold transition-colors", tone)}>
-            {pitch ? pitch.note : "—"}
+            {pitch ? pitch.note : "·"}
             {pitch && <span className="ml-1 align-top text-3xl text-text-subtle">{pitch.octave}</span>}
           </p>
           {isLocked && (
@@ -815,7 +845,7 @@ export function TunerForm({ initialSettings }: TunerFormProps) {
 
       {showLowStringHint && (
         <p className="text-center text-[11px] text-text-subtle">
-          Low bass strings are hard for laptop mics — try playing the 12th-fret harmonic, or use the string&apos;s reference tone to tune by
+          Low bass strings are hard for laptop mics. Try playing the 12th-fret harmonic, or use the string&apos;s reference tone to tune by
           ear.
         </p>
       )}
