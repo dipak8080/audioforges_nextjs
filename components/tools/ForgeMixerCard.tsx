@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils/cn";
 
-interface Lane {
+export interface Lane {
   name: string;
   peaks: number[];
   active?: boolean;
@@ -8,7 +8,7 @@ interface Lane {
 
 const BARS = 160;
 
-function shape(seed: number, density: number): number[] {
+export function shape(seed: number, density: number): number[] {
   const out: number[] = [];
   for (let i = 0; i < BARS; i++) {
     const t = i / BARS;
@@ -89,17 +89,22 @@ export function ForgeMixerCard({
   presets = ["Karaoke", "Acapella"],
   points,
   compact = false,
+  stackPoints = false,
+  className,
 }: {
   lanes?: Lane[];
   presets?: string[];
   points: string[];
   /** For narrow columns: shorter label gutter, no pan column, sparser ruler. */
   compact?: boolean;
+  /** Single-column bullets pinned to the card bottom (needs a flex-col className). */
+  stackPoints?: boolean;
+  className?: string;
 }) {
   const ruler = compact ? ["0:00", "1:00", "2:00", "3:00"] : ["0:00", "0:30", "1:00", "1:30", "2:00", "2:30", "3:00", "3:30"];
   const rulerSpan = compact ? 3.7 : 7.4;
   return (
-    <div className="overflow-hidden rounded-xl border border-graphite-800 bg-graphite-900">
+    <div className={cn("overflow-hidden rounded-xl border border-graphite-800 bg-graphite-900", className)}>
       <div className="flex items-center justify-between border-b border-graphite-800 px-3 py-2">
         <div className="flex items-center gap-3">
           <span className="flex h-7 w-7 items-center justify-center rounded-full bg-amber-500 text-graphite-950">
@@ -164,7 +169,12 @@ export function ForgeMixerCard({
         </div>
       </div>
 
-      <ul className="grid gap-x-6 gap-y-3 border-t border-graphite-800 p-5 text-sm leading-relaxed text-text-muted sm:grid-cols-2">
+      <ul
+        className={cn(
+          "grid gap-x-6 gap-y-3 border-t border-graphite-800 p-5 text-sm leading-relaxed text-text-muted",
+          stackPoints ? "mt-auto" : "sm:grid-cols-2"
+        )}
+      >
         {points.map((pt) => (
           <li key={pt} className="flex gap-2.5">
             <span className="mt-[9px] h-1 w-1 shrink-0 rounded-full bg-amber-400" aria-hidden />

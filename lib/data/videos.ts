@@ -80,7 +80,7 @@ export const TOOL_VIDEOS: Record<string, ToolVideo> = {
     videoId: "JO9xCQhdZwo",
     title: "Free Stem Splitter — Split Any Song or YouTube Video into Stems",
     description:
-      "Split any song into vocals, drums, bass, guitar, piano and other, free in the browser. Upload a file or paste a YouTube link. 2, 4 or 6 stems via htdemucs. No signup.",
+      "Split any song into vocals, drums, bass and other, free in the browser. Upload a file or paste a YouTube link. 2 or 4 stems via htdemucs. No signup.",
     uploadDate: "2026-09-06",
     heading: "Watch: stems from a file or a YouTube link",
   },

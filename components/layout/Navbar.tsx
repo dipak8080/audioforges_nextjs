@@ -79,7 +79,14 @@ import { useCredits } from "@/components/credits/CreditProvider";
  *    says so now, which also gives screen-reader users a way to jump straight
  *    to it.
  */
-export function Navbar() {
+const FEATURED = [
+  { href: "/vocal-remover", name: "Vocal Remover", desc: "Studio Quality separation" },
+  { href: "/audio-to-midi", name: "Audio to MIDI", desc: "Edit the notes in Forge Roll" },
+  { href: "/audio-to-sheet-music", name: "Audio to Sheet Music", desc: "Engraved score, synced playback" },
+  { href: "/key-finder", name: "Key & BPM Finder", desc: "75% exact BPM, measured" },
+];
+
+export function Navbar({ paywallEnabled = false }: { paywallEnabled?: boolean }) {
   const pathname = usePathname();
 
   /**
@@ -97,6 +104,7 @@ export function Navbar() {
   const hideDonate = creditsLoading || balance > 0;
 
   const [isToolsOpen, setIsToolsOpen] = useState(false);
+  const [openCategory, setOpenCategory] = useState<string | null>(null);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
 
@@ -212,6 +220,14 @@ export function Navbar() {
       if (raf) cancelAnimationFrame(raf);
     };
   }, []);
+
+  const activeCategory =
+    CATEGORY_ORDER.find((c) => getToolsByCategory(c).some((t) => pathname === `/${t.slug}`)) ?? null;
+
+  function openMobileSheet() {
+    setOpenCategory(activeCategory);
+    setIsMobileOpen(true);
+  }
 
   /* /tools belongs here too: it's where the panel's own footer link goes, and
      landing there used to leave the whole nav looking unvisited. */
@@ -342,37 +358,49 @@ export function Navbar() {
               </Link>
             )}
 
-            <CreditMenu />
+            <CreditMenu hidePricingLink={paywallEnabled} />
 
-            <a
-              href="https://ko-fi.com/audioforges"
-              target="_blank"
-              rel="noopener noreferrer"
-              className={buttonStyles({
-                variant: "outline",
-                size: "md",
-                className: cn(
-                  hideDonate ? "hidden" : "hidden md:inline-flex",
-                  "border-amber-500/25 bg-amber-500/5 text-amber-400/90",
-                  "hover:border-amber-500/60 hover:bg-amber-500/10 hover:text-amber-300"
-                ),
-              })}
-            >
-              <Coffee />
-              Donate
-            </a>
+            {paywallEnabled ? (
+              pathname === "/pricing" ? null : (
+              <Link
+                href="/pricing"
+                prefetch={false}
+                className={buttonStyles({ size: "md", className: "hidden md:inline-flex" })}
+              >
+                Buy credits
+              </Link>
+              )
+            ) : (
+              <a
+                href="https://ko-fi.com/audioforges"
+                target="_blank"
+                rel="noopener noreferrer"
+                className={buttonStyles({
+                  variant: "outline",
+                  size: "md",
+                  className: cn(
+                    hideDonate ? "hidden" : "hidden md:inline-flex",
+                    "border-amber-500/25 bg-amber-500/5 text-amber-400/90",
+                    "hover:border-amber-500/60 hover:bg-amber-500/10 hover:text-amber-300"
+                  ),
+                })}
+              >
+                <Coffee />
+                Donate
+              </a>
+            )}
 
             {/* Mobile: icon + number only. "48 credits" is what makes the
                 desktop pill too wide for a phone header, and the number is
                 the part people check. Signed in, it opens the sheet where
                 the account block lives; anonymous, it goes to /pricing,
                 because a sheet with no account block answers nothing. */}
-            <CreditChipMobile onOpenSheet={() => setIsMobileOpen(true)} />
+            <CreditChipMobile onOpenSheet={openMobileSheet} />
 
             <button
               ref={mobileToggleRef}
               type="button"
-              onClick={() => setIsMobileOpen((open) => !open)}
+              onClick={() => (isMobileOpen ? setIsMobileOpen(false) : openMobileSheet())}
               aria-label={isMobileOpen ? "Close menu" : "Open menu"}
               aria-expanded={isMobileOpen}
               aria-controls="nav-mobile-sheet"
@@ -416,7 +444,33 @@ export function Navbar() {
                   height of its tallest cell, which is what created the dead
                   space under short categories. Columns let each block flow
                   into whatever space is free. */}
-              <div className="columns-2 gap-x-8 p-6 [column-fill:balance] md:columns-3 lg:columns-4">
+              <div className="flex">
+                <aside className="hidden w-60 shrink-0 border-r border-graphite-800 bg-graphite-950/30 p-6 lg:block">
+                  <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-500">
+                    Featured
+                  </p>
+                  <div className="mt-3 space-y-1">
+                    {FEATURED.map((f) => (
+                      <Link
+                        key={f.href}
+                        href={f.href}
+                        prefetch={false}
+                        className="block rounded-md px-2 py-2 outline-none transition-colors hover:bg-graphite-850 focus-visible:ring-2 focus-visible:ring-amber-400/70"
+                      >
+                        <span className="block text-[13px] font-medium text-text-primary">{f.name}</span>
+                        <span className="block text-xs text-text-subtle">{f.desc}</span>
+                      </Link>
+                    ))}
+                  </div>
+                  <Link
+                    href="/forge"
+                    prefetch={false}
+                    className="mt-4 block rounded-md px-2 text-[13px] font-medium text-amber-400 outline-none transition-colors hover:text-amber-300 focus-visible:ring-2 focus-visible:ring-amber-400/70"
+                  >
+                    The Forge players →
+                  </Link>
+                </aside>
+                <div className="min-w-0 flex-1 columns-2 gap-x-8 p-6 [column-fill:balance] md:columns-3">
                 {CATEGORY_ORDER.map((category) => {
                   const tools = getToolsByCategory(category);
                   if (tools.length === 0) return null;
@@ -436,6 +490,7 @@ export function Navbar() {
                     </div>
                   );
                 })}
+                </div>
               </div>
 
               <div className="flex items-center justify-between gap-4 border-t border-graphite-800 bg-graphite-950/40 px-6 py-3">
@@ -489,15 +544,29 @@ export function Navbar() {
           {CATEGORY_ORDER.map((category) => {
             const tools = getToolsByCategory(category);
             if (tools.length === 0) return null;
+            const isOpen = openCategory === category;
             return (
               <div key={category}>
-                <div className="mb-2 flex items-center gap-2 px-1">
-                  <span aria-hidden className="h-3 w-[2px] rounded-full bg-amber-500" />
-                  <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-text-subtle">
-                    {CATEGORY_LABELS[category]}
-                  </p>
-                </div>
-                <div className="space-y-1">
+                <button
+                  type="button"
+                  onClick={() => setOpenCategory(isOpen ? null : category)}
+                  aria-expanded={isOpen}
+                  className="flex w-full items-center justify-between rounded-xl px-1 py-2 outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70"
+                >
+                  <span className="flex items-center gap-2">
+                    <span aria-hidden className="h-3 w-[2px] rounded-full bg-amber-500" />
+                    <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-text-subtle">
+                      {CATEGORY_LABELS[category]}
+                    </span>
+                  </span>
+                  <ChevronDown
+                    className={cn(
+                      "h-4 w-4 text-text-subtle transition-transform duration-200 motion-reduce:transition-none",
+                      isOpen && "rotate-180"
+                    )}
+                  />
+                </button>
+                <div className={cn("space-y-1 pt-1", !isOpen && "hidden")}>
                   {tools.map((tool) => {
                     const isActive = pathname === `/${tool.slug}`;
                     return tool.status === "live" ? (

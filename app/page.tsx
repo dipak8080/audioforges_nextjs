@@ -2,18 +2,20 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { SITE_URL } from "@/lib/constants";
-import { getLiveTools, type Tool } from "@/lib/data/tools";
+import { getLiveTools } from "@/lib/data/tools";
 import { HeroConverter } from "@/components/home/HeroConverter";
+import { HeroForgePanel } from "@/components/home/HeroForgePanel";
+import { FlagshipTools } from "@/components/home/FlagshipTools";
 import { FAQSection, type FAQItem } from "@/components/faq/FAQSection";
 import { SectionHeading } from "@/components/ui/SectionHeading";
 import { Prose } from "@/components/ui/Prose";
-import { ProofStrip } from "@/components/tools/ProofStrip";
-import { ForgeMixerCard } from "@/components/tools/ForgeMixerCard";
+import { SpecSheet } from "@/components/home/SpecSheet";
+import { ForgeMixerCard, shape } from "@/components/tools/ForgeMixerCard";
 import { PianoRollCard } from "@/components/tools/PianoRollCard";
 import { EngravedScore } from "@/components/ui/EngravedScore";
 import { PageByline } from "@/components/tools/PageByline";
 import { FeaturedOn } from "@/components/home/FeaturedOn";
-import { TRANSCRIPTION_MODEL } from "@/lib/api/transcription";
+import { ClosingCta } from "@/components/home/ClosingCta";
 import { ogImage } from "@/lib/og";
 
 const TOOL_COUNT = getLiveTools().length;
@@ -55,19 +57,6 @@ export const metadata: Metadata = {
  * ~80 requests, not spent.
  */
 
-/** EDIT FROM ANALYTICS every month or two. Unresolvable slugs are dropped
- *  and the list is topped up from the live catalogue, so the grid can never
- *  render with a hole in it. */
-const POPULAR_SLUGS = [
-  "youtube-to-wav",
-  "youtube-to-mp3",
-  "vocal-remover",
-  "audio-to-midi",
-  "audio-to-sheet-music",
-  "key-finder",
-  "convert",
-  "audio-to-text",
-];
 
 /** The producer workflow, in the order the steps happen. Step 04 carries
  *  three links: the transcription tools are new, and the homepage is the
@@ -117,13 +106,6 @@ export default function HomePage() {
   const liveTools = getLiveTools();
   const toolCount = liveTools.length;
 
-  const picked = POPULAR_SLUGS.map((slug) => liveTools.find((t) => t.slug === slug)).filter(
-    (t): t is Tool => Boolean(t)
-  );
-  const popular = [
-    ...picked,
-    ...liveTools.filter((t) => !picked.some((p) => p.slug === t.slug)),
-  ].slice(0, 6);
 
   const organizationJsonLd = {
     "@context": "https://schema.org",
@@ -147,13 +129,12 @@ export default function HomePage() {
   const faqs: FAQItem[] = [
     {
       question: "What tools does AudioForges offer?",
-      answer: `${toolCount} free audio tools covering conversion, trimming, volume, pitch and tempo, noise/echo/silence cleanup, vocal removal, key/BPM detection, instrument tuning, metronome practice, BPM tapping, and transcription with subtitle export, all with no sign-up required.`,
+      answer: `${toolCount} free audio tools covering conversion, trimming, volume, pitch and tempo, noise/echo/silence cleanup, vocal removal, key/BPM detection, instrument tuning, metronome practice, BPM tapping, and transcription with subtitle export.`,
       answerNode: (
         <>
           {toolCount} free audio tools covering conversion, trimming, volume, pitch and tempo,
           noise/echo/silence cleanup, vocal removal, key/BPM detection, instrument tuning,
-          metronome practice, BPM tapping, and transcription with subtitle export, all with no
-          sign-up required.{" "}
+          metronome practice, BPM tapping, and transcription with subtitle export.{" "}
           <Link
             href="/tools"
             prefetch={false}
@@ -173,10 +154,10 @@ export default function HomePage() {
     {
       question: "Are the tools actually free?",
       answer:
-        "Almost entirely. Every tool works free with no watermark, no sign-up and full-quality downloads, including standard vocal removal and stem splitting. The exceptions are the jobs that need a GPU: Studio Quality separation, high-accuracy MIDI, transcription and sheet music. Everyone gets free runs of those each month, and after that they take credits: bought once, never expiring, refunded if a run fails. Fair-use limits apply so one person cannot tie up the servers.",
+        "Almost entirely. Every tool works free with no watermark and full-quality downloads, including standard vocal removal and stem splitting. The exceptions are the jobs that need a GPU: Studio Quality separation, high-accuracy MIDI, transcription and sheet music. Everyone gets free runs of those each month, and after that they take credits: bought once, never expiring, refunded if a run fails. Fair-use limits apply so one person cannot tie up the servers.",
       answerNode: (
         <>
-          Almost entirely. Every tool works free with no watermark, no sign-up and full-quality downloads,
+          Almost entirely. Every tool works free with no watermark and full-quality downloads,
           including standard vocal removal and stem splitting. The exceptions are the jobs that need a GPU:
           Studio Quality separation, high-accuracy MIDI, transcription and sheet music. Everyone gets free runs
           of those each month, and after that they take{" "}
@@ -244,62 +225,51 @@ export default function HomePage() {
 
       {/* max-w-6xl matches the nav and footer. */}
       <main id="main" className="mx-auto max-w-6xl px-4">
-        {/* The hero stays CENTRED while tool pages are left-aligned. It's the
-            one page with a single primary action and no breadcrumb, so
-            centring puts the input where the eye already is. The type scale
-            is shared with ToolPageShell so the system still reads as one. */}
-        <section className="pt-16 text-center sm:pt-24">
-          <p className="font-mono text-xs uppercase tracking-[0.16em] text-amber-500">
-            {toolCount} tools · no sign-up
-          </p>
-          <h1 className="mx-auto mt-5 max-w-4xl text-5xl font-bold leading-[1.02] tracking-[-0.03em] text-text-primary sm:text-6xl">
-            Free audio tools for producers, DJs and musicians
-          </h1>
-          <p className="mx-auto mt-5 max-w-xl text-lg leading-relaxed text-text-muted sm:text-xl">
-            Convert, split, analyse and clean up audio in the browser. Every model is named, every limit is
-            published, and the results play back before you download them. Start by pasting a link.
-          </p>
+        <section className="pt-14 sm:pt-20">
+          <div className="grid items-center gap-12 lg:grid-cols-2 lg:gap-12">
+            <div>
+              <p className="font-mono text-xs uppercase tracking-[0.16em] text-amber-500">
+                {toolCount} tools · no sign-up
+              </p>
+              <h1 className="mt-5 text-balance text-4xl font-bold leading-[1.05] tracking-[-0.03em] text-text-primary sm:text-5xl">
+                Studio-grade audio tools that run in your browser
+              </h1>
+              <p className="mt-5 max-w-xl text-lg leading-relaxed text-text-muted">
+                Split stems, find key and BPM, convert formats and clean up takes, free in the
+                browser. Every result plays back before you download it.
+              </p>
 
-          <div className="mt-9">
-            <HeroConverter />
+              <div className="mt-8">
+                <HeroConverter />
+              </div>
+
+              <p className="text-sm text-text-subtle">
+                Or{" "}
+                <Link
+                  href="/tools"
+                  prefetch={false}
+                  className="text-amber-400 underline underline-offset-2 transition-colors hover:text-amber-300"
+                >
+                  browse all {toolCount} tools
+                </Link>
+                . Every one takes an uploaded file too.
+              </p>
+
+              <p className="mt-7 text-sm text-text-subtle">
+                <span className="font-medium text-text-secondary">55,000+</span> producers, DJs and
+                musicians use AudioForges every month.
+              </p>
+            </div>
+
+            <HeroForgePanel />
           </div>
-
-          <p className="text-sm text-text-subtle">
-            Or{" "}
-            <Link
-              href="/tools"
-              prefetch={false}
-              className="text-amber-400 underline underline-offset-2 transition-colors hover:text-amber-300"
-            >
-              browse all {toolCount} tools
-            </Link>{" "}
-            . Every one takes an uploaded file too.
-          </p>
         </section>
 
-        <section className="mt-16">
-          <ProofStrip
-            proofs={[
-              {
-                label: "Named models",
-                value: `htdemucs, MelBand RoFormer, Transkun, ${TRANSCRIPTION_MODEL}`,
-                note: "Separation, transcription and notation each name what they run, on the tool page, so the claims can be checked.",
-              },
-              {
-                label: "Published accuracy",
-                value: "85% exact on BPM, measured",
-                note: "Scored on a public test set and written up, including the number that is not flattering. Nobody else in the category prints one.",
-              },
-              {
-                label: "Verified comparisons",
-                value: "Every competitor cell checked, dated",
-                note: "Where a tool page compares to LALAL.AI, AnthemScore or Klangio, each cell was read off their live page that day.",
-              },
-            ]}
-          />
+        <section className="mt-14">
+          <SpecSheet />
         </section>
 
-        <section className="mt-16 border-t border-graphite-800 py-14">
+        <section className="mt-14 border-t border-graphite-800 py-14">
           <SectionHeading
             eyebrow="How it fits together"
             title="Built around how the work actually goes"
@@ -335,40 +305,52 @@ export default function HomePage() {
         <section className="border-t border-graphite-800 py-14">
           <SectionHeading
             eyebrow="The Forge"
-            title="Check the result before you download it"
+            title="Hear it before you download it"
             description="Every heavy job opens in a player built for that output: a stem mixer, a piano roll, an engraved score. You hear or read what the model produced, fix what needs fixing, and only then take the file."
           />
-          <div className="mt-10 grid gap-6 lg:grid-cols-3">
-            <div>
+          <div className="mt-10 grid items-stretch gap-6 lg:grid-cols-3">
+            <div className="flex flex-col">
               <Link href="/vocal-remover" prefetch={false} className="group mb-3 block">
                 <span className="font-semibold text-text-primary group-hover:text-amber-400">Forge Mixer</span>
               </Link>
               <ForgeMixerCard
                 compact
+                stackPoints
+                className="flex flex-1 flex-col"
+                lanes={[
+                  { name: "Vocals", peaks: shape(3, 0.9), active: true },
+                  { name: "Drums", peaks: shape(5, 1.1) },
+                  { name: "Bass", peaks: shape(9, 0.7) },
+                  { name: "Other", peaks: shape(13, 0.95) },
+                ]}
                 points={[
                   "Mute, solo, volume and pan per stem.",
                   "Loop a section, export the balance as WAV.",
                 ]}
               />
             </div>
-            <div>
+            <div className="flex flex-col">
               <Link href="/audio-to-midi" prefetch={false} className="group mb-3 block">
                 <span className="font-semibold text-text-primary group-hover:text-amber-400">Forge Roll</span>
               </Link>
               <PianoRollCard
+                stackPoints
+                className="flex flex-1 flex-col"
                 points={[
                   "Crossfade against the original, in sync.",
                   "Move, resize and add notes, then export.",
                 ]}
               />
             </div>
-            <div>
+            <div className="flex flex-col">
               <Link href="/audio-to-sheet-music" prefetch={false} className="group mb-3 block">
                 <span className="font-semibold text-text-primary group-hover:text-amber-400">Forge Score</span>
               </Link>
-              <div className="overflow-hidden rounded-xl border border-graphite-800 bg-graphite-900">
-                <EngravedScore glow className="rounded-none border-0 shadow-none" />
-                <ul className="grid gap-y-3 border-t border-graphite-800 p-5 text-sm leading-relaxed text-text-muted">
+              <div className="flex flex-1 flex-col overflow-hidden rounded-xl border border-graphite-800 bg-graphite-900">
+                <div className="flex flex-1 items-center p-4">
+                  <EngravedScore glow className="w-full px-4 py-4 sm:px-5 sm:py-5" />
+                </div>
+                <ul className="mt-auto grid gap-y-3 border-t border-graphite-800 p-5 text-sm leading-relaxed text-text-muted">
                   {["Cursor follows the sound, bar by bar.", "Transpose, then print or export MusicXML."].map((pt) => (
                     <li key={pt} className="flex gap-2.5">
                       <span className="mt-[9px] h-1 w-1 shrink-0 rounded-full bg-amber-400" aria-hidden />
@@ -392,41 +374,7 @@ export default function HomePage() {
           </p>
         </section>
 
-        <section className="border-t border-graphite-800 py-14">
-          <div className="flex items-end justify-between gap-4">
-            <SectionHeading eyebrow="Start here" title="Most used" />
-            <Link
-              href="/tools"
-              prefetch={false}
-              className="group flex shrink-0 items-center gap-1 pb-1 text-sm text-amber-400 transition-colors hover:text-amber-300"
-            >
-              All {toolCount} tools
-              <ArrowRight className="h-3 w-3 -translate-x-1 opacity-0 transition-all duration-150 group-hover:translate-x-0 group-hover:opacity-100" />
-            </Link>
-          </div>
-
-          <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {popular.map((tool) => (
-              <Link
-                key={tool.slug}
-                href={`/${tool.slug}`}
-                prefetch={false}
-                className="group relative block overflow-hidden rounded-xl border border-graphite-800 bg-graphite-900 p-5 transition-colors duration-200 hover:border-amber-500/40 hover:bg-graphite-850 focus:outline-none focus-visible:border-amber-500/50 focus-visible:ring-2 focus-visible:ring-amber-500/30"
-              >
-                <span
-                  aria-hidden="true"
-                  className="absolute inset-y-5 left-0 w-[2px] origin-center scale-y-0 rounded-full bg-amber-500 transition-transform duration-200 group-hover:scale-y-100 group-focus-visible:scale-y-100 motion-reduce:transition-none"
-                />
-                <h3 className="font-semibold text-text-primary transition-colors group-hover:text-amber-400">
-                  {tool.name}
-                </h3>
-                <p className="mt-1 text-sm leading-relaxed text-text-muted">
-                  {tool.shortDescription}
-                </p>
-              </Link>
-            ))}
-          </div>
-        </section>
+        <FlagshipTools toolCount={toolCount} />
 
         <section className="grid gap-10 border-t border-graphite-800 py-14 lg:grid-cols-12">
           <div className="lg:col-span-7">
@@ -439,9 +387,8 @@ export default function HomePage() {
                 for conversion, editing, cleanup, analysis, tuning, tempo, practice and transcription.
               </p>
               <p>
-                Each tool does one job and says what it runs. Where a tool is ffmpeg, the page says
-                ffmpeg. Where it is a model, the model is named. Where it fails, the page says that
-                too, before you upload.
+                Each tool does one job, names what it runs, and says where it fails, before you
+                upload.
               </p>
             </Prose>
           </div>
@@ -465,11 +412,13 @@ export default function HomePage() {
         <div className="border-t border-graphite-800 py-14">
           <FAQSection eyebrow="Questions" faqs={faqs} />
           <div className="mt-12">
-            <PageByline updated="2026-09-10" note="Every tool page rebuilt with named models, published limits and playable results" />
+            <PageByline updated="2026-09-16" note="Homepage rebuilt around the Forge players; every tool page has named models, published limits and playable results" />
           </div>
         </div>
 
         <FeaturedOn />
+
+        <ClosingCta toolCount={toolCount} />
       </main>
     </>
   );

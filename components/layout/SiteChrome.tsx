@@ -26,7 +26,7 @@ export function SiteChrome({
 
   return (
     <CreditProvider flags={flags}>
-      <Navbar />
+      <Navbar paywallEnabled={flags.paywallEnabled} />
       <div className="flex-1">{children}</div>
       <Footer paywallEnabled={flags.paywallEnabled} />
     </CreditProvider>

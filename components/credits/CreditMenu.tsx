@@ -54,7 +54,16 @@ import { CreditAccountPanel } from "./CreditAccountPanel";
  *    radius, transition and focus ring — four chances to drift from the rest of
  *    the site, and they already had (no press state on any of them).
  */
-export function CreditMenu({ className }: { className?: string }) {
+export function CreditMenu({
+  className,
+  hidePricingLink = false,
+}: {
+  className?: string;
+  /** When the header already carries a Buy credits button, the anonymous
+   *  empty-state "Credits" link duplicates it — this suppresses that one
+   *  case only; every other state still renders. */
+  hidePricingLink?: boolean;
+}) {
   const { enabled, loading, me, balance, freeRemaining, heldCredits } = useCredits();
 
   const [open, setOpen] = useState(false);
@@ -143,6 +152,7 @@ export function CreditMenu({ className }: { className?: string }) {
    * a real number and worth showing.
    */
   if (!me?.authenticated && !hasCredits && !hasFree) {
+    if (hidePricingLink) return null;
     // Genuinely nothing: no account, no balance, no free runs. A quiet link,
     // not a pill — dressing an empty state in amber is a badge for zero.
     return (

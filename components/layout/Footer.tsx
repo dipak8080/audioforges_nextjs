@@ -45,9 +45,14 @@ const FOOTER_TOOL_COUNT = 6;
 
 const SITE_LINKS = [
   { href: "/tools", label: "All tools" },
-  { href: "/guides", label: "Guides" },
   { href: "/about", label: "About" },
   { href: "/contact", label: "Contact" },
+];
+
+const RESOURCE_LINKS = [
+  { href: "/guides", label: "Guides" },
+  { href: "/forge", label: "The Forge players" },
+  { href: "/camelot-wheel", label: "Camelot Wheel" },
 ];
 
 /**
@@ -83,11 +88,57 @@ function InstagramIcon({ className }: { className?: string }) {
   );
 }
 
+function YoutubeIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden
+    >
+      <path d="M2.5 17a24.12 24.12 0 0 1 0-10 2 2 0 0 1 1.4-1.4 49.56 49.56 0 0 1 16.2 0A2 2 0 0 1 21.5 7a24.12 24.12 0 0 1 0 10 2 2 0 0 1-1.4 1.4 49.55 49.55 0 0 1-16.2 0A2 2 0 0 1 2.5 17" />
+      <path d="m10 15 5-3-5-3z" />
+    </svg>
+  );
+}
+
+function GithubIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden
+    >
+      <path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4" />
+      <path d="M9 18c-4.51 2-5-2-7-2" />
+    </svg>
+  );
+}
+
 const SOCIAL_LINKS = [
   {
     href: "https://www.instagram.com/audioforges/",
     label: "AudioForges on Instagram",
     Icon: InstagramIcon,
+  },
+  {
+    href: "https://www.youtube.com/@dipakshah4672",
+    label: "AudioForges on YouTube",
+    Icon: YoutubeIcon,
+  },
+  {
+    href: "https://github.com/dipak8080/audioforges_nextjs",
+    label: "AudioForges on GitHub",
+    Icon: GithubIcon,
   },
 ];
 
@@ -146,8 +197,7 @@ export function Footer({ paywallEnabled = false }: { paywallEnabled?: boolean })
             </Link>
 
             <p className="mt-3 max-w-xs text-sm leading-relaxed text-text-muted">
-              {live.length} free audio tools for producers, DJs and musicians. No sign-up, no
-              watermark.
+              {live.length} audio tools for producers, DJs and musicians, free in the browser.
             </p>
 
             <div className="mt-5">
@@ -177,17 +227,22 @@ export function Footer({ paywallEnabled = false }: { paywallEnabled?: boolean })
                 ))}
               </div>
 
-              <p className="mt-2 max-w-xs text-xs leading-relaxed text-text-subtle">
-                Servers and bandwidth come out of pocket. A one-off tip keeps the tools free.
-              </p>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-8 sm:grid-cols-3 lg:col-span-8">
+          <div className="grid grid-cols-2 gap-8 sm:grid-cols-4 lg:col-span-8">
             <FooterColumn title="Popular tools">
               {footerTools.map((tool) => (
                 <FooterLink key={tool.slug} href={`/${tool.slug}`}>
                   {tool.name}
+                </FooterLink>
+              ))}
+            </FooterColumn>
+
+            <FooterColumn title="Resources">
+              {RESOURCE_LINKS.map((link) => (
+                <FooterLink key={link.href} href={link.href}>
+                  {link.label}
                 </FooterLink>
               ))}
             </FooterColumn>

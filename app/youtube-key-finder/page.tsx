@@ -193,8 +193,8 @@ export default function YouTubeKeyFinderPage() {
             },
             {
               label: "Measured accuracy",
-              value: "85% on BPM, about 50% on key",
-              note: "Same engine as the file tool, scored on the GiantSteps set and written up in full.",
+              value: "75% on BPM, about 50% on key",
+              note: "Same engine as the file tool, scored on the full 662-track public set.",
             },
             {
               label: "Length",
@@ -239,7 +239,7 @@ export default function YouTubeKeyFinderPage() {
               {
                 label: "Exact match on GiantSteps",
                 cells: [
-                  { state: "yes", text: "85%" },
+                  { state: "yes", text: "75%", sub: "on the full 662-track public set" },
                   { state: "partial", text: "About 50%", sub: "the harder of the two problems" },
                 ],
               },

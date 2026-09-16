@@ -63,7 +63,7 @@ export function FeaturedOn() {
               target="_blank"
               rel="noopener"
               title={b.title}
-              className="block rounded-md opacity-80 outline-none transition-opacity hover:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-amber-400"
+              className="block rounded-md opacity-70 grayscale-[35%] outline-none transition hover:opacity-100 hover:grayscale-0 focus-visible:opacity-100 focus-visible:grayscale-0 focus-visible:ring-2 focus-visible:ring-amber-400"
             >
               <img
                 src={b.src}
@@ -72,7 +72,7 @@ export function FeaturedOn() {
                 height={b.height}
                 loading="lazy"
                 decoding="async"
-                className="h-10 w-auto"
+                className="h-8 w-auto"
               />
             </a>
           </li>

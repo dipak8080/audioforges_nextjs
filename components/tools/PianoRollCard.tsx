@@ -36,11 +36,14 @@ export function PianoRollCard({
   meta = "Sung melody · A minor · 96 BPM",
   points,
   className,
+  stackPoints = false,
 }: {
   title?: string;
   meta?: string;
   points: string[];
   className?: string;
+  /** Single-column bullets pinned to the card bottom (needs a flex-col className). */
+  stackPoints?: boolean;
 }) {
   return (
     <div className={cn("overflow-hidden rounded-xl border border-graphite-800 bg-graphite-900", className)}>
@@ -135,7 +138,12 @@ export function PianoRollCard({
         </div>
       </div>
 
-      <ul className="grid gap-x-6 gap-y-3 border-t border-graphite-800 p-5 text-sm leading-relaxed text-text-muted sm:grid-cols-2">
+      <ul
+        className={cn(
+          "grid gap-x-6 gap-y-3 border-t border-graphite-800 p-5 text-sm leading-relaxed text-text-muted",
+          stackPoints ? "mt-auto" : "sm:grid-cols-2"
+        )}
+      >
         {points.map((pt) => (
           <li key={pt} className="flex gap-2.5">
             <span className="mt-[9px] h-1 w-1 shrink-0 rounded-full bg-amber-400" aria-hidden />

@@ -197,8 +197,8 @@ export default async function KeyFinderPage() {
           proofs={[
             {
               label: "Measured accuracy",
-              value: "85% on BPM, about 50% on key",
-              note: "Scored on the public GiantSteps set and written up in full. Nobody else in this category publishes a number.",
+              value: "75% on BPM, about 50% on key",
+              note: "Scored on the full 662-track public set, written up in full.",
             },
             {
               label: "Nothing stored",
@@ -292,7 +292,7 @@ export default async function KeyFinderPage() {
               {
                 label: "Exact match on GiantSteps",
                 cells: [
-                  { state: "yes", text: "85%", sub: "up from 42% before the model change" },
+                  { state: "yes", text: "75%", sub: "on the full 662-track public set" },
                   { state: "partial", text: "About 50%", sub: "the harder of the two problems" },
                 ],
               },

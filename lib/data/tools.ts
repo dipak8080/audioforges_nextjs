@@ -264,7 +264,7 @@ export const TOOLS: Tool[] = [
   {
     slug: "wav-to-mp3",
     name: "WAV to MP3 Converter",
-    shortDescription: "Convert WAV to MP3 free — shrink big files to share.",
+    shortDescription: "Convert WAV to MP3 free. Shrink big files to share.",
     category: "convert",
     status: "live",
     // 2026-09-04: `m4a-to-mp3` replaced with `mp4-to-wav` — a live sibling
@@ -274,7 +274,7 @@ export const TOOLS: Tool[] = [
   {
     slug: "mp3-to-wav",
     name: "MP3 to WAV Converter",
-    shortDescription: "Convert MP3 to WAV free — uncompressed, for editing.",
+    shortDescription: "Convert MP3 to WAV free. Uncompressed, for editing.",
     category: "convert",
     status: "live",
     // 2026-09-04: `m4a-to-mp3` replaced with `tempo`, which matches this
@@ -522,7 +522,7 @@ export const TOOLS: Tool[] = [
   {
     slug: "voice-recorder",
     name: "Online Voice Recorder",
-    shortDescription: "Record audio from your microphone and download it — runs entirely in your browser.",
+    shortDescription: "Record audio from your microphone and download it, entirely in your browser.",
     category: "browser",
     status: "live",
     // A recording made here almost always needs cleaning next, which is
@@ -556,7 +556,7 @@ export const TOOLS: Tool[] = [
   {
     slug: "audio-to-sheet-music",
     name: "Audio to Sheet Music",
-    shortDescription: "Turn a recording into playable sheet music with synced playback — PDF, MusicXML & MIDI.",
+    shortDescription: "Turn a recording into playable sheet music with synced playback: PDF, MusicXML & MIDI.",
     category: "transcription",
     status: "live",
     related: ["audio-to-midi", "key-finder", "vocal-remover", "stems", "youtube-to-wav"],

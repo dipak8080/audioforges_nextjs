@@ -82,7 +82,7 @@ export default function BpmDetectionTempoCnnGuidePage() {
           <p>
             The <Link href="/key-finder">key &amp; BPM finder</Link> on this site started life
             with a single tempo detector that got the exact BPM right on 42% of the GiantSteps
-            tempo set. It now gets 85%. This is the write-up of how it got there: three
+            tempo set. On the full public 662-track set it now gets 75% exact. This is the write-up of how it got there: three
             distinct stages, one dead end, and the part that&apos;s still broken. Every number
             here comes from the same evaluation script, and the script is in the repo, so you
             can reproduce all of it.
@@ -230,7 +230,9 @@ export default function BpmDetectionTempoCnnGuidePage() {
             </table>
           </div>
           <p>
-            Same dataset, same 3% tolerance, same script for every row. The jump from 65% to
+            Same dataset, same 3% tolerance, same script for every row. Re-measured in
+            September 2026 on the full 662-track set, the shipped pipeline scores 75% exact;
+            the table above is the original evaluation run, kept as recorded. The jump from 65% to
             85% is the model; the jump from 42% to 65% is entirely the voting and the window,
             with no change in the underlying detectors.
           </p>

@@ -179,7 +179,7 @@ export default function OrganiseDjLibraryGuidePage() {
           <p>
             Where an automatic reading disagrees with your ears, trust your ears and correct it by
             hand. Every detector, including this one, gets some tracks wrong. Ours publishes how
-            often: about 85% exact on BPM and around 50% on key, measured on a public test set. The
+            often: about 75% exact on BPM and around 50% on key, measured on the full public 662-track test set. The
             usual failures are half or double the real tempo, and the relative major or minor instead
             of the key you expected, which are both quick to spot and quick to fix.
           </p>
