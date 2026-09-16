@@ -15,6 +15,10 @@ const AHREFS_SRC = "https://analytics.ahrefs.com/analytics.js";
 const AHREFS_KEY = "QkVPNT1O6u+JbZ5njmaMTw";
 
 function loadAhrefs() {
+  if (document.readyState !== "complete") {
+    window.addEventListener("load", loadAhrefs, { once: true });
+    return;
+  }
   if (document.querySelector(`script[src="${AHREFS_SRC}"]`)) return;
   const script = document.createElement("script");
   script.src = AHREFS_SRC;
