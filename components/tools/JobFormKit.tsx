@@ -452,8 +452,8 @@ export function SeparationTheater({ lanes }: { lanes: readonly string[] }) {
           <span className="w-20 shrink-0 truncate font-mono text-[9px] uppercase tracking-[0.14em] text-text-subtle">
             {name}
           </span>
-          <span className="flex h-4 flex-1 items-center gap-[2px]">
-            {Array.from({ length: 36 }).map((_, i) => (
+          <span className="flex h-4 flex-1 items-center gap-px">
+            {Array.from({ length: 64 }).map((_, i) => (
               <span
                 key={i}
                 className={cn(
@@ -461,7 +461,7 @@ export function SeparationTheater({ lanes }: { lanes: readonly string[] }) {
                   li === 0 ? "bg-amber-400/80" : "bg-graphite-500"
                 )}
                 style={{
-                  animationDelay: `${(i * 0.07 + li * 0.35).toFixed(2)}s`,
+                  animationDelay: `${(i * 0.045 + li * 0.35).toFixed(2)}s`,
                   animationDuration: `${(0.8 + li * 0.15).toFixed(2)}s`,
                   height: `${20 + ((i * 29 + li * 13) % 60)}%`,
                 }}
