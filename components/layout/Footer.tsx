@@ -53,6 +53,7 @@ const RESOURCE_LINKS = [
   { href: "/guides", label: "Guides" },
   { href: "/forge", label: "The Forge players" },
   { href: "/camelot-wheel", label: "Camelot Wheel" },
+  { href: "/vocal-remover-comparison", label: "Vocal remover comparison" },
 ];
 
 /**

@@ -239,7 +239,7 @@ export default async function VocalRemoverPage() {
               standardSrc={DEMO_STANDARD}
               studioSrc={DEMO_STUDIO}
               stemLabel="Vocals"
-              trackLabel="Dense mix, long reverb tail"
+              trackLabel="Full mix with lead vocal"
               cues={[
                 { at: 6, label: "quiet passage" },
                 { at: 19, label: "held note" },
@@ -247,7 +247,7 @@ export default async function VocalRemoverPage() {
               ]}
             />
             <p className="text-xs text-text-subtle">
-              Music: Culture Code, Make Me Move (feat. Karra) [NCS Release]
+              Music: What Would It Mean by H4RRIS feat. Nicole Apollonio, used with permission
             </p>
           </ToolSection>
         )}
@@ -369,6 +369,17 @@ export default async function VocalRemoverPage() {
                 },
               ]}
             />
+          <p className="text-sm leading-relaxed text-text-muted">
+            Hear every tool on the same 50-second clip, unedited, on the{" "}
+            <Link
+              href="/vocal-remover-comparison"
+              prefetch={false}
+              className="text-amber-400 underline underline-offset-2 transition-colors hover:text-amber-300"
+            >
+              vocal remover comparison
+            </Link>
+            .
+          </p>
           </ToolSection>
         )}
 

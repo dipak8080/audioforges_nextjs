@@ -266,7 +266,7 @@ export default async function PricingPage() {
             standardSrc={DEMO_STANDARD}
             studioSrc={DEMO_STUDIO}
             stemLabel="Vocals"
-            trackLabel="Dense mix, long reverb tail"
+            trackLabel="Full mix with lead vocal"
             cues={[
               { at: 6, label: "quiet passage" },
               { at: 19, label: "held note" },

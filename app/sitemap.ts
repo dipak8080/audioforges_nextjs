@@ -46,6 +46,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     // be optimising for the wrong visitor.
     { path: "/pricing", priority: 0.7, changeFrequency: "monthly" as const },
     { path: "/camelot-wheel", priority: 0.7, changeFrequency: "monthly" as const },
+    { path: "/vocal-remover-comparison", priority: 0.7, changeFrequency: "monthly" as const },
     { path: "/forge", priority: 0.6, changeFrequency: "monthly" as const },
     { path: "/about", priority: 0.6, changeFrequency: "monthly" as const },
     { path: "/contact", priority: 0.4, changeFrequency: "yearly" as const },
