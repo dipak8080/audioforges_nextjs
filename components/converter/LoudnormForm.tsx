@@ -52,7 +52,7 @@ const PRESET_OPTIONS: CardOption<Preset>[] = [
 ];
 
 const CUSTOM_LUFS_MIN = -70;
-const CUSTOM_LUFS_MAX = 5;
+const CUSTOM_LUFS_MAX = -5;
 const KEY_STEP = 0.5;
 const KEY_STEP_LARGE = 3;
 
@@ -65,7 +65,6 @@ const REFERENCE_MARKS: { lufs: number; label: string }[] = [
   { lufs: -23, label: "Broadcast" },
   { lufs: -14, label: "Streaming" },
   { lufs: -9, label: "Club" },
-  { lufs: 0, label: "0 dBFS" },
 ];
 
 function clamp(value: number, min: number, max: number): number {
@@ -85,8 +84,7 @@ function percentFor(lufs: number): number {
 }
 
 function riskFor(lufs: number): { label: string; tone: "warn" | "bad" } | null {
-  if (lufs >= -1) return { label: "High clipping risk", tone: "bad" };
-  if (lufs >= -6) return { label: "Loud — watch true peak", tone: "warn" };
+  if (lufs >= -6) return { label: "Loud, watch the true peak", tone: "warn" };
   return null;
 }
 
@@ -320,14 +318,14 @@ export function LoudnormForm() {
             {risk && (
               <div className="mt-3">
                 <Hint tone={risk.tone}>
-                  {risk.label} — targets above -6 LUFS leave little headroom before the true peak
-                  clips.
+                  {risk.label}. Targets above -6 LUFS leave little headroom before the true peak
+                  clips. -5 LUFS is the loudest target.
                 </Hint>
               </div>
             )}
 
             <p className="mt-2 text-[11px] leading-snug text-text-subtle">
-              Lower (more negative) is quieter with more headroom. Higher (closer to 0) is louder,
+              Lower (more negative) is quieter with more headroom. Higher (up to -5) is louder,
               with a greater risk of clipping.
             </p>
           </div>

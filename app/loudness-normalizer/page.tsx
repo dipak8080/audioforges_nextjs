@@ -174,7 +174,7 @@ export default async function LoudnessNormalizerPage() {
             {
               label: "Targets",
               value: "-14, -9, -23 LUFS, or your own",
-              note: "Streaming, club and EBU R128 broadcast presets. Custom runs from -70 to +5.",
+              note: "Streaming, club and EBU R128 broadcast presets. Custom runs from -70 to -5.",
             },
             {
               label: "Method",
