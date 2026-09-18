@@ -241,9 +241,9 @@ export default async function VocalRemoverPage() {
               stemLabel="Vocals"
               trackLabel="Full mix with lead vocal"
               cues={[
-                { at: 6, label: "quiet passage" },
-                { at: 19, label: "held note" },
-                { at: 31, label: "reverb tail" },
+                { at: 2, label: "vocal in" },
+                { at: 21, label: "chorus" },
+                { at: 37, label: "vocal peak" },
               ]}
             />
             <p className="text-xs text-text-subtle">

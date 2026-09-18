@@ -102,7 +102,22 @@ const WORKFLOW = [
   },
 ];
 
-export default function HomePage() {
+const STATS_API =
+  process.env.NEXT_PUBLIC_RAILWAY_API_BASE || "https://api.audioforges.com";
+
+async function getProcessedTotal(): Promise<number | null> {
+  try {
+    const res = await fetch(`${STATS_API}/stats/public`, { next: { revalidate: 300 } });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { total_jobs?: number };
+    return typeof data.total_jobs === "number" && data.total_jobs > 0 ? data.total_jobs : null;
+  } catch {
+    return null;
+  }
+}
+
+export default async function HomePage() {
+  const processedTotal = await getProcessedTotal();
   const liveTools = getLiveTools();
   const toolCount = liveTools.length;
 
@@ -258,6 +273,15 @@ export default function HomePage() {
               <p className="mt-7 text-sm text-text-subtle">
                 <span className="font-medium text-text-secondary">55,000+</span> producers, DJs and
                 musicians use AudioForges every month.
+                {processedTotal !== null && (
+                  <>
+                    {" "}
+                    <span className="font-medium text-text-secondary">
+                      {processedTotal.toLocaleString("en-US")}
+                    </span>{" "}
+                    jobs processed so far.
+                  </>
+                )}
               </p>
             </div>
 
