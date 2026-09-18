@@ -114,9 +114,45 @@ function readReturnTarget(): ReturnTarget {
   return DEFAULT_RETURN;
 }
 
+/**
+ * Dev-only screen preview. `npm run dev`, then:
+ *   /checkout/success?preview=checking   (add &slow=1 for the "still going" line)
+ *   /checkout/success?preview=confirmed
+ *   /checkout/success?preview=timeout
+ * Add &tab=1 to see the new-tab wording without a real checkout.
+ *
+ * Stripped from production builds: the branch is behind a
+ * NODE_ENV check so the bundler drops it, and nothing here can reach the
+ * network or grant anything.
+ */
+const PREVIEW_ENABLED = process.env.NODE_ENV !== "production";
+
+function readPreview(): { phase: Phase; slow: boolean; tab: boolean } | null {
+  if (!PREVIEW_ENABLED || typeof window === "undefined") return null;
+  const q = new URLSearchParams(window.location.search);
+  const want = q.get("preview");
+  if (want !== "checking" && want !== "confirmed" && want !== "timeout") return null;
+  return { phase: want, slow: q.get("slow") === "1", tab: q.get("tab") === "1" };
+}
+
+const PREVIEW_ME: CreditsMe = {
+  authenticated: true,
+  email: "buyer@example.com",
+  balance: 30,
+  free_monthly_ops: 1,
+  free_remaining: 0,
+  free_resets_at: new Date(Date.now() + 86_400_000).toISOString(),
+  paywall: { enabled: true, tools: {} },
+  packs: [],
+  held_credits: 0,
+  rate_limit: { tier: "credited", tools: {} },
+  recent: [],
+};
+
 export default function CheckoutSuccessPage() {
   const { refresh: refreshProvider } = useCredits();
 
+  const [preview] = useState(readPreview);
   const [phase, setPhase] = useState<Phase>("checking");
   const [slow, setSlow] = useState(false);
   const [me, setMe] = useState<CreditsMe | null>(null);
@@ -215,6 +251,7 @@ export default function CheckoutSuccessPage() {
       timer = setTimeout(tick, pollDelay(elapsed));
     }
 
+    if (preview) return;
     void tick();
 
     return () => {
@@ -222,7 +259,21 @@ export default function CheckoutSuccessPage() {
       if (timer) clearTimeout(timer);
     };
     // Runs once on mount. `succeed` is stable via useCallback.
-  }, [succeed]);
+  }, [succeed, preview]);
+
+  if (preview) {
+    return (
+      <main id="main" className="mx-auto max-w-md px-4 py-16 sm:py-24">
+        {preview.phase === "checking" && <CheckingState slow={preview.slow} />}
+        {preview.phase === "confirmed" && (
+          <ConfirmedState me={PREVIEW_ME} returnTo={returnTo} fromToolTab={preview.tab} />
+        )}
+        {preview.phase === "timeout" && (
+          <TimeoutState returnTo={returnTo} fromToolTab={preview.tab} />
+        )}
+      </main>
+    );
+  }
 
   return (
     <main id="main" className="mx-auto max-w-md px-4 py-16 sm:py-24">
