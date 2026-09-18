@@ -65,6 +65,9 @@ import type { CreditPack } from "@/lib/types/credits";
  */
 
 const EMAIL_STORAGE_KEY = "af_claim_email";
+/** Timestamp written when checkout opens in a NEW tab, so /checkout/success
+ *  knows the tool tab is still alive and holding the user's track. */
+const TOOL_TAB_KEY = "af_tool_tab_open";
 /** Poll while the buyer is on Ko-fi. Focus events do most of the work; this
  *  is the backstop for someone who leaves this tab visible on a second
  *  monitor. */
@@ -255,6 +258,12 @@ export function EmailCaptureStep({
         currency: "USD",
       });
       trackCredits("credits_checkout_started", { pack: pack.key });
+
+      try {
+        window.localStorage.setItem(TOOL_TAB_KEY, String(Date.now()));
+      } catch {
+        /* non-fatal */
+      }
 
       if (tab && !tab.closed) {
         tab.location.href = res.buy_url;

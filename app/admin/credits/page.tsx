@@ -20,6 +20,7 @@ import {
   RefreshCw,
   Search,
   ShieldCheck,
+  ShoppingBag,
   SlidersHorizontal,
   Users,
   Wallet,
@@ -31,13 +32,14 @@ import { RefreshControl } from "../_components/RefreshControl";
 import { SpendBoard, ToolTable } from "../_components/SpendCharts";
 import { RANGES, buildSpendModel, duration, rangeDates, toolLabel, type CostRow, type RangeKey } from "../_components/spend";
 import { GatePanel } from "../_components/GatePanel";
+import { OrdersPanel } from "../_components/OrdersPanel";
 import { SettingsPanel } from "../_components/SettingsPanel";
 
 /* ------------------------------------------------------------------ */
 /* types                                                               */
 /* ------------------------------------------------------------------ */
 
-type View = "lookup" | "overview" | "costs" | "jobs" | "gate" | "webhooks" | "settings";
+type View = "lookup" | "overview" | "orders" | "costs" | "jobs" | "gate" | "webhooks" | "settings";
 
 interface Overview {
   paywall?: {
@@ -83,6 +85,7 @@ type Rec = Record<string, unknown>;
 const VIEWS: { id: View; label: string; hint: string; icon: typeof Coins }[] = [
   { id: "lookup", label: "Customer", hint: "Find a customer and grant credits", icon: Search },
   { id: "overview", label: "Overview", hint: "Unspent credits and paywall settings", icon: Wallet },
+  { id: "orders", label: "Orders", hint: "Every purchase and whether the buyer got in", icon: ShoppingBag },
   { id: "costs", label: "Spend", hint: "What the GPU costs and which tools drive it", icon: Zap },
   { id: "jobs", label: "Jobs", hint: "Every GPU job with its cost and charge", icon: Clock },
   { id: "gate", label: "Gate", hint: "Who hit the paywall and what they did next", icon: Lock },
@@ -864,6 +867,7 @@ function AdminCreditsPage() {
   const [tick, setTick] = useState(0);
   const [auto, setAuto] = useState(false);
   const [jobsPreset, setJobsPreset] = useState<JobsPreset | null>(null);
+  const [lookupPreset, setLookupPreset] = useState<string | null>(null);
   const { toasts, push, dismiss } = useToasts();
   const overview = useOverview(tick);
   const [shellRef, shellHeight] = useShellHeight();
@@ -873,7 +877,13 @@ function AdminCreditsPage() {
 
   const switchView = useCallback((next: View) => {
     setJobsPreset(null);
+    setLookupPreset(null);
     setView(next);
+  }, []);
+
+  const goToCustomer = useCallback((email: string) => {
+    setLookupPreset(email);
+    setView("lookup");
   }, []);
 
   const goToJobs = useCallback((preset: JobsPreset) => {
@@ -992,9 +1002,11 @@ function AdminCreditsPage() {
       {/* ===== the only region that scrolls lives inside here ===== */}
       <main className="mx-auto flex min-h-0 w-full max-w-7xl flex-1 flex-col px-4 py-4 sm:px-6">
         {view === "lookup" ? (
-          <LookupPanel onToast={push} onChanged={refresh} />
+          <LookupPanel onToast={push} onChanged={refresh} preset={lookupPreset} />
         ) : view === "overview" ? (
           <OverviewPanel data={overview} onToast={push} onChanged={refresh} />
+        ) : view === "orders" ? (
+          <OrdersPanel tick={tick} onOpenCustomer={goToCustomer} />
         ) : view === "gate" ? (
           <GatePanel tick={tick} />
         ) : view === "settings" ? (
@@ -1050,11 +1062,13 @@ const KNOWN_ACCOUNT_KEYS = ["balance", "free_remaining", "held_credits", "ledger
 function LookupPanel({
   onToast,
   onChanged,
+  preset = null,
 }: {
   onToast: (tone: Toast["tone"], text: string) => void;
   onChanged: () => void;
+  preset?: string | null;
 }) {
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(preset ?? "");
   const [subject, setSubject] = useState("");
   const [result, setResult] = useState<Rec | null>(null);
   const [loading, setLoading] = useState(false);
@@ -1098,6 +1112,10 @@ function LookupPanel({
       setLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    if (preset) void lookup(preset);
+  }, [preset, lookup]);
 
   const target = (email.trim() || subject).toLowerCase();
   const stale = Boolean(subject) && Boolean(email.trim()) && email.trim().toLowerCase() !== subject;

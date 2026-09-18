@@ -57,6 +57,27 @@ const SLOW_AFTER_MS = 15_000;
 /** A purchase older than this belongs to an earlier visit, not this one. */
 const RECENT_PURCHASE_WINDOW_MS = 30 * 60_000;
 const DEFAULT_RETURN = { path: "/vocal-remover", label: "Vocal Remover" };
+const TOOL_TAB_KEY = "af_tool_tab_open";
+/** Past this the tool tab was almost certainly closed, so stop claiming it's there. */
+const TOOL_TAB_WINDOW_MS = 30 * 60_000;
+
+/**
+ * Since 2026-08-21 checkout opens in a NEW tab, so this page usually renders
+ * in the Ko-fi tab while the tool tab is still alive with the user's track
+ * loaded. window.opener is severed on purpose before the Ko-fi redirect, so
+ * the gate leaves a timestamp in localStorage instead.
+ */
+function cameFromToolTab(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    const raw = window.localStorage.getItem(TOOL_TAB_KEY);
+    if (!raw) return false;
+    const at = Number(raw);
+    return Number.isFinite(at) && Date.now() - at < TOOL_TAB_WINDOW_MS;
+  } catch {
+    return false;
+  }
+}
 
 function pollDelay(elapsedMs: number) {
   if (elapsedMs < 10_000) return 1_500;
@@ -100,6 +121,7 @@ export default function CheckoutSuccessPage() {
   const [slow, setSlow] = useState(false);
   const [me, setMe] = useState<CreditsMe | null>(null);
   const [returnTo] = useState<ReturnTarget>(readReturnTarget);
+  const [fromToolTab] = useState<boolean>(cameFromToolTab);
 
   // Captured on the first fetch. Comparing against it is what detects a
   // top-up by someone who ALREADY had credits — "balance > 0" would read as
@@ -123,6 +145,7 @@ export default function CheckoutSuccessPage() {
       void refreshProvider();
       try {
         window.localStorage.removeItem("af_return_to");
+        window.localStorage.removeItem(TOOL_TAB_KEY);
       } catch {
         /* storage disabled */
       }
@@ -204,8 +227,10 @@ export default function CheckoutSuccessPage() {
   return (
     <main id="main" className="mx-auto max-w-md px-4 py-16 sm:py-24">
       {phase === "checking" && <CheckingState slow={slow} />}
-      {phase === "confirmed" && me && <ConfirmedState me={me} returnTo={returnTo} />}
-      {phase === "timeout" && <TimeoutState returnTo={returnTo} />}
+      {phase === "confirmed" && me && (
+        <ConfirmedState me={me} returnTo={returnTo} fromToolTab={fromToolTab} />
+      )}
+      {phase === "timeout" && <TimeoutState returnTo={returnTo} fromToolTab={fromToolTab} />}
     </main>
   );
 }
@@ -245,9 +270,11 @@ function CheckingState({ slow }: { slow: boolean }) {
 function ConfirmedState({
   me,
   returnTo,
+  fromToolTab,
 }: {
   me: CreditsMe;
   returnTo: ReturnTarget;
+  fromToolTab: boolean;
 }) {
   return (
     <div className="space-y-6">
@@ -313,23 +340,48 @@ function ConfirmedState({
         Straight back to work, and back to the RIGHT tool — they came here to
         separate a track, and the purchase was an obstacle they just cleared.
       */}
-      <div className="space-y-2">
-        <Link href={returnTo.path} className="block">
-          <Button variant="primary" size="lg" className="w-full">
-            {returnTo.label ? `Back to ${returnTo.label}` : "Back to the tool"}
+      {/*
+        Checkout opens in a new tab, so the tool tab is usually still open with
+        the track loaded. Sending them "back" from HERE would navigate the wrong
+        tab and strand the file in the other one.
+      */}
+      {fromToolTab ? (
+        <div className="space-y-2">
+          <Button
+            variant="primary"
+            size="lg"
+            className="w-full"
+            onClick={() => window.close()}
+          >
+            Close this tab
           </Button>
-        </Link>
-
-        {/*
-          Honest about the one thing that IS lost. Paying is a same-tab trip
-          to Ko-fi, so the tool page was torn down and the file went with it.
-          Better said here than discovered as an empty upload box.
-        */}
-        <p className="px-2 pt-1 text-center text-xs leading-relaxed text-text-subtle">
-          You&apos;ll need to add your track again. The trip to Ko-fi cleared
-          the page. The run itself will use one credit.
-        </p>
-      </div>
+          <p className="px-2 pt-1 text-center text-xs leading-relaxed text-text-subtle">
+            Your track is still loaded in the tab you started from, and your
+            credits are already there. Switch back to it and hit run. The run
+            uses one credit.
+          </p>
+          <Link
+            href={returnTo.path}
+            className="block px-2 pt-1 text-center text-xs text-text-subtle underline-offset-4 hover:text-text-muted hover:underline"
+          >
+            {returnTo.label
+              ? `Or open ${returnTo.label} here instead`
+              : "Or open the tool here instead"}
+          </Link>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <Link href={returnTo.path} className="block">
+            <Button variant="primary" size="lg" className="w-full">
+              {returnTo.label ? `Back to ${returnTo.label}` : "Back to the tool"}
+            </Button>
+          </Link>
+          <p className="px-2 pt-1 text-center text-xs leading-relaxed text-text-subtle">
+            You&apos;ll need to add your track again. The run itself will use
+            one credit.
+          </p>
+        </div>
+      )}
 
       <p className="border-t border-graphite-800 pt-5 text-center text-xs leading-relaxed text-text-subtle">
         Credits never expire and work on every tool that takes them. If a run
@@ -343,7 +395,13 @@ function ConfirmedState({
  * The 60-second ceiling was reached. Two real causes, two real fixes — both
  * offered here rather than a dead-end "contact support".
  */
-function TimeoutState({ returnTo }: { returnTo: ReturnTarget }) {
+function TimeoutState({
+  returnTo,
+  fromToolTab,
+}: {
+  returnTo: ReturnTarget;
+  fromToolTab: boolean;
+}) {
   const [sent, setSent] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -386,7 +444,7 @@ function TimeoutState({ returnTo }: { returnTo: ReturnTarget }) {
           <AlertCircle className="h-5 w-5 text-amber-400" />
         </div>
         <h1 className="text-xl font-semibold text-text-primary">
-          Taking longer than usual
+          Almost there
         </h1>
         {/*
           The most important sentence on the page. The fear right now is that
@@ -398,6 +456,12 @@ function TimeoutState({ returnTo }: { returnTo: ReturnTarget }) {
           attached to the email you paid with, not to this page. Nothing is
           lost.
         </p>
+        {fromToolTab && (
+          <p className="text-sm leading-relaxed text-text-subtle">
+            Check the tab you started from as well. Your credits often land
+            there first.
+          </p>
+        )}
       </div>
 
       <div className="rounded-xl border border-graphite-800 bg-graphite-900 p-5">
@@ -405,7 +469,9 @@ function TimeoutState({ returnTo }: { returnTo: ReturnTarget }) {
           Get your credits on this browser
         </h2>
         <p className="mt-1.5 text-sm leading-relaxed text-text-muted">
-          Enter the email you paid with and we&apos;ll send a sign-in link.
+          Enter the email you paid with and we&apos;ll send a sign-in link. If
+          you paid through PayPal, that may be a different address from the one
+          you typed here.
         </p>
 
         {sent ? (

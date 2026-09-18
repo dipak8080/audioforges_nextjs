@@ -37,6 +37,8 @@ const READ_VIEWS = {
   jobs: "/admin/credits/jobs",
   lookup: "/admin/credits/users/lookup",
   webhooks: "/admin/credits/webhooks",
+  /** One row per paid order with whether the buyer reached their credits. */
+  orders: "/admin/credits/orders",
   /**
    * The valid values for the jobs filters, served by the backend.
    *
