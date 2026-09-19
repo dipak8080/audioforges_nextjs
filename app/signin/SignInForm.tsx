@@ -55,7 +55,8 @@ export function SignInForm() {
           <Check className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" aria-hidden />
           <p className="text-sm leading-relaxed text-text-muted">
             Link sent to <span className="text-text-primary">{email.trim()}</span>. Open it on this
-            device. It works once and expires in 30 minutes.
+            device. It works once and expires in 30 minutes. Not there in a minute? Check your
+            spam or junk folder.
           </p>
         </div>
       ) : (

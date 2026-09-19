@@ -279,7 +279,7 @@ function EmailDeviceLink() {
         <Check className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
         <span>
           Sign-in link sent. Open it on the device you want to use. It works once and expires in
-          30 minutes.
+          30 minutes. Not there? Check spam.
         </span>
       </p>
     );
