@@ -1094,7 +1094,7 @@ export function MidiResultPlayer({
             0.25 + ev.v * 0.75
           );
         },
-        track.notes.map((n) => [`${n.t}i`, n] as [string, PlayerNote])
+        track.notes.map((n) => [`${n.t + EVENT_LEAD_TICKS}i`, n] as [string, PlayerNote])
       ).start(0);
       parts.push(part);
     });
@@ -1555,7 +1555,7 @@ export function MidiResultPlayer({
             0.25 + ev.v * 0.75
           );
         },
-        track.notes.map((n) => [`${n.t}i`, n] as [string, PlayerNote])
+        track.notes.map((n) => [`${n.t + EVENT_LEAD_TICKS}i`, n] as [string, PlayerNote])
       ).start(0);
       eng.parts.push(part);
     });
@@ -2027,8 +2027,9 @@ export function MidiResultPlayer({
     const bar = Math.floor(n.t / (d.ppq * d.beatsPerBar)) + 1;
     const beatIn = ((n.t % (d.ppq * d.beatsPerBar)) / d.ppq + 1).toFixed(2).replace(/\.?0+$/, "");
     const lenBeats = n.d / d.ppq;
-    const len = lenBeats >= 1 ? `${+lenBeats.toFixed(2)} beat${lenBeats >= 2 ? "s" : ""}` : `1/${Math.round(4 / lenBeats)}`;
-    return `${NAMES[n.p % 12]}${Math.floor(n.p / 12) - 1} · bar ${bar} beat ${beatIn} · vel ${Math.round(n.v * 127)} · ${len}`;
+    const steps = n.d / (d.ppq / 4);
+    const len = `${lenBeats.toFixed(2)} beats (${Number.isInteger(steps) ? steps : steps.toFixed(2)} steps)`;
+    return `${NAMES[n.p % 12]}${Math.floor(n.p / 12) - 1} · bar ${bar} beat ${beatIn} · len ${len} · vel ${Math.round(n.v * 127)}`;
   };
 
   useEffect(() => {
@@ -2609,7 +2610,7 @@ export function MidiResultPlayer({
       startAutoScroll();
       applyDrag(e.clientX, e.clientY, e.altKey);
       const canvasEl = canvasRef.current;
-      if (canvasEl && performance.now() - hoverTsRef.current > 40) {
+      if (canvasEl) {
         hoverTsRef.current = performance.now();
         hoverNoteRef.current = drag.note;
         const rect = canvasEl.getBoundingClientRect();
@@ -3577,6 +3578,10 @@ function lowerBound(notes: PlayerNote[], target: number): number {
   return lo;
 }
 
+// Notes scheduled on the exact tick the transport starts from can be skipped
+// by the clock's first pass (the first note of the file, or the note under a
+// seeked playhead). One tick later is inaudible and never skipped.
+const EVENT_LEAD_TICKS = 1;
 const PIANO_LO = 21;
 const PIANO_HI = 108;
 const PAD_BARS = 32;
