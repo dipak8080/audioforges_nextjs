@@ -266,8 +266,8 @@ function parseMidi(buf: ArrayBuffer): ParsedMidi | null {
     baseBpm: midi.header.tempos[0]?.bpm || 120,
     beatsPerBar: midi.header.timeSignatures[0]?.timeSignature?.[0] || 4,
     durationTicks: Math.max(end, midi.durationTicks, 1),
-    loPitch: Math.max(0, lo - 2),
-    hiPitch: Math.min(127, hi + 3),
+    loPitch: Math.min(PIANO_LO, Math.max(0, lo - 2)),
+    hiPitch: Math.max(PIANO_HI, Math.min(127, hi + 3)),
   };
 }
 
@@ -360,6 +360,8 @@ export function MidiResultPlayer({
     ti: number;
     startX: number;
     startY: number;
+    startTick: number;
+    startPitch: number;
     orig: PlayerNote;
     items: { note: PlayerNote; ti: number; orig: PlayerNote }[];
     changed: boolean;
@@ -849,9 +851,10 @@ export function MidiResultPlayer({
       const ty = RULER_H + (vs / Math.max(1, contentH - plotH)) * (plotH - th);
       thumb(w - SCROLL_W + 2, ty, SCROLL_W - 4, th);
     }
-    if (d.durationTicks > viewTicks + 1) {
-      const tw = Math.max(26, (viewTicks / d.durationTicks) * plotW);
-      const tx = KEYS_W + (view0 / Math.max(1, d.durationTicks - viewTicks)) * (plotW - tw);
+    const rollLen = rollEnd(d);
+    if (rollLen > viewTicks + 1) {
+      const tw = Math.max(26, (viewTicks / rollLen) * plotW);
+      const tx = KEYS_W + (view0 / Math.max(1, rollLen - viewTicks)) * (plotW - tw);
       thumb(tx, h - SCROLL_H + 2, tw, SCROLL_H - 4);
     }
   }, []);
@@ -867,6 +870,9 @@ export function MidiResultPlayer({
     canvas.addEventListener("wheel", block, { passive: false });
     return () => canvas.removeEventListener("wheel", block);
   }, [status]);
+
+  const drawRef = useRef(draw);
+  drawRef.current = draw;
 
   /* ---------- rAF loop ---------- */
   useEffect(() => {
@@ -894,7 +900,11 @@ export function MidiResultPlayer({
       }
       if (dirtyRef.current) {
         dirtyRef.current = false;
-        draw();
+        try {
+          drawRef.current();
+        } catch (err) {
+          console.error("[ForgeRoll] draw failed", err);
+        }
       }
       raf = requestAnimationFrame(tick);
     };
@@ -992,12 +1002,17 @@ export function MidiResultPlayer({
         vScrollRef.current = (d.hiPitch - mid) * rowH - plotH / 2;
       }
       vScrollRef.current = Math.max(0, Math.min(maxV, vScrollRef.current));
-      canvas.width = Math.round(w * dpr);
-      canvas.height = Math.round(h * dpr);
-      canvas.style.width = `${w}px`;
-      canvas.style.height = `${h}px`;
+      const nextW = Math.round(w * dpr);
+      const nextH = Math.round(h * dpr);
+      const sizeChanged = canvas.width !== nextW || canvas.height !== nextH;
+      if (sizeChanged) {
+        canvas.width = nextW;
+        canvas.height = nextH;
+        canvas.style.width = `${w}px`;
+        canvas.style.height = `${h}px`;
+      }
       const plotWNow = Math.max(1, w - KEYS_W - SCROLL_W);
-      minZoomRef.current = plotWNow / d.durationTicks;
+      minZoomRef.current = plotWNow / rollEnd(d);
       if (
         !Number.isFinite(pxPerTickRef.current) ||
         pxPerTickRef.current <= 0 ||
@@ -1007,7 +1022,12 @@ export function MidiResultPlayer({
         pxPerTickRef.current = Math.max(minZoomRef.current, plotWNow / openTicks);
         scrollRef.current = 0;
       }
-      dirtyRef.current = true;
+      if (sizeChanged) {
+        dirtyRef.current = false;
+        drawRef.current();
+      } else {
+        dirtyRef.current = true;
+      }
     };
     resize();
     const ro = new ResizeObserver(resize);
@@ -1944,8 +1964,8 @@ export function MidiResultPlayer({
         hi = Math.max(hi, n.p);
       }
     }
-    d.loPitch = Math.max(0, lo - 2);
-    d.hiPitch = Math.min(127, hi + 3);
+    d.loPitch = Math.min(PIANO_LO, Math.max(0, lo - 2));
+    d.hiPitch = Math.max(PIANO_HI, Math.min(127, hi + 3));
     refreshKey();
     afterEdit();
     const sign = semis > 0 ? "+" : "";
@@ -2155,8 +2175,10 @@ export function MidiResultPlayer({
 
   const fitAll = () => {
     const d = dataRef.current;
-    if (!d) return;
-    pxPerTickRef.current = minZoomRef.current;
+    const canvas = canvasRef.current;
+    if (!d || !canvas) return;
+    const plotW = Math.max(1, canvas.width / (window.devicePixelRatio || 1) - KEYS_W - SCROLL_W);
+    pxPerTickRef.current = Math.max(minZoomRef.current, plotW / Math.max(1, d.durationTicks));
     scrollRef.current = 0;
     dirtyRef.current = true;
   };
@@ -2305,6 +2327,8 @@ export function MidiResultPlayer({
               ti: hit.ti,
               startX: e.clientX,
               startY: e.clientY,
+              startTick: tick,
+              startPitch: pitch,
               orig: { ...anchor },
               items,
               changed,
@@ -2331,6 +2355,8 @@ export function MidiResultPlayer({
               ti,
               startX: e.clientX,
               startY: e.clientY,
+              startTick: tick,
+              startPitch: pitch,
               orig: { ...note },
               items: [{ note, ti, orig: { ...note } }],
               changed: false,
@@ -2344,6 +2370,148 @@ export function MidiResultPlayer({
       }
     }
     pointer.current = { x: e.clientX, y: e.clientY, startX: e.clientX, startY: e.clientY, panned: false };
+  };
+
+  const applyMarquee = (clientX: number, clientY: number) => {
+    const mq = marqueeRef.current;
+    const g = geom();
+    const canvasEl = canvasRef.current;
+    if (!mq || !g || !canvasEl) return;
+    const rect = canvasEl.getBoundingClientRect();
+    const lx = Math.max(0, Math.min(g.plotW, clientX - rect.left - KEYS_W));
+    const ly = Math.max(RULER_H, Math.min(RULER_H + g.plotH - 1, clientY - rect.top));
+    mq.t1 = g.tickAt(lx);
+    mq.p1 = g.pitchAt(ly);
+    const tMin = Math.min(mq.t0, mq.t1);
+    const tMax = Math.max(mq.t0, mq.t1);
+    const pMin = Math.min(mq.p0, mq.p1);
+    const pMax = Math.max(mq.p0, mq.p1);
+    const next = new Set(mq.base ?? []);
+    for (const t of g.d.tracks) {
+      for (let i = lowerBound(t.notes, tMin - t.maxDur); i < t.notes.length; i++) {
+        const n = t.notes[i];
+        if (n.t > tMax) break;
+        if (n.t + n.d < tMin) continue;
+        if (n.p >= pMin && n.p <= pMax) next.add(n);
+      }
+    }
+    selRef.current = next;
+    dirtyRef.current = true;
+  };
+
+  // positions come from the tick and pitch under the cursor, so a scrolled
+  // view (edge auto-scroll) keeps the note under the mouse
+  const applyDrag = (clientX: number, clientY: number, free: boolean) => {
+    const drag = dragRef.current;
+    const g = geom();
+    const canvasEl = canvasRef.current;
+    if (!drag || !g || !canvasEl) return;
+    const rect = canvasEl.getBoundingClientRect();
+    const lx = clientX - rect.left - KEYS_W;
+    const ly = Math.max(RULER_H, Math.min(RULER_H + g.plotH - 1, clientY - rect.top));
+    const dxTicks = g.tickAt(lx) - drag.startTick;
+    const snapOr = (t: number) => (free ? Math.max(0, Math.round(t)) : snapTick(t));
+    if (drag.kind === "move") {
+      let dT = snapOr(drag.orig.t + dxTicks) - drag.orig.t;
+      let dP = g.pitchAt(ly) - drag.startPitch;
+      let minT = Infinity;
+      let minP = 127;
+      let maxP = 0;
+      for (const it of drag.items) {
+        minT = Math.min(minT, it.orig.t);
+        minP = Math.min(minP, it.orig.p);
+        maxP = Math.max(maxP, it.orig.p);
+      }
+      dT = Math.max(-minT, dT);
+      dP = Math.max(g.d.loPitch - minP, Math.min(g.d.hiPitch - maxP, dP));
+      const nextT = drag.orig.t + dT;
+      const nextP = drag.orig.p + dP;
+      if (nextT !== drag.note.t || nextP !== drag.note.p) {
+        if (!drag.changed) {
+          pushHistory();
+          drag.changed = true;
+        }
+        for (const it of drag.items) {
+          it.note.t = it.orig.t + dT;
+          it.note.p = Math.max(0, Math.min(127, it.orig.p + dP));
+        }
+        if (nextP !== drag.lastPitch) {
+          drag.lastPitch = nextP;
+          void auditionPitch(nextP, drag.ti);
+        }
+        dirtyRef.current = true;
+      }
+    } else if (drag.kind === "resize") {
+      const minD = free ? 1 : gridStepOrMin();
+      const nextEnd = snapOr(drag.orig.t + drag.orig.d + dxTicks);
+      const nextD = Math.max(minD, nextEnd - drag.orig.t);
+      if (nextD !== drag.note.d) {
+        if (!drag.changed) {
+          pushHistory();
+          drag.changed = true;
+        }
+        const dD = nextD - drag.orig.d;
+        for (const it of drag.items) it.note.d = Math.max(minD, it.orig.d + dD);
+        dirtyRef.current = true;
+      }
+    } else {
+      const minD = free ? 1 : gridStepOrMin();
+      let dT = snapOr(drag.orig.t + dxTicks) - drag.orig.t;
+      for (const it of drag.items) dT = Math.min(dT, it.orig.d - minD);
+      for (const it of drag.items) dT = Math.max(dT, -it.orig.t);
+      const nextT = drag.orig.t + dT;
+      if (nextT !== drag.note.t) {
+        if (!drag.changed) {
+          pushHistory();
+          drag.changed = true;
+        }
+        for (const it of drag.items) {
+          it.note.t = it.orig.t + dT;
+          it.note.d = it.orig.d - dT;
+        }
+        dirtyRef.current = true;
+      }
+    }
+  };
+
+  // FL-style edge auto-scroll while dragging notes or a selection box
+  const autoRef = useRef<{ x: number; y: number; alt: boolean } | null>(null);
+  const autoRafRef = useRef(0);
+  const startAutoScroll = () => {
+    if (autoRafRef.current) return;
+    const step = () => {
+      const a = autoRef.current;
+      const g = geom();
+      const canvasEl = canvasRef.current;
+      if (!a || !g || !canvasEl || (!dragRef.current && !marqueeRef.current)) {
+        autoRafRef.current = 0;
+        return;
+      }
+      const rect = canvasEl.getBoundingClientRect();
+      const lx = a.x - rect.left - KEYS_W;
+      const ly = a.y - rect.top;
+      const M = 32;
+      let vx = 0;
+      let vy = 0;
+      if (lx < M) vx = lx - M;
+      else if (lx > g.plotW - M) vx = lx - (g.plotW - M);
+      if (ly < RULER_H + M) vy = ly - (RULER_H + M);
+      else if (ly > RULER_H + g.plotH - M) vy = ly - (RULER_H + g.plotH - M);
+      if (vx || vy) {
+        vx = Math.max(-16, Math.min(16, vx * 0.4));
+        vy = Math.max(-12, Math.min(12, vy * 0.4));
+        if (vx) {
+          followRef.current = false;
+          scrollRef.current = clampScroll(scrollRef.current + vx / g.ppt, g.d, g.plotW / g.ppt);
+        }
+        if (vy) scrollV(vy);
+        if (dragRef.current) applyDrag(a.x, a.y, a.alt);
+        else applyMarquee(a.x, a.y);
+        dirtyRef.current = true;
+      }
+      autoRafRef.current = requestAnimationFrame(step);
+    };
+    autoRafRef.current = requestAnimationFrame(step);
   };
 
   const onPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -2370,10 +2538,10 @@ export function MidiResultPlayer({
         vScrollRef.current = Math.max(0, Math.min(Math.max(0, contentH - g.plotH), next));
       } else {
         const viewTicks = g.plotW / g.ppt;
-        const tw = Math.max(26, (viewTicks / g.d.durationTicks) * g.plotW);
+        const rollLen = rollEnd(g.d);
+        const tw = Math.max(26, (viewTicks / rollLen) * g.plotW);
         const span = Math.max(1, g.plotW - tw);
-        const next =
-          sd.base + ((e.clientX - sd.from) / span) * Math.max(0, g.d.durationTicks - viewTicks);
+        const next = sd.base + ((e.clientX - sd.from) / span) * Math.max(0, rollLen - viewTicks);
         scrollRef.current = clampScroll(next, g.d, viewTicks);
       }
       dirtyRef.current = true;
@@ -2429,105 +2597,17 @@ export function MidiResultPlayer({
 
     const mq = marqueeRef.current;
     if (mq) {
-      const g = geom();
-      const canvasEl = canvasRef.current;
-      if (!g || !canvasEl) return;
-      const rect = canvasEl.getBoundingClientRect();
-      const lx = Math.max(0, Math.min(g.plotW, e.clientX - rect.left - KEYS_W));
-      const ly = Math.max(RULER_H, Math.min(RULER_H + g.plotH - 1, e.clientY - rect.top));
-      mq.t1 = g.tickAt(lx);
-      mq.p1 = g.pitchAt(ly);
-      const tMin = Math.min(mq.t0, mq.t1);
-      const tMax = Math.max(mq.t0, mq.t1);
-      const pMin = Math.min(mq.p0, mq.p1);
-      const pMax = Math.max(mq.p0, mq.p1);
-      const next = new Set(mq.base ?? []);
-      for (const t of g.d.tracks) {
-        for (let i = lowerBound(t.notes, tMin - t.maxDur); i < t.notes.length; i++) {
-          const n = t.notes[i];
-          if (n.t > tMax) break;
-          if (n.t + n.d < tMin) continue;
-          if (n.p >= pMin && n.p <= pMax) next.add(n);
-        }
-      }
-      selRef.current = next;
-      dirtyRef.current = true;
+      autoRef.current = { x: e.clientX, y: e.clientY, alt: e.altKey };
+      startAutoScroll();
+      applyMarquee(e.clientX, e.clientY);
       return;
     }
 
     const drag = dragRef.current;
     if (drag) {
-      const g = geom();
-      if (!g) return;
-      const dxTicks = (e.clientX - drag.startX) / g.ppt;
-      const free = e.altKey;
-      const snapOr = (t: number) => (free ? Math.max(0, Math.round(t)) : snapTick(t));
-      if (drag.kind === "move") {
-        // snap the grabbed note, then apply the same delta to the whole
-        // selection so relative offsets survive the move (FL behaviour)
-        const dRows = Math.round((e.clientY - drag.startY) / g.rowH);
-        let dT = snapOr(drag.orig.t + dxTicks) - drag.orig.t;
-        let dP = -dRows;
-        let minT = Infinity;
-        let minP = 127;
-        let maxP = 0;
-        for (const it of drag.items) {
-          minT = Math.min(minT, it.orig.t);
-          minP = Math.min(minP, it.orig.p);
-          maxP = Math.max(maxP, it.orig.p);
-        }
-        dT = Math.max(-minT, dT);
-        dP = Math.max(g.d.loPitch - minP, Math.min(g.d.hiPitch - maxP, dP));
-        const nextT = drag.orig.t + dT;
-        const nextP = drag.orig.p + dP;
-        if (nextT !== drag.note.t || nextP !== drag.note.p) {
-          if (!drag.changed) {
-            pushHistory();
-            drag.changed = true;
-          }
-          for (const it of drag.items) {
-            it.note.t = it.orig.t + dT;
-            it.note.p = Math.max(0, Math.min(127, it.orig.p + dP));
-          }
-          if (nextP !== drag.lastPitch) {
-            drag.lastPitch = nextP;
-            void auditionPitch(nextP, drag.ti);
-          }
-          dirtyRef.current = true;
-        }
-      } else if (drag.kind === "resize") {
-        // snap the note END to the grid, not its length, so detected
-        // off-grid notes can be stretched to land exactly on a line
-        const minD = free ? 1 : gridStepOrMin();
-        const nextEnd = snapOr(drag.orig.t + drag.orig.d + dxTicks);
-        const nextD = Math.max(minD, nextEnd - drag.orig.t);
-        if (nextD !== drag.note.d) {
-          if (!drag.changed) {
-            pushHistory();
-            drag.changed = true;
-          }
-          const dD = nextD - drag.orig.d;
-          for (const it of drag.items) it.note.d = Math.max(minD, it.orig.d + dD);
-          dirtyRef.current = true;
-        }
-      } else {
-        const minD = free ? 1 : gridStepOrMin();
-        let dT = snapOr(drag.orig.t + dxTicks) - drag.orig.t;
-        for (const it of drag.items) dT = Math.min(dT, it.orig.d - minD);
-        for (const it of drag.items) dT = Math.max(dT, -it.orig.t);
-        const nextT = drag.orig.t + dT;
-        if (nextT !== drag.note.t) {
-          if (!drag.changed) {
-            pushHistory();
-            drag.changed = true;
-          }
-          for (const it of drag.items) {
-            it.note.t = it.orig.t + dT;
-            it.note.d = it.orig.d - dT;
-          }
-          dirtyRef.current = true;
-        }
-      }
+      autoRef.current = { x: e.clientX, y: e.clientY, alt: e.altKey };
+      startAutoScroll();
+      applyDrag(e.clientX, e.clientY, e.altKey);
       const canvasEl = canvasRef.current;
       if (canvasEl && performance.now() - hoverTsRef.current > 40) {
         hoverTsRef.current = performance.now();
@@ -2593,6 +2673,7 @@ export function MidiResultPlayer({
   };
 
   const onPointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    autoRef.current = null;
     if (eraseRef.current) {
       eraseRef.current = false;
       return;
@@ -3496,8 +3577,14 @@ function lowerBound(notes: PlayerNote[], target: number): number {
   return lo;
 }
 
+const PIANO_LO = 21;
+const PIANO_HI = 108;
+const PAD_BARS = 32;
+function rollEnd(d: ParsedMidi): number {
+  return d.durationTicks + PAD_BARS * d.ppq * d.beatsPerBar;
+}
 function clampScroll(value: number, d: ParsedMidi, viewTicks: number): number {
-  return Math.max(0, Math.min(d.durationTicks - viewTicks, value));
+  return Math.max(0, Math.min(rollEnd(d) - viewTicks, value));
 }
 
 const RAMP_CACHE = new Map<string, string[]>();
