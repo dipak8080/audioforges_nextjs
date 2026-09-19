@@ -166,7 +166,7 @@ export default async function AudioToMidiPage() {
           {
             question: "What does high accuracy do differently?",
             answer:
-              "It runs a model built for the specific instrument rather than one general-purpose detector. Piano goes to a piano model, guitar to an engine that strips string harmonics and doubled attacks, and full mix splits the song into stems first and transcribes each with the model best at it, returning one named MIDI track per instrument with the detected BPM written in as the tempo. Piano and guitar cost one credit; a full mix costs three, since it is one separation plus up to four transcriptions.",
+              "It splits the track into stems first, then transcribes each part with the model best at it: a dedicated piano model for keys, a guitar-specific engine, and a general model for everything else. You get one named MIDI track per instrument with the detected BPM written in as the tempo, whether you upload a whole song or a single synth loop. One credit per run.",
           },
         ]
       : []),
@@ -346,11 +346,11 @@ export default async function AudioToMidiPage() {
                   label: "Cost",
                   cells: [
                     { text: "Free, unlimited" },
-                    { text: "1 credit for piano or guitar, 3 for a full mix", sub: "free runs each month, credits never expire" },
+                    { text: "1 credit per run", sub: "free runs each month, credits never expire" },
                   ],
                 },
               ]}
-              footnote="If your source is one instrument, pick that instrument rather than full mix. If it is a simple melody, standard is usually enough and costs nothing."
+              footnote="If it is a simple melody, standard is usually enough and costs nothing. High accuracy is one credit whatever you upload."
             />
           </ToolSection>
         )}

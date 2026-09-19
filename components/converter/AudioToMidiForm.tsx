@@ -7,11 +7,6 @@ import {
   Music4,
   RotateCcw,
   Layers,
-  Sparkles,
-  Piano,
-  Disc3,
-  Guitar,
-  Lightbulb,
 } from "lucide-react";
 import { JobToolForm, type ProcessingStage } from "@/components/converter/JobToolForm";
 import { ForgeTeaser } from "@/components/tools/JobFormKit";
@@ -25,9 +20,10 @@ import { getAudioToMidiHqResult, getJobDownloadUrl, type MidiHqResult } from "@/
 
 /**
  * Two engines, not two quality levels. /audio-to-midi runs basic-pitch with
- * tunable onset/sustain detection. /audio-to-midi-hq routes per instrument
- * (stems | transkun | basic-pitch-guitar) and has no detector to tune, so the
- * sensitivity sliders and presets do not exist on that side.
+ * tunable onset/sustain detection. /audio-to-midi-hq is one knob: every run
+ * goes through the stems pipeline (split, then the best engine per part) and
+ * has no detector to tune, so the sensitivity sliders and presets do not
+ * exist on that side.
  *
  * HQ pitch bounds are MIDI NOTE NUMBERS. The free tool converts note→Hz at
  * submit because basic-pitch's API takes Hz; that conversion must not happen
@@ -239,122 +235,7 @@ function formatRateLimit(max: number, windowSeconds: number): string {
   return `${max} per ${unit}`;
 }
 
-/* ------------------------------------------------------------------ *
- * HQ instrument routing
- * ------------------------------------------------------------------ */
-
-type Instrument = "auto" | "piano" | "guitar";
-
-const INSTRUMENTS: { id: Instrument; label: string; blurb: string; credits: 1 | 3 }[] = [
-  {
-    id: "auto",
-    label: "Full mix",
-    credits: 3,
-    blurb:
-      "Splits the track first, then transcribes each part with the model best at it. Separate tracks for bass, piano, guitar, vocals and other. Bass, keys and vocal lines come back cleanest; synth leads and pads are the weakest.",
-  },
-  {
-    id: "piano",
-    label: "Piano, keys & synths",
-    credits: 1,
-    blurb:
-      "Piano, electric piano, synth chords and plucks: anything played on keys. Best on a single sound; for keys inside a song, turn on isolation below.",
-  },
-  {
-    id: "guitar",
-    label: "Guitar",
-    credits: 1,
-    blurb: "Riffs, chords and arpeggios on a guitar-specific engine. Isolation available for guitar inside a mix.",
-  },
-];
-
-const INSTRUMENT_ICONS: Record<Instrument, typeof Sparkles> = {
-  auto: Disc3,
-  piano: Piano,
-  guitar: Guitar,
-};
-
-const SINGLE_SOUND_HINT = /\b(loop|stem|sample|one[- ]?shot|chord|pluck|lead|pad|riff|arp|melody|solo|dry|di)\b/i;
-const BASS_VOCAL_HINT = /\b(bass|808|sub|vocal|vox|voice|acapella|a cappella)\b/i;
-
-type Hint = { text: string; action?: { label: string; instrument?: Instrument; isolate?: boolean } };
-
-/**
- * Filename only. File size is not a usable proxy here: a three minute 128 kbps
- * MP3 is under 3 MB, so a size test flags whole songs as single sounds and
- * pushes them off the only engine that handles a full mix.
- */
-function presetHint(file: File | null, instrument: Instrument, isolate: boolean): Hint | null {
-  if (!file) return null;
-  const name = file.name.replace(/\.[^.]+$/, "");
-  const looksSingle = SINGLE_SOUND_HINT.test(name);
-  const looksBassOrVocal = BASS_VOCAL_HINT.test(name);
-
-  if (looksBassOrVocal && instrument !== "auto") {
-    return {
-      text: "Bass and vocal lines are only transcribed by Full mix. There is no single-instrument preset for them.",
-      action: { label: "Use Full mix", instrument: "auto", isolate: false },
-    };
-  }
-  if (looksSingle && instrument === "auto") {
-    return {
-      text: "This looks like a single sound. An instrument preset with isolation off usually beats Full mix here, and it is 1 credit instead of 3.",
-      action: { label: "Switch to Piano, keys & synths", instrument: "piano", isolate: false },
-    };
-  }
-  if (looksSingle && isolate) {
-    return {
-      text: "This looks like a solo recording. Isolation would strip most of it, so leave it off.",
-      action: { label: "Turn isolation off", isolate: false },
-    };
-  }
-  return null;
-}
-
-function PresetHint({
-  hint,
-  disabled,
-  onApply,
-}: {
-  hint: Hint | null;
-  disabled: boolean;
-  onApply: (a: NonNullable<Hint["action"]>) => void;
-}) {
-  if (!hint) {
-    return (
-      <details className="group text-[11px] leading-snug text-text-subtle">
-        <summary className="cursor-pointer select-none list-none text-text-muted transition-colors hover:text-text-primary">
-          Not sure which to pick?
-        </summary>
-        <ul className="mt-1.5 space-y-1 pl-3">
-          <li>One sound (a loop, a stem, a solo recording): pick that instrument, isolation off.</li>
-          <li>Synth chords, plucks, pads: Piano, keys &amp; synths.</li>
-          <li>Piano or guitar inside a song: that instrument, isolation on.</li>
-          <li>A whole song with bass, keys and vocals: Full mix.</li>
-        </ul>
-      </details>
-    );
-  }
-  return (
-    <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 rounded-md border border-amber-500/25 bg-amber-500/[0.06] px-3 py-2 text-[11px] leading-snug text-text-muted">
-      <Lightbulb className="h-3 w-3 shrink-0 translate-y-[1px] text-amber-400/80" aria-hidden />
-      <span className="flex-1 basis-[16rem]">{hint.text}</span>
-      {hint.action && (
-        <button
-          type="button"
-          disabled={disabled}
-          onClick={() => onApply(hint.action!)}
-          className="font-medium text-amber-400 underline-offset-2 hover:underline disabled:opacity-50"
-        >
-          {hint.action.label}
-        </button>
-      )}
-    </div>
-  );
-}
-
-const hqToolKey = (instrument: Instrument): MeteredToolKey =>
-  instrument === "auto" ? "audio-to-midi-hq-mix" : "audio-to-midi-hq";
+const HQ_TOOL_KEY: MeteredToolKey = "audio-to-midi-hq-mix";
 
 type MidiHqResultExtra = MidiHqResult & {
   engine?: string;
@@ -371,6 +252,7 @@ const ENGINE_LABEL: Record<string, string> = {
   transkun: "piano engine",
   "basic-pitch-guitar": "guitar engine",
   yourmt3: "multi-track model",
+  "basic-pitch-fallback": "general model",
 };
 
 /* ------------------------------------------------------------------ *
@@ -391,19 +273,6 @@ const MIX_STAGES: ProcessingStage[] = [
   { at: 10, label: "Splitting into stems" },
   { at: 40, label: "Transcribing each part" },
   { at: 100, label: "Merging the tracks" },
-];
-
-const ISOLATE_STAGES: ProcessingStage[] = [
-  { at: 0, label: "Reading the audio" },
-  { at: 10, label: "Isolating the part" },
-  { at: 40, label: "Transcribing notes" },
-  { at: 80, label: "Writing the MIDI file" },
-];
-
-const HQ_STAGES: ProcessingStage[] = [
-  { at: 0, label: "Reading the audio" },
-  { at: 8, label: "Transcribing notes" },
-  { at: 35, label: "Writing the MIDI file" },
 ];
 
 /* ------------------------------------------------------------------ *
@@ -713,7 +582,6 @@ function MidiHqResultSummary({ jobId }: { jobId: string }) {
           {engineLabel && (
             <span className="ml-2 normal-case tracking-normal text-amber-400/80">
               {engineLabel}
-              {result.isolated ? " · isolated from mix" : ""}
               {result.bpm ? ` · ${Math.round(result.bpm)} BPM set as tempo` : ""}
             </span>
           )}
@@ -798,7 +666,7 @@ const TIERS: { id: Tier; label: string; cost: string; blurb: string }[] = [
     label: "High accuracy",
     cost: "",
     blurb:
-      "A dedicated model per instrument. Full mixes are split into stems first so bass, keys, guitar and vocals each land on their own track.",
+      "Splits the track into stems, then transcribes each part with the model best at it. Works on anything: a whole song, a synth loop, solo piano. One track per instrument.",
   },
 ];
 
@@ -807,14 +675,6 @@ export function AudioToMidiForm({ hqAvailable = false }: { hqAvailable?: boolean
   const isHq = hqAvailable && tier === "hq";
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [settings, setSettings] = useState<Settings>(DEFAULTS);
-  const [instrument, setInstrument] = useState<Instrument>("auto");
-  const [isolate, setIsolate] = useState(false);
-  const isGuitar = isHq && instrument === "guitar";
-  const isPiano = isHq && instrument === "piano";
-  const canIsolate = isGuitar || isPiano;
-  const isFullMix = isHq && instrument === "auto";
-  const isIsolated = canIsolate && isolate;
-
   const { rateLimitFor } = useCredits();
 
   const liveLimit = isHq ? rateLimitFor("audio-to-midi-hq") : null;
@@ -860,24 +720,14 @@ export function AudioToMidiForm({ hqAvailable = false }: { hqAvailable?: boolean
       ) : (
         <Music4 className="h-3.5 w-3.5" aria-hidden />
       ),
-    titleAfter: option.id === "hq" ? <FreeTierBadge tool={hqToolKey(instrument)} /> : undefined,
+    titleAfter: option.id === "hq" ? <FreeTierBadge tool={HQ_TOOL_KEY} /> : undefined,
     meta: option.cost || undefined,
     detail: option.blurb,
     premium: option.id === "hq",
   }));
 
-  const instrumentOptions: CardOption<Instrument>[] = INSTRUMENTS.map((option) => {
-    const Icon = INSTRUMENT_ICONS[option.id];
-    return {
-      value: option.id,
-      title: option.label,
-      titleBefore: <Icon className="h-3.5 w-3.5" aria-hidden />,
-      detail: `${option.blurb} ${option.credits} ${option.credits === 1 ? "credit" : "credits"} per run.`,
-    };
-  });
-
-  const stages = !isHq ? FREE_STAGES : isFullMix ? MIX_STAGES : isIsolated ? ISOLATE_STAGES : HQ_STAGES;
-  const progressTau = !isHq ? 20 : isFullMix ? 80 : isIsolated ? 60 : 35;
+  const stages = isHq ? MIX_STAGES : FREE_STAGES;
+  const progressTau = isHq ? 80 : 20;
 
   return (
     <JobToolForm
@@ -898,16 +748,10 @@ export function AudioToMidiForm({ hqAvailable = false }: { hqAvailable?: boolean
       submitLabel={isHq ? "Convert with high accuracy" : TOOL_COPY.submitLabel}
       toolLabel={TOOL_COPY.toolLabel}
       toolMeta={isHq ? "high accuracy · up to 10 min" : TOOL_COPY.toolMeta}
-      processingLabel={
-        isFullMix
-          ? "Splitting into stems, then transcribing each"
-          : isIsolated
-            ? `Isolating ${instrument}, then transcribing`
-            : TOOL_COPY.processingLabel
-      }
+      processingLabel={isHq ? "Splitting into stems, then transcribing each" : TOOL_COPY.processingLabel}
       stages={stages}
       progressTau={progressTau}
-      expectedRange={isFullMix || isIsolated ? "one to a few minutes" : TOOL_COPY.expectedRange}
+      expectedRange={isHq ? "one to a few minutes" : TOOL_COPY.expectedRange}
       resultVerb={TOOL_COPY.resultVerb}
       icon={Music4}
       hidePreview
@@ -916,15 +760,15 @@ export function AudioToMidiForm({ hqAvailable = false }: { hqAvailable?: boolean
       /* Full mix is Demucs plus up to five engines on up to ten minutes of
          audio. The 10 minute default gave up on jobs that were still running
          and already charged. */
-      maxPollMs={isFullMix ? 25 * 60 * 1000 : isHq ? 15 * 60 * 1000 : 10 * 60 * 1000}
+      maxPollMs={isHq ? 25 * 60 * 1000 : 10 * 60 * 1000}
       /* Retries are safe again: every attempt now carries one idempotency
          key, so a retry after a timeout replays the original job rather
          than starting a second one. This had to be 0 on the metered route
          before that existed. */
       maxSubmitRetries={2}
-      /* Full mix bills under a different rule at 3 credits, and the
+      /* Every HQ run bills under the mix rule (one knob), and the
          rate-limit upsell reads the cost from this. */
-      meteredToolKey={isHq ? hqToolKey(instrument) : undefined}
+      meteredToolKey={isHq ? HQ_TOOL_KEY : undefined}
       rateLimitMessage={rateLimitHint}
       buildExtraFields={() => {
         const bounded = settings.limitPitch && settings.lowNote < settings.highNote;
@@ -932,10 +776,7 @@ export function AudioToMidiForm({ hqAvailable = false }: { hqAvailable?: boolean
         if (isHq) {
           /* Note numbers, not Hz, and `min_note_ms` rather than
              `minimum_note_length`. FastAPI drops unknown fields silently. */
-          const fields: Record<string, string> = { instrument };
-          if (canIsolate && isolate) {
-            fields.isolate = "true";
-          }
+          const fields: Record<string, string> = {};
           if (settings.limitNoteLength) {
             fields.min_note_ms = String(settings.minimumNoteLength);
           }
@@ -957,7 +798,7 @@ export function AudioToMidiForm({ hqAvailable = false }: { hqAvailable?: boolean
         }
         return fields;
       }}
-      renderControls={(file, disabled) => (
+      renderControls={(_file, disabled) => (
         <div className="space-y-3">
           <ForgeTeaser player="roll" />
           {hqAvailable && (
@@ -971,51 +812,6 @@ export function AudioToMidiForm({ hqAvailable = false }: { hqAvailable?: boolean
                 columns={2}
                 disabled={disabled}
               />
-            </fieldset>
-          )}
-
-          {isHq && (
-            <fieldset disabled={disabled} className="space-y-2">
-              <legend className="mb-2 text-sm font-medium text-text-primary">
-                What are you transcribing?
-              </legend>
-              <OptionCards
-                label="Instrument"
-                options={instrumentOptions}
-                value={instrument}
-                onChange={setInstrument}
-                columns={2}
-                disabled={disabled}
-              />
-
-              <PresetHint
-                hint={presetHint(file, instrument, isolate)}
-                disabled={disabled}
-                onApply={(a) => {
-                  if (a.instrument) setInstrument(a.instrument);
-                  if (a.isolate !== undefined) setIsolate(a.isolate);
-                }}
-              />
-
-              {canIsolate && (
-                <div className="flex items-start justify-between gap-3 rounded-lg border border-graphite-800 bg-graphite-850/60 px-3.5 py-3">
-                  <div>
-                    <p className="text-sm font-medium text-text-primary">
-                      {isGuitar ? "Guitar" : "Piano"} is inside a full mix
-                    </p>
-                    <p className="mt-0.5 text-[11px] leading-snug text-text-subtle">
-                      Pulls the {isGuitar ? "guitar" : "piano"} out first, then transcribes just
-                      that. Off for loops, stems and solo recordings.
-                    </p>
-                  </div>
-                  <Toggle
-                    checked={isolate}
-                    disabled={disabled}
-                    label={`Isolate ${isGuitar ? "guitar" : "piano"} from mix`}
-                    onChange={setIsolate}
-                  />
-                </div>
-              )}
             </fieldset>
           )}
 
@@ -1152,9 +948,7 @@ export function AudioToMidiForm({ hqAvailable = false }: { hqAvailable?: boolean
                       </p>
                       {isHq && (
                         <p className="mt-1 text-[11px] leading-snug text-text-subtle">
-                          {isGuitar
-                            ? "Off by default. The guitar engine already removes string harmonics and doubled attacks. Turn this on only if the result still looks cluttered."
-                            : "Off by default. Each engine already cleans its own output. Turn this on only if the result looks cluttered."}
+                          Off by default. Each engine already cleans its own output. Turn this on only if the result looks cluttered.
                         </p>
                       )}
                     </div>

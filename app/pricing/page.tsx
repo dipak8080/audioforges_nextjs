@@ -100,8 +100,7 @@ export default async function PricingPage() {
    * This is the same rule railway.ts states for the "1 credit" badge.
    */
   const sheetCharges = Boolean(paywallTools["audio-to-sheet"]);
-  const mixCharges = Boolean(paywallTools["audio-to-midi-hq-mix"]);
-  const anyThreeCredit = sheetCharges || mixCharges;
+  const anyThreeCredit = sheetCharges;
 
   /**
    * Every metered job and what it costs, the one place cost is stated, so the
@@ -117,21 +116,11 @@ export default async function PricingPage() {
       detail: `Cleaner vocals and instrumental, or a full four-stem split, from a heavier model. Up to ${hqMaxLabel}. Returns WAV, full quality, no watermark.`,
     },
     {
-      name: "High-accuracy MIDI, keys or guitar",
+      name: "High-accuracy MIDI",
       cost: 1,
       detail:
-        "A model trained for that one instrument. Best on solo recordings; can isolate the part from a mix first. Returns MIDI.",
+        "Splits the track into stems, then transcribes each part with the model best at it: bass, piano, guitar, vocals and other on separate tracks, tempo set from the detected BPM. Works on whole songs and single sounds alike. Returns MIDI.",
     },
-    ...(mixCharges
-      ? [
-          {
-            name: "Full-mix MIDI",
-            cost: 3,
-            detail:
-              "Splits the track into stems, then transcribes each with the model best at it, bass, piano, guitar, vocals and other on separate tracks, tempo set from the detected BPM. One separation plus up to four transcriptions is why it's three.",
-          },
-        ]
-      : []),
     {
       name: "Transcription",
       cost: 1,
@@ -167,7 +156,7 @@ export default async function PricingPage() {
     {
       question: "Why do some jobs cost more than one credit?",
       answer:
-        "Most GPU jobs are a single model run and cost one credit. A few do more work for a single result: full-mix MIDI splits the track into stems and runs a separate transcription on each, and audio-to-sheet-music runs a transcription, then tempo and key analysis, then engraves the score, so those cost three credits. The cost of a job tracks the work behind it, not the tool it came from.",
+        "Almost every GPU job costs one credit, including high-accuracy MIDI, which splits the track into stems and runs a separate transcription on each. The one exception is audio-to-sheet-music: it runs a transcription, then tempo and key analysis, then engraves the score, a higher-value multi-stage output, so it costs three. The cost of a job tracks the work behind it, not the tool it came from.",
     },
     {
       question: "What's the difference between standard and Studio Quality?",

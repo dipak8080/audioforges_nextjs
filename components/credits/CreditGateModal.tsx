@@ -71,27 +71,27 @@ const TOOL_COPY: Record<string, ToolCopy> = {
       "Your free runs reset every month, and every tool that doesn't need a GPU stays free.",
   },
   "audio-to-midi-hq": {
-    title: "Instrument MIDI",
+    title: "High-accuracy MIDI",
     unit: ["MIDI file", "MIDI files"],
     creditDetail: `One transcription of this file, up to ${
       (TOOL_LIMITS["audio-to-midi-hq"]?.maxTotalDurationSeconds ?? 600) / 60
     } minutes`,
     spec: [
-      ["You get", "One MIDI track from a model trained for that instrument: piano (Transkun) or guitar"],
-      ["Best on", "A solo recording or an isolated stem. A full mix will bleed other instruments into the notes"],
+      ["You get", "Separate MIDI tracks for bass, piano, guitar, vocals and other, with the detected BPM set as the tempo"],
+      ["Works on", "Whole songs and single sounds alike: the track is split into stems first, then each part goes to the model best at it"],
     ],
     closing:
       "Single-track MIDI stays free and unlimited, with the same formats and the same .mid download.",
   },
   "audio-to-midi-hq-mix": {
-    title: "Full-mix MIDI",
+    title: "High-accuracy MIDI",
     unit: ["song", "songs"],
     creditDetail: `One full track split and transcribed, up to ${
       (TOOL_LIMITS["audio-to-midi-hq"]?.maxTotalDurationSeconds ?? 600) / 60
     } minutes`,
     spec: [
       ["You get", "Separate MIDI tracks for bass, piano, guitar, vocals and other, with the detected BPM set as the tempo"],
-      ["Honest limit", "Bass, piano and vocal lines come back cleanest. Synth leads and pads (“other”) are still the hardest part for any model"],
+      ["Works on", "Whole songs and single sounds alike: the track is split into stems first, then each part goes to the model best at it"],
     ],
     closing:
       "Single-track MIDI stays free and unlimited, with the same formats and the same .mid download.",
@@ -123,8 +123,8 @@ const TOOL_LABELS: Record<string, string> = {
   "youtube/separate-hq": "Vocal Remover",
   "youtube/stems-hq": "Stem Splitter",
   transcribe: "your transcript",
-  "audio-to-midi-hq": "Instrument MIDI",
-  "audio-to-midi-hq-mix": "Full-mix MIDI",
+  "audio-to-midi-hq": "High-accuracy MIDI",
+  "audio-to-midi-hq-mix": "High-accuracy MIDI",
   "audio-to-sheet": "your sheet music",
 };
 
