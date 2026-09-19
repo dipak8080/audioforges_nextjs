@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { AlertTriangle, Check, Loader2, Music2, Power } from "lucide-react";
+import { AlertTriangle, Check, Loader2, Music2 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { ConfirmDialog } from "./ConfirmDialog";
 
@@ -17,10 +17,10 @@ function sinceLabel(since: number | null): string {
   if (!since) return "";
   const mins = Math.floor((Date.now() / 1000 - since) / 60);
   if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
+  if (mins < 60) return `${mins}m`;
   const h = Math.floor(mins / 60);
-  if (h < 48) return `${h}h ago`;
-  return `${Math.floor(h / 24)}d ago`;
+  if (h < 48) return `${h}h`;
+  return `${Math.floor(h / 24)}d`;
 }
 
 export function TikTokSwitch() {
@@ -48,7 +48,7 @@ export function TikTokSwitch() {
 
   useEffect(() => {
     if (!toast) return;
-    const t = setTimeout(() => setToast(null), 3500);
+    const t = setTimeout(() => setToast(null), 3000);
     return () => clearTimeout(t);
   }, [toast]);
 
@@ -65,7 +65,7 @@ export function TikTokSwitch() {
       if (!r.ok) throw new Error((data as { error?: string }).error || `HTTP ${r.status}`);
       setState(data as MaintenanceState);
       setMessage((data as MaintenanceState).message || "");
-      setToast({ ok: true, text: on ? "TikTok paused. Users now see your message." : "TikTok resumed." });
+      setToast({ ok: true, text: on ? "Paused" : "Resumed" });
     } catch (err) {
       setToast({ ok: false, text: (err as Error).message });
     } finally {
@@ -77,13 +77,19 @@ export function TikTokSwitch() {
   const dirty = state !== null && message.trim() !== (state.message || "").trim();
 
   return (
-    <section className="mt-6">
-      <div className="flex items-center justify-between gap-3">
-        <h2 className="text-sm font-semibold text-text-primary">TikTok to MP3</h2>
+    <div
+      className={cn(
+        "mt-px flex flex-col gap-3 rounded-2xl border px-4 py-3 sm:flex-row sm:items-center",
+        on ? "border-red-500/30 bg-red-500/[0.05]" : "border-graphite-800 bg-graphite-900"
+      )}
+    >
+      <div className="flex shrink-0 items-center gap-2 sm:w-44">
+        <Music2 className="h-3.5 w-3.5 text-text-subtle" aria-hidden />
+        <span className="text-[13px] font-medium text-text-primary">TikTok to MP3</span>
         {state && (
           <span
             className={cn(
-              "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-medium",
+              "ml-auto inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium sm:ml-1",
               on ? "bg-red-500/10 text-red-300" : "bg-teal-500/10 text-teal-300"
             )}
           >
@@ -93,110 +99,80 @@ export function TikTokSwitch() {
         )}
       </div>
 
-      <div
-        className={cn(
-          "mt-3 rounded-2xl border p-4 sm:p-5",
-          on ? "border-red-500/30 bg-red-500/[0.05]" : "border-graphite-800 bg-graphite-900"
-        )}
-      >
-        {loadFailed ? (
-          <p className="flex items-center gap-2 text-[13px] text-red-200">
-            <AlertTriangle className="h-4 w-4 shrink-0 text-red-400" aria-hidden />
-            Could not read the switch state. Check that BACKEND_ADMIN_KEY is set, then refresh.
-          </p>
-        ) : !state ? (
-          <div className="h-24 animate-pulse rounded-xl bg-graphite-850" />
-        ) : (
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
-            <div className="min-w-0 flex-1">
-              <p className="text-[13px] text-text-muted">
-                {on
-                  ? "Every fresh conversion is refused with the message below. Cached results still serve. Turn it off once TikTok works again."
-                  : "Pause the tool when TikTok is broken sitewide (canary alert, every job failing). Users get a clear notice instead of a generic error."}
-              </p>
-              <label htmlFor="tiktok-maint-msg" className="mt-3 block text-[12px] font-medium text-text-subtle">
-                Message shown to users
-              </label>
-              <textarea
-                id="tiktok-maint-msg"
-                value={message}
-                onChange={(e) => setMessage(e.target.value.slice(0, MAX_MESSAGE))}
-                rows={2}
-                disabled={busy}
-                className="mt-1.5 w-full resize-none rounded-xl border border-graphite-700 bg-graphite-850 px-3 py-2 text-[13px] text-text-primary outline-none transition-colors focus:border-amber-500/50 focus:ring-2 focus:ring-amber-500/20 disabled:opacity-60"
-              />
-              <div className="mt-1 flex items-center justify-between text-[11px] text-text-subtle">
-                <span>Plain words, no jargon. They read this on the tool page.</span>
-                <span className="tabular-nums">{message.length}/{MAX_MESSAGE}</span>
-              </div>
-            </div>
-
-            <div className="flex shrink-0 flex-col gap-2 lg:w-52">
-              {on ? (
-                <button
-                  type="button"
-                  onClick={() => apply(false)}
-                  disabled={busy}
-                  className="flex items-center justify-center gap-2 rounded-xl bg-teal-500 px-4 py-2.5 text-[13px] font-semibold text-graphite-950 transition-colors hover:bg-teal-400 disabled:opacity-60"
-                >
-                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Power className="h-4 w-4" />}
-                  Resume TikTok
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setConfirming(true)}
-                  disabled={busy}
-                  className="flex items-center justify-center gap-2 rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-2.5 text-[13px] font-semibold text-red-200 transition-colors hover:bg-red-500/20 disabled:opacity-60"
-                >
-                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Power className="h-4 w-4" />}
-                  Pause TikTok
-                </button>
-              )}
-              {on && dirty && (
-                <button
-                  type="button"
-                  onClick={() => apply(true)}
-                  disabled={busy}
-                  className="flex items-center justify-center gap-2 rounded-xl border border-graphite-700 px-4 py-2 text-[12px] text-text-muted transition-colors hover:bg-graphite-850 hover:text-text-primary disabled:opacity-60"
-                >
-                  Update message
-                </button>
-              )}
-              <p className="flex items-center gap-1.5 text-[11px] text-text-subtle">
-                <Music2 className="h-3 w-3" aria-hidden />
-                Takes effect immediately
-              </p>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {toast && (
-        <div
-          role="status"
-          className={cn(
-            "mt-3 flex items-center gap-2 rounded-xl border px-3 py-2 text-[12px]",
-            toast.ok
-              ? "border-teal-500/30 bg-teal-500/[0.07] text-teal-200"
-              : "border-red-500/30 bg-red-500/[0.07] text-red-200"
+      {loadFailed ? (
+        <p className="flex min-w-0 flex-1 items-center gap-2 text-[12px] text-red-200">
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-red-400" aria-hidden />
+          Switch state did not load. Check BACKEND_ADMIN_KEY, then refresh.
+        </p>
+      ) : (
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          <input
+            type="text"
+            value={message}
+            onChange={(e) => setMessage(e.target.value.slice(0, MAX_MESSAGE))}
+            disabled={busy || !state}
+            placeholder="Message users see while paused"
+            aria-label="Message shown to users while TikTok to MP3 is paused"
+            title="Shown verbatim on the tool page while paused"
+            className="h-8 min-w-0 flex-1 rounded-lg border border-graphite-700 bg-graphite-850 px-3 text-[12px] text-text-primary placeholder:text-text-subtle outline-none transition-colors focus:border-amber-500/50 focus:ring-2 focus:ring-amber-500/20 disabled:opacity-60"
+          />
+          {on && dirty && (
+            <button
+              type="button"
+              onClick={() => apply(true)}
+              disabled={busy}
+              className="h-8 shrink-0 rounded-lg border border-graphite-700 px-3 text-[12px] text-text-muted transition-colors hover:bg-graphite-850 hover:text-text-primary disabled:opacity-60"
+            >
+              Save
+            </button>
           )}
-        >
-          {toast.ok ? <Check className="h-3.5 w-3.5" /> : <AlertTriangle className="h-3.5 w-3.5" />}
-          {toast.text}
         </div>
       )}
+
+      <div className="flex shrink-0 items-center gap-3 sm:pl-1">
+        {toast && (
+          <span
+            role="status"
+            className={cn("flex items-center gap-1 text-[11px]", toast.ok ? "text-teal-300" : "text-red-300")}
+          >
+            {toast.ok ? <Check className="h-3 w-3" /> : <AlertTriangle className="h-3 w-3" />}
+            {toast.text}
+          </span>
+        )}
+        <span className="text-[11px] text-text-subtle">{on ? "Paused" : "Pause"}</span>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={on}
+          aria-label={on ? "Resume TikTok to MP3" : "Pause TikTok to MP3"}
+          disabled={busy || !state}
+          onClick={() => (on ? apply(false) : setConfirming(true))}
+          className={cn(
+            "relative h-5 w-9 shrink-0 rounded-full outline-none transition-colors focus-visible:ring-2 focus-visible:ring-amber-400/70 disabled:opacity-50",
+            on ? "bg-red-500" : "bg-graphite-700"
+          )}
+        >
+          <span
+            className={cn(
+              "absolute top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-white transition-transform",
+              on ? "translate-x-[18px]" : "translate-x-0.5"
+            )}
+          >
+            {busy && <Loader2 className="h-2.5 w-2.5 animate-spin text-graphite-900" />}
+          </span>
+        </button>
+      </div>
 
       {confirming && (
         <ConfirmDialog
           title="Pause TikTok to MP3 for everyone?"
-          body="Every new conversion will be refused with your message until you resume it. Cached results keep serving."
+          body="Every new conversion is refused with your message until you resume. Cached results keep serving. Use this when TikTok is broken sitewide, not for a single bad video."
           confirmLabel="Pause"
           loading={busy}
           onConfirm={() => apply(true)}
           onCancel={() => setConfirming(false)}
         />
       )}
-    </section>
+    </div>
   );
 }

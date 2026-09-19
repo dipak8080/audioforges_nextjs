@@ -226,9 +226,8 @@ export default function AdminDashboardPage() {
               detail="HTTP and system logs"
             />
           </div>
+          <TikTokSwitch />
         </section>
-
-        <TikTokSwitch />
       </div>
     </div>
   );
