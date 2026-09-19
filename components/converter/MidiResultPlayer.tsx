@@ -1,12 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { createPortal } from "react-dom";
 import { Midi } from "@tonejs/midi";
 import {
   AudioLines,
   Check,
   ChevronDown,
   Download,
+  Expand,
   Headphones,
   HelpCircle,
   Loader2,
@@ -20,6 +22,8 @@ import {
   Plus,
   Redo2,
   Repeat,
+  Scissors,
+  Shrink,
   Sparkles,
   Square,
   Undo2,
@@ -91,6 +95,26 @@ const FOLLOW_AT = 0.72;
 const KEYS_W = 62;
 const RULER_H = 26;
 const VEL_H = 54;
+const COARSE_MQ = "(pointer: coarse)";
+const subscribeCoarse = (cb: () => void) => {
+  const mq = window.matchMedia(COARSE_MQ);
+  mq.addEventListener("change", cb);
+  return () => mq.removeEventListener("change", cb);
+};
+const getCoarse = () => window.matchMedia(COARSE_MQ).matches;
+
+type SnapMode = "none" | "line" | "32" | "16" | "12" | "8" | "4" | "bar";
+const SNAP_OPTIONS: { value: SnapMode; label: string }[] = [
+  { value: "none", label: "None" },
+  { value: "line", label: "Line" },
+  { value: "32", label: "1/2 step" },
+  { value: "16", label: "Step" },
+  { value: "12", label: "1/3 beat" },
+  { value: "8", label: "1/2 beat" },
+  { value: "4", label: "Beat" },
+  { value: "bar", label: "Bar" },
+];
+
 const ROW_MIN = 17;
 const ROW_MAX = 24;
 const CANVAS_MAX_H = 540;
@@ -268,8 +292,13 @@ export function MidiResultPlayer({
   const [compare, setCompare] = useState(false);
   const [mix, setMix] = useState(1);
   const [originalReady, setOriginalReady] = useState(false);
-  const [editMode, setEditMode] = useState(false);
-  const [snapDiv, setSnapDiv] = useState<0 | 4 | 8 | 16 | 32>(16);
+  const [editMode, setEditMode] = useState(true);
+  const coarse = useSyncExternalStore(subscribeCoarse, getCoarse, () => false);
+  const [fullscreen, setFullscreen] = useState(false);
+  const fullscreenRef = useRef(false);
+  const [snap, setSnap] = useState<SnapMode>("line");
+  const [tool, setTool] = useState<"draw" | "slice">("draw");
+  const toolRef = useRef<"draw" | "slice">("draw");
   const [keyOverride, setKeyOverride] = useState<string>("auto");
   const [historyLen, setHistoryLen] = useState(0);
   const [redoLen, setRedoLen] = useState(0);
@@ -312,22 +341,44 @@ export function MidiResultPlayer({
   const scrollDragRef = useRef<null | { axis: "v" | "h"; from: number; base: number }>(null);
   const eraseRef = useRef(false);
   const suppressMenuRef = useRef(false);
-  const snapDivRef = useRef<0 | 4 | 8 | 16 | 32>(16);
+  const snapRef = useRef<SnapMode>("line");
   const autoKeyRef = useRef<DetectedKey | null>(null);
-  const selectedRef = useRef<PlayerNote | null>(null);
+  const selRef = useRef<Set<PlayerNote>>(new Set());
+  const marqueeRef = useRef<null | {
+    t0: number;
+    t1: number;
+    p0: number;
+    p1: number;
+    base: Set<PlayerNote> | null;
+  }>(null);
+  const sliceRef = useRef<null | { tick: number; p0: number; p1: number; only: PlayerNote | null }>(null);
   const historyRef = useRef<Snapshot[]>([]);
   const redoRef = useRef<Snapshot[]>([]);
   const dragRef = useRef<null | {
-    kind: "move" | "resize";
+    kind: "move" | "resize" | "trim";
     note: PlayerNote;
     ti: number;
     startX: number;
     startY: number;
     orig: PlayerNote;
+    items: { note: PlayerNote; ti: number; orig: PlayerNote }[];
     changed: boolean;
     lastPitch: number;
   }>(null);
   const lastLenRef = useRef(0);
+  const clipRef = useRef<{ items: { ti: number; t: number; d: number; p: number; v: number }[]; start: number; span: number }>({
+    items: [],
+    start: 0,
+    span: 0,
+  });
+  const [toast, setToast] = useState<string | null>(null);
+  const toastTimerRef = useRef<number | null>(null);
+  const showToast = (msg: string) => {
+    setToast(msg);
+    if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = window.setTimeout(() => setToast(null), 1400);
+  };
+  const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`;
   const keyRef = useRef<DetectedKey | null>(null);
   const scaleRef = useRef(false);
   const metroRef = useRef(false);
@@ -339,7 +390,9 @@ export function MidiResultPlayer({
   const pinchDistRef = useRef(0);
 
   editRef.current = editMode;
-  snapDivRef.current = snapDiv;
+  fullscreenRef.current = fullscreen;
+  snapRef.current = snap;
+  toolRef.current = tool;
   scaleRef.current = scaleHighlight;
   metroRef.current = metronome;
 
@@ -527,6 +580,8 @@ export function MidiResultPlayer({
     const showLabels = editRef.current && noteH >= 12;
     const activePitches = new Set<number>();
     const velNotes: { x: number; v: number; color: string; active: boolean }[] = [];
+    const selSet = selRef.current;
+    const editing = editRef.current;
 
     ctx.save();
     ctx.beginPath();
@@ -567,6 +622,14 @@ export function MidiResultPlayer({
           ctx.fillRect(x, y, hair, nh);
         }
 
+        if (editing && selSet.has(n)) {
+          ctx.strokeStyle = "rgba(255,255,255,0.95)";
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.roundRect(x - 1, y - 1, nw + 2, nh + 2, 2);
+          ctx.stroke();
+        }
+
         if (showScale && !track.percussion && !key.pcs.has(n.p % 12) && audible) {
           const ow = hair * 2;
           ctx.fillStyle = "rgba(0,0,0,0.3)";
@@ -596,16 +659,47 @@ export function MidiResultPlayer({
     });
     ctx.globalAlpha = 1;
 
-    const sel = selectedRef.current;
-    if (sel && editRef.current) {
-      const x = xFor(sel.t);
-      const nw = Math.max(2, sel.d * ppt - 0.75);
-      const y = yFor(sel.p) + (rowH - noteH) / 2;
-      ctx.strokeStyle = "rgba(255,255,255,0.95)";
-      ctx.lineWidth = 1.5;
+    const mq = marqueeRef.current;
+    if (mq && editing) {
+      const x0 = xFor(Math.min(mq.t0, mq.t1));
+      const x1 = xFor(Math.max(mq.t0, mq.t1));
+      const yTop = yFor(Math.max(mq.p0, mq.p1));
+      const yBot = yFor(Math.min(mq.p0, mq.p1)) + rowH;
+      ctx.fillStyle = "rgba(255,255,255,0.06)";
+      ctx.fillRect(x0, yTop, x1 - x0, yBot - yTop);
+      ctx.strokeStyle = "rgba(255,255,255,0.55)";
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 3]);
+      ctx.strokeRect(x0 + 0.5, yTop + 0.5, x1 - x0, yBot - yTop);
+      ctx.setLineDash([]);
+    }
+
+    const sl = sliceRef.current;
+    if (sl && editing) {
+      const x = Math.round(sx(sl.tick));
+      const yTop = yFor(Math.max(sl.p0, sl.p1));
+      const yBot = yFor(Math.min(sl.p0, sl.p1)) + rowH;
+      ctx.strokeStyle = "rgba(251,191,36,0.95)";
+      ctx.lineWidth = 2;
+      ctx.setLineDash([5, 3]);
       ctx.beginPath();
-      ctx.roundRect(x - 1, y - 1, nw + 2, noteH + 2, 2);
+      ctx.moveTo(x, yTop);
+      ctx.lineTo(x, yBot);
       ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    /* drag guide: lights up when the dragged edge lands on a grid line */
+    const dg = dragRef.current;
+    if (dg && editing) {
+      const edgeTick = dg.kind === "resize" ? dg.note.t + dg.note.d : dg.note.t;
+      const vs = visibleStep();
+      const onLine = Math.abs(edgeTick - Math.round(edgeTick / vs) * vs) * ppt <= 1.5;
+      const gx = sx(edgeTick);
+      if (gx >= KEYS_W && gx <= KEYS_W + plotW) {
+        ctx.fillStyle = onLine ? "rgba(251,191,36,0.9)" : "rgba(255,255,255,0.28)";
+        ctx.fillRect(Math.round(gx) - (onLine ? 1 : 0), RULER_H, onLine ? 2 : 1, plotH);
+      }
     }
 
     /* playhead */
@@ -858,6 +952,15 @@ export function MidiResultPlayer({
     };
   }, [status]);
 
+  useEffect(() => {
+    if (!fullscreen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [fullscreen]);
+
   /* ---------- canvas sizing ---------- */
   useEffect(() => {
     if (status !== "ready") return;
@@ -870,12 +973,14 @@ export function MidiResultPlayer({
       const dpr = window.devicePixelRatio || 1;
       const w = wrap.clientWidth;
       if (!w) return;
+      const fs = fullscreenRef.current;
+      const maxH = fs ? Math.max(360, window.innerHeight - wrap.getBoundingClientRect().top - 78) : CANVAS_MAX_H;
       const rows = d.hiPitch - d.loPitch + 1;
-      const maxPlot = CANVAS_MAX_H - RULER_H - VEL_H - SCROLL_H;
-      const rowH = Math.round(Math.max(ROW_MIN, Math.min(ROW_MAX, maxPlot / rows)));
+      const maxPlot = maxH - RULER_H - VEL_H - SCROLL_H;
+      const rowH = Math.round(Math.max(ROW_MIN, Math.min(fs ? 44 : ROW_MAX, maxPlot / rows)));
       rowHRef.current = rowH;
       const contentH = rows * rowH;
-      const h = Math.min(CANVAS_MAX_H, Math.max(300, contentH + RULER_H + VEL_H + SCROLL_H));
+      const h = Math.min(maxH, Math.max(300, contentH + RULER_H + VEL_H + SCROLL_H));
       const plotH = h - RULER_H - VEL_H - SCROLL_H;
       const maxV = Math.max(0, contentH - plotH);
       if (!vInitRef.current) {
@@ -907,8 +1012,12 @@ export function MidiResultPlayer({
     resize();
     const ro = new ResizeObserver(resize);
     ro.observe(wrap);
-    return () => ro.disconnect();
-  }, [status]);
+    window.addEventListener("resize", resize);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", resize);
+    };
+  }, [status, fullscreen]);
 
   /* ---------- engine ---------- */
   const ensureEngine = async (): Promise<Engine> => {
@@ -1286,13 +1395,26 @@ export function MidiResultPlayer({
     };
   };
 
+  // the grid the ruler is currently drawing at this zoom (FL "Line")
+  const visibleStep = () => {
+    const d = dataRef.current;
+    const ppq = d?.ppq ?? 480;
+    const bpb = d?.beatsPerBar ?? 4;
+    const ppt = pxPerTickRef.current;
+    const sixteenth = Math.max(1, Math.round(ppq / 4));
+    return sixteenth * ppt >= 15 ? sixteenth : ppq * ppt > 11 ? ppq : ppq * bpb;
+  };
   const gridStep = () => {
-    const ppq = dataRef.current?.ppq ?? 480;
-    const div = snapDivRef.current || 16;
+    const d = dataRef.current;
+    const ppq = d?.ppq ?? 480;
+    const m = snapRef.current;
+    if (m === "bar") return ppq * (d?.beatsPerBar ?? 4);
+    if (m === "line") return visibleStep();
+    const div = Number(m) || 16;
     return Math.max(1, Math.round((ppq * 4) / div));
   };
   const snapTick = (t: number) => {
-    if (!snapDivRef.current) return Math.max(0, Math.round(t));
+    if (snapRef.current === "none") return Math.max(0, Math.round(t));
     const st = gridStep();
     return Math.max(0, Math.round(t / st) * st);
   };
@@ -1315,14 +1437,18 @@ export function MidiResultPlayer({
     for (let ti = d.tracks.length - 1; ti >= 0; ti--) {
       const track = d.tracks[ti];
       const notes = track.notes;
-      let found: { note: PlayerNote; ti: number; edge: boolean } | null = null;
+      let found: { note: PlayerNote; ti: number; edge: "l" | "r" | null } | null = null;
       for (let i = lowerBound(notes, tick - track.maxDur); i < notes.length; i++) {
         const n = notes[i];
         if (n.t > tick) break;
         if (n.p !== pitch) continue;
         if (tick <= n.t + n.d) {
-          const edgePx = (n.t + n.d - tick) * ppt;
-          found = { note: n, ti, edge: edgePx <= Math.min(8, Math.max(3, n.d * ppt * 0.3)) };
+          const w = n.d * ppt;
+          const zone = Math.min(8, Math.max(4, w * 0.25));
+          const rightPx = (n.t + n.d - tick) * ppt;
+          const leftPx = (tick - n.t) * ppt;
+          const edge = w > 12 && rightPx <= zone ? "r" : w > 28 && leftPx <= zone ? "l" : null;
+          found = { note: n, ti, edge };
         }
       }
       if (found) return found;
@@ -1350,7 +1476,7 @@ export function MidiResultPlayer({
     const at = notes.indexOf(hit.note);
     if (at < 0) return false;
     notes.splice(at, 1);
-    if (selectedRef.current === hit.note) selectedRef.current = null;
+    selRef.current.delete(hit.note);
     return true;
   };
 
@@ -1421,7 +1547,7 @@ export function MidiResultPlayer({
     if (!d || !snap) return;
     redoRef.current.push(snapshotOf(d));
     restoreSnapshot(d, snap);
-    selectedRef.current = null;
+    selRef.current = new Set();
     setHistoryLen(historyRef.current.length);
     setRedoLen(redoRef.current.length);
     afterEdit();
@@ -1433,7 +1559,7 @@ export function MidiResultPlayer({
     if (!d || !snap) return;
     historyRef.current.push(snapshotOf(d));
     restoreSnapshot(d, snap);
-    selectedRef.current = null;
+    selRef.current = new Set();
     setHistoryLen(historyRef.current.length);
     setRedoLen(redoRef.current.length);
     afterEdit();
@@ -1441,15 +1567,265 @@ export function MidiResultPlayer({
 
   const deleteSelected = () => {
     const d = dataRef.current;
-    const sel = selectedRef.current;
-    if (!d || !sel) return;
+    const sel = selRef.current;
+    if (!d || sel.size === 0) return;
     pushHistory();
-    for (const t of d.tracks) {
-      const i = t.notes.indexOf(sel);
-      if (i >= 0) t.notes.splice(i, 1);
-    }
-    selectedRef.current = null;
+    for (const t of d.tracks) t.notes = t.notes.filter((n) => !sel.has(n));
+    selRef.current = new Set();
     afterEdit();
+  };
+
+  const selectAll = () => {
+    const d = dataRef.current;
+    if (!d) return;
+    const all = new Set<PlayerNote>();
+    for (const t of d.tracks) for (const n of t.notes) all.add(n);
+    selRef.current = all;
+    dirtyRef.current = true;
+  };
+
+  const deselectAll = () => {
+    selRef.current = new Set();
+    dirtyRef.current = true;
+  };
+
+  const copySelection = () => {
+    const d = dataRef.current;
+    const sel = selRef.current;
+    if (!d || sel.size === 0) return false;
+    const picks: { ti: number; t: number; d: number; p: number; v: number }[] = [];
+    let minT = Infinity;
+    let maxEnd = 0;
+    d.tracks.forEach((t, ti) => {
+      for (const n of t.notes) {
+        if (!sel.has(n)) continue;
+        picks.push({ ti, t: n.t, d: n.d, p: n.p, v: n.v });
+        minT = Math.min(minT, n.t);
+        maxEnd = Math.max(maxEnd, n.t + n.d);
+      }
+    });
+    const step = snapRef.current !== "none" ? gridStep() : 1;
+    clipRef.current = {
+      items: picks.map((n) => ({ ...n, t: n.t - minT })),
+      start: minT,
+      span: Math.max(step, Math.ceil((maxEnd - minT) / step) * step),
+    };
+    return true;
+  };
+
+  const cutSelection = () => {
+    const n = selRef.current.size;
+    if (copySelection()) {
+      deleteSelected();
+      showToast(`Cut ${plural(n, "note")}`);
+    }
+  };
+
+  // FL Ctrl+V: paste at the playhead, pasted notes become the selection
+  const pasteClipboard = () => {
+    const d = dataRef.current;
+    const clip = clipRef.current;
+    if (!d || clip.items.length === 0) return;
+    let at = snapTick(posRef.current);
+    // playhead sitting on the copied notes would stack the paste on top of them
+    if (Math.abs(at - clip.start) < 1) at = clip.start + clip.span;
+    const melodic = d.tracks.findIndex((t) => !t.percussion);
+    const fallback = melodic >= 0 ? melodic : 0;
+    pushHistory();
+    const next = new Set<PlayerNote>();
+    for (const c of clip.items) {
+      const ti = c.ti < d.tracks.length ? c.ti : fallback;
+      const note: PlayerNote = { t: at + c.t, d: c.d, p: c.p, v: c.v };
+      d.tracks[ti].notes.push(note);
+      next.add(note);
+    }
+    selRef.current = next;
+    afterEdit();
+    showToast(`Pasted ${plural(next.size, "note")}`);
+  };
+
+  // FL Alt+G glue: merge touching or overlapping selected notes of the same pitch
+  const glueSelection = () => {
+    const d = dataRef.current;
+    if (!d) return;
+    const sel = selRef.current;
+    const useAll = sel.size === 0;
+    const tol = Math.max(2, Math.round(d.ppq / 32));
+    let merged = 0;
+    pushHistory();
+    const next = new Set<PlayerNote>();
+    for (const t of d.tracks) {
+      const groups = new Map<number, PlayerNote[]>();
+      for (const n of t.notes) {
+        if (!useAll && !sel.has(n)) continue;
+        const g = groups.get(n.p);
+        if (g) g.push(n);
+        else groups.set(n.p, [n]);
+      }
+      const drop = new Set<PlayerNote>();
+      for (const g of groups.values()) {
+        g.sort((a, b) => a.t - b.t);
+        let cur = g[0];
+        for (let i = 1; i < g.length; i++) {
+          const n = g[i];
+          if (n.t <= cur.t + cur.d + tol) {
+            cur.d = Math.max(cur.t + cur.d, n.t + n.d) - cur.t;
+            drop.add(n);
+            merged++;
+          } else cur = n;
+        }
+        if (!useAll) for (const n of g) if (!drop.has(n)) next.add(n);
+      }
+      if (drop.size) t.notes = t.notes.filter((n) => !drop.has(n));
+    }
+    if (!merged) {
+      historyRef.current.pop();
+      setHistoryLen(historyRef.current.length);
+      showToast("Nothing to glue");
+      return;
+    }
+    selRef.current = next;
+    afterEdit();
+    showToast(`Glued ${plural(merged, "join")}`);
+  };
+
+  const splitNote = (notes: PlayerNote[], n: PlayerNote, tick: number, out: PlayerNote[]) => {
+    if (tick <= n.t || tick >= n.t + n.d) return false;
+    const tail: PlayerNote = { t: tick, d: n.t + n.d - tick, p: n.p, v: n.v };
+    n.d = tick - n.t;
+    notes.push(tail);
+    out.push(tail);
+    return true;
+  };
+
+  // FL slice tool: cut every note the line crosses at that tick
+  const sliceAt = (tick: number, pMin: number, pMax: number, only: PlayerNote | null) => {
+    const d = dataRef.current;
+    if (!d) return 0;
+    const targets: { notes: PlayerNote[]; n: PlayerNote }[] = [];
+    for (const t of d.tracks) {
+      for (let i = lowerBound(t.notes, tick - t.maxDur); i < t.notes.length; i++) {
+        const n = t.notes[i];
+        if (n.t >= tick) break;
+        if (only ? n !== only : n.p < pMin || n.p > pMax) continue;
+        if (tick < n.t + n.d) targets.push({ notes: t.notes, n });
+      }
+    }
+    if (!targets.length) return 0;
+    pushHistory();
+    const sel = selRef.current;
+    const made: PlayerNote[] = [];
+    for (const { notes, n } of targets) {
+      const before = made.length;
+      splitNote(notes, n, tick, made);
+      if (made.length > before && sel.has(n)) sel.add(made[made.length - 1]);
+    }
+    afterEdit();
+    showToast(`Sliced ${plural(targets.length, "note")}`);
+    return targets.length;
+  };
+
+  // FL Alt+U chop: cut selected notes (or all) into grid-length pieces
+  const chopToGrid = () => {
+    const d = dataRef.current;
+    if (!d) return;
+    const sel = selRef.current;
+    const useAll = sel.size === 0;
+    const step = snapRef.current !== "none" ? gridStep() : Math.max(1, Math.round(d.ppq / 4));
+    const picks: { notes: PlayerNote[]; n: PlayerNote }[] = [];
+    for (const t of d.tracks) for (const n of t.notes) if ((useAll || sel.has(n)) && n.d > step) picks.push({ notes: t.notes, n });
+    if (!picks.length) return;
+    pushHistory();
+    const next = new Set<PlayerNote>(useAll ? [] : sel);
+    for (const { notes, n } of picks) {
+      const end = n.t + n.d;
+      const first = Math.ceil(n.t / step) * step;
+      let cur = n;
+      for (let cut = first > n.t ? first : n.t + step; cut < end; cut += step) {
+        const made: PlayerNote[] = [];
+        if (splitNote(notes, cur, cut, made)) {
+          cur = made[0];
+          if (!useAll) next.add(cur);
+        }
+      }
+    }
+    selRef.current = next;
+    afterEdit();
+    showToast(`Chopped ${plural(picks.length, "note")}`);
+  };
+
+  // FL Shift+arrows / Ctrl+Up/Down: nudge the selection, one undo step per press
+  const nudgeSelection = (dT: number, dP: number) => {
+    const d = dataRef.current;
+    const sel = selRef.current;
+    if (!d || sel.size === 0) return;
+    let minT = Infinity;
+    let minP = 127;
+    let maxP = 0;
+    for (const n of sel) {
+      minT = Math.min(minT, n.t);
+      minP = Math.min(minP, n.p);
+      maxP = Math.max(maxP, n.p);
+    }
+    dT = Math.max(-minT, dT);
+    dP = Math.max(d.loPitch - minP, Math.min(d.hiPitch - maxP, dP));
+    if (dT === 0 && dP === 0) return;
+    pushHistory();
+    for (const n of sel) {
+      n.t += dT;
+      n.p += dP;
+    }
+    if (dP !== 0) {
+      const first = [...sel][0];
+      let ti = 0;
+      d.tracks.forEach((t, i) => {
+        if (t.notes.includes(first)) ti = i;
+      });
+      void auditionPitch(first.p, ti);
+    }
+    afterEdit();
+  };
+
+  // FL Ctrl+B: copy the selection to the right by its own length, copies
+  // become the new selection. With nothing selected it duplicates everything.
+  const duplicateSelection = () => {
+    const d = dataRef.current;
+    if (!d) return;
+    const sel = selRef.current;
+    const useAll = sel.size === 0;
+    const picks: { ti: number; note: PlayerNote }[] = [];
+    let minT = Infinity;
+    let maxEnd = 0;
+    d.tracks.forEach((t, ti) => {
+      for (const n of t.notes) {
+        if (!useAll && !sel.has(n)) continue;
+        picks.push({ ti, note: n });
+        minT = Math.min(minT, n.t);
+        maxEnd = Math.max(maxEnd, n.t + n.d);
+      }
+    });
+    if (!picks.length) return;
+    const step = snapRef.current !== "none" ? gridStep() : 1;
+    const span = Math.max(step, Math.ceil((maxEnd - minT) / step) * step);
+    pushHistory();
+    const next = new Set<PlayerNote>();
+    for (const { ti, note } of picks) {
+      const copy: PlayerNote = { ...note, t: note.t + span };
+      d.tracks[ti].notes.push(copy);
+      next.add(copy);
+    }
+    selRef.current = next;
+    afterEdit();
+    showToast(`Duplicated ${plural(next.size, "note")}`);
+  };
+
+  const dragItems = (d: ParsedMidi) => {
+    const sel = selRef.current;
+    const items: { note: PlayerNote; ti: number; orig: PlayerNote }[] = [];
+    d.tracks.forEach((t, ti) => {
+      for (const n of t.notes) if (sel.has(n)) items.push({ note: n, ti, orig: { ...n } });
+    });
+    return items;
   };
 
   const auditionPitch = async (pitch: number, ti: number) => {
@@ -1491,7 +1867,10 @@ export function MidiResultPlayer({
     if (editRef.current === draw) return;
     editRef.current = draw;
     setEditMode(draw);
-    if (!draw) selectedRef.current = null;
+    if (!draw) {
+      selRef.current = new Set();
+      marqueeRef.current = null;
+    }
     dirtyRef.current = true;
   };
 
@@ -1511,16 +1890,10 @@ export function MidiResultPlayer({
 
   const onCanvasContextMenu = (e: React.MouseEvent<HTMLCanvasElement>) => {
     e.preventDefault();
-    if (suppressMenuRef.current) {
-      suppressMenuRef.current = false;
-      return;
-    }
-    const rect = e.currentTarget.getBoundingClientRect();
-    setPanel(null);
-    setCtxMenu({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+    suppressMenuRef.current = false;
   };
 
-  const gridStepOrMin = () => (snapDivRef.current ? gridStep() : Math.max(1, Math.round(gridStep() / 4)));
+  const gridStepOrMin = () => (snapRef.current !== "none" ? gridStep() : Math.max(1, Math.round(gridStep() / 4)));
 
   const refreshKey = () => {
     const d = dataRef.current;
@@ -1532,29 +1905,41 @@ export function MidiResultPlayer({
     }
   };
 
+  // tools act on the selection when there is one, otherwise on every note (FL)
+  const targetNotes = () => {
+    const sel = selRef.current;
+    return { pick: (n: PlayerNote) => sel.size === 0 || sel.has(n), scoped: sel.size > 0, count: sel.size };
+  };
+
   const quantizeAll = () => {
     const d = dataRef.current;
     if (!d) return;
+    const { pick, scoped, count } = targetNotes();
     pushHistory();
     const st = gridStep();
+    let n0 = 0;
     for (const t of d.tracks) {
       for (const n of t.notes) {
+        if (!pick(n)) continue;
         n.t = Math.max(0, Math.round(n.t / st) * st);
         n.d = Math.max(st, Math.round(n.d / st) * st);
+        n0++;
       }
     }
     afterEdit();
+    showToast(scoped ? `Quantized ${plural(count, "note")}` : `Quantized all ${plural(n0, "note")}`);
   };
 
   const transposeAll = (semis: number) => {
     const d = dataRef.current;
     if (!d) return;
+    const { pick, scoped, count } = targetNotes();
     pushHistory();
     let lo = 127;
     let hi = 0;
     for (const t of d.tracks) {
       for (const n of t.notes) {
-        if (!t.percussion) n.p = Math.max(0, Math.min(127, n.p + semis));
+        if (!t.percussion && pick(n)) n.p = Math.max(0, Math.min(127, n.p + semis));
         lo = Math.min(lo, n.p);
         hi = Math.max(hi, n.p);
       }
@@ -1563,14 +1948,18 @@ export function MidiResultPlayer({
     d.hiPitch = Math.min(127, hi + 3);
     refreshKey();
     afterEdit();
+    const sign = semis > 0 ? "+" : "";
+    showToast(scoped ? `${sign}${semis} on ${plural(count, "note")}` : `${sign}${semis} on all notes`);
   };
 
   const velocityTool = (mode: "flatten" | "humanize") => {
     const d = dataRef.current;
     if (!d) return;
+    const { pick, scoped, count } = targetNotes();
     pushHistory();
     for (const t of d.tracks) {
       for (const n of t.notes) {
+        if (!pick(n)) continue;
         n.v =
           mode === "flatten"
             ? 0.8
@@ -1578,6 +1967,8 @@ export function MidiResultPlayer({
       }
     }
     afterEdit();
+    const what = mode === "flatten" ? "Flattened" : "Humanized";
+    showToast(scoped ? `${what} ${plural(count, "note")}` : `${what} all notes`);
   };
 
   const applyLoopRegion = (region: { a: number; b: number } | null) => {
@@ -1650,14 +2041,68 @@ export function MidiResultPlayer({
       } else if (mod && e.key.toLowerCase() === "y") {
         e.preventDefault();
         redo();
+      } else if (mod && e.key.toLowerCase() === "a") {
+        e.preventDefault();
+        selectAll();
+      } else if (mod && e.key.toLowerCase() === "d") {
+        e.preventDefault();
+        deselectAll();
+      } else if (mod && e.key.toLowerCase() === "b") {
+        e.preventDefault();
+        duplicateSelection();
+      } else if (e.key.startsWith("Arrow") && selRef.current.size && (e.shiftKey || mod)) {
+        e.preventDefault();
+        const step = gridStepOrMin();
+        if (e.key === "ArrowLeft") nudgeSelection(-step, 0);
+        else if (e.key === "ArrowRight") nudgeSelection(step, 0);
+        else if (e.key === "ArrowUp") nudgeSelection(0, mod ? 12 : 1);
+        else if (e.key === "ArrowDown") nudgeSelection(0, mod ? -12 : -1);
+      } else if (mod && e.key.toLowerCase() === "c") {
+        const n = selRef.current.size;
+        if (copySelection()) {
+          e.preventDefault();
+          showToast(`Copied ${plural(n, "note")}`);
+        }
+      } else if (mod && e.key.toLowerCase() === "x") {
+        if (selRef.current.size) {
+          e.preventDefault();
+          cutSelection();
+        }
+      } else if (mod && e.key.toLowerCase() === "v") {
+        if (clipRef.current.items.length) {
+          e.preventDefault();
+          pasteClipboard();
+        }
       } else if (e.key === "Delete" || e.key === "Backspace") {
-        if (selectedRef.current) {
+        if (selRef.current.size) {
           e.preventDefault();
           deleteSelected();
         }
+      } else if (e.altKey && !mod && e.key.toLowerCase() === "q") {
+        e.preventDefault();
+        quantizeAll();
+      } else if (e.altKey && !mod && e.key.toLowerCase() === "u") {
+        e.preventDefault();
+        chopToGrid();
+      } else if (e.altKey && !mod && e.key.toLowerCase() === "g") {
+        e.preventDefault();
+        glueSelection();
+      } else if (!mod && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "c") {
+        setTool("slice");
+      } else if (!mod && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "p") {
+        setTool("draw");
       } else if (e.key === "Escape") {
-        selectedRef.current = null;
-        dirtyRef.current = true;
+        if (toolRef.current === "slice") {
+          setTool("draw");
+          sliceRef.current = null;
+          dirtyRef.current = true;
+        } else if (selRef.current.size || marqueeRef.current) {
+          selRef.current = new Set();
+          marqueeRef.current = null;
+          dirtyRef.current = true;
+        } else if (fullscreenRef.current) {
+          setFullscreen(false);
+        }
       }
     };
     window.addEventListener("keydown", onKey);
@@ -1733,15 +2178,23 @@ export function MidiResultPlayer({
       }
       const lx = e.clientX - rect.left - KEYS_W;
       if (lx < 0 || lx > g.plotW || ly > RULER_H + g.plotH) return;
+      eraseRef.current = true;
+      suppressMenuRef.current = true;
+      (e.target as HTMLElement).setPointerCapture(e.pointerId);
       if (eraseAt(g.tickAt(lx), g.pitchAt(ly), g.ppt, true)) {
-        eraseRef.current = true;
-        suppressMenuRef.current = true;
-        (e.target as HTMLElement).setPointerCapture(e.pointerId);
         afterEdit();
+      } else if (selRef.current.size) {
+        selRef.current = new Set();
+        dirtyRef.current = true;
       }
       return;
     }
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    if (e.button === 1) {
+      e.preventDefault();
+      pointer.current = { x: e.clientX, y: e.clientY, startX: e.clientX, startY: e.clientY, panned: true };
+      return;
+    }
     if (e.pointerType === "touch") {
       pinchRef.current.set(e.pointerId, e.clientX);
       if (pinchRef.current.size === 2) {
@@ -1797,41 +2250,71 @@ export function MidiResultPlayer({
         if (g.inPlot(lx, ly)) {
           const tick = g.tickAt(lx);
           const pitch = g.pitchAt(ly);
-          const last = clickRef.current;
-          const nowMs = e.timeStamp || performance.now();
-          const isDouble =
-            nowMs - last.t < 350 &&
-            Math.abs(e.clientX - last.x) < 6 &&
-            Math.abs(e.clientY - last.y) < 6;
-          clickRef.current = { t: isDouble ? 0 : nowMs, x: e.clientX, y: e.clientY };
+          const mod = e.ctrlKey || e.metaKey;
+          clickRef.current = { t: 0, x: e.clientX, y: e.clientY };
 
           const hit = hitNote(tick, pitch, g.ppt);
-          if (hit) {
-            if (isDouble) {
-              pushHistory();
-              const notes = g.d.tracks[hit.ti].notes;
-              const at = notes.indexOf(hit.note);
-              if (at >= 0) notes.splice(at, 1);
-              selectedRef.current = null;
-              afterEdit();
-              return;
+          if (mod) {
+            // FL: Ctrl+click selects, Ctrl+Shift+click adds, Ctrl+drag box-selects
+            if (hit) {
+              const sel = selRef.current;
+              if (e.shiftKey) sel.add(hit.note);
+              else if (sel.has(hit.note)) sel.delete(hit.note);
+              else sel.add(hit.note);
+            } else {
+              marqueeRef.current = {
+                t0: tick,
+                t1: tick,
+                p0: pitch,
+                p1: pitch,
+                base: e.shiftKey ? new Set(selRef.current) : null,
+              };
+              if (!e.shiftKey) selRef.current = new Set();
             }
-            selectedRef.current = hit.note;
-            dragRef.current = {
-              kind: hit.edge ? "resize" : "move",
-              note: hit.note,
-              ti: hit.ti,
-              startX: e.clientX,
-              startY: e.clientY,
-              orig: { ...hit.note },
-              changed: false,
-              lastPitch: hit.note.p,
-            };
-            void auditionPitch(hit.note.p, hit.ti);
             dirtyRef.current = true;
             return;
           }
-          if (!isDouble) {
+          if (toolRef.current === "slice") {
+            const st = e.altKey ? Math.max(0, Math.round(tick)) : snapTick(tick);
+            sliceRef.current = { tick: st, p0: pitch, p1: pitch, only: hit?.note ?? null };
+            dirtyRef.current = true;
+            return;
+          }
+          if (hit) {
+            if (!selRef.current.has(hit.note)) selRef.current = new Set([hit.note]);
+            let anchor = hit.note;
+            let items = dragItems(g.d);
+            let changed = false;
+            if (e.shiftKey && !hit.edge) {
+              // FL Shift+drag: clone the selection and drag the copies
+              pushHistory();
+              const clones = new Set<PlayerNote>();
+              items = items.map((it) => {
+                const copy: PlayerNote = { ...it.note };
+                g.d.tracks[it.ti].notes.push(copy);
+                clones.add(copy);
+                if (it.note === hit.note) anchor = copy;
+                return { note: copy, ti: it.ti, orig: { ...copy } };
+              });
+              selRef.current = clones;
+              changed = true;
+            }
+            dragRef.current = {
+              kind: hit.edge === "r" ? "resize" : hit.edge === "l" ? "trim" : "move",
+              note: anchor,
+              ti: hit.ti,
+              startX: e.clientX,
+              startY: e.clientY,
+              orig: { ...anchor },
+              items,
+              changed,
+              lastPitch: anchor.p,
+            };
+            void auditionPitch(anchor.p, hit.ti);
+            dirtyRef.current = true;
+            return;
+          }
+          {
             pushHistory();
             const len = lastLenRef.current || gridStepOrMin();
             const note: PlayerNote = { t: snapTick(tick), d: len, p: pitch, v: 0.8 };
@@ -1841,7 +2324,7 @@ export function MidiResultPlayer({
             const melodic = g.d.tracks.findIndex((t) => !t.percussion);
             const ti = melodic >= 0 ? melodic : 0;
             g.d.tracks[ti].notes.push(note);
-            selectedRef.current = note;
+            selRef.current = new Set([note]);
             dragRef.current = {
               kind: "resize",
               note,
@@ -1849,6 +2332,7 @@ export function MidiResultPlayer({
               startX: e.clientX,
               startY: e.clientY,
               orig: { ...note },
+              items: [{ note, ti, orig: { ...note } }],
               changed: false,
               lastPitch: pitch,
             };
@@ -1856,8 +2340,6 @@ export function MidiResultPlayer({
             afterEdit();
             return;
           }
-          selectedRef.current = null;
-          dirtyRef.current = true;
         }
       }
     }
@@ -1931,38 +2413,127 @@ export function MidiResultPlayer({
       return;
     }
 
+    const sl = sliceRef.current;
+    if (sl) {
+      const g = geom();
+      const canvasEl = canvasRef.current;
+      if (!g || !canvasEl) return;
+      const rect = canvasEl.getBoundingClientRect();
+      const ly = Math.max(RULER_H, Math.min(RULER_H + g.plotH - 1, e.clientY - rect.top));
+      const p1 = g.pitchAt(ly);
+      if (p1 !== sl.p0) sl.only = null;
+      sl.p1 = p1;
+      dirtyRef.current = true;
+      return;
+    }
+
+    const mq = marqueeRef.current;
+    if (mq) {
+      const g = geom();
+      const canvasEl = canvasRef.current;
+      if (!g || !canvasEl) return;
+      const rect = canvasEl.getBoundingClientRect();
+      const lx = Math.max(0, Math.min(g.plotW, e.clientX - rect.left - KEYS_W));
+      const ly = Math.max(RULER_H, Math.min(RULER_H + g.plotH - 1, e.clientY - rect.top));
+      mq.t1 = g.tickAt(lx);
+      mq.p1 = g.pitchAt(ly);
+      const tMin = Math.min(mq.t0, mq.t1);
+      const tMax = Math.max(mq.t0, mq.t1);
+      const pMin = Math.min(mq.p0, mq.p1);
+      const pMax = Math.max(mq.p0, mq.p1);
+      const next = new Set(mq.base ?? []);
+      for (const t of g.d.tracks) {
+        for (let i = lowerBound(t.notes, tMin - t.maxDur); i < t.notes.length; i++) {
+          const n = t.notes[i];
+          if (n.t > tMax) break;
+          if (n.t + n.d < tMin) continue;
+          if (n.p >= pMin && n.p <= pMax) next.add(n);
+        }
+      }
+      selRef.current = next;
+      dirtyRef.current = true;
+      return;
+    }
+
     const drag = dragRef.current;
     if (drag) {
       const g = geom();
       if (!g) return;
       const dxTicks = (e.clientX - drag.startX) / g.ppt;
+      const free = e.altKey;
+      const snapOr = (t: number) => (free ? Math.max(0, Math.round(t)) : snapTick(t));
       if (drag.kind === "move") {
+        // snap the grabbed note, then apply the same delta to the whole
+        // selection so relative offsets survive the move (FL behaviour)
         const dRows = Math.round((e.clientY - drag.startY) / g.rowH);
-        const nextT = snapTick(drag.orig.t + dxTicks);
-        const nextP = Math.max(g.d.loPitch, Math.min(g.d.hiPitch, drag.orig.p - dRows));
+        let dT = snapOr(drag.orig.t + dxTicks) - drag.orig.t;
+        let dP = -dRows;
+        let minT = Infinity;
+        let minP = 127;
+        let maxP = 0;
+        for (const it of drag.items) {
+          minT = Math.min(minT, it.orig.t);
+          minP = Math.min(minP, it.orig.p);
+          maxP = Math.max(maxP, it.orig.p);
+        }
+        dT = Math.max(-minT, dT);
+        dP = Math.max(g.d.loPitch - minP, Math.min(g.d.hiPitch - maxP, dP));
+        const nextT = drag.orig.t + dT;
+        const nextP = drag.orig.p + dP;
         if (nextT !== drag.note.t || nextP !== drag.note.p) {
           if (!drag.changed) {
             pushHistory();
             drag.changed = true;
           }
-          drag.note.t = nextT;
-          drag.note.p = nextP;
+          for (const it of drag.items) {
+            it.note.t = it.orig.t + dT;
+            it.note.p = Math.max(0, Math.min(127, it.orig.p + dP));
+          }
           if (nextP !== drag.lastPitch) {
             drag.lastPitch = nextP;
             void auditionPitch(nextP, drag.ti);
           }
           dirtyRef.current = true;
         }
-      } else {
-        const nextD = Math.max(gridStepOrMin(), snapTick(drag.orig.d + dxTicks));
+      } else if (drag.kind === "resize") {
+        // snap the note END to the grid, not its length, so detected
+        // off-grid notes can be stretched to land exactly on a line
+        const minD = free ? 1 : gridStepOrMin();
+        const nextEnd = snapOr(drag.orig.t + drag.orig.d + dxTicks);
+        const nextD = Math.max(minD, nextEnd - drag.orig.t);
         if (nextD !== drag.note.d) {
           if (!drag.changed) {
             pushHistory();
             drag.changed = true;
           }
-          drag.note.d = nextD;
+          const dD = nextD - drag.orig.d;
+          for (const it of drag.items) it.note.d = Math.max(minD, it.orig.d + dD);
           dirtyRef.current = true;
         }
+      } else {
+        const minD = free ? 1 : gridStepOrMin();
+        let dT = snapOr(drag.orig.t + dxTicks) - drag.orig.t;
+        for (const it of drag.items) dT = Math.min(dT, it.orig.d - minD);
+        for (const it of drag.items) dT = Math.max(dT, -it.orig.t);
+        const nextT = drag.orig.t + dT;
+        if (nextT !== drag.note.t) {
+          if (!drag.changed) {
+            pushHistory();
+            drag.changed = true;
+          }
+          for (const it of drag.items) {
+            it.note.t = it.orig.t + dT;
+            it.note.d = it.orig.d - dT;
+          }
+          dirtyRef.current = true;
+        }
+      }
+      const canvasEl = canvasRef.current;
+      if (canvasEl && performance.now() - hoverTsRef.current > 40) {
+        hoverTsRef.current = performance.now();
+        hoverNoteRef.current = drag.note;
+        const rect = canvasEl.getBoundingClientRect();
+        setHover({ x: e.clientX - rect.left, y: e.clientY - rect.top, text: noteInfo(drag.note) });
       }
       return;
     }
@@ -1975,10 +2546,13 @@ export function MidiResultPlayer({
         const lx = e.clientX - rect.left - KEYS_W;
         const ly = e.clientY - rect.top;
         const hit = g.inPlot(lx, ly) ? hitNote(g.tickAt(lx), g.pitchAt(ly), g.ppt) : null;
-        let cursor = editRef.current ? "crosshair" : "grab";
+        const slicing = editRef.current && toolRef.current === "slice";
+        let cursor = slicing ? "col-resize" : editRef.current ? "crosshair" : "grab";
         if (ly < RULER_H) {
           const headX = (posRef.current - scrollRef.current) * g.ppt;
           cursor = Math.abs(lx - headX) <= 9 ? "ew-resize" : "text";
+        } else if (slicing) {
+          cursor = "col-resize";
         } else if (hit && editRef.current) {
           cursor = hit.edge ? "ew-resize" : "move";
         } else if (hit) {
@@ -2041,6 +2615,18 @@ export function MidiResultPlayer({
       }
       return;
     }
+    const sl = sliceRef.current;
+    if (sl) {
+      sliceRef.current = null;
+      sliceAt(sl.tick, Math.min(sl.p0, sl.p1), Math.max(sl.p0, sl.p1), sl.only);
+      dirtyRef.current = true;
+      return;
+    }
+    if (marqueeRef.current) {
+      marqueeRef.current = null;
+      dirtyRef.current = true;
+      return;
+    }
     const drag = dragRef.current;
     if (drag) {
       dragRef.current = null;
@@ -2052,14 +2638,15 @@ export function MidiResultPlayer({
     }
     const p = pointer.current;
     pointer.current = null;
-    if (!p || p.panned) return;
+    if (!p || p.panned || e.pointerType !== "touch") return;
     const rect = (e.target as HTMLElement).getBoundingClientRect();
     const localX = e.clientX - rect.left - KEYS_W;
     if (localX < 0) return;
     seekTo(scrollRef.current + localX / pxPerTickRef.current);
   };
 
-  const onWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
+  const onWheel = (e: WheelEvent) => {
+    e.preventDefault();
     const canvas = canvasRef.current;
     const d = dataRef.current;
     if (!canvas || !d) return;
@@ -2089,6 +2676,17 @@ export function MidiResultPlayer({
     }
   };
 
+  const onWheelRef = useRef(onWheel);
+  onWheelRef.current = onWheel;
+  useEffect(() => {
+    if (status !== "ready") return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const handler = (e: WheelEvent) => onWheelRef.current(e);
+    canvas.addEventListener("wheel", handler, { passive: false });
+    return () => canvas.removeEventListener("wheel", handler);
+  }, [status, fullscreen]);
+
   /* ---------- render ---------- */
   if (status === "error") {
     // Rendered nothing at all before, so a failed fetch was
@@ -2105,7 +2703,19 @@ export function MidiResultPlayer({
 
   const noteOps = (
     <NoteOps
-      snapLabel={snapDiv ? `1/${snapDiv}` : "off"}
+      snapLabel={SNAP_OPTIONS.find((o) => o.value === snap)?.label ?? "Line"}
+      onDuplicate={() => {
+        duplicateSelection();
+        closePanels();
+      }}
+      onChop={() => {
+        chopToGrid();
+        closePanels();
+      }}
+      onGlue={() => {
+        glueSelection();
+        closePanels();
+      }}
       onQuantize={() => {
         quantizeAll();
         closePanels();
@@ -2121,8 +2731,17 @@ export function MidiResultPlayer({
     />
   );
 
-  return (
-    <div className="relative rounded-xl border border-white/10 bg-white/[0.02] p-2">
+  const tree = (
+    <div
+      className={cn(
+        "relative rounded-xl border border-white/10 bg-white/[0.02] p-2",
+        fullscreen && "fixed inset-0 z-[1000] overflow-y-auto rounded-none border-0 bg-[#0c0c0e] p-3"
+      )}
+      onClickCapture={(e) => {
+        const b = (e.target as HTMLElement).closest("button");
+        if (b) window.setTimeout(() => b.blur(), 0);
+      }}
+    >
       {/* ---------- toolbar ---------- */}
       <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-white/[0.07] bg-black/20 px-2 py-1.5">
         <span className="flex items-center gap-1.5 pr-1 font-mono text-[10.5px] font-semibold uppercase tracking-[0.16em] text-white/40">
@@ -2133,45 +2752,53 @@ export function MidiResultPlayer({
         {status === "ready" && (
           <>
             <Group>
-              <GBtn
-                label="Select"
-                title="Select mode — drag to pan, click to seek"
-                active={!editMode}
-                onClick={() => setMode(false)}
-              >
-                <MousePointer2 className="h-3.5 w-3.5" />
-                <span className="ml-1.5 hidden sm:inline">Select</span>
-              </GBtn>
+              {coarse && (
+                <GBtn
+                  label="Pan"
+                  title="Pan mode for touch: drag to scroll, tap to seek"
+                  active={!editMode}
+                  onClick={() => setMode(false)}
+                >
+                  <MousePointer2 className="h-3.5 w-3.5" />
+                </GBtn>
+              )}
               <GBtn
                 label="Draw"
-                title="Draw mode — drag notes to move, edges to resize, double-click to add"
-                active={editMode}
-                onClick={() => setMode(true)}
+                title="Draw tool (P): click adds, drag moves, edges resize"
+                active={editMode && tool === "draw"}
+                onClick={() => {
+                  setMode(true);
+                  setTool("draw");
+                }}
               >
                 <Pencil className="h-3.5 w-3.5" />
-                <span className="ml-1.5 hidden sm:inline">Draw</span>
+              </GBtn>
+              <GBtn
+                label="Slice"
+                title="Slice tool (C): drag a line to cut notes, Alt for no snap"
+                active={editMode && tool === "slice"}
+                onClick={() => {
+                  setMode(true);
+                  setTool("slice");
+                }}
+              >
+                <Scissors className="h-3.5 w-3.5" />
               </GBtn>
             </Group>
 
             <Picker
               ariaLabel="Snap grid"
               title="Snap grid — where dragged notes land, and what Quantize aligns to"
-              value={String(snapDiv)}
+              value={snap}
               mono
               icon={
                 <Magnet
-                  className={cn("h-3.5 w-3.5", snapDiv ? "text-amber-400/80" : "text-white/30")}
+                  className={cn("h-3.5 w-3.5", snap !== "none" ? "text-amber-400/80" : "text-white/30")}
                   aria-hidden
                 />
               }
-              options={[
-                { value: "0", label: "Off" },
-                { value: "4", label: "1/4" },
-                { value: "8", label: "1/8" },
-                { value: "16", label: "1/16" },
-                { value: "32", label: "1/32" },
-              ]}
-              onChange={(v) => setSnapDiv(Number(v) as 0 | 4 | 8 | 16 | 32)}
+              options={SNAP_OPTIONS}
+              onChange={(v) => setSnap(v as SnapMode)}
             />
 
             <Group>
@@ -2202,8 +2829,8 @@ export function MidiResultPlayer({
             <div className="ml-auto flex items-center gap-1.5">
               <Group>
                 <GBtn
-                  label="Note tools"
-                  title="Quantize, transpose, velocity"
+                  label="Tools"
+                  title="Tools: act on the selection, or on all notes when nothing is selected"
                   active={panel === "notes"}
                   onClick={() => openPanel("notes")}
                 >
@@ -2229,6 +2856,14 @@ export function MidiResultPlayer({
                 </GBtn>
                 <GBtn label="Fit" title="Fit the whole file in view" onClick={fitAll}>
                   <Maximize2 className="h-3.5 w-3.5" />
+                </GBtn>
+                <GBtn
+                  label={fullscreen ? "Exit full screen" : "Full screen"}
+                  title={fullscreen ? "Back to normal size (Esc)" : "Edit in full screen"}
+                  active={fullscreen}
+                  onClick={() => setFullscreen((f) => !f)}
+                >
+                  {fullscreen ? <Shrink className="h-3.5 w-3.5" /> : <Expand className="h-3.5 w-3.5" />}
                 </GBtn>
               </Group>
 
@@ -2280,9 +2915,13 @@ export function MidiResultPlayer({
               ref={canvasRef}
               className={cn(
                 "w-full touch-none rounded-lg border border-white/10 bg-black/30",
-                editMode ? "cursor-crosshair border-amber-500/25" : "cursor-grab active:cursor-grabbing"
+                editMode ? "cursor-crosshair" : "cursor-grab active:cursor-grabbing"
               )}
               onPointerDown={onPointerDown}
+              onMouseDown={(e) => {
+                if (e.button === 1) e.preventDefault();
+              }}
+              onAuxClick={(e) => e.preventDefault()}
               onPointerMove={onPointerMove}
               onPointerUp={onPointerUp}
               onPointerCancel={onPointerUp}
@@ -2291,25 +2930,18 @@ export function MidiResultPlayer({
                 hoverNoteRef.current = null;
                 setHover(null);
               }}
-              onWheel={onWheel}
             />
-            {hover && !ctxMenu && (
+            {toast && (
+              <div className="pointer-events-none absolute left-1/2 top-9 z-30 -translate-x-1/2 rounded-md border border-amber-500/30 bg-black/80 px-2.5 py-1 font-mono text-[11px] text-amber-300 shadow-lg">
+                {toast}
+              </div>
+            )}
+            {hover && (
               <div
                 className="pointer-events-none absolute z-10 whitespace-nowrap rounded-md border border-white/10 bg-black/90 px-2 py-1 font-mono text-[10px] text-white/85 shadow-lg"
                 style={{ left: Math.min(hover.x + 12, (wrapRef.current?.clientWidth ?? 600) - 220), top: Math.max(0, hover.y - 30) }}
               >
                 {hover.text}
-              </div>
-            )}
-            {ctxMenu && (
-              <div
-                className="absolute z-30 w-52 overflow-hidden rounded-lg border border-white/12 bg-graphite-900/98 shadow-2xl shadow-black/60 backdrop-blur"
-                style={{
-                  left: Math.min(ctxMenu.x, (wrapRef.current?.clientWidth ?? 600) - 220),
-                  top: Math.min(ctxMenu.y, Math.max(0, (canvasRef.current?.clientHeight ?? 400) - 240)),
-                }}
-              >
-                {noteOps}
               </div>
             )}
           </div>
@@ -2470,17 +3102,34 @@ export function MidiResultPlayer({
                 </p>
                 <ul className="space-y-1.5 text-[11px] text-white/55">
                   <li className="flex justify-between gap-3"><span>Play / pause</span><Kbd>Space</Kbd></li>
-                  <li className="flex justify-between gap-3"><span>Move note</span><Kbd>drag</Kbd></li>
-                  <li className="flex justify-between gap-3"><span>Resize note</span><Kbd>drag edge</Kbd></li>
-                  <li className="flex justify-between gap-3"><span>Add note (Draw)</span><Kbd>click</Kbd></li>
+                  <li className="flex justify-between gap-3"><span>Add note</span><Kbd>click empty</Kbd></li>
                   <li className="flex justify-between gap-3"><span>Draw to length</span><Kbd>click-drag</Kbd></li>
+                  <li className="flex justify-between gap-3"><span>Move note</span><Kbd>drag</Kbd></li>
+                  <li className="flex justify-between gap-3"><span>Resize</span><Kbd>drag right edge</Kbd></li>
+                  <li className="flex justify-between gap-3"><span>Trim start</span><Kbd>drag left edge</Kbd></li>
+                  <li className="flex justify-between gap-3"><span>Clone</span><Kbd>Shift+drag</Kbd></li>
+                  <li className="flex justify-between gap-3"><span>No snap while dragging</span><Kbd>hold Alt</Kbd></li>
                   <li className="flex justify-between gap-3"><span>Delete note</span><Kbd>right-click</Kbd></li>
                   <li className="flex justify-between gap-3"><span>Erase several</span><Kbd>right-drag</Kbd></li>
-                  <li className="flex justify-between gap-3"><span>Note tools</span><Kbd>right-click empty</Kbd></li>
+                  <li className="flex justify-between gap-3"><span>Select notes</span><Kbd>Ctrl+drag</Kbd></li>
+                  <li className="flex justify-between gap-3"><span>Add to selection</span><Kbd>Ctrl+click</Kbd></li>
+                  <li className="flex justify-between gap-3"><span>Select all / none</span><Kbd>Ctrl+A / D</Kbd></li>
+                  <li className="flex justify-between gap-3"><span>Delete selection</span><Kbd>Del</Kbd></li>
+                  <li className="flex justify-between gap-3"><span>Slice tool / Draw tool</span><Kbd>C / P</Kbd></li>
+                  <li className="flex justify-between gap-3"><span>Quantize</span><Kbd>Alt+Q</Kbd></li>
+                  <li className="flex justify-between gap-3"><span>Chop to grid</span><Kbd>Alt+U</Kbd></li>
+                  <li className="flex justify-between gap-3"><span>Glue notes</span><Kbd>Alt+G</Kbd></li>
+                  <li className="flex justify-between gap-3"><span>Nudge selection</span><Kbd>Shift+arrows</Kbd></li>
+                  <li className="flex justify-between gap-3"><span>Octave up / down</span><Kbd>Ctrl+Up / Down</Kbd></li>
+                  <li className="flex justify-between gap-3"><span>Duplicate right</span><Kbd>Ctrl+B</Kbd></li>
+                  <li className="flex justify-between gap-3"><span>Copy / cut</span><Kbd>Ctrl+C / X</Kbd></li>
+                  <li className="flex justify-between gap-3"><span>Paste at playhead</span><Kbd>Ctrl+V</Kbd></li>
+                  <li className="flex justify-between gap-3"><span>Seek</span><Kbd>click ruler</Kbd></li>
                   <li className="flex justify-between gap-3"><span>Clear loop</span><Kbd>right-click ruler</Kbd></li>
+                  <li className="flex justify-between gap-3"><span>Pan</span><Kbd>middle-drag / Shift+scroll</Kbd></li>
                   <li className="flex justify-between gap-3"><span>Zoom</span><Kbd>Ctrl+scroll</Kbd></li>
-                  <li className="flex justify-between gap-3"><span>Pan</span><Kbd>Shift+scroll</Kbd></li>
-                  <li className="flex justify-between gap-3"><span>Undo</span><Kbd>Ctrl+Z</Kbd></li>
+                  <li className="flex justify-between gap-3"><span>Undo / redo</span><Kbd>Ctrl+Z / Y</Kbd></li>
+                  <li className="flex justify-between gap-3"><span>Exit full screen</span><Kbd>Esc</Kbd></li>
                 </ul>
               </div>
             </Panel>
@@ -2586,6 +3235,9 @@ export function MidiResultPlayer({
       `}</style>
     </div>
   );
+
+  // Portal to body so a transformed or blurred ancestor can't trap the fixed box
+  return fullscreen && typeof document !== "undefined" ? createPortal(tree, document.body) : tree;
 }
 
 function Group({ children, className }: { children: React.ReactNode; className?: string }) {
@@ -2758,18 +3410,34 @@ function Panel({
 
 function NoteOps({
   snapLabel,
+  onDuplicate,
+  onChop,
+  onGlue,
   onQuantize,
   onTranspose,
   onVelocity,
 }: {
   snapLabel: string;
+  onDuplicate: () => void;
+  onChop: () => void;
+  onGlue: () => void;
   onQuantize: () => void;
   onTranspose: (semis: number) => void;
   onVelocity: (mode: "flatten" | "humanize") => void;
 }) {
   return (
     <div className="py-1 text-[11px]">
-      <MenuRow onClick={onQuantize} hint={snapLabel}>
+      <MenuRow onClick={onDuplicate} hint="Ctrl+B">
+        Duplicate selection
+      </MenuRow>
+      <MenuRow onClick={onChop} hint="Alt+U">
+        Chop to grid
+      </MenuRow>
+      <MenuRow onClick={onGlue} hint="Alt+G">
+        Glue notes
+      </MenuRow>
+      <MenuSep />
+      <MenuRow onClick={onQuantize} hint={`Alt+Q · ${snapLabel}`}>
         Quantize to grid
       </MenuRow>
       <MenuSep />
