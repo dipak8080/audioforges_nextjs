@@ -20,7 +20,7 @@ export function CreditAccountPanel({
   /** Close the containing menu/sheet after a navigation. */
   onNavigate?: () => void;
 }) {
-  const { enabled, me, balance, freeRemaining, heldCredits, refresh } = useCredits();
+  const { enabled, loading, me, balance, freeRemaining, heldCredits, refresh } = useCredits();
   const [signingOut, setSigningOut] = useState(false);
 
   const handleSignOut = useCallback(async () => {
@@ -58,6 +58,11 @@ export function CreditAccountPanel({
     });
 
   if (!enabled) return null;
+
+  // Never render the unauthenticated "0 runs left" state before /me has
+  // resolved: SSR and first paint would show a fresh visitor an empty
+  // allowance and an upsell for nothing.
+  if (loading || !me) return null;
 
   if (!me?.authenticated) {
     const spent = freeRemaining <= 0;
