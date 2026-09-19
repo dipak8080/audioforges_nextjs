@@ -18,11 +18,11 @@ import { getRelatedTools } from "@/lib/data/tools";
 import { getFeatureFlags } from "@/lib/api/railway";
 import { ogForTool } from "@/lib/og";
 
-const UPDATED = "2026-09-10";
+const UPDATED = "2026-09-19";
 
 const PAGE_TITLE = "Audio to MIDI Converter – Free MP3 & WAV to MIDI Online";
 const PAGE_DESCRIPTION =
-  "Free audio to MIDI converter with interactive piano roll preview. Convert MP3, WAV & FLAC, hear your MIDI before downloading, solo each stem. No sign-up.";
+  "Free audio to MIDI converter with a built-in piano roll editor. Convert MP3, WAV & FLAC, hear the result, fix wrong notes, then download a standard .mid. No sign-up.";
 
 const OG_IMAGE = ogForTool("audio-to-midi", "Audio to MIDI Converter");
 
@@ -67,8 +67,9 @@ const webAppJsonLd = {
     "Automatic note transcription from MP3, WAV, FLAC, M4A, AAC, OGG, AIFF, Opus, and WebM",
     "Forge Roll: DAW-style piano roll with sampled piano playback and five switchable sounds",
     "Compare the MIDI against your original audio with a synced crossfade",
-    "Edit notes in the browser — move, resize, add, delete — with 60 levels of undo",
-    "Quantize, transpose, and velocity tools; key detection with scale highlighting",
+    "FL Studio style note editing: click to add, drag to move or resize, right-click to delete, box select",
+    "Slice, chop, glue, quantize, transpose, and velocity tools with 60 levels of undo",
+    "Copy, paste, duplicate, and nudge on standard piano roll shortcuts; key detection with scale highlighting",
     "Export the edited MIDI with tempo and track names preserved",
     "A–B loop, metronome, scrubbing, and a 50–150% tempo slider",
     "Per-stem solo and mute on full-mix transcriptions",
@@ -151,6 +152,11 @@ export default async function AudioToMidiPage() {
         "Yes, and that is the point of Forge Roll. Every result opens in a piano roll with sampled playback, plays against your original audio on a crossfade, and lets you fix wrong notes before you export.",
     },
     {
+      question: "How do I edit notes in the piano roll?",
+      answer:
+        "The controls follow FL Studio's piano roll. Click an empty spot to add a note, drag to move it, drag an edge to resize or trim, right-click to delete, Ctrl+drag to box select. Slice, chop, glue, quantize, transpose and velocity tools sit in the toolbar, copy, paste, duplicate and nudge run on the usual shortcuts, and there are 60 levels of undo. The Shortcuts button inside the roll lists everything if FL Studio is not your DAW.",
+    },
+    {
       question: "Can I use the file in Ableton, FL Studio or Logic?",
       answer:
         "Yes. The download is a standard .mid, carrying note, timing, tempo and General MIDI program data, so it drags straight into any DAW without converting anything first.",
@@ -221,14 +227,15 @@ export default async function AudioToMidiPage() {
               Every transcription opens in Forge Roll, a piano roll built into this page. The keyboard lights up as
               notes play, the grid is marked in bars and sixteenths, and the velocity lane shows the dynamics the
               model detected. Out-of-key notes are flagged in red, so a stray wrong note is visible without hunting
-              for it.
+              for it. Editing follows FL Studio&apos;s piano roll, so if you have ever used one, your hands already
+              know this one.
             </p>
           </Prose>
           <PianoRollCard
             points={[
               "Crossfade between the MIDI and your original audio, in sync.",
-              "Drag notes to move or resize, double-click to add, 60 levels of undo.",
-              "Quantize to any grid, transpose, flatten or humanize velocities.",
+              "FL Studio style editing: click to add, drag to move or resize, right-click to delete.",
+              "Slice, chop and glue notes, quantize to any grid, transpose, flatten or humanize velocities.",
               "Key detection tints in-key rows and flags the rest in red.",
               "A–B loop, metronome, and tempo from 50 to 150% with pitch preserved.",
               "Export the corrected MIDI with tempo and track names intact.",
