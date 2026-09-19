@@ -48,14 +48,8 @@ const BADGES = [
 
 export function FeaturedOn() {
   return (
-    <section aria-labelledby="featured-on" className="border-t border-graphite-800 py-10">
-      <p
-        id="featured-on"
-        className="text-center font-mono text-[10px] uppercase tracking-[0.16em] text-text-subtle"
-      >
-        Featured on
-      </p>
-      <ul className="mt-5 flex flex-wrap items-center justify-center gap-x-5 gap-y-4">
+    <section aria-label="Featured on" className="border-t border-graphite-800 py-8">
+      <ul className="flex flex-wrap items-center justify-center gap-x-4 gap-y-3">
         {BADGES.map((b) => (
           <li key={b.name}>
             <a
@@ -63,7 +57,7 @@ export function FeaturedOn() {
               target="_blank"
               rel="noopener"
               title={b.title}
-              className="block rounded-md opacity-70 grayscale-[35%] outline-none transition hover:opacity-100 hover:grayscale-0 focus-visible:opacity-100 focus-visible:grayscale-0 focus-visible:ring-2 focus-visible:ring-amber-400"
+              className="block rounded-md opacity-45 grayscale outline-none transition hover:opacity-100 hover:grayscale-0 focus-visible:opacity-100 focus-visible:grayscale-0 focus-visible:ring-2 focus-visible:ring-amber-400"
             >
               <img
                 src={b.src}
@@ -72,7 +66,7 @@ export function FeaturedOn() {
                 height={b.height}
                 loading="lazy"
                 decoding="async"
-                className="h-8 w-auto"
+                className="h-6 w-auto"
               />
             </a>
           </li>

@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils/cn";
 import { RefreshControl } from "./_components/RefreshControl";
 import { StickyHeader, onScrollToggle } from "./_components/StickyHeader";
 import { SpendBoard, Toggle } from "./_components/SpendCharts";
+import { TikTokSwitch } from "./_components/TikTokSwitch";
 import { buildSpendModel, rangeDates, rangePhrase, usd, type CostRow, type RangeKey } from "./_components/spend";
 
 interface CreditsOverview {
@@ -226,6 +227,8 @@ export default function AdminDashboardPage() {
             />
           </div>
         </section>
+
+        <TikTokSwitch />
       </div>
     </div>
   );

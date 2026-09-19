@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Download, AlertTriangle, ClipboardPaste, Link2, X, RotateCcw, Music2 } from "lucide-react";
+import { Download, AlertTriangle, ClipboardPaste, Link2, X, RotateCcw, Music2, Wrench } from "lucide-react";
 import { Button, buttonStyles } from "@/components/ui/Button";
 import {
   CooldownBar,
@@ -23,7 +23,7 @@ import { SupportBlock } from "@/components/ui/SupportBlock";
 import { cn } from "@/lib/utils/cn";
 import { sanitizeUserInput } from "@/lib/utils/validation";
 import { getRetryAfterFallback } from "@/lib/data/rate-limits";
-import { convertTikTokToMp3, base64ToBlob, isAbortError, ApiError } from "@/lib/api/railway";
+import { convertTikTokToMp3, base64ToBlob, isAbortError, ApiError, RAILWAY_API_BASE } from "@/lib/api/railway";
 
 /**
  * ── THIS PASS ──────────────────────────────────────────────────────────
@@ -121,8 +121,30 @@ function buildFilename(title: string, id: string | null): string {
 /* Component                                                           */
 /* ------------------------------------------------------------------ */
 
+/**
+ * The sitewide pause switch, flipped from /admin when TikTok is broken for
+ * everyone. Read once on mount from a tiny no-store endpoint so the notice
+ * shows BEFORE a paste, not after a failed conversion. Any fetch problem
+ * reads as "not paused": a flaky status check must never hide the tool.
+ */
+function useTikTokMaintenance(): string | null {
+  const [notice, setNotice] = useState<string | null>(null);
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch(`${RAILWAY_API_BASE}/tiktok/status`, { cache: "no-store", signal: controller.signal })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { maintenance?: boolean; message?: string | null } | null) => {
+        if (data?.maintenance && data.message) setNotice(data.message);
+      })
+      .catch(() => {});
+    return () => controller.abort();
+  }, []);
+  return notice;
+}
+
 export function TikTokToMp3Form() {
   const [url, setUrl] = useState("");
+  const maintenance = useTikTokMaintenance();
   const [status, setStatus] = useState<UiState>("idle");
   const [error, setError] = useState<{ message: string; retryable: boolean } | null>(null);
   const [result, setResult] = useState<ConversionResult | null>(null);
@@ -158,7 +180,7 @@ export function TikTokToMp3Form() {
    */
   const isDeadEnd = isFailed && Boolean(error) && !error?.retryable;
   const looksValid = useMemo(() => isLikelyTikTokUrl(url), [url]);
-  const canConvert = looksValid && !isWorking && cooldownSeconds === 0;
+  const canConvert = looksValid && !isWorking && cooldownSeconds === 0 && !maintenance;
   const step: 1 | 2 | 3 = isComplete ? 3 : isWorking ? 2 : 1;
 
   /* --- one object URL alive at a time, revoked on replace/unmount ---
@@ -380,6 +402,22 @@ export function TikTokToMp3Form() {
       complete={isComplete}
       footer={footer}
     >
+      {/* PAUSED SITEWIDE */}
+      {maintenance && !isComplete && (
+        <Section>
+          <div
+            role="status"
+            className="flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/[0.06] px-4 py-3"
+          >
+            <Wrench className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" aria-hidden />
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-text-primary">TikTok to MP3 is paused</p>
+              <p className="mt-0.5 text-[13px] text-text-muted">{maintenance}</p>
+            </div>
+          </div>
+        </Section>
+      )}
+
       {/* SOURCE */}
       {!isComplete && (
         <Section>
@@ -404,7 +442,7 @@ export function TikTokToMp3Form() {
                 onChange={handleUrlChange}
                 onKeyDown={handleKeyDown}
                 placeholder="https://www.tiktok.com/@user/video/..."
-                disabled={isWorking}
+                disabled={isWorking || Boolean(maintenance)}
                 autoComplete="off"
                 spellCheck={false}
                 maxLength={2048}
