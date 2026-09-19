@@ -239,6 +239,7 @@ const HQ_TOOL_KEY: MeteredToolKey = "audio-to-midi-hq-mix";
 
 type MidiHqResultExtra = MidiHqResult & {
   engine?: string;
+  key?: string | null;
   isolated?: boolean;
   notes_dropped_by_cleanup?: number;
   bpm?: number | null;
@@ -583,6 +584,7 @@ function MidiHqResultSummary({ jobId }: { jobId: string }) {
             <span className="ml-2 normal-case tracking-normal text-amber-400/80">
               {engineLabel}
               {result.bpm ? ` · ${Math.round(result.bpm)} BPM set as tempo` : ""}
+              {result.key ? ` · ${result.key}` : ""}
             </span>
           )}
         </span>

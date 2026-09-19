@@ -119,7 +119,7 @@ export default async function PricingPage() {
       name: "High-accuracy MIDI",
       cost: 1,
       detail:
-        "Splits the track into stems, then transcribes each part with the model best at it: bass, piano, guitar, vocals and other on separate tracks, tempo set from the detected BPM. Works on whole songs and single sounds alike. Returns MIDI.",
+        "Splits the track into stems, then transcribes each part with the model best at it: bass, piano, guitar, vocals and other on separate tracks, with the real BPM and key from your audio written in. Works on whole songs and single sounds alike. Returns MIDI.",
     },
     {
       name: "Transcription",

@@ -77,7 +77,7 @@ const TOOL_COPY: Record<string, ToolCopy> = {
       (TOOL_LIMITS["audio-to-midi-hq"]?.maxTotalDurationSeconds ?? 600) / 60
     } minutes`,
     spec: [
-      ["You get", "Separate MIDI tracks for bass, piano, guitar, vocals and other, with the detected BPM set as the tempo"],
+      ["You get", "Separate MIDI tracks for bass, piano, guitar, vocals and other, with the real BPM and key from your audio written in"],
       ["Works on", "Whole songs and single sounds alike: the track is split into stems first, then each part goes to the model best at it"],
     ],
     closing:
@@ -90,7 +90,7 @@ const TOOL_COPY: Record<string, ToolCopy> = {
       (TOOL_LIMITS["audio-to-midi-hq"]?.maxTotalDurationSeconds ?? 600) / 60
     } minutes`,
     spec: [
-      ["You get", "Separate MIDI tracks for bass, piano, guitar, vocals and other, with the detected BPM set as the tempo"],
+      ["You get", "Separate MIDI tracks for bass, piano, guitar, vocals and other, with the real BPM and key from your audio written in"],
       ["Works on", "Whole songs and single sounds alike: the track is split into stems first, then each part goes to the model best at it"],
     ],
     closing:

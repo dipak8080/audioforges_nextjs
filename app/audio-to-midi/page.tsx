@@ -69,7 +69,8 @@ const webAppJsonLd = {
     "Compare the MIDI against your original audio with a synced crossfade",
     "FL Studio style note editing: click to add, drag to move or resize, right-click to delete, box select",
     "Slice, chop, glue, quantize, transpose, and velocity tools with 60 levels of undo",
-    "Copy, paste, duplicate, and nudge on standard piano roll shortcuts; key detection with scale highlighting",
+    "Copy, paste, duplicate, and nudge on standard piano roll shortcuts",
+    "Real BPM and key detected from the original audio and written into the file, free tier included",
     "Export the edited MIDI with tempo and track names preserved",
     "A–B loop, metronome, scrubbing, and a 50–150% tempo slider",
     "Per-stem solo and mute on full-mix transcriptions",
@@ -157,6 +158,26 @@ export default async function AudioToMidiPage() {
         "The controls follow FL Studio's piano roll. Click an empty spot to add a note, drag to move it, drag an edge to resize or trim, right-click to delete, Ctrl+drag to box select. Slice, chop, glue, quantize, transpose and velocity tools sit in the toolbar, copy, paste, duplicate and nudge run on the usual shortcuts, and there are 60 levels of undo. The Shortcuts button inside the roll lists everything if FL Studio is not your DAW.",
     },
     {
+      question: "Does the MIDI have the right tempo and key?",
+      answer:
+        "Yes, both are detected from your original audio, not guessed from the transcribed notes, using the same engines as the Key Finder and BPM tools on this site. The real BPM is written into the .mid so the grid lines up in your DAW, and the detected key drives the in-key highlighting in Forge Roll. This works on the free tier too.",
+      answerNode: (
+        <>
+          Yes, both are detected from your original audio, not guessed from the transcribed notes, using the same
+          engines as the{" "}
+          <Link href="/key-finder" prefetch={false} className="text-amber-400 hover:underline">
+            Key Finder
+          </Link>{" "}
+          and{" "}
+          <Link href="/bpm-tapper" prefetch={false} className="text-amber-400 hover:underline">
+            BPM
+          </Link>{" "}
+          tools on this site. The real BPM is written into the .mid so the grid lines up in your DAW, and the
+          detected key drives the in-key highlighting in Forge Roll. This works on the free tier too.
+        </>
+      ),
+    },
+    {
       question: "Can I use the file in Ableton, FL Studio or Logic?",
       answer:
         "Yes. The download is a standard .mid, carrying note, timing, tempo and General MIDI program data, so it drags straight into any DAW without converting anything first.",
@@ -236,7 +257,7 @@ export default async function AudioToMidiPage() {
               "Crossfade between the MIDI and your original audio, in sync.",
               "FL Studio style editing: click to add, drag to move or resize, right-click to delete.",
               "Slice, chop and glue notes, quantize to any grid, transpose, flatten or humanize velocities.",
-              "Key detection tints in-key rows and flags the rest in red.",
+              "Key and tempo come from your original audio: real BPM written into the file, in-key rows tinted, stray notes flagged red.",
               "A–B loop, metronome, and tempo from 50 to 150% with pitch preserved.",
               "Export the corrected MIDI with tempo and track names intact.",
             ]}
@@ -340,6 +361,13 @@ export default async function AudioToMidiPage() {
                   cells: [
                     { state: "no", text: "One track, everything merged" },
                     { state: "yes", text: "Split into stems first, one named track per instrument, BPM written in as tempo" },
+                  ],
+                },
+                {
+                  label: "Tempo and key",
+                  cells: [
+                    { state: "yes", text: "Real BPM and key from your audio, written into the file" },
+                    { state: "yes", text: "Same, plus BPM set per track across the stems" },
                   ],
                 },
                 {

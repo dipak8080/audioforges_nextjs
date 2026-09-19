@@ -63,6 +63,7 @@ type ParsedMidi = {
   durationTicks: number;
   loPitch: number;
   hiPitch: number;
+  fileKey: DetectedKey | null;
 };
 
 
@@ -260,8 +261,17 @@ function parseMidi(buf: ArrayBuffer): ParsedMidi | null {
     };
   });
 
+  const sig = midi.header.keySignatures?.[0];
+  let fileKey: DetectedKey | null = null;
+  if (sig?.key && (sig.scale === "major" || sig.scale === "minor")) {
+    const ENH: Record<string, string> = { Db: "C#", Eb: "D#", Gb: "F#", Ab: "G#", Bb: "A#" };
+    const tonic = NAMES.indexOf(ENH[sig.key] ?? sig.key);
+    if (tonic >= 0) fileKey = keyFor(tonic, sig.scale);
+  }
+
   return {
     tracks,
+    fileKey,
     ppq: midi.header.ppq || 480,
     baseBpm: midi.header.tempos[0]?.bpm || 120,
     beatsPerBar: midi.header.timeSignatures[0]?.timeSignature?.[0] || 4,
@@ -416,7 +426,7 @@ export function MidiResultPlayer({
           return;
         }
         dataRef.current = parsed;
-        const k = detectKey(parsed);
+        const k = parsed.fileKey ?? detectKey(parsed);
         autoKeyRef.current = k;
         keyRef.current = k;
         setDetectedKey(k);
@@ -1513,7 +1523,7 @@ export function MidiResultPlayer({
       if (!loopRegionRef.current) eng.transport.loopEnd = `${d.durationTicks}i`;
       rebuildParts(eng);
     }
-    autoKeyRef.current = detectKey(d);
+    autoKeyRef.current = d.fileKey ?? detectKey(d);
     if (keyOverride === "auto") {
       keyRef.current = autoKeyRef.current;
       setDetectedKey(keyRef.current);
@@ -1918,7 +1928,7 @@ export function MidiResultPlayer({
   const refreshKey = () => {
     const d = dataRef.current;
     if (!d) return;
-    autoKeyRef.current = detectKey(d);
+    autoKeyRef.current = d.fileKey ?? detectKey(d);
     if (keyOverride === "auto") {
       keyRef.current = autoKeyRef.current;
       setDetectedKey(keyRef.current);
@@ -2895,7 +2905,11 @@ export function MidiResultPlayer({
             </Group>
             <Picker
               ariaLabel="Key and scale"
-              title="Key guessed from the transcribed notes — pick any key to override"
+              title={
+                dataRef.current?.fileKey
+                  ? "Key detected from your original audio, the same engine as the Key Finder. Pick any key to override"
+                  : "Key guessed from the transcribed notes. Pick any key to override"
+              }
               value={keyOverride}
               mono
               options={[
