@@ -305,7 +305,7 @@ export function CreditGateModal({
         <div
           className={cn(
             "min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pt-5 sm:px-6 sm:pt-6",
-            step === "packs" ? "pb-2" : "pb-6",
+            step === "packs" ? "pb-5" : "pb-6",
             "[&::-webkit-scrollbar]:w-1.5",
             "[&::-webkit-scrollbar-track]:bg-transparent",
             "[&::-webkit-scrollbar-thumb]:rounded-full",
@@ -470,7 +470,11 @@ export function PackStepAction({
   onContinue: () => void;
 }) {
   return (
-    <div className="shrink-0 border-t border-graphite-800 bg-graphite-950/40 px-5 py-4 sm:px-6">
+    <div className="relative shrink-0 border-t border-graphite-800 bg-graphite-950/40 px-5 py-4 sm:px-6">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 -top-8 h-8 bg-gradient-to-t from-graphite-900 to-transparent"
+      />
       <Button variant="primary" size="lg" onClick={onContinue} className="w-full">
         Continue: {activePack.credits} credits for ${activePack.price_usd.toFixed(2)}
       </Button>

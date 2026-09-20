@@ -202,6 +202,9 @@ export default async function PricingPage() {
           {anyThreeCredit ? ", most one credit each, a couple a little more" : ", one credit each"}. Everyone
           gets free runs every month before a credit is ever spent.
         </p>
+        <p className="measure mt-3 text-base leading-relaxed text-text-muted">
+          No subscription and no account. Credits never expire, so a quiet month costs nothing.
+        </p>
       </header>
 
       <div className="mt-8">
