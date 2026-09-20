@@ -92,14 +92,6 @@ export const TOOL_VIDEOS: Record<string, ToolVideo> = {
     uploadDate: "2026-09-06",
     heading: "Watch: stems straight from a YouTube link",
   },
-  "youtube-to-wav": {
-    videoId: "J6q9WSnVZlw",
-    title: "YouTube to WAV — Convert YouTube Audio to Lossless WAV Free, No App",
-    description:
-      "Paste a YouTube link and download lossless WAV audio in the browser. Free, no signup, no app, no watermark. Supports watch links, youtu.be and Shorts.",
-    uploadDate: "2026-09-06",
-    heading: "Watch: YouTube link to WAV in under a minute",
-  },
   "audio-to-sheet-music": {
     videoId: "cj97mCNmCyI",
     title: "Audio to Sheet Music Free — Piano, Guitar & Vocals to PDF, MusicXML & MIDI",

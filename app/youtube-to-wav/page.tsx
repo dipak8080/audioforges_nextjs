@@ -11,7 +11,6 @@ import { ProofStrip } from "@/components/tools/ProofStrip";
 import { CompareTable } from "@/components/tools/CompareTable";
 import { PageByline } from "@/components/tools/PageByline";
 import { BitrateChainDiagram } from "@/components/tools/BitrateChainDiagram";
-import { ToolVideo } from "@/components/media/ToolVideo";
 import { SITE_URL } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
 import { getLimits, windowFor, rateLimitLabel, durationLabel } from "@/lib/api/limits";
@@ -397,8 +396,6 @@ export default async function YouTubeToWavPage() {
             </p>
           </Prose>
         </ToolSection>
-
-        <ToolVideo slug="youtube-to-wav" />
 
         <FAQSection faqs={faqs} />
 
