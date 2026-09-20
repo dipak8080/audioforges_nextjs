@@ -176,7 +176,7 @@ export default async function PricingPage() {
     {
       question: "Do I need an account?",
       answer:
-        "No. Credits are tied to your browser. You give an email at checkout only so we can match your Ko-fi payment back to you, Ko-fi's payment notification doesn't tell us who paid, so the email is the link. If you later want your credits on a different device, you can sign in with that same email.",
+        "No. Credits are tied to your browser. You give an email at checkout so we can match the payment back to you and send your receipt. If you later want your credits on a different device, you can sign in with that same email.",
     },
     {
       question: "How do I use credits on another device?",

@@ -199,11 +199,11 @@ export default async function AboutPage() {
               and why, beats an absolute that can be disproved in one click. */}
           <p>
             There are no ads on this site. Servers, GPU time and bandwidth come
-            out of my own pocket, paid for by credit purchases through{" "}
+            out of my own pocket, paid for by credit purchases and{" "}
             <a href="https://ko-fi.com/audioforges" target="_blank" rel="noopener noreferrer">
-              Ko-fi
+              donations
             </a>
-            , which handles the payment. You can use everything without an
+            . You can use everything without an
             account; signing in with your email is optional, and only useful if
             you want credits you bought to follow you to another device.
           </p>
