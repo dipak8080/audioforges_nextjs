@@ -1,14 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Mic2, Music4, Sparkles } from "lucide-react";
+import { Mic2, Music4 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Waveform } from "@/components/ui/Waveform";
 import { StemMixer } from "@/components/converter/StemMixer";
 import { UpgradeToHqCard } from "@/components/credits/UpgradeToHqCard";
 import { CreditReceipt, StudioQualityTag } from "@/components/credits/CreditReceipt";
 import { useCredits } from "@/components/credits/CreditProvider";
-import { DemoQualityStrip } from "@/components/tools/DemoQualityStrip";
 import {
   ErrorPanel,
   SeparationTheater,
@@ -31,9 +30,6 @@ import { triggerDownload, triggerDownloadsStaggered } from "@/lib/utils/download
 import { useSharedLimit } from "@/lib/hooks/useSharedLimit";
 import { trackCredits } from "@/lib/analytics";
 import type { StemType, SubmitBilling } from "@/lib/types/converter";
-
-const DEMO_STANDARD = "/audio/demo-vocals-standard.mp3";
-const DEMO_STUDIO = "/audio/demo-vocals-studio.mp3";
 
 const POLL_STANDARD = { intervalMs: 8_000, maxMs: 12 * 60 * 1000, tau: 40 };
 const POLL_HQ = { intervalMs: 20_000, maxMs: 32 * 60 * 1000, tau: 90 };
@@ -339,14 +335,7 @@ export function YouTubeVocalFunnel({ url, title, onWide }: Props) {
           <CreditReceipt billing={billing} />
         ) : (
           paywallOn && (
-            <div className="space-y-3">
-              <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-amber-400">
-                <Sparkles className="h-3.5 w-3.5" aria-hidden />
-                Hear the Studio Quality difference
-              </div>
-              <DemoQualityStrip standardSrc={DEMO_STANDARD} studioSrc={DEMO_STUDIO} />
-              <UpgradeToHqCard family="separate" jobId={jobId} onUpgraded={handleUpgraded} />
-            </div>
+            <UpgradeToHqCard family="separate" jobId={jobId} onUpgraded={handleUpgraded} />
           )
         )}
       </div>

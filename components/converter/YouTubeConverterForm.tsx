@@ -980,17 +980,7 @@ export function YouTubeConverterForm({ defaultFormat = "wav" }: YouTubeConverter
               onWide={setFunnelWide}
             />
 
-            <p className="text-center text-xs text-text-subtle">
-              Free to use, built by one person.{" "}
-              <a
-                href="https://ko-fi.com/audioforges"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="underline decoration-graphite-700 underline-offset-2 transition-colors hover:text-text-muted"
-              >
-                Support the site
-              </a>
-            </p>
+            <SupportBlock />
           </div>
         </Section>
       )}
