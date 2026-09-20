@@ -23,6 +23,9 @@ interface Props {
   /** Fires when PayPal cannot render at all (SDK blocked or config off),
    *  so the parent can fall back to the Ko-fi flow. */
   onUnavailable?: () => void;
+  /** Fires when PayPal opens its inline card form, so the parent can clear
+   *  its own chrome and give the form the full width. */
+  onExpandedChange?: (expanded: boolean) => void;
   className?: string;
 }
 
@@ -32,7 +35,13 @@ interface Props {
  * which is what puts the credits in this browser rather than only behind a
  * magic link.
  */
-export function PayPalCheckout({ pack, onComplete, onUnavailable, className }: Props) {
+export function PayPalCheckout({
+  pack,
+  onComplete,
+  onUnavailable,
+  onExpandedChange,
+  className,
+}: Props) {
   const { refresh, applyBalance } = useCredits();
 
   const [phase, setPhase] = useState<Phase>("loading");
@@ -46,10 +55,16 @@ export function PayPalCheckout({ pack, onComplete, onUnavailable, className }: P
   const emailValidRef = useRef(false);
   const renderedRef = useRef(false);
   const onUnavailableRef = useRef(onUnavailable);
+  const onExpandedChangeRef = useRef(onExpandedChange);
 
   useEffect(() => {
     onUnavailableRef.current = onUnavailable;
-  }, [onUnavailable]);
+    onExpandedChangeRef.current = onExpandedChange;
+  }, [onUnavailable, onExpandedChange]);
+
+  useEffect(() => {
+    onExpandedChangeRef.current?.(expanded);
+  }, [expanded]);
 
   // Read after mount rather than in an initialiser: this component is
   // server-rendered, and a localStorage value at first paint would not
@@ -262,7 +277,7 @@ export function PayPalCheckout({ pack, onComplete, onUnavailable, className }: P
 
   return (
     <div className={cn("space-y-3", className)}>
-      <label className="block">
+      <label className={cn("block", expanded && "hidden")}>
         <span className="mb-1.5 block text-sm text-neutral-300">Email for your receipt</span>
         <input
           type="email"
@@ -285,10 +300,8 @@ export function PayPalCheckout({ pack, onComplete, onUnavailable, className }: P
       <div className={cn("relative", phase === "paying" && "pointer-events-none opacity-50")}>
         <div
           ref={containerRef}
-          className={cn(
-            phase === "loading" && "min-h-[101px]",
-            expanded && "rounded-xl bg-white px-3 py-2"
-          )}
+          className={cn(phase === "loading" && "min-h-[101px]")}
+          style={{ colorScheme: "dark" }}
         />
         {phase === "loading" && (
           <div className="absolute inset-x-0 top-0 space-y-[13px]" aria-hidden>
