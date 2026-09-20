@@ -42,12 +42,37 @@ async function paypalFetch<T>(path: string, init: RequestInit, timeoutMs: number
   return (await res.json()) as T;
 }
 
-export async function getPayPalConfig(): Promise<PayPalConfig | null> {
-  try {
-    return await paypalFetch<PayPalConfig>("/credits/paypal/config", { method: "GET" }, 10_000);
-  } catch {
-    return null;
-  }
+let configPromise: Promise<PayPalConfig | null> | null = null;
+
+/** Fetched once per page. A failed fetch clears the cache so a retry is possible. */
+export function getPayPalConfig(): Promise<PayPalConfig | null> {
+  if (configPromise) return configPromise;
+
+  configPromise = paypalFetch<PayPalConfig>("/credits/paypal/config", { method: "GET" }, 10_000)
+    .catch(() => {
+      configPromise = null;
+      return null;
+    });
+
+  return configPromise;
+}
+
+/**
+ * Warms config + SDK in the background so the buttons are instant by the
+ * time the buyer reaches checkout. Safe to call repeatedly.
+ */
+export function preloadPayPal(): void {
+  if (typeof window === "undefined") return;
+  void (async () => {
+    try {
+      const config = await getPayPalConfig();
+      if (config?.enabled && config.client_id) {
+        await loadPayPalSdk(config.client_id, config.currency);
+      }
+    } catch {
+      /* checkout will fall back on its own */
+    }
+  })();
 }
 
 export async function createPayPalOrder(pack: PackKey, email: string): Promise<string> {

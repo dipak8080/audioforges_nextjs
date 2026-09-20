@@ -151,7 +151,6 @@ export function PayPalCheckout({ pack, onComplete, onUnavailable, className }: P
       }
 
       renderedRef.current = true;
-      setPhase("ready");
 
       Buttons({
         style: { layout: "vertical", shape: "rect", label: "pay", height: 44 },
@@ -175,7 +174,14 @@ export function PayPalCheckout({ pack, onComplete, onUnavailable, className }: P
         onCancel: () => setError(null),
         onError: () =>
           setError("PayPal could not complete that. Nothing was charged. Please try again."),
-      }).render(containerRef.current);
+      })
+        .render(containerRef.current)
+        .then(() => {
+          if (!cancelled) setPhase("ready");
+        })
+        .catch(() => {
+          if (!cancelled) unavailable();
+        });
     })();
 
     return () => {
@@ -248,16 +254,15 @@ export function PayPalCheckout({ pack, onComplete, onUnavailable, className }: P
         </p>
       )}
 
-      <div className={cn(phase === "paying" && "pointer-events-none opacity-50")}>
-        <div ref={containerRef} />
+      <div className={cn("relative", phase === "paying" && "pointer-events-none opacity-50")}>
+        <div ref={containerRef} className={cn(phase === "loading" && "min-h-[101px]")} />
+        {phase === "loading" && (
+          <div className="absolute inset-x-0 top-0 space-y-[13px]" aria-hidden>
+            <div className="h-11 animate-pulse rounded bg-neutral-800" />
+            <div className="h-11 animate-pulse rounded bg-neutral-800/70" />
+          </div>
+        )}
       </div>
-
-      {phase === "loading" && (
-        <p className="flex items-center gap-2 text-sm text-neutral-500">
-          <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-          Loading checkout
-        </p>
-      )}
 
       {phase === "paying" && (
         <p className="flex items-center gap-2 text-sm text-neutral-300" role="status">

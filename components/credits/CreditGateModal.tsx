@@ -8,6 +8,7 @@ import { CheckoutStep } from "./CheckoutStep";
 import { PackRail, defaultPackKey } from "./PackRail";
 import { PackCoverage } from "./PackCoverage";
 import { requestMagicLink } from "@/lib/api/credits";
+import { preloadPayPal } from "@/lib/api/paypal";
 import { trackCredits } from "@/lib/analytics";
 import { ApiError } from "@/lib/api/railway";
 import type { CreditPack, InsufficientCreditsPayload } from "@/lib/types/credits";
@@ -178,6 +179,12 @@ export function CreditGateModal({
       setSelectedKey(null);
     }
   }
+
+  // Warm PayPal while the buyer is still reading the packs, so the
+  // checkout step renders its buttons instantly.
+  useEffect(() => {
+    if (open) preloadPayPal();
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
