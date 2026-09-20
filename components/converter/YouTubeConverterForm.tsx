@@ -32,6 +32,7 @@ import {
 } from "@/lib/api/railway";
 import { FORMAT_OPTIONS, type OutputFormat, type ProcessingState } from "@/lib/types/converter";
 import { SupportBlock } from "@/components/ui/SupportBlock";
+import { YouTubeVocalFunnel } from "@/components/converter/YouTubeVocalFunnel";
 import { markOpusUnsupported, pickSourceCodec, sourceToWav, type SourceCodec } from "@/lib/audio/browser-wav";
 
 /**
@@ -286,6 +287,8 @@ export function YouTubeConverterForm({ defaultFormat = "wav" }: YouTubeConverter
   const [refreshing, setRefreshing] = useState(false);
   /** Overrides the timed stage label while the browser fetches or builds the file. */
   const [localPhase, setLocalPhase] = useState<string | null>(null);
+  /** True while the funnel shows Forge Mixer, so the card widens for it. */
+  const [funnelWide, setFunnelWide] = useState(false);
 
   const isProcessing = status === "processing";
   const isComplete = status === "complete" && result !== null;
@@ -440,6 +443,7 @@ export function YouTubeConverterForm({ defaultFormat = "wav" }: YouTubeConverter
     setPreviewDuration(null);
     setHasDownloaded(false);
     setRefreshing(false);
+    setFunnelWide(false);
     setCooldownSeconds(0);
     setElapsedSeconds(0);
     inputRef.current?.focus();
@@ -758,6 +762,7 @@ export function YouTubeConverterForm({ defaultFormat = "wav" }: YouTubeConverter
       busy={isProcessing}
       failed={isFailed}
       complete={isComplete}
+      breakoutOnComplete={funnelWide}
       footer={footer}
     >
       {/* ---------- Link ----------
@@ -968,7 +973,24 @@ export function YouTubeConverterForm({ defaultFormat = "wav" }: YouTubeConverter
               </div>
             </div>
 
-            <SupportBlock />
+            <YouTubeVocalFunnel
+              key={result.href}
+              url={url.trim()}
+              title={preview?.title ?? null}
+              onWide={setFunnelWide}
+            />
+
+            <p className="text-center text-xs text-text-subtle">
+              Free to use, built by one person.{" "}
+              <a
+                href="https://ko-fi.com/audioforges"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline decoration-graphite-700 underline-offset-2 transition-colors hover:text-text-muted"
+              >
+                Support the site
+              </a>
+            </p>
           </div>
         </Section>
       )}

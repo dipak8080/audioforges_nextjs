@@ -59,7 +59,17 @@ export type CreditsEvent =
   /** A metered route rate-limited a free-tier caller. */
   | "credits_rate_limited"
   /** Magic link requested. */
-  | "credits_magic_link_requested";
+  | "credits_magic_link_requested"
+  /** YouTube-to-audio result screen rendered the "Remove vocals" offer. */
+  | "funnel_vocal_offered"
+  /** The offer was clicked and a free Standard run was submitted. */
+  | "funnel_vocal_clicked"
+  /** The funnel's Standard run finished and Forge Mixer rendered. */
+  | "funnel_vocal_completed"
+  /** The funnel's Standard run failed (rate limit, queue full, job error). */
+  | "funnel_vocal_failed"
+  /** Studio Quality upgrade accepted from the funnel result (charged or free run). */
+  | "funnel_vocal_upgraded";
 
 export function trackCredits(event: CreditsEvent, params: Record<string, unknown> = {}): void {
   if (typeof window === "undefined") return;
