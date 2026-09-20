@@ -64,7 +64,7 @@ const faqJsonLd = {
       name: "Do LALAL.AI minutes expire?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "On LALAL.AI's subscription plans the minutes reset each billing period, so unused minutes do not roll over. AudioForges credits have no expiry date.",
+        text: "On LALAL.AI's plans the Fast-mode minutes reset each month and do not roll over. AudioForges credits have no expiry date.",
       },
     },
     {
@@ -129,16 +129,22 @@ export default function LalalAlternativeGuidePage() {
 
             <dt>The free tier is a preview</dt>
             <dd>
-              Ten minutes total. That is two or three songs, and the better
-              processing modes cost two to three times the minutes of a plain
-              run, so a single four-minute track can eat most of the allowance.
+              Ten minutes in the slow queue, and the full result cannot be
+              downloaded on the free plan at all. You can listen to a snippet,
+              then you pay.
             </dd>
 
-            <dt>No pay-as-you-go</dt>
+            <dt>Pay-as-you-go starts at $50</dt>
             <dd>
-              As of September 2026 there is no way to buy one song&apos;s worth.
-              The entry plan is around $10 a month, and you need to sign in to
-              buy anything.
+              One-time top-ups exist, but the smallest is 750 minutes for $50.
+              Below that the only option is a plan at $9.99 a month, and you
+              need an account to buy anything.
+            </dd>
+
+            <dt>Minutes multiply</dt>
+            <dd>
+              Each separation type is charged separately, so a five-minute song
+              split into vocals, drums and piano costs fifteen minutes, not five.
             </dd>
           </dl>
           <p>
