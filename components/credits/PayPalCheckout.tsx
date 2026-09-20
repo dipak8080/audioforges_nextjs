@@ -189,6 +189,32 @@ export function PayPalCheckout({ pack, onComplete, onUnavailable, className }: P
     };
   }, [pack.key, handleApproved]);
 
+  // PayPal sometimes injects its card form inline instead of opening a
+  // popup. It grows the container well past the button height, and inside
+  // a scrolling modal that leaves the buyer looking at the top of a form
+  // they cannot see the rest of.
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el || phase !== "ready" || typeof ResizeObserver === "undefined") return;
+
+    let base = el.getBoundingClientRect().height;
+    let scrolled = false;
+
+    const ro = new ResizeObserver(() => {
+      const h = el.getBoundingClientRect().height;
+      if (!scrolled && h > base + 120) {
+        scrolled = true;
+        el.scrollIntoView({ block: "start", behavior: "smooth" });
+      } else if (h <= base + 40) {
+        scrolled = false;
+        base = h;
+      }
+    });
+
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [phase]);
+
   if (phase === "done") {
     return (
       <div

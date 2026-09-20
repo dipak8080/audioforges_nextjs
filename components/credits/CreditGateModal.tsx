@@ -287,7 +287,8 @@ export function CreditGateModal({
         tabIndex={-1}
         onKeyDown={handleKeyDown}
         className={cn(
-          "relative flex max-h-[92dvh] w-full max-w-md flex-col overflow-hidden outline-none",
+          "relative flex max-h-[92dvh] w-full flex-col overflow-hidden outline-none",
+          step === "email" ? "max-w-lg" : "max-w-md",
           "rounded-t-2xl border border-graphite-800 bg-graphite-900 shadow-2xl shadow-graphite-950/70 sm:rounded-2xl",
           "pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:pb-0"
         )}
