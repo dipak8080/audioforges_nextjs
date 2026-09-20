@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Check, Loader2 } from "lucide-react";
+import { Check, Loader2, Mail } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
+import { ApiError } from "@/lib/api/railway";
 import {
   capturePayPalOrder,
   createPayPalOrder,
@@ -14,11 +15,14 @@ import type { CreditPack } from "@/lib/types/credits";
 
 const EMAIL_STORAGE_KEY = "af_claim_email";
 
-type Phase = "loading" | "ready" | "paying" | "done" | "unavailable";
+type Phase = "loading" | "ready" | "paying" | "pending" | "done" | "unavailable";
 
 interface Props {
   pack: CreditPack;
   onComplete?: (balance: number) => void;
+  /** Fires when PayPal cannot render at all (SDK blocked or config off),
+   *  so the parent can fall back to the Ko-fi flow. */
+  onUnavailable?: () => void;
   className?: string;
 }
 
@@ -28,7 +32,7 @@ interface Props {
  * which is what puts the credits in this browser rather than only behind a
  * magic link.
  */
-export function PayPalCheckout({ pack, onComplete, className }: Props) {
+export function PayPalCheckout({ pack, onComplete, onUnavailable, className }: Props) {
   const { refresh, applyBalance } = useCredits();
 
   const [phase, setPhase] = useState<Phase>("loading");
@@ -40,6 +44,11 @@ export function PayPalCheckout({ pack, onComplete, className }: Props) {
   const emailRef = useRef("");
   const emailValidRef = useRef(false);
   const renderedRef = useRef(false);
+  const onUnavailableRef = useRef(onUnavailable);
+
+  useEffect(() => {
+    onUnavailableRef.current = onUnavailable;
+  }, [onUnavailable]);
 
   // Read after mount rather than in an initialiser: this component is
   // server-rendered, and a localStorage value at first paint would not
@@ -75,12 +84,32 @@ export function PayPalCheckout({ pack, onComplete, className }: Props) {
         onComplete?.(result.balance);
         void refresh();
       } catch (err) {
-        setPhase("ready");
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Your payment went through but the credits have not landed yet. They will arrive shortly."
-        );
+        // The buyer has already approved the payment in the PayPal popup.
+        // Unless the backend SAID nothing was charged, do not put the pay
+        // buttons back - that is how one purchase becomes two. The webhook
+        // is the backstop and grants the same capture id exactly once.
+        const api = err instanceof ApiError ? err : null;
+
+        if (api?.kind === "not_completed") {
+          setPhase("ready");
+          setError("The payment was not completed. Nothing was charged.");
+          return;
+        }
+        if (api?.kind === "capture_failed") {
+          setPhase("ready");
+          setError(
+            "PayPal could not confirm that payment. If you were charged, your credits will arrive automatically within a few minutes."
+          );
+          return;
+        }
+        if (api && api.status === 400) {
+          setPhase("ready");
+          setError(api.message);
+          return;
+        }
+
+        setPhase("pending");
+        setError(null);
       }
     },
     [applyBalance, onComplete, refresh]
@@ -89,19 +118,24 @@ export function PayPalCheckout({ pack, onComplete, className }: Props) {
   useEffect(() => {
     let cancelled = false;
 
+    const unavailable = () => {
+      setPhase("unavailable");
+      onUnavailableRef.current?.();
+    };
+
     (async () => {
       const config = await getPayPalConfig();
       if (cancelled) return;
 
       if (!config || !config.enabled || !config.client_id) {
-        setPhase("unavailable");
+        unavailable();
         return;
       }
 
       try {
         await loadPayPalSdk(config.client_id, config.currency);
       } catch {
-        if (!cancelled) setPhase("unavailable");
+        if (!cancelled) unavailable();
         return;
       }
 
@@ -112,7 +146,7 @@ export function PayPalCheckout({ pack, onComplete, className }: Props) {
         | ((opts: Record<string, unknown>) => { render: (el: HTMLElement) => Promise<void> })
         | undefined;
       if (!Buttons) {
-        setPhase("unavailable");
+        unavailable();
         return;
       }
 
@@ -161,6 +195,24 @@ export function PayPalCheckout({ pack, onComplete, className }: Props) {
         </p>
         <p className="mt-1 text-sm text-neutral-400">
           A receipt is on its way to {email.trim()}.
+        </p>
+      </div>
+    );
+  }
+
+  if (phase === "pending") {
+    return (
+      <div
+        className={cn("rounded-xl border border-amber-500/30 bg-amber-500/5 p-4", className)}
+        role="status"
+      >
+        <p className="flex items-center gap-2 text-sm font-medium text-amber-300">
+          <Mail className="h-4 w-4" aria-hidden />
+          Payment received, crediting is taking a moment
+        </p>
+        <p className="mt-1 text-sm leading-relaxed text-neutral-400">
+          Your credits and receipt will land at {email.trim()} automatically. Do not pay again. If
+          nothing arrives within 10 minutes, email contact@audioforges.com and we will sort it out.
         </p>
       </div>
     );

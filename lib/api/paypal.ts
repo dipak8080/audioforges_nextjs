@@ -26,15 +26,17 @@ async function paypalFetch<T>(path: string, init: RequestInit, timeoutMs: number
 
   if (!res.ok) {
     let message = "Checkout is unavailable right now. Please try again.";
+    let kind: string | undefined;
     try {
       const body = await res.json();
+      if (typeof body?.detail?.error === "string") kind = body.detail.error;
       if (body?.detail?.message) message = String(body.detail.message);
-      else if (body?.detail?.error === "paypal_not_configured") message = "Card payments are not set up yet.";
-      else if (body?.detail?.error === "unknown_pack") message = "That credit pack no longer exists.";
+      else if (kind === "paypal_not_configured") message = "Card payments are not set up yet.";
+      else if (kind === "unknown_pack") message = "That credit pack no longer exists.";
     } catch {
       /* keep the default */
     }
-    throw new ApiError(message, res.status);
+    throw new ApiError(message, res.status, { kind });
   }
 
   return (await res.json()) as T;
@@ -96,6 +98,9 @@ export function loadPayPalSdk(clientId: string, currency: string): Promise<void>
     script.async = true;
     script.onload = () => resolve();
     script.onerror = () => {
+      // Remove the dead tag so a later attempt injects a fresh one
+      // instead of resolving against a script that never loaded.
+      script.remove();
       sdkPromise = null;
       reject(new Error("Could not load PayPal."));
     };

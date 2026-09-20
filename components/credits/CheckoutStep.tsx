@@ -18,9 +18,10 @@ interface Props {
 
 /**
  * Decides which checkout the buyer gets. PayPal keeps them on the page;
- * Ko-fi is the fallback when PayPal is not configured or its SDK cannot
- * load, so a broken card path degrades to the flow that already worked
- * rather than to nothing.
+ * Ko-fi is the fallback when PayPal is not configured OR its SDK cannot
+ * load (ad blockers do block it), so a broken card path degrades to the
+ * flow that already worked rather than to nothing. The SDK failure is
+ * reported back by PayPalCheckout via onUnavailable.
  */
 export function CheckoutStep({ pack, onBack, onPurchased }: Props) {
   const [provider, setProvider] = useState<Provider>("unknown");
@@ -65,7 +66,11 @@ export function CheckoutStep({ pack, onBack, onPurchased }: Props) {
         Pay here and your credits appear straight away. No account, no password.
       </p>
 
-      <PayPalCheckout pack={pack} onComplete={() => onPurchased?.()} />
+      <PayPalCheckout
+        pack={pack}
+        onComplete={() => onPurchased?.()}
+        onUnavailable={() => setProvider("kofi")}
+      />
 
       <Button variant="ghost" size="sm" onClick={onBack} className="mt-4">
         <ArrowLeft className="mr-1.5 h-4 w-4" aria-hidden />
