@@ -23,9 +23,6 @@ interface Props {
   /** Fires when PayPal cannot render at all (SDK blocked or config off),
    *  so the parent can fall back to the Ko-fi flow. */
   onUnavailable?: () => void;
-  /** Fires when PayPal opens its inline card form, so the parent can clear
-   *  its own chrome and give the form the full width. */
-  onExpandedChange?: (expanded: boolean) => void;
   className?: string;
 }
 
@@ -35,36 +32,23 @@ interface Props {
  * which is what puts the credits in this browser rather than only behind a
  * magic link.
  */
-export function PayPalCheckout({
-  pack,
-  onComplete,
-  onUnavailable,
-  onExpandedChange,
-  className,
-}: Props) {
+export function PayPalCheckout({ pack, onComplete, onUnavailable, className }: Props) {
   const { refresh, applyBalance } = useCredits();
 
   const [phase, setPhase] = useState<Phase>("loading");
   const [email, setEmail] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [granted, setGranted] = useState(0);
-  const [expanded, setExpanded] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const emailRef = useRef("");
   const emailValidRef = useRef(false);
   const renderedRef = useRef(false);
   const onUnavailableRef = useRef(onUnavailable);
-  const onExpandedChangeRef = useRef(onExpandedChange);
 
   useEffect(() => {
     onUnavailableRef.current = onUnavailable;
-    onExpandedChangeRef.current = onExpandedChange;
-  }, [onUnavailable, onExpandedChange]);
-
-  useEffect(() => {
-    onExpandedChangeRef.current?.(expanded);
-  }, [expanded]);
+  }, [onUnavailable]);
 
   // Read after mount rather than in an initialiser: this component is
   // server-rendered, and a localStorage value at first paint would not
@@ -205,33 +189,6 @@ export function PayPalCheckout({
     };
   }, [pack.key, handleApproved]);
 
-  // PayPal sometimes injects its card form inline instead of opening a
-  // popup. It grows the container well past the button height, renders on a
-  // transparent background, and draws its labels and legal copy in colours
-  // meant for a light surface.
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el || phase !== "ready" || typeof ResizeObserver === "undefined") return;
-
-    let base = el.getBoundingClientRect().height;
-
-    const ro = new ResizeObserver(() => {
-      const h = el.getBoundingClientRect().height;
-      if (h > base + 120) {
-        setExpanded((was) => {
-          if (!was) el.scrollIntoView({ block: "start", behavior: "smooth" });
-          return true;
-        });
-      } else if (h <= base + 40) {
-        setExpanded(false);
-        base = h;
-      }
-    });
-
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [phase]);
-
   if (phase === "done") {
     return (
       <div
@@ -277,7 +234,7 @@ export function PayPalCheckout({
 
   return (
     <div className={cn("space-y-3", className)}>
-      <label className={cn("block", expanded && "hidden")}>
+      <label className="block">
         <span className="mb-1.5 block text-sm text-neutral-300">Email for your receipt</span>
         <input
           type="email"
@@ -298,11 +255,7 @@ export function PayPalCheckout({
       )}
 
       <div className={cn("relative", phase === "paying" && "pointer-events-none opacity-50")}>
-        <div
-          ref={containerRef}
-          className={cn(phase === "loading" && "min-h-[101px]")}
-          style={{ colorScheme: "dark" }}
-        />
+        <div ref={containerRef} className={cn(phase === "loading" && "min-h-[101px]")} />
         {phase === "loading" && (
           <div className="absolute inset-x-0 top-0 space-y-[13px]" aria-hidden>
             <div className="h-11 animate-pulse rounded bg-neutral-800" />

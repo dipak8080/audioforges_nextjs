@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { cn } from "@/lib/utils/cn";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { EmailCaptureStep } from "./EmailCaptureStep";
@@ -26,7 +25,6 @@ interface Props {
  */
 export function CheckoutStep({ pack, onBack, onPurchased }: Props) {
   const [provider, setProvider] = useState<Provider>("unknown");
-  const [cardOpen, setCardOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -64,7 +62,7 @@ export function CheckoutStep({ pack, onBack, onPurchased }: Props) {
       <h2 id="credit-gate-title" className="mb-1 text-lg font-semibold text-text-primary">
         {pack.credits} credits for ${pack.price_usd.toFixed(2)}
       </h2>
-      <p className={cn("mb-5 text-sm leading-relaxed text-text-muted", cardOpen && "hidden")}>
+      <p className="mb-5 text-sm leading-relaxed text-text-muted">
         Pay here and your credits appear straight away. No account, no password.
       </p>
 
@@ -72,15 +70,9 @@ export function CheckoutStep({ pack, onBack, onPurchased }: Props) {
         pack={pack}
         onComplete={() => onPurchased?.()}
         onUnavailable={() => setProvider("kofi")}
-        onExpandedChange={setCardOpen}
       />
 
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={onBack}
-        className={cn("mt-4", cardOpen && "hidden")}
-      >
+      <Button variant="ghost" size="sm" onClick={onBack} className="mt-4">
         <ArrowLeft className="mr-1.5 h-4 w-4" aria-hidden />
         Back to packs
       </Button>
