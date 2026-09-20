@@ -39,6 +39,7 @@ export function PayPalCheckout({ pack, onComplete, onUnavailable, className }: P
   const [email, setEmail] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [granted, setGranted] = useState(0);
+  const [expanded, setExpanded] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const emailRef = useRef("");
@@ -190,23 +191,24 @@ export function PayPalCheckout({ pack, onComplete, onUnavailable, className }: P
   }, [pack.key, handleApproved]);
 
   // PayPal sometimes injects its card form inline instead of opening a
-  // popup. It grows the container well past the button height, and inside
-  // a scrolling modal that leaves the buyer looking at the top of a form
-  // they cannot see the rest of.
+  // popup. It grows the container well past the button height, renders on a
+  // transparent background, and draws its labels and legal copy in colours
+  // meant for a light surface.
   useEffect(() => {
     const el = containerRef.current;
     if (!el || phase !== "ready" || typeof ResizeObserver === "undefined") return;
 
     let base = el.getBoundingClientRect().height;
-    let scrolled = false;
 
     const ro = new ResizeObserver(() => {
       const h = el.getBoundingClientRect().height;
-      if (!scrolled && h > base + 120) {
-        scrolled = true;
-        el.scrollIntoView({ block: "start", behavior: "smooth" });
+      if (h > base + 120) {
+        setExpanded((was) => {
+          if (!was) el.scrollIntoView({ block: "start", behavior: "smooth" });
+          return true;
+        });
       } else if (h <= base + 40) {
-        scrolled = false;
+        setExpanded(false);
         base = h;
       }
     });
@@ -281,7 +283,13 @@ export function PayPalCheckout({ pack, onComplete, onUnavailable, className }: P
       )}
 
       <div className={cn("relative", phase === "paying" && "pointer-events-none opacity-50")}>
-        <div ref={containerRef} className={cn(phase === "loading" && "min-h-[101px]")} />
+        <div
+          ref={containerRef}
+          className={cn(
+            phase === "loading" && "min-h-[101px]",
+            expanded && "rounded-xl bg-white px-3 py-2"
+          )}
+        />
         {phase === "loading" && (
           <div className="absolute inset-x-0 top-0 space-y-[13px]" aria-hidden>
             <div className="h-11 animate-pulse rounded bg-neutral-800" />
