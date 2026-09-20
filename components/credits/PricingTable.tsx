@@ -193,8 +193,8 @@ export function PricingTable() {
       </div>
 
       <p className="mt-4 text-center text-xs leading-relaxed text-text-subtle">
-        Next you enter an email, then pay on Ko-fi. The email is how the payment is matched back to
-        this browser. No account to create, no password.
+        Next you enter an email, then pay by card or PayPal. The email is how the payment is matched
+        back to this browser. No account to create, no password.
       </p>
 
       <div className="mt-3 text-center">

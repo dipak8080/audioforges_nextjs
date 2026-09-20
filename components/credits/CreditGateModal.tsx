@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { X, Check, ArrowLeft, Mail } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { Button, buttonStyles } from "@/components/ui/Button";
-import { EmailCaptureStep } from "./EmailCaptureStep";
+import { CheckoutStep } from "./CheckoutStep";
 import { PackRail, defaultPackKey } from "./PackRail";
 import { PackCoverage } from "./PackCoverage";
 import { requestMagicLink } from "@/lib/api/credits";
@@ -327,16 +327,7 @@ export function CreditGateModal({
           )}
 
           {step === "email" && chosen && (
-            <>
-              <h2 id="credit-gate-title" className="mb-1 text-lg font-semibold text-text-primary">
-                One detail before Ko-fi
-              </h2>
-              <p className="mb-5 text-sm leading-relaxed text-text-muted">
-                Ko-fi doesn&apos;t tell us who paid, so we use your email to match the payment to
-                this browser. No account, no password.
-              </p>
-              <EmailCaptureStep pack={chosen} onBack={() => setStep("packs")} onPurchased={onClose} />
-            </>
+            <CheckoutStep pack={chosen} onBack={() => setStep("packs")} onPurchased={onClose} />
           )}
 
           {step === "signin" && <SignInStep onBack={() => setStep("packs")} />}
@@ -484,7 +475,7 @@ export function PackStepAction({
         Continue: {activePack.credits} credits for ${activePack.price_usd.toFixed(2)}
       </Button>
       <p className="mt-2 text-center text-xs text-text-subtle">
-        Pay on Ko-fi in a new tab. Your track stays open here.
+        Pay on the next screen. Your track stays open here.
       </p>
     </div>
   );
