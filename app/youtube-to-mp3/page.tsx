@@ -11,7 +11,6 @@ import { ProofStrip } from "@/components/tools/ProofStrip";
 import { CompareTable } from "@/components/tools/CompareTable";
 import { PageByline } from "@/components/tools/PageByline";
 import { BitrateChainDiagram } from "@/components/tools/BitrateChainDiagram";
-import { ToolVideo } from "@/components/media/ToolVideo";
 import { SITE_URL } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
 import { getRateLimitLabel } from "@/lib/data/rate-limits";
@@ -425,8 +424,6 @@ export default function YouTubeToMp3Page() {
             can answer it for your own situation.
           </p>
         </ToolSection>
-
-        <ToolVideo slug="youtube-to-mp3" />
 
         <FAQSection faqs={faqs} />
 
