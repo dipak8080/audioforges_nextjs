@@ -909,10 +909,10 @@ export function StemMixer({
 
       {/* footer */}
       <div className="flex flex-col gap-3 pt-5 sm:flex-row sm:items-center sm:justify-between">
-        <span className="hidden font-mono text-[10px] uppercase tracking-[0.14em] text-text-subtle sm:block">
+        <span className="hidden min-w-0 font-mono text-[10px] uppercase tracking-[0.14em] text-text-subtle xl:block">
           Space play · arrows seek · double click a slider to reset · mixed in your browser
         </span>
-        <div className="flex flex-col gap-2 sm:flex-row">
+        <div className="flex shrink-0 flex-col gap-2 whitespace-nowrap sm:ml-auto sm:flex-row sm:items-center">
           {mp3 && (
             <div
               role="radiogroup"
