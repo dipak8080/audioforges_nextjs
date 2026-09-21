@@ -6,11 +6,10 @@ import {
   ChevronDown,
   Music4,
   RotateCcw,
-  Layers,
 } from "lucide-react";
 import { JobToolForm, type ProcessingStage } from "@/components/converter/JobToolForm";
-import { ForgeTeaser } from "@/components/tools/JobFormKit";
-import { OptionCards, type CardOption } from "@/components/converter/ToolControls";
+import type { StageTier } from "@/components/tools/StudioStage";
+import { StageRollPreview } from "@/components/tools/StageRollPreview";
 import { getRateLimitLabel } from "@/lib/data/rate-limits";
 import { cn } from "@/lib/utils/cn";
 import { useCredits } from "@/components/credits/CreditProvider";
@@ -655,29 +654,18 @@ function MidiHqResultSummary({ jobId }: { jobId: string }) {
 
 type Tier = "free" | "hq";
 
-const TIERS: { id: Tier; label: string; cost: string; blurb: string }[] = [
-  {
-    id: "free",
-    label: "Standard",
-    cost: "always free",
-    blurb:
-      "Every detected note in one track. Fine for a simple melody or bassline you'll tidy up yourself.",
-  },
-  {
-    id: "hq",
-    label: "High accuracy",
-    cost: "",
-    blurb:
-      "Splits the track into stems, then transcribes each part with the model best at it. Works on anything: a whole song, a synth loop, solo piano. One track per instrument.",
-  },
-];
-
 export function AudioToMidiForm({ hqAvailable = false }: { hqAvailable?: boolean }) {
   const [tier, setTier] = useState<Tier>("free");
   const isHq = hqAvailable && tier === "hq";
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [settings, setSettings] = useState<Settings>(DEFAULTS);
-  const { rateLimitFor } = useCredits();
+  const {
+    rateLimitFor,
+    enabled: creditsEnabled,
+    loading: creditsLoading,
+    isToolMetered,
+    me,
+  } = useCredits();
 
   const liveLimit = isHq ? rateLimitFor("audio-to-midi-hq") : null;
   const rateLimitLabel = liveLimit
@@ -713,20 +701,37 @@ export function AudioToMidiForm({ hqAvailable = false }: { hqAvailable?: boolean
     ? `You have reached the limit (${rateLimitLabel}). Try again shortly.`
     : "You are going a little fast. Try again shortly.";
 
-  const tierOptions: CardOption<Tier>[] = TIERS.map((option) => ({
-    value: option.id,
-    title: option.label,
-    titleBefore:
-      option.id === "hq" ? (
-        <Layers className="h-3.5 w-3.5" aria-hidden />
-      ) : (
-        <Music4 className="h-3.5 w-3.5" aria-hidden />
-      ),
-    titleAfter: option.id === "hq" ? <FreeTierBadge tool={HQ_TOOL_KEY} /> : undefined,
-    meta: option.cost || undefined,
-    detail: option.blurb,
-    premium: option.id === "hq",
-  }));
+  const hqMetered = creditsEnabled && !creditsLoading && isToolMetered(HQ_TOOL_KEY);
+  const hqCost = me?.paywall?.tools?.[HQ_TOOL_KEY]?.credits ?? 1;
+  const hqLive = rateLimitFor("audio-to-midi-hq");
+
+  const stageTiers: StageTier<string>[] = [
+    {
+      value: "free",
+      name: "Standard",
+      model: "basic-pitch, one track",
+      time: "seconds to 2 min",
+      footnote: getRateLimitLabel("audio-to-midi") ?? undefined,
+    },
+  ];
+  if (hqAvailable) {
+    stageTiers.push({
+      value: "hq",
+      name: "High accuracy",
+      short: "High",
+      premium: true,
+      model: "stems, then a model per instrument",
+      time: "1 to a few min",
+      footnote: hqMetered
+        ? `${hqCost} ${hqCost === 1 ? "credit" : "credits"} per track after your free runs`
+        : creditsLoading
+          ? undefined
+          : hqLive
+            ? formatRateLimit(hqLive.max_requests, hqLive.window_seconds)
+            : (getRateLimitLabel("audio-to-midi-hq") ?? undefined),
+      badge: <FreeTierBadge tool={HQ_TOOL_KEY} />,
+    });
+  }
 
   const stages = isHq ? MIX_STAGES : FREE_STAGES;
   const progressTau = isHq ? 80 : 20;
@@ -800,37 +805,27 @@ export function AudioToMidiForm({ hqAvailable = false }: { hqAvailable?: boolean
         }
         return fields;
       }}
-      renderControls={(_file, disabled) => (
+      stage={{
+        tiers: stageTiers,
+        tier: isHq ? "hq" : "free",
+        onTierChange: (value) => setTier(value === "hq" ? "hq" : "free"),
+        dropTitle: "Drop a recording",
+        formats: "MP3 · WAV · FLAC · M4A · AIFF · OGG",
+        downloadLabel: "Download MIDI",
+        aside: (
+          <StageRollPreview
+            caption="Audio in, editable notes out"
+            sub="Opens in Forge Roll · fix notes, then download .mid"
+          />
+        ),
+        tray: (disabled) => (
         <div className="space-y-3">
-          <ForgeTeaser player="roll" />
-          {hqAvailable && (
-            <fieldset disabled={disabled} className="space-y-2">
-              <legend className="mb-2 text-sm font-medium text-text-primary">Quality</legend>
-              <OptionCards
-                label="Transcription quality"
-                options={tierOptions}
-                value={tier}
-                onChange={setTier}
-                columns={2}
-                disabled={disabled}
-              />
-            </fieldset>
-          )}
-
-          {!isHq && (
-            <fieldset disabled={disabled} className="space-y-2">
-              <legend className="mb-2 flex w-full items-baseline justify-between gap-3">
-                <span className="text-sm font-medium text-text-primary">
-                  What are you transcribing?
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
+            {!isHq && (
+              <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+                <span className="mr-1 font-mono text-[10px] uppercase tracking-[0.14em] text-text-subtle">
+                  Source
                 </span>
-                {!activePresetId && (
-                  <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] uppercase tracking-wide text-amber-400">
-                    Custom
-                  </span>
-                )}
-              </legend>
-
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                 {PRESETS.map((preset) => {
                   const active = activePresetId === preset.id;
                   return (
@@ -839,55 +834,48 @@ export function AudioToMidiForm({ hqAvailable = false }: { hqAvailable?: boolean
                       type="button"
                       onClick={() => setSettings(preset.values)}
                       aria-pressed={active}
+                      disabled={disabled}
+                      title={preset.blurb}
                       className={cn(
-                        "rounded-lg border p-2.5 text-left transition-colors",
-                        "focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50",
-                        "disabled:cursor-not-allowed disabled:opacity-40",
+                        "rounded-full border px-3 py-1.5 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-amber-400/70 disabled:cursor-not-allowed disabled:opacity-40",
                         active
-                          ? "border-amber-500 bg-amber-500/10"
-                          : "border-graphite-800 bg-graphite-850 hover:border-graphite-700",
+                          ? "border-graphite-600 bg-graphite-700 text-text-primary"
+                          : "border-graphite-800 text-text-muted hover:border-graphite-600 hover:text-text-primary",
                       )}
                     >
-                      <span
-                        className={cn(
-                          "block text-sm font-medium",
-                          active ? "text-amber-400" : "text-text-primary",
-                        )}
-                      >
-                        {preset.label}
-                      </span>
-                      <span className="mt-0.5 block text-[11px] leading-snug text-text-subtle">
-                        {preset.blurb}
-                      </span>
+                      {preset.label}
                     </button>
                   );
                 })}
+                {!activePresetId && (
+                  <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-subtle">
+                    Custom
+                  </span>
+                )}
               </div>
-            </fieldset>
-          )}
-
-          <button
-            type="button"
-            onClick={() => setAdvancedOpen((v) => !v)}
-            disabled={disabled}
-            aria-expanded={advancedOpen}
-            className="flex w-full items-center justify-between rounded-lg border border-graphite-700 bg-graphite-850 px-3.5 py-2.5 text-sm text-text-primary transition-colors hover:border-graphite-700/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            <span className="flex items-center gap-2">
-              <span className="font-medium">Fine tuning</span>
+            )}
+            {isHq && (
+              <p className="min-w-0 flex-1 text-xs leading-relaxed text-text-muted">
+                Splits the track into stems, then transcribes each part. One MIDI track per
+                instrument.
+              </p>
+            )}
+            <button
+              type="button"
+              onClick={() => setAdvancedOpen((v) => !v)}
+              disabled={disabled}
+              aria-expanded={advancedOpen}
+              className="flex shrink-0 items-center gap-2 rounded-full border border-graphite-700 px-3 py-1.5 text-xs font-medium text-text-muted outline-none transition-colors hover:border-graphite-500 hover:text-text-primary focus-visible:ring-2 focus-visible:ring-amber-400/70 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Fine tuning
               {changedCount > 0 && (
-                <span className="rounded-full bg-amber-500/15 px-1.5 py-0.5 font-mono text-[10px] tabular-nums text-amber-400">
-                  {changedCount}
-                </span>
+                <span className="font-mono tabular-nums text-text-primary">{changedCount}</span>
               )}
-            </span>
-            <ChevronDown
-              className={cn(
-                "h-4 w-4 text-text-subtle transition-transform",
-                advancedOpen && "rotate-180",
-              )}
-            />
-          </button>
+              <ChevronDown
+                className={cn("h-3.5 w-3.5 transition-transform", advancedOpen && "rotate-180")}
+              />
+            </button>
+          </div>
 
           <div
             className={cn(
@@ -897,7 +885,7 @@ export function AudioToMidiForm({ hqAvailable = false }: { hqAvailable?: boolean
           >
             <div className="overflow-hidden">
               <fieldset
-                className="space-y-5 rounded-lg border border-graphite-800 bg-graphite-850/60 p-4"
+                className="space-y-5 rounded-lg border border-graphite-800 bg-graphite-950/50 p-4"
                 disabled={disabled}
               >
                 {/* Detection: free tier only. The HQ engines emit note events,
@@ -1047,7 +1035,8 @@ export function AudioToMidiForm({ hqAvailable = false }: { hqAvailable?: boolean
             </div>
           </div>
         </div>
-      )}
+        ),
+      }}
     />
   );
 }

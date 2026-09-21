@@ -20,7 +20,8 @@ const PRODUCT_GROUPS: { label: string; links: MenuLink[] }[] = [
     links: [
       { href: "/vocal-remover", name: "Vocal Remover", desc: "Vocals and instrumental, WAV" },
       { href: "/stems", name: "Stem Splitter", desc: "Vocals, drums, bass, other" },
-      { href: "/youtube-vocal-remover", name: "YouTube Vocal Remover", desc: "Paste a link, get stems" },
+      { href: "/youtube-vocal-remover", name: "YouTube Vocal Remover", desc: "Paste a link, get two stems" },
+      { href: "/youtube-stem-splitter", name: "YouTube Stem Splitter", desc: "Paste a link, get four stems" },
     ],
   },
   {

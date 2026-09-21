@@ -262,6 +262,11 @@ export interface StudioStageProps<T extends string> {
   onAction: () => void;
   footerExtra?: ReactNode;
   belowAction?: ReactNode;
+  /** Right pane of the idle stage when the tier has no audio demo. */
+  aside?: ReactNode;
+  dropTitle?: string;
+  /** Settings strip between the stage body and the footer. Hidden once done. */
+  tray?: ReactNode;
   /** Replaces the waveform once the job is done. */
   result?: ReactNode;
   doneTitle?: string;
@@ -298,6 +303,9 @@ export function StudioStage<T extends string>({
   onAction,
   footerExtra,
   belowAction,
+  aside,
+  dropTitle = "Drop a song",
+  tray,
   result,
   doneTitle,
   doneMeta,
@@ -358,7 +366,7 @@ export function StudioStage<T extends string>({
   const selected = tiers.find((t) => t.value === tier) ?? tiers[0];
   const running = tiers.find((t) => t.value === jobTier) ?? selected;
   const shown = busy || done ? running : selected;
-  const hasDemo = Boolean(selected.demo);
+  const hasDemo = Boolean(selected.demo) || Boolean(aside);
 
   function openPicker() {
     if (canPick) inputRef.current?.click();
@@ -537,7 +545,7 @@ export function StudioStage<T extends string>({
                     )}
                   >
                     <span className="display text-5xl text-text-primary sm:text-6xl">
-                      {dragging ? "Let go" : "Drop a song"}
+                      {dragging ? "Let go" : dropTitle}
                     </span>
                     <span className="mt-4 text-sm text-text-muted">
                       Anywhere on this panel, or{" "}
@@ -553,18 +561,28 @@ export function StudioStage<T extends string>({
 
                 {hasDemo && (
                   <div className="border-t border-graphite-800 bg-graphite-950/30 lg:border-l lg:border-t-0">
-                    <DemoDeck
-                      tier={selected}
-                      caption={demoCaption}
-                      nudge={selected.premium ? undefined : demoNudge}
-                      credit={demoCredit}
-                      paused={busy}
-                    />
+                    {selected.demo ? (
+                      <DemoDeck
+                        tier={selected}
+                        caption={demoCaption}
+                        nudge={selected.premium ? undefined : demoNudge}
+                        credit={demoCredit}
+                        paused={busy}
+                      />
+                    ) : (
+                      aside
+                    )}
                   </div>
                 )}
               </div>
             )}
           </>
+        )}
+
+        {!done && !busy && tray && (
+          <div className="border-t border-graphite-800 px-4 py-4 sm:px-7">
+            {tray}
+          </div>
         )}
 
         {!done && (

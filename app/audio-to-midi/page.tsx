@@ -203,6 +203,7 @@ export default async function AudioToMidiPage() {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(webAppJsonLd) }} />
 
       <ToolPageShell
+        wide
         breadcrumb={<Breadcrumb items={[{ name: "Tools", href: "/tools" }, { name: "Audio to MIDI" }]} />}
         meta={["No account", "Hear it before you download", "Standard .mid"]}
         title="Free Audio to MIDI Converter"

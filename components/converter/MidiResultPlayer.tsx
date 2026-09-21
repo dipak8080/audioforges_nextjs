@@ -2826,7 +2826,7 @@ export function MidiResultPlayer({
   const tree = (
     <div
       className={cn(
-        "relative rounded-xl border border-white/10 bg-white/[0.02] p-2",
+        "relative",
         fullscreen && "fixed inset-0 z-[1000] overflow-y-auto rounded-none border-0 bg-[#0c0c0e] p-3"
       )}
       onClickCapture={(e) => {

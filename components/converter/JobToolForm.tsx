@@ -47,6 +47,7 @@ import {
   type UiState,
   resolveRateLimitMessage,
 } from "@/components/tools/JobFormKit";
+import { StudioStage, type StageTier } from "@/components/tools/StudioStage";
 
 export type { ProcessingStage };
 
@@ -345,6 +346,18 @@ interface JobToolFormProps {
    * is the only AudioForges pitch that belongs there.
    */
   hideSupport?: boolean;
+  /** Renders the StudioStage skin instead of the form shell. Same engine. */
+  stage?: {
+    tiers: StageTier<string>[];
+    tier: string;
+    onTierChange: (tier: string) => void;
+    dropTitle?: string;
+    formats?: string;
+    aside?: ReactNode;
+    tray?: (disabled: boolean) => ReactNode;
+    downloadLabel?: string;
+    resetLabel?: string;
+  };
 }
 
 /* ------------------------------------------------------------------ */
@@ -380,6 +393,7 @@ export function JobToolForm({
   meteredToolKey,
   renderResult,
   hideSupport = false,
+  stage,
 }: JobToolFormProps) {
   const [file, setFile] = useState<File | null>(null);
   const [status, setStatus] = useState<UiState>("idle");
@@ -759,6 +773,104 @@ export function JobToolForm({
   // Choosing a file is still step one. `isBusy || file` lit "Run" before
   // anything ran, and disagreed with the two sibling shells.
   const step: 1 | 2 | 3 = status === "complete" ? 3 : isBusy ? 2 : 1;
+
+  if (stage) {
+    const upsell =
+      showRateLimitUpsell && cooldownSeconds > 0 && me ? (
+        <div className="rounded-xl border border-amber-500/25 bg-amber-500/5 px-4 py-3.5">
+          <p className="text-sm leading-relaxed text-text-muted">
+            You have used your free runs this hour. Credits lift the limit right away, or wait{" "}
+            {formatCooldown(cooldownSeconds)}.
+          </p>
+          <button
+            type="button"
+            onClick={() => setUpsellPayload(buildUpsellPayload(me, meteredToolKey ?? endpoint))}
+            className={buttonStyles({ variant: "accent", size: "sm", className: "mt-3" })}
+          >
+            Buy credits to continue
+          </button>
+        </div>
+      ) : null;
+
+    return (
+      <>
+        <StudioStage
+          label={toolLabel || submitLabel}
+          file={file}
+          onFileSelect={handleFileSelect}
+          onClear={handleReset}
+          accept={fileAccept}
+          formats={stage.formats}
+          dropTitle={stage.dropTitle}
+          aside={stage.aside}
+          tray={stage.tray?.(isBusy)}
+          tiers={stage.tiers}
+          tier={stage.tier}
+          onTierChange={stage.onTierChange}
+          jobTier={stage.tier}
+          busy={isBusy}
+          failed={isFailed}
+          progress={progress}
+          stageLabel={stageLabel}
+          elapsed={formatElapsed(elapsedSeconds)}
+          onCancel={handleCancel}
+          actionLabel={
+            cooldownSeconds > 0
+              ? `Try again in ${formatCooldown(cooldownSeconds)}`
+              : isFailed
+                ? "Try again"
+                : submitLabel
+          }
+          actionIcon={<Icon />}
+          actionDisabled={!canSubmit}
+          onAction={handleSubmit}
+          belowAction={<CooldownBar seconds={cooldownSeconds} ceiling={cooldownCeiling} />}
+          result={
+            status === "complete" && jobId ? (
+              <>
+                {!hidePreview && <AudioPlayer src={getJobPreviewUrl(endpoint, jobId)} />}
+                {renderResult?.(jobId, file)}
+                <CreditReceipt billing={billing} />
+              </>
+            ) : undefined
+          }
+          doneTitle={resultTitle || file?.name || "Your file is ready"}
+          doneMeta={formatElapsed(elapsedSeconds)}
+          doneFooter={
+            status === "complete" && jobId ? (
+              <a
+                href={getJobDownloadUrl(endpoint, jobId)}
+                download={downloadName || true}
+                className={buttonStyles({ variant: "primary", size: "md" })}
+              >
+                <Download />
+                {stage.downloadLabel ?? "Download"}
+              </a>
+            ) : undefined
+          }
+          resetLabel={stage.resetLabel ?? "Process another file"}
+          note={
+            validationError || (isFailed && error) || (status === "complete" && !chargedRun) ? (
+              <div className="space-y-4">
+                {validationError && <ValidationNote message={validationError} />}
+                {isFailed && error && <ErrorPanel error={error} />}
+                {isFailed && upsell}
+                {status === "complete" && !chargedRun && !hideSupport && (
+                  <div className="flex justify-end px-1">
+                    <SupportBlock variant="line" />
+                  </div>
+                )}
+              </div>
+            ) : undefined
+          }
+        />
+        {gate}
+        {upsellPayload && (
+          <CreditGateModal payload={upsellPayload} open onClose={() => setUpsellPayload(null)} />
+        )}
+      </>
+    );
+  }
 
   return (
     <>
