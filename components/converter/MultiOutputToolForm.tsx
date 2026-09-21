@@ -909,7 +909,7 @@ export function MultiOutputToolForm({
             unusually long" with "Enjoying AudioForges? Buy us a coffee" is the
             worst timing on the site.
           */}
-          {status === "error" && <SupportBlock mood="sheepish" />}
+          {!stage && status === "error" && <SupportBlock mood="sheepish" />}
       </>
     ) : null;
 

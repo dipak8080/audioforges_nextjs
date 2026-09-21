@@ -223,10 +223,20 @@ function DemoDeck<T extends string>({
   );
 }
 
+/** A source that is not a dropped file, such as a pasted link. */
+export interface StageCustomSource {
+  ready: boolean;
+  idle: ReactNode;
+  busy: (fraction: number) => ReactNode;
+  idleActionLabel: string;
+  onIdleAction: () => void;
+}
+
 export interface StudioStageProps<T extends string> {
   label: string;
-  file: File | null;
-  onFileSelect: (file: File) => void;
+  file?: File | null;
+  onFileSelect?: (file: File) => void;
+  custom?: StageCustomSource;
   onClear: () => void;
   accept?: string;
   formats?: string;
@@ -263,8 +273,9 @@ export interface StudioStageProps<T extends string> {
 
 export function StudioStage<T extends string>({
   label,
-  file,
+  file = null,
   onFileSelect,
+  custom,
   onClear,
   accept = "audio/*",
   formats = "MP3 · WAV · FLAC · M4A",
@@ -340,7 +351,8 @@ export function StudioStage<T extends string>({
   }, [file]);
 
   const done = Boolean(result);
-  const canPick = !busy && !done;
+  const canPick = !busy && !done && !custom;
+  const hasSource = custom ? custom.ready : Boolean(file);
   const fraction = busy ? Math.min(1, Math.max(0, progress / 100)) : 0;
   const span = duration > 0 ? duration : 1;
   const selected = tiers.find((t) => t.value === tier) ?? tiers[0];
@@ -357,7 +369,7 @@ export function StudioStage<T extends string>({
     setDragging(false);
     if (!canPick) return;
     const dropped = event.dataTransfer.files?.[0];
-    if (dropped) onFileSelect(dropped);
+    if (dropped) onFileSelect?.(dropped);
   }
 
   const led = done
@@ -401,7 +413,9 @@ export function StudioStage<T extends string>({
                 <span className="shrink-0 font-mono text-[11px] font-medium uppercase tracking-[0.18em] text-teal-400">
                   Done
                 </span>
-                <span className="truncate text-sm text-text-primary">{doneTitle ?? label}</span>
+                <span className="truncate text-sm text-text-primary">
+                  {doneTitle ?? label}
+                </span>
               </>
             ) : (
               <span className="truncate font-mono text-[11px] font-medium uppercase tracking-[0.18em] text-text-muted">
@@ -469,12 +483,14 @@ export function StudioStage<T extends string>({
               tabIndex={-1}
               onChange={(e) => {
                 const picked = e.target.files?.[0];
-                if (picked) onFileSelect(picked);
+                if (picked) onFileSelect?.(picked);
                 e.target.value = "";
               }}
             />
 
-            {file ? (
+            {custom && busy ? (
+              custom.busy(fraction)
+            ) : file ? (
               <div className="relative h-44 sm:h-52 lg:h-56">
                 <div className="absolute inset-0 px-2 sm:px-4">
                   <div
@@ -503,31 +519,37 @@ export function StudioStage<T extends string>({
             ) : (
               <div
                 className={cn(
-                  "grid lg:h-56",
+                  custom ? "grid lg:min-h-56" : "grid lg:h-56",
                   hasDemo && "lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]",
                 )}
               >
-                <button
-                  type="button"
-                  onClick={openPicker}
-                  className={cn(
-                    "group flex flex-col justify-center px-5 py-8 text-left outline-none transition-colors hover:bg-white/[0.015] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-amber-400/60 sm:px-7 lg:py-0",
-                    !hasDemo && "items-center text-center",
-                  )}
-                >
-                  <span className="display text-5xl text-text-primary sm:text-6xl">
-                    {dragging ? "Let go" : "Drop a song"}
-                  </span>
-                  <span className="mt-4 text-sm text-text-muted">
-                    Anywhere on this panel, or{" "}
-                    <span className="text-text-primary underline underline-offset-4">
-                      choose a file
+                {custom ? (
+                  <div className="flex flex-col justify-center px-5 py-8 sm:px-7 lg:py-6">
+                    {custom.idle}
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={openPicker}
+                    className={cn(
+                      "group flex flex-col justify-center px-5 py-8 text-left outline-none transition-colors hover:bg-white/[0.015] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-amber-400/60 sm:px-7 lg:py-0",
+                      !hasDemo && "items-center text-center",
+                    )}
+                  >
+                    <span className="display text-5xl text-text-primary sm:text-6xl">
+                      {dragging ? "Let go" : "Drop a song"}
                     </span>
-                  </span>
-                  <span className="mt-5 font-mono text-[11px] uppercase tracking-[0.16em] text-text-subtle">
-                    {formats}
-                  </span>
-                </button>
+                    <span className="mt-4 text-sm text-text-muted">
+                      Anywhere on this panel, or{" "}
+                      <span className="text-text-primary underline underline-offset-4">
+                        choose a file
+                      </span>
+                    </span>
+                    <span className="mt-5 font-mono text-[11px] uppercase tracking-[0.16em] text-text-subtle">
+                      {formats}
+                    </span>
+                  </button>
+                )}
 
                 {hasDemo && (
                   <div className="border-t border-graphite-800 bg-graphite-950/30 lg:border-l lg:border-t-0">
@@ -631,24 +653,30 @@ export function StudioStage<T extends string>({
             </div>
 
             <div className="flex shrink-0 items-center gap-2">
-              {file && footerExtra}
+              {hasSource && footerExtra}
               <Button
                 variant={busy ? "secondary" : "primary"}
                 size="lg"
                 className="flex-1 sm:min-w-44 sm:flex-none"
-                onClick={file || failed ? onAction : openPicker}
+                onClick={
+                  hasSource || failed
+                    ? onAction
+                    : custom
+                      ? custom.onIdleAction
+                      : openPicker
+                }
                 disabled={
-                  busy ? false : file || failed ? actionDisabled : false
+                  busy ? false : hasSource || failed ? actionDisabled : false
                 }
                 loading={busy}
                 loadingLabel="Separating"
               >
-                {!busy && (file || failed) && actionIcon}
+                {!busy && (hasSource || failed) && actionIcon}
                 {busy
                   ? "Working"
-                  : file || failed
+                  : hasSource || failed
                     ? actionLabel
-                    : "Choose a file"}
+                    : (custom?.idleActionLabel ?? "Choose a file")}
               </Button>
             </div>
           </div>

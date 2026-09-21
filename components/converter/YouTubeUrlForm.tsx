@@ -48,6 +48,7 @@ import {
   SeparationTheater,
   resolveRateLimitMessage,
 } from "@/components/tools/JobFormKit";
+import { StudioStage, type StageTier } from "@/components/tools/StudioStage";
 
 export type { ProcessingStage };
 
@@ -101,6 +102,16 @@ function Thumbnail({ id, className }: { id: string; className?: string }) {
   );
 }
 
+// Decorative: the audio is not downloaded yet, so there is no real waveform to draw.
+const BUSY_BARS = Array.from({ length: 260 }, (_, i) => {
+  const t = i / 260;
+  const env = 0.45 + 0.55 * Math.pow(Math.sin(t * Math.PI), 0.5);
+  const a = Math.abs(Math.sin(i * 1.93 + 0.7));
+  const b = Math.abs(Math.cos(i * 0.71 + 2.1));
+  const c = Math.abs(Math.sin(i * 0.13));
+  return Math.max(0.05, env * (0.12 + (a * 0.45 + b * 0.35) * (0.5 + c * 0.5)));
+});
+
 interface YouTubeUrlFormProps {
   endpoint: string;
   /** Expand the card to DAW width on the result step (separation tools). */
@@ -136,6 +147,16 @@ interface YouTubeUrlFormProps {
   maxSubmitRetries?: number;
   meteredToolKey?: MeteredToolKey | null;
   upgradeFamily?: UpgradeFamily;
+  /** Renders the StudioStage skin instead of the form shell. Same engine. */
+  stage?: {
+    tiers: StageTier<string>[];
+    tier: string;
+    onTierChange: (tier: string) => void;
+    demoCaption?: string;
+    demoNudge?: string;
+    demoCredit?: string;
+    footerExtra?: (busy: boolean) => ReactNode;
+  };
 }
 
 export function YouTubeUrlForm({
@@ -163,6 +184,7 @@ export function YouTubeUrlForm({
   maxSubmitRetries = 1,
   meteredToolKey = null,
   upgradeFamily,
+  stage,
 }: YouTubeUrlFormProps) {
   const [url, setUrl] = useState("");
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -534,6 +556,213 @@ export function YouTubeUrlForm({
 
   const progress = easedProgress(elapsedSeconds, progressTau);
   const step: 1 | 2 | 3 = status === "complete" ? 3 : isBusy ? 2 : 1;
+
+  if (stage) {
+    const premium = stage.tiers.find((t) => t.premium);
+    const jobTier =
+      status === "complete" && premium
+        ? completedMetered
+          ? premium.value
+          : (stage.tiers.find((t) => !t.premium)?.value ?? stage.tier)
+        : stage.tier;
+
+    const idle = (
+      <div>
+        <label htmlFor={inputId} className="display block text-5xl text-text-primary sm:text-6xl">
+          Paste a link
+        </label>
+
+        <div className="relative mt-5 flex items-center">
+          <Link2
+            className={cn(
+              "pointer-events-none absolute left-4 h-4 w-4 transition-colors",
+              videoId ? "text-text-primary" : "text-text-subtle"
+            )}
+            aria-hidden
+          />
+          <input
+            ref={inputRef}
+            id={inputId}
+            type="url"
+            value={url}
+            onChange={handleUrlChange}
+            onKeyDown={handleKeyDown}
+            placeholder="https://youtube.com/watch?v=..."
+            disabled={isBusy}
+            autoComplete="off"
+            spellCheck={false}
+            maxLength={500}
+            aria-invalid={Boolean(validationError)}
+            aria-describedby={validationError ? errorId : hintId}
+            className={cn(
+              "w-full rounded-lg border bg-graphite-950/60 py-3.5 pl-11 pr-24 text-sm text-text-primary transition-colors placeholder:text-text-subtle focus:outline-none focus:ring-2 disabled:opacity-50",
+              validationError
+                ? "border-red-500/60 focus:ring-red-500/25"
+                : "border-graphite-700 focus:border-text-primary/50 focus:ring-white/10"
+            )}
+          />
+          <div className="absolute right-2.5 flex items-center gap-1">
+            {url && !isBusy && (
+              <button
+                type="button"
+                onClick={handleReset}
+                aria-label="Clear link"
+                className="rounded-md p-1.5 text-text-subtle outline-none transition-colors hover:bg-graphite-800 hover:text-text-primary focus-visible:ring-2 focus-visible:ring-amber-400/70"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+            {!url && (
+              <button
+                type="button"
+                onClick={handlePaste}
+                className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-text-muted outline-none transition-colors hover:bg-graphite-800 hover:text-text-primary focus-visible:ring-2 focus-visible:ring-amber-400/70"
+              >
+                <ClipboardPaste className="h-3.5 w-3.5" aria-hidden />
+                Paste
+              </button>
+            )}
+          </div>
+        </div>
+
+        {validationError ? (
+          <p id={errorId} role="alert" className="mt-3 flex items-center gap-1.5 text-sm text-red-400">
+            <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden />
+            {validationError}
+          </p>
+        ) : preview ? (
+          <div id={hintId} className="jt-in mt-4 flex items-center gap-3">
+            <Thumbnail id={preview.id} className="h-10 w-16" />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium text-text-primary">
+                {preview.title || "Track ready"}
+              </p>
+              <p className="truncate text-xs text-text-muted">{preview.author || preview.id}</p>
+            </div>
+            <CheckCircle2 className="h-4 w-4 shrink-0 text-teal-400" aria-hidden />
+          </div>
+        ) : (
+          <p
+            id={hintId}
+            className="mt-4 font-mono text-[11px] uppercase tracking-[0.16em] text-text-subtle"
+          >
+            Watch links · youtu.be · Shorts
+          </p>
+        )}
+      </div>
+    );
+
+    const busyView = (fraction: number) => (
+      <div className="flex h-44 flex-col px-5 py-4 sm:h-52 sm:px-7 lg:h-56">
+        <div className="flex items-center gap-3">
+          {preview && <Thumbnail id={preview.id} className="h-10 w-16 shrink-0" />}
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-medium text-text-primary">
+              {preview?.title || "Your track"}
+            </p>
+            {preview?.author && (
+              <p className="truncate text-xs text-text-muted">{preview.author}</p>
+            )}
+          </div>
+        </div>
+        <div className="relative mt-3 min-h-0 flex-1" aria-hidden>
+          <div className="absolute inset-0 flex items-center gap-px">
+            {BUSY_BARS.map((h, i) => (
+              <span
+                key={i}
+                className={cn(
+                  "flex-1 transition-colors duration-700",
+                  i % 2 === 1 && "max-sm:hidden",
+                  i / BUSY_BARS.length < fraction ? "bg-amber-500" : "bg-graphite-600"
+                )}
+                style={{ height: `${h * 100}%` }}
+              />
+            ))}
+          </div>
+          <span
+            className="absolute inset-y-0 w-px bg-amber-400 shadow-[0_0_12px_rgba(232,162,61,0.8)] transition-[left] duration-1000 ease-out motion-reduce:transition-none"
+            style={{ left: `${fraction * 100}%` }}
+          />
+        </div>
+      </div>
+    );
+
+    return (
+      <>
+        <StudioStage
+          label={toolLabel || submitLabel}
+          custom={{
+            ready: Boolean(videoId),
+            idle,
+            busy: busyView,
+            idleActionLabel: "Paste a link",
+            onIdleAction: handlePaste,
+          }}
+          onClear={handleReset}
+          tiers={stage.tiers}
+          tier={stage.tier}
+          onTierChange={stage.onTierChange}
+          jobTier={jobTier}
+          demoCaption={stage.demoCaption}
+          demoNudge={stage.demoNudge}
+          demoCredit={stage.demoCredit}
+          busy={isBusy}
+          failed={isFailed}
+          progress={progress}
+          stageLabel={stageLabel}
+          elapsed={formatElapsed(elapsedSeconds)}
+          onCancel={handleCancel}
+          actionLabel={
+            cooldownSeconds > 0
+              ? `Try again in ${formatCooldown(cooldownSeconds)}`
+              : isFailed
+                ? "Try again"
+                : submitLabel
+          }
+          actionIcon={<Link2 />}
+          actionDisabled={!canSubmit}
+          onAction={handleSubmit}
+          footerExtra={stage.footerExtra?.(isBusy)}
+          belowAction={<CooldownBar seconds={cooldownSeconds} ceiling={cooldownCeiling} />}
+          result={
+            status === "complete" && jobId ? (
+              <>
+                {renderComplete(jobId, resultTitle)}
+                {upgradeFamily && !completedMetered && (
+                  <UpgradeToHqCard family={upgradeFamily} jobId={jobId} onUpgraded={handleUpgraded} />
+                )}
+                <CreditReceipt billing={billing} />
+              </>
+            ) : undefined
+          }
+          doneTitle={resultTitle || preview?.title || "Separation complete"}
+          doneMeta={formatElapsed(elapsedSeconds)}
+          doneFooter={chargedRun ? undefined : <SupportBlock variant="line" />}
+          resetLabel="Process another link"
+          note={
+            isFailed && error ? (
+              <div className="space-y-4">
+                <ErrorPanel error={error}>
+                  {error.offerCredits && (
+                    <Link
+                      href="/pricing"
+                      onClick={() =>
+                        trackCredits("credits_rate_limited", { tool: meteredToolKey ?? undefined })
+                      }
+                      className="mt-2 inline-block text-xs font-medium text-amber-400"
+                    >
+                      See credit packs →
+                    </Link>
+                  )}
+                </ErrorPanel>
+              </div>
+            ) : undefined
+          }
+        />
+        {gate}
+      </>
+    );
+  }
 
   return (
     <>

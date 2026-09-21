@@ -728,8 +728,6 @@ export function VocalRemoverForm({
                 </Link>
               )}
             </ErrorPanel>
-            {/* No tip jar on a job that ran and broke, only on a rejected submit. */}
-            {status === "error" && <SupportBlock mood="sheepish" />}
           </>
         )}
       </div>

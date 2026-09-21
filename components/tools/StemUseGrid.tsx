@@ -28,12 +28,10 @@ export function StemUseGrid({ outputs, jobs }: { outputs: StemOut[]; jobs: StemJ
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {jobs.map((j) => (
           <div key={j.name} className="surface grain rounded-xl border border-graphite-800 p-4">
-            <div className="flex items-baseline justify-between gap-2">
-              <p className="font-medium text-text-primary">{j.name}</p>
-              <span className="shrink-0 font-mono text-[10px] uppercase tracking-[0.12em] text-text-subtle">
-                {j.uses}
-              </span>
-            </div>
+            <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-text-subtle">
+              {j.uses}
+            </p>
+            <p className="mt-1.5 font-medium text-text-primary">{j.name}</p>
             <p className="mt-1.5 text-sm leading-relaxed text-text-muted">
               {j.desc}
               {j.href && j.linkLabel && (

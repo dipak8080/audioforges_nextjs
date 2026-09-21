@@ -1,17 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Mic2, Music4, Sparkles, Bell, BellOff } from "lucide-react";
+import { Mic2, Music4 } from "lucide-react";
 import { YouTubeUrlForm } from "@/components/converter/YouTubeUrlForm";
 import { StemMixer } from "@/components/converter/StemMixer";
 import { triggerDownload, triggerDownloadsStaggered } from "@/lib/utils/download";
-import {
-  ControlField,
-  Hint,
-  OptionCards,
-  ToggleRow,
-  type CardOption,
-} from "@/components/converter/ToolControls";
+import { NotifyBell, STAGE_DEMO_CREDIT, useSeparationTiers } from "@/components/tools/stageKit";
 import {
   submitYoutubeSeparate,
   getYoutubeSeparatePreviewUrl,
@@ -24,8 +18,6 @@ import {
 } from "@/lib/data/rate-limits";
 import { useSharedLimit } from "@/lib/hooks/useSharedLimit";
 import type { StemType } from "@/lib/types/converter";
-import { useCredits } from "@/components/credits/CreditProvider";
-import { AlwaysFreeTag, FreeTierBadge } from "@/components/credits/FreeTierBadge";
 import type { MeteredToolKey } from "@/lib/types/credits";
 import { useNotificationPermission } from "@/lib/hooks/useNotificationPermission";
 
@@ -67,6 +59,10 @@ interface YouTubeSeparateFormProps {
    * period where PAYWALL_ENABLED is off, since context is null in both cases.
    */
   standardLimit?: SharedAllowanceSpec | null;
+  /** Studio limit from /limits, resolved server-side. */
+  hqLimitText?: string;
+  demoStandardSrc?: string;
+  demoStudioSrc?: string;
 }
 
 interface QualitySpec {
@@ -86,7 +82,7 @@ interface QualitySpec {
 const STANDARD_SPEC: QualitySpec = {
   value: "standard",
   label: "Standard",
-  time: "30 sec–1 min",
+  time: "30 sec to 1 min",
   detail: "Vocals and instrumental",
   rateLimitKey: "youtube/separate",
   toolKey: null,
@@ -95,7 +91,7 @@ const STANDARD_SPEC: QualitySpec = {
 const HQ_SPEC: QualitySpec = {
   value: "hq",
   label: "Studio Quality",
-  time: "1–2 min",
+  time: "1 to 2 min",
   detail: "Cleaner separation, same 2 stems",
   rateLimitKey: "youtube/separate-hq",
   toolKey: "youtube/separate-hq",
@@ -130,22 +126,6 @@ const PROGRESS_TAU_HQ = 90;
  * limit that applies to THIS visitor, resolved through the same code the
  * limiter uses.
  */
-function formatRateLimit(max: number, windowSeconds: number): string {
-  const unit =
-    windowSeconds >= 3600
-      ? windowSeconds === 3600
-        ? "hour"
-        : `${Math.round(windowSeconds / 3600)} hr`
-      : windowSeconds >= 60
-        ? windowSeconds === 60
-          ? "min"
-          : `${Math.round(windowSeconds / 60)} min`
-        : `${windowSeconds} sec`;
-  return `${max} per ${unit}`;
-}
-
-// Stage timestamps (seconds elapsed) are proportional progress cues, rescaled
-// to match current GPU-era processing times — NOT the backend timeout ceiling.
 const STANDARD_STAGES = [
   { at: 0, label: "Downloading the audio" },
   { at: 5, label: "Analyzing frequencies" },
@@ -193,7 +173,13 @@ function SeparateResult({ jobId, title }: { jobId: string; title: string | null 
   );
 }
 
-export function YouTubeSeparateForm({ hqAvailable = false, standardLimit }: YouTubeSeparateFormProps) {
+export function YouTubeSeparateForm({
+  hqAvailable = false,
+  standardLimit,
+  hqLimitText,
+  demoStandardSrc,
+  demoStudioSrc,
+}: YouTubeSeparateFormProps) {
   const [quality, setQuality] = useState<SeparationQuality>("standard");
   const [notifyEnabled, setNotifyEnabled] = useState(false);
   const { permission: notifyPermission, request: requestNotifyPermission } =
@@ -202,8 +188,6 @@ export function YouTubeSeparateForm({ hqAvailable = false, standardLimit }: YouT
   const effectiveQuality: SeparationQuality = hqAvailable ? quality : "standard";
   const isHq = effectiveQuality === "hq";
   const spec = isHq ? HQ_SPEC : STANDARD_SPEC;
-
-  const { rateLimitFor } = useCredits();
 
   // Looked up here (not hardcoded) so both the quality-picker cards and the
   // rate-limit-exceeded message always agree with each other and with
@@ -215,7 +199,8 @@ export function YouTubeSeparateForm({ hqAvailable = false, standardLimit }: YouT
     sharedLimit.shortLabel ??
     getRateLimitLabel(STANDARD_SPEC.rateLimitKey) ??
     FALLBACK_RATE_LIMIT_LABEL;
-  const hqLimitLabel = getRateLimitLabel(HQ_SPEC.rateLimitKey) ?? FALLBACK_RATE_LIMIT_LABEL;
+  const hqLimitLabel =
+    hqLimitText ?? getRateLimitLabel(HQ_SPEC.rateLimitKey) ?? FALLBACK_RATE_LIMIT_LABEL;
 
   /**
    * Read by notifyOnDone, which is handed to YouTubeUrlForm and called from
@@ -258,36 +243,16 @@ export function YouTubeSeparateForm({ hqAvailable = false, standardLimit }: YouT
 
   const notifyOn = notifyEnabled && notifyPermission === "granted";
 
-  const qualityOptions: CardOption<SeparationQuality>[] = [STANDARD_SPEC, HQ_SPEC].map(
-    (option) => {
-      const liveLimit = option.toolKey ? rateLimitFor(option.toolKey) : null;
-      return {
-        value: option.value,
-        title: option.label,
-        titleBefore:
-          option.value === "hq" ? <Sparkles className="h-3.5 w-3.5" aria-hidden /> : undefined,
-        // Renders nothing unless this tool is metered right now.
-        // Both cards carry a cost marker or neither does. AlwaysFreeTag reads
-        // the METERED sibling, so when the paywall is off both stay bare.
-        titleAfter: option.toolKey ? (
-          <FreeTierBadge tool={option.toolKey} />
-        ) : HQ_SPEC.toolKey ? (
-          <AlwaysFreeTag pairedTool={HQ_SPEC.toolKey} />
-        ) : undefined,
-        meta: option.time,
-        detail: option.detail,
-        premium: option.value === "hq",
-        // The standard tier draws from the shared pool and has no per-tool
-        // entry in rate_limit.tools, so liveLimit is always null for it.
-        footnote:
-          option.value === "hq"
-            ? liveLimit
-              ? formatRateLimit(liveLimit.max_requests, liveLimit.window_seconds)
-              : (getRateLimitLabel(option.rateLimitKey) ?? FALLBACK_RATE_LIMIT_LABEL)
-            : standardLimitLabel,
-      };
-    }
-  );
+  const tiers = useSeparationTiers({
+    hqAvailable,
+    hqToolKey: "youtube/separate-hq",
+    standard: { name: STANDARD_SPEC.label, model: "htdemucs", time: STANDARD_SPEC.time },
+    studio: { name: HQ_SPEC.label, model: "MelBand RoFormer", time: HQ_SPEC.time },
+    standardLimitLabel,
+    hqLimitLabel,
+    demoStandardSrc,
+    demoStudioSrc,
+  });
 
   return (
     <YouTubeUrlForm
@@ -314,7 +279,7 @@ export function YouTubeSeparateForm({ hqAvailable = false, standardLimit }: YouT
       upgradeMaxPollMs={MAX_POLL_MS_HQ}
       toolLabel="Vocal remover"
       toolMeta={`${spec.label} · From YouTube · ${spec.time}`}
-      submitLabel={isHq ? "Remove vocals (Studio Quality)" : "Remove vocals"}
+      submitLabel={isHq ? "Remove vocals in Studio Quality" : "Remove vocals"}
       processingLabel={
         isHq ? "Running studio quality vocal removal" : "Downloading and separating vocals"
       }
@@ -331,54 +296,24 @@ export function YouTubeSeparateForm({ hqAvailable = false, standardLimit }: YouT
       onFailed={(message) =>
         notifyOnDone("Separation failed", message || "The job didn't complete.")
       }
-      renderControls={(disabled, hasUrl) => (
-        <div className="space-y-5">
-          {hqAvailable && (
-            <ControlField
-              as="fieldset"
-              label="Quality"
-              hint={
-                isHq ? (
-                  <Hint>
-                    Studio Quality can take a minute or two, plus the download. The notification
-                    below saves you from babysitting this tab.
-                  </Hint>
-                ) : undefined
-              }
-            >
-              <OptionCards
-                label="Separation quality"
-                options={qualityOptions}
-                value={quality}
-                onChange={setQuality}
-                disabled={disabled}
-              />
-            </ControlField>
-          )}
-
-          {/*
-            HIDDEN UNTIL THERE IS A LINK, not shown disabled. With an empty
-            field this was a full-width greyed-out row that does nothing, and a
-            disabled control is still a control the eye has to process and
-            dismiss. Nothing to notify you about until there's a job.
-          */}
-          {notifyPermission !== "unsupported" && hasUrl && (
-            <ToggleRow
-              pressed={notifyOn}
-              onToggle={handleNotifyToggle}
-              disabled={disabled}
-              iconOn={<Bell className="h-4 w-4" />}
-              iconOff={<BellOff className="h-4 w-4" />}
-            >
-              {notifyPermission === "denied"
-                ? "Notifications blocked — enable them in your browser settings to use this"
-                : notifyOn
-                  ? "We'll notify you when it's done"
-                  : "Notify me when it's done"}
-            </ToggleRow>
-          )}
-        </div>
-      )}
+      stage={{
+        tiers,
+        tier: effectiveQuality,
+        onTierChange: (value) => setQuality(value === "hq" ? "hq" : "standard"),
+        demoCaption: "Hear a result first: the vocal stem",
+        demoNudge: hqAvailable
+          ? "Now switch to Studio Quality and hear the bleed disappear"
+          : undefined,
+        demoCredit: STAGE_DEMO_CREDIT,
+        footerExtra: (busy) => (
+          <NotifyBell
+            permission={notifyPermission}
+            on={notifyOn}
+            busy={busy}
+            onToggle={handleNotifyToggle}
+          />
+        ),
+      }}
       renderComplete={(jobId, title) => <SeparateResult key={jobId} jobId={jobId} title={title} />}
     />
   );
