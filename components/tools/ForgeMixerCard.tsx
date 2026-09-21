@@ -59,7 +59,7 @@ function LaneRow({ lane, compact, first }: { lane: Lane; compact: boolean; first
   const color = stemColor(lane.name);
   const cut = Math.floor(PLAYHEAD * lane.peaks.length);
   return (
-    <div className={cn("flex items-stretch", !first && "border-t border-graphite-800")}>
+    <div className={cn("flex flex-1 items-stretch", !first && "border-t border-graphite-800")}>
       <div
         className={cn(
           "shrink-0 border-r border-graphite-800 px-3 py-3",
@@ -73,12 +73,18 @@ function LaneRow({ lane, compact, first }: { lane: Lane; compact: boolean; first
             aria-hidden
           />
           <p className="min-w-0 flex-1 truncate text-xs font-medium text-text-primary">{lane.name}</p>
-          <span className="hidden rounded border border-graphite-700 px-1.5 font-mono text-[9px] leading-4 text-text-subtle sm:block">
+          <span
+            className={cn(
+              "rounded border border-graphite-700 px-1.5 font-mono text-[9px] leading-4 text-text-subtle",
+              compact ? "hidden" : "hidden sm:block"
+            )}
+          >
             M
           </span>
           <span
             className={cn(
-              "hidden rounded border px-1.5 font-mono text-[9px] leading-4 sm:block",
+              "rounded border px-1.5 font-mono text-[9px] leading-4",
+              compact ? "hidden" : "hidden sm:block",
               lane.active
                 ? "border-amber-500 bg-amber-500 text-graphite-950"
                 : "border-graphite-700 text-text-subtle"
@@ -92,7 +98,7 @@ function LaneRow({ lane, compact, first }: { lane: Lane; compact: boolean; first
           <Knob label="Pan" value="C" at={0.5} />
         </div>
       </div>
-      <div className="relative h-16 flex-1 sm:h-20" aria-hidden>
+      <div className={cn("relative flex-1", compact ? "min-h-12" : "min-h-16 sm:min-h-20")} aria-hidden>
         <div className="absolute inset-x-0 top-1/2 h-px bg-white/[0.06]" />
         <div className="absolute inset-0 flex items-center gap-px px-1">
           {lane.peaks.map((p, i) => (
@@ -167,7 +173,7 @@ export function ForgeMixerCard({
         </div>
       </div>
 
-      <div className="relative mx-3 mb-3 overflow-hidden rounded-lg bg-graphite-950/70 shadow-[inset_0_1px_2px_rgba(0,0,0,0.7),inset_0_0_0_1px_rgba(255,255,255,0.04)]">
+      <div className="relative mx-3 mb-3 flex flex-1 flex-col overflow-hidden rounded-lg bg-graphite-950/70 shadow-[inset_0_1px_2px_rgba(0,0,0,0.7),inset_0_0_0_1px_rgba(255,255,255,0.04)]">
         <div
           className={cn(
             "flex h-6 items-end border-b border-graphite-800 text-[9px] text-text-subtle",

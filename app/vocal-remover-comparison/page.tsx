@@ -72,10 +72,10 @@ const RESULTS = [
   },
   {
     tool: "LALAL.AI",
-    model: "Not verifiable without download",
-    time: "No download on the free plan",
+    model: "Andromeda (closed-source)",
+    time: "Not timed, preview recording",
     machine: "Their servers",
-    free: "Preview only",
+    free: "Preview only, no download",
   },
 ];
 
@@ -93,16 +93,22 @@ const FAQ_ITEMS: FAQItem[] = [
   {
     question: "What clip was used, and is it licensed?",
     answer:
-      "A 50-second section of What Would It Mean by H4RRIS feat. Nicole Apollonio, used with the artist's permission and credited below. The exact same MP3 was uploaded to every tool on 17 September 2026.",
+      "A 50-second section of What Would It Mean by H4RRIS feat. Nicole Apollonio, used with the artist's permission and credited below. The exact same MP3 was uploaded to every tool: most on 17 September 2026, LALAL.AI on 21 September 2026.",
+  },
+  {
+    question: "Why is the LALAL.AI lane a recording?",
+    answer:
+      "LALAL.AI's free plan lets you listen to a preview but not download the result. To include it, the preview was recorded as it played, with the Andromeda model selected, and that recording is what you hear. Every other lane is the actual file the tool returned.",
   },
 ];
 
 export default function VocalRemoverComparisonPage() {
   return (
     <ToolPageShell
+      wide
       breadcrumb={<Breadcrumb items={[{ name: "Vocal remover comparison", href: PATH }]} />}
       title="Every vocal remover, same clip, side by side"
-      lede="One 50-second clip through AudioForges, Ultimate Vocal Remover, VocalRemover.org and LALAL.AI. Every output is playable below, unedited. Every model is named, every time and limit was measured on 17 September 2026."
+      lede="One 50-second clip through AudioForges, Ultimate Vocal Remover, VocalRemover.org and LALAL.AI. Every output is playable below, unedited. Models, times and limits are printed with the date they were checked."
       meta={["Same input for every tool", "Unedited outputs", "Measured and dated"]}
       tool={<ComparisonPlayers />}
     >
@@ -111,14 +117,15 @@ export default function VocalRemoverComparisonPage() {
           <p>
             The clip is a 50-second section of a real release with a lead vocal over a full
             arrangement. The exact same MP3 was uploaded to each tool, nothing was re-recorded or
-            trimmed differently per tool, and each output above is exactly what the tool returned,
+            trimmed differently per tool, and each output above is what the tool returned,
             re-encoded to 192 kbps MP3 for the page. Where a tool names its model, the model is
             printed. Where it does not, that is printed too.
           </p>
           <p>
-            LALAL.AI is listed without audio because its free plan plays a preview but does not
-            let you download the result, so there is no file to publish. That was checked on the
-            same day as everything else.
+            LALAL.AI is the one exception, and it is labelled. Its free plan plays a preview but
+            does not let you download the result, so its lane is a recording of that preview
+            player, made on 21 September 2026 with the Andromeda model selected. A recording can
+            differ slightly from a paid download, so weigh that lane with that in mind.
           </p>
         </Prose>
       </ToolSection>
@@ -150,7 +157,8 @@ export default function VocalRemoverComparisonPage() {
         </div>
         <p className="text-sm leading-relaxed text-text-muted">
           Times are end to end as a user experiences them, from submitting the clip to the result
-          being playable, measured once each on 17 September 2026. UVR on a capable NVIDIA GPU is
+          being playable, measured once each on 17 September 2026. LALAL.AI was not timed because
+          its lane is a preview recording. UVR on a capable NVIDIA GPU is
           many times faster than the CPU figure shown; the laptop case is listed because that is
           the machine most people have. Try the same clip yourself on the{" "}
           <Link
@@ -196,8 +204,8 @@ export default function VocalRemoverComparisonPage() {
       <FAQSection faqs={FAQ_ITEMS} />
 
       <PageByline
-        updated="2026-09-17"
-        note="Every clip on this page is the tool's unedited output; times and limits measured the same day"
+        updated="2026-09-21"
+        note="Every clip is the tool's unedited output, except LALAL.AI which is a recording of its preview"
       />
     </ToolPageShell>
   );

@@ -35,6 +35,12 @@ function lanesFor(stem: Stem): CompareLane[] {
       note: "Model not disclosed · ~15 sec",
       src: `${BASE}/vr-${stem}.mp3`,
     },
+    {
+      id: "lalal",
+      title: "LALAL.AI",
+      note: "Andromeda · preview recording",
+      src: `${BASE}/lalal-${stem}.mp3`,
+    },
   ];
 }
 
@@ -55,7 +61,7 @@ export function ComparisonPlayers() {
               "rounded-full border px-3.5 py-1.5 text-xs font-medium capitalize transition-colors",
               "outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70",
               stem === s
-                ? "border-amber-500/70 bg-amber-500/15 text-amber-300"
+                ? "border-graphite-600 bg-graphite-700 text-text-primary"
                 : "border-graphite-700 text-text-muted hover:border-graphite-600 hover:text-text-primary"
             )}
           >
@@ -71,14 +77,10 @@ export function ComparisonPlayers() {
         subline="Click a lane to switch while it plays. Drag on a lane to loop a section."
       />
 
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed border-graphite-700 bg-graphite-900/50 px-4 py-3">
-        <div>
-          <p className="text-sm font-semibold text-text-primary">LALAL.AI</p>
-          <p className="text-xs text-text-subtle">
-            Preview only on the free plan, so there is no file to compare. Checked 17 Sept 2026.
-          </p>
-        </div>
-      </div>
+      <p className="px-1 text-xs leading-relaxed text-text-subtle">
+        LALAL.AI has no download on its free plan, so its lane is a recording of the preview player,
+        made 21 Sept 2026. Every other lane is the file the tool returned.
+      </p>
     </div>
   );
 }

@@ -219,10 +219,31 @@ export default async function HomePage() {
             <div className="flex flex-col">
               <PianoRollCard className="flex flex-1 flex-col" points={[]} />
             </div>
-            <div className="surface flex flex-1 flex-col overflow-hidden rounded-xl border border-graphite-800">
-              <div className="flex flex-1 items-center justify-center p-6">
+            <div className="surface grain flex flex-1 flex-col overflow-hidden rounded-xl border border-graphite-800">
+              <div className="flex items-center gap-3 px-4 pb-4 pt-4" aria-hidden>
+                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-500 text-graphite-950">
+                  <svg viewBox="0 0 12 12" className="h-3 w-3 fill-current">
+                    <path d="M2.5 2h2.5v8H2.5zM7 2h2.5v8H7z" />
+                  </svg>
+                </span>
+                <div>
+                  <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-text-subtle">
+                    Forge Score
+                  </p>
+                  <p className="mt-0.5 font-mono text-[11px] text-text-muted">
+                    Piano · grand staff
+                  </p>
+                </div>
+              </div>
+              <div className="mx-3 mb-3 flex flex-1 items-center justify-center rounded-lg bg-graphite-950/70 p-4 shadow-[inset_0_1px_2px_rgba(0,0,0,0.7),inset_0_0_0_1px_rgba(255,255,255,0.04)]">
                 <EngravedScore glow className="w-full px-4 py-4 sm:px-5 sm:py-5" />
               </div>
+              <p
+                className="px-4 pb-4 font-mono text-[10px] uppercase tracking-[0.14em] text-text-subtle"
+                aria-hidden
+              >
+                PDF · MusicXML · MIDI · SVG
+              </p>
             </div>
           </div>
 
