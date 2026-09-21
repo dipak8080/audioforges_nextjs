@@ -1,5 +1,3 @@
-import Link from "next/link";
-import { ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 
 const BARS = 84;
@@ -136,17 +134,6 @@ export function HeroForgePanel() {
         </div>
       </div>
 
-      <p className="mt-4 text-sm text-text-muted">
-        Forge Mixer, one of three players built into the tools.{" "}
-        <Link
-          href="/forge"
-          prefetch={false}
-          className="group inline-flex items-center gap-1 text-amber-400 transition-colors hover:text-amber-300"
-        >
-          See all three
-          <ArrowRight className="h-3 w-3 -translate-x-1 opacity-0 transition-all duration-150 group-hover:translate-x-0 group-hover:opacity-100" />
-        </Link>
-      </p>
     </div>
   );
 }

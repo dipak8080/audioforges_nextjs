@@ -70,7 +70,7 @@ export function FAQSection({
             </p>
           )}
           <h2
-            className={`text-2xl font-bold tracking-tight text-text-primary sm:text-3xl ${
+            className={`display text-3xl text-text-primary sm:text-4xl ${
               eyebrow ? "mt-3" : ""
             }`}
           >

@@ -138,6 +138,7 @@ export function PianoRollCard({
         </div>
       </div>
 
+      {points.length > 0 && (
       <ul
         className={cn(
           "grid gap-x-6 gap-y-3 border-t border-graphite-800 p-5 text-sm leading-relaxed text-text-muted",
@@ -151,6 +152,7 @@ export function PianoRollCard({
           </li>
         ))}
       </ul>
+      )}
     </div>
   );
 }

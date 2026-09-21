@@ -3,108 +3,43 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Coffee, Menu, X, ChevronDown, ChevronRight } from "lucide-react";
+import { Menu, X, ChevronDown, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { buttonStyles } from "@/components/ui/Button";
-import { TOOLS, CATEGORY_ORDER, CATEGORY_LABELS, getToolsByCategory } from "@/lib/data/tools";
+import { TOOLS } from "@/lib/data/tools";
 import { BrandMark } from "@/components/brand/BrandMark";
 import { CreditMenu, CreditChipMobile } from "@/components/credits/CreditMenu";
 import { CreditAccountPanel } from "@/components/credits/CreditAccountPanel";
 import { useCredits } from "@/components/credits/CreditProvider";
 
-/**
- * PREFETCH IS DISABLED ON THE BULK TOOL LINKS BELOW (2026-08-16).
- *
- * Next <Link> prefetches whenever a link enters the viewport via
- * IntersectionObserver, which does not care about `opacity: 0` or
- * `pointer-events: none` — a hidden-but-laid-out element still intersects.
- * The mega panel renders on every page, so every tool link was prefetched on
- * every page load whether or not the menu was opened. Each prefetched App
- * Router route costs FOUR edge requests, so one visitor fired ~120 before
- * clicking anything. Still prefetched on purpose: the logo, Guides, and View
- * all tools — three links, genuinely likely to be clicked.
- *
- * OUTSIDE-CLICK (2026-08-17): anchored to the panel CARD, not its full-width
- * wrapper. The wrapper spans `inset-x-0` while the card is `max-w-6xl`, so
- * anchoring to the wrapper made gutter clicks count as "inside".
- *
- * HOVER SCOPE (2026-08-17): open-on-hover handlers sit on a wrapper around
- * the trigger ALONE. Wrapping the whole link group made Guides open Tools.
- *
- * INERT WHEN CLOSED (2026-08-21). Both the mega panel and the mobile sheet
- * stay mounted (that's what the prefetch note above is about), and `opacity-0`
- * / `pointer-events-none` / `max-h-0` hide them from the mouse but NOT from
- * the keyboard. `inert` removes them from the tab order and the accessibility
- * tree without unmounting them, so the prefetch behaviour is unchanged.
- *
- * ── THIS PASS ──────────────────────────────────────────────────────────
- *
- * 1. HOVER-TO-OPEN FIRED ON TOUCH. Mobile browsers synthesise mouseenter on
- *    tap, so on a tablet in landscape — wide enough for the desktop nav — a
- *    tap on Tools opened the panel via hover and then the click handler
- *    immediately toggled it shut. The panel was unopenable by tapping. The
- *    handlers now check pointerType and ignore anything that isn't a mouse.
- *
- * 2. GUIDE DETAIL PAGES SHOWED NOTHING ACTIVE. The check was
- *    `pathname === "/guides"`, so every /guides/<slug> page — which is most of
- *    the guide traffic — had no active nav item at all. Same for /tools, which
- *    is the page the panel's own footer link points at.
- *
- * 3. THE PANEL FOOTER CLAIMED EVERY TOOL IS FREE. It has said "N free tools"
- *    since before the paywall existed; HQ separation, multi-track MIDI and
- *    transcription now cost a credit. Saying it in the same header row as a
- *    credit balance is the worst place to be wrong about it.
- *
- * 4. OPENING THE MOBILE SHEET LEFT FOCUS ON THE TOGGLE. A keyboard or screen
- *    reader user had to tab back through the header to reach the menu they
- *    just opened. Focus moves into the sheet, and returns to the toggle when
- *    it closes.
- *
- * 5. THE TRIGGER IGNORED ArrowDown. Every disclosure menu on the web opens on
- *    it; this one only responded to Enter, Space and the mouse.
- *
- * 6. DONATE AND THE MENU TOGGLE ARE `buttonStyles` NOW. They were the last two
- *    hand-rolled button surfaces in the header — the Donate link had already
- *    drifted to its own radius, padding and focus ring.
- *
- * ── THIS PASS ──────────────────────────────────────────────────────────
- *
- * 7. DONATE HOLDS THE LAST SLOT AND THE ONLY EMPHASIS. Tips are what the
- *    site actually earns on, so the most prominent position in the bar goes
- *    to them. Sign in and Credits stay quiet links beside it.
- *
- * 8. THE MEGA PANEL'S aria-label WAS ON A PLAIN <div>. An aria-label only
- *    applies to an element with a role, so "All tools" was announced to
- *    nobody. It's a navigation landmark — forty links to other pages — so it
- *    says so now, which also gives screen-reader users a way to jump straight
- *    to it.
- */
-const FEATURED = [
-  { href: "/vocal-remover", name: "Vocal Remover", desc: "Studio Quality separation" },
-  { href: "/audio-to-midi", name: "Audio to MIDI", desc: "Edit the notes in Forge Roll" },
-  { href: "/audio-to-sheet-music", name: "Audio to Sheet Music", desc: "Engraved score, synced playback" },
-  { href: "/key-finder", name: "Key & BPM Finder", desc: "75% exact BPM, measured" },
+type MenuLink = { href: string; name: string; desc: string };
+
+const PRODUCT_GROUPS: { label: string; links: MenuLink[] }[] = [
+  {
+    label: "Separation",
+    links: [
+      { href: "/vocal-remover", name: "Vocal Remover", desc: "Vocals and instrumental, WAV" },
+      { href: "/stems", name: "Stem Splitter", desc: "Vocals, drums, bass, other" },
+      { href: "/youtube-vocal-remover", name: "YouTube Vocal Remover", desc: "Paste a link, get stems" },
+    ],
+  },
+  {
+    label: "Transcription",
+    links: [
+      { href: "/audio-to-midi", name: "Audio to MIDI", desc: "Edit the notes in Forge Roll" },
+      { href: "/audio-to-sheet-music", name: "Audio to Sheet Music", desc: "Engraved score, synced playback" },
+      { href: "/key-finder", name: "Key & BPM Finder", desc: "Key, tempo, Camelot code" },
+    ],
+  },
 ];
+
+const PRODUCT_HREFS = new Set(PRODUCT_GROUPS.flatMap((g) => g.links.map((l) => l.href)));
 
 export function Navbar({ paywallEnabled = false }: { paywallEnabled?: boolean }) {
   const pathname = usePathname();
+  const { me } = useCredits();
 
-  /**
-   * Donate sits last and carries the bar's only emphasis, because tips are
-   * what the site actually earns on today. Sign in and Credits are quiet
-   * links, so nothing competes with it.
-   *
-   * It still steps aside once there IS a balance: asking a paying customer
-   * for a tip beside the balance they paid for reads badly. Gated on
-   * `loading` too, since CreditProvider starts at balance 0 while
-   * /credits/me is in flight, so reading the balance alone would render
-   * Donate on first paint and pull it a moment later.
-   */
-  const { balance, loading: creditsLoading, me } = useCredits();
-  const hideDonate = creditsLoading || balance > 0;
-
-  const [isToolsOpen, setIsToolsOpen] = useState(false);
-  const [openCategory, setOpenCategory] = useState<string | null>(null);
+  const [isProductOpen, setIsProductOpen] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
 
@@ -113,95 +48,63 @@ export function Navbar({ paywallEnabled = false }: { paywallEnabled?: boolean })
   const sheetRef = useRef<HTMLDivElement>(null);
   const mobileToggleRef = useRef<HTMLButtonElement>(null);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const toolsOpenRef = useRef(false);
 
-  useEffect(() => {
-    toolsOpenRef.current = isToolsOpen;
-  }, [isToolsOpen]);
-
-  // --- open/close helpers -------------------------------------------------
-  // Hover opens; a short close delay means a diagonal mouse path from the
-  // trigger to the panel doesn't slam it shut mid-move.
   function cancelClose() {
     if (closeTimer.current) {
       clearTimeout(closeTimer.current);
       closeTimer.current = null;
     }
   }
-  function openTools() {
+  function openProduct() {
     cancelClose();
-    setIsToolsOpen(true);
+    setIsProductOpen(true);
   }
   function scheduleClose() {
     cancelClose();
-    closeTimer.current = setTimeout(() => setIsToolsOpen(false), 140);
+    closeTimer.current = setTimeout(() => setIsProductOpen(false), 140);
   }
-
-  /* Touch and pen are ignored. A tablet wide enough for this nav synthesises
-     mouseenter on tap, which opened the panel and let the click handler close
-     it again in the same gesture — the trigger simply didn't work by touch. */
   const isMouse = (e: React.PointerEvent) => e.pointerType === "mouse";
 
-  // --- outside click + escape --------------------------------------------
   useEffect(() => {
-    function handlePointerDown(e: MouseEvent) {
-      const target = e.target as Node;
-      if (panelRef.current?.contains(target)) return;
-      if (triggerRef.current?.contains(target)) return;
-      setIsToolsOpen(false);
+    function onDown(e: MouseEvent) {
+      const t = e.target as Node;
+      if (panelRef.current?.contains(t) || triggerRef.current?.contains(t)) return;
+      setIsProductOpen(false);
     }
-    function handleEscape(e: KeyboardEvent) {
+    function onKey(e: KeyboardEvent) {
       if (e.key !== "Escape") return;
-      if (toolsOpenRef.current) triggerRef.current?.focus();
-      setIsToolsOpen(false);
+      setIsProductOpen(false);
       setIsMobileOpen(false);
     }
-    document.addEventListener("mousedown", handlePointerDown);
-    document.addEventListener("keydown", handleEscape);
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
     return () => {
-      document.removeEventListener("mousedown", handlePointerDown);
-      document.removeEventListener("keydown", handleEscape);
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
       cancelClose();
     };
   }, []);
 
-  // Close everything on navigation.
   useEffect(() => {
-    setIsToolsOpen(false);
+    setIsProductOpen(false);
     setIsMobileOpen(false);
   }, [pathname]);
 
-  // Lock the page behind the mobile sheet so the body doesn't scroll under it,
-  // and put focus where the user just asked to be. Without the focus move,
-  // opening the menu by keyboard left you outside it, tabbing through the
-  // header again to get in.
   useEffect(() => {
     if (!isMobileOpen) return;
     const previous = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-
-    if (sheetRef.current) sheetRef.current.scrollTop = 0;
-    const firstLink = sheetRef.current?.querySelector<HTMLElement>(
-      'a[href], button:not([disabled])'
-    );
-    firstLink?.focus({ preventScroll: true });
-
+    sheetRef.current?.querySelector<HTMLElement>("a[href], button:not([disabled])")?.focus({ preventScroll: true });
     return () => {
       document.body.style.overflow = previous;
-      // Only reclaim focus if it's still inside the sheet — a link click that
-      // navigates should not yank focus back to the toggle.
-      if (sheetRef.current?.contains(document.activeElement)) {
-        mobileToggleRef.current?.focus();
-      }
+      if (sheetRef.current?.contains(document.activeElement)) mobileToggleRef.current?.focus();
     };
   }, [isMobileOpen]);
 
-  // Border/shadow only once the page has moved — flat at rest, defined in use.
   useEffect(() => {
     let raf = 0;
     let last = window.scrollY > 8;
     setIsScrolled(last);
-
     function onScroll() {
       if (raf) return;
       raf = requestAnimationFrame(() => {
@@ -213,7 +116,6 @@ export function Navbar({ paywallEnabled = false }: { paywallEnabled?: boolean })
         }
       });
     }
-
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => {
       window.removeEventListener("scroll", onScroll);
@@ -221,48 +123,34 @@ export function Navbar({ paywallEnabled = false }: { paywallEnabled?: boolean })
     };
   }, []);
 
-  const activeCategory =
-    CATEGORY_ORDER.find((c) => getToolsByCategory(c).some((t) => pathname === `/${t.slug}`)) ?? null;
-
-  function openMobileSheet() {
-    setOpenCategory(activeCategory);
-    setIsMobileOpen(true);
-  }
-
-  /* /tools belongs here too: it's where the panel's own footer link goes, and
-     landing there used to leave the whole nav looking unvisited. */
-  const isToolPageActive =
-    pathname === "/tools" || TOOLS.some((t) => pathname === `/${t.slug}`);
-  /* startsWith, not equality: /guides/<slug> is most of the guide traffic and
-     none of it lit this up. */
+  const isProductActive =
+    PRODUCT_HREFS.has(pathname) || pathname === "/tools" || pathname === "/forge" ||
+    TOOLS.some((t) => pathname === `/${t.slug}`);
+  const isPricingActive = pathname === "/pricing";
   const isGuidesActive = pathname.startsWith("/guides");
   const toolCount = TOOLS.filter((t) => t.status === "live").length;
 
-  const navLinkStyles = (active: boolean) =>
+  const navLink = (active: boolean) =>
     cn(
-      "relative rounded-md px-4 py-2 text-sm font-medium outline-none transition-colors duration-200",
+      "relative rounded-md px-3 py-1.5 text-[13.5px] font-medium outline-none transition-colors duration-150",
       "focus-visible:ring-2 focus-visible:ring-amber-400/70",
-      active ? "text-amber-400" : "text-text-muted hover:bg-graphite-900 hover:text-text-primary"
+      active ? "text-text-primary" : "text-text-muted hover:text-text-primary"
     );
 
   return (
     <header
       className={cn(
-        "sticky top-0 z-50 border-b bg-graphite-950/80 backdrop-blur-md transition-shadow duration-300",
-        isScrolled || isToolsOpen || isMobileOpen
-          ? "border-graphite-800 shadow-[0_1px_0_0_rgba(0,0,0,0.4)]"
-          : "border-transparent"
+        "sticky top-0 z-50 border-b bg-graphite-950/85 backdrop-blur-md transition-colors duration-300",
+        isScrolled || isProductOpen || isMobileOpen ? "border-graphite-800" : "border-transparent"
       )}
     >
       <a
         href="#main"
-        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-3 focus:z-50 focus:rounded-md focus:bg-graphite-900 focus:px-3 focus:py-2 focus:text-sm focus:text-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-400/70"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-3 focus:z-50 focus:rounded-md focus:bg-graphite-900 focus:px-3 focus:py-2 focus:text-sm focus:text-amber-400"
       >
         Skip to content
       </a>
 
-      {/* Backdrop for the mobile sheet. z-0, under the nav (z-10), so it dims
-          the page rather than the header's own contents. */}
       <div
         onClick={() => setIsMobileOpen(false)}
         aria-hidden="true"
@@ -273,74 +161,55 @@ export function Navbar({ paywallEnabled = false }: { paywallEnabled?: boolean })
       />
 
       <div className="relative z-10">
-        <nav className="mx-auto flex max-w-6xl items-center justify-between gap-2 px-4 py-3.5">
+        <nav className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-3 px-4">
           <Link
             href="/"
             aria-label="AudioForges home"
-            className="group flex shrink-0 items-center gap-2 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70"
+            className="flex shrink-0 items-center gap-2 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70"
             onClick={() => setIsMobileOpen(false)}
           >
-            <BrandMark className="h-5 w-5 text-amber-500 transition-transform duration-200 group-hover:scale-105 motion-reduce:transition-none" />
-            <span className="font-mono tracking-tight">
-              <span className="font-normal text-text-secondary">Audio</span>
+            <BrandMark className="h-[18px] w-[18px] text-amber-500" />
+            <span className="font-mono text-[15px] tracking-tight">
+              <span className="text-text-secondary">Audio</span>
               <span className="font-semibold text-text-primary">Forges</span>
             </span>
           </Link>
 
-          <div className="hidden items-center gap-1 md:flex">
-            {/* Hover scope is this wrapper only — see the note up top. */}
+          <div className="hidden items-center gap-0.5 md:flex">
             <div
               className="flex"
-              onPointerEnter={(e) => isMouse(e) && openTools()}
+              onPointerEnter={(e) => isMouse(e) && openProduct()}
               onPointerLeave={(e) => isMouse(e) && scheduleClose()}
             >
               <button
                 ref={triggerRef}
                 type="button"
-                onClick={() => (isToolsOpen ? setIsToolsOpen(false) : openTools())}
+                onClick={() => (isProductOpen ? setIsProductOpen(false) : openProduct())}
                 onKeyDown={(e) => {
-                  // The convention every disclosure menu on the web uses, and
-                  // the only one this trigger didn't answer.
                   if (e.key === "ArrowDown") {
                     e.preventDefault();
-                    openTools();
+                    openProduct();
                     panelRef.current?.querySelector<HTMLElement>("a[href]")?.focus();
                   }
                 }}
-                aria-expanded={isToolsOpen}
-                aria-controls="nav-tools-panel"
-                className={cn(navLinkStyles(isToolPageActive || isToolsOpen), "flex items-center gap-1")}
+                aria-expanded={isProductOpen}
+                aria-controls="nav-product-panel"
+                className={cn(navLink(isProductActive || isProductOpen), "flex items-center gap-1")}
               >
-                Tools
+                Product
                 <ChevronDown
                   className={cn(
-                    "h-3.5 w-3.5 transition-transform duration-200 motion-reduce:transition-none",
-                    isToolsOpen && "rotate-180"
-                  )}
-                />
-                <span
-                  aria-hidden
-                  className={cn(
-                    "absolute bottom-1.5 left-1/2 h-[2px] w-0 -translate-x-1/2 rounded-full bg-amber-500 transition-all duration-300",
-                    isToolPageActive && "w-4/5"
+                    "h-3.5 w-3.5 text-text-subtle transition-transform duration-200",
+                    isProductOpen && "rotate-180"
                   )}
                 />
               </button>
             </div>
-
-            <Link
-              href="/guides"
-              aria-current={isGuidesActive ? "page" : undefined}
-              className={navLinkStyles(isGuidesActive)}
-            >
+            <Link href="/pricing" prefetch={false} aria-current={isPricingActive ? "page" : undefined} className={navLink(isPricingActive)}>
+              Pricing
+            </Link>
+            <Link href="/guides" aria-current={isGuidesActive ? "page" : undefined} className={navLink(isGuidesActive)}>
               Guides
-              <span
-                aria-hidden
-                className={cn(
-                  "absolute bottom-1.5 left-1/2 h-[2px] w-0 -translate-x-1/2 rounded-full bg-amber-500 transition-all duration-300",
-                  isGuidesActive && "w-4/5"
-                )}
-              />
             </Link>
           </div>
 
@@ -348,59 +217,26 @@ export function Navbar({ paywallEnabled = false }: { paywallEnabled?: boolean })
             {!me?.authenticated && (
               <Link
                 href="/signin"
-                className={buttonStyles({
-                  variant: "ghost",
-                  size: "md",
-                  className: "hidden text-text-muted hover:text-amber-400 md:inline-flex",
-                })}
+                className={buttonStyles({ variant: "ghost", size: "sm", className: "hidden text-text-muted md:inline-flex" })}
               >
                 Sign in
               </Link>
             )}
-
             <CreditMenu hidePricingLink={paywallEnabled} />
-
-            {paywallEnabled ? (
-              pathname === "/pricing" ? null : (
+            {pathname !== "/pricing" && (
               <Link
                 href="/pricing"
                 prefetch={false}
-                className={buttonStyles({ size: "md", className: "hidden md:inline-flex" })}
+                className={buttonStyles({ size: "sm", className: "hidden rounded-full px-4 md:inline-flex" })}
               >
-                Buy credits
+                Get credits
               </Link>
-              )
-            ) : (
-              <a
-                href="https://ko-fi.com/audioforges"
-                target="_blank"
-                rel="noopener noreferrer"
-                className={buttonStyles({
-                  variant: "outline",
-                  size: "md",
-                  className: cn(
-                    hideDonate ? "hidden" : "hidden md:inline-flex",
-                    "border-amber-500/25 bg-amber-500/5 text-amber-400/90",
-                    "hover:border-amber-500/60 hover:bg-amber-500/10 hover:text-amber-300"
-                  ),
-                })}
-              >
-                <Coffee />
-                Donate
-              </a>
             )}
-
-            {/* Mobile: icon + number only. "48 credits" is what makes the
-                desktop pill too wide for a phone header, and the number is
-                the part people check. Signed in, it opens the sheet where
-                the account block lives; anonymous, it goes to /pricing,
-                because a sheet with no account block answers nothing. */}
-            <CreditChipMobile onOpenSheet={openMobileSheet} />
-
+            <CreditChipMobile onOpenSheet={() => setIsMobileOpen(true)} />
             <button
               ref={mobileToggleRef}
               type="button"
-              onClick={() => (isMobileOpen ? setIsMobileOpen(false) : openMobileSheet())}
+              onClick={() => setIsMobileOpen((v) => !v)}
               aria-label={isMobileOpen ? "Close menu" : "Open menu"}
               aria-expanded={isMobileOpen}
               aria-controls="nav-mobile-sheet"
@@ -411,101 +247,68 @@ export function Navbar({ paywallEnabled = false }: { paywallEnabled?: boolean })
           </div>
         </nav>
 
-        {/* Mega panel wrapper: full-bleed for positioning only, never
-            clickable itself, so clicks beside the card fall through to the
-            page and close the panel. `inert` when closed keeps ~40 invisible
-            links out of the tab order without unmounting them. */}
         <div
-          id="nav-tools-panel"
-          inert={!isToolsOpen}
+          id="nav-product-panel"
+          inert={!isProductOpen}
           className={cn(
             "pointer-events-none absolute inset-x-0 top-full hidden md:block",
-            "transition-all duration-200 ease-out motion-reduce:transition-none",
-            isToolsOpen ? "translate-y-0 opacity-100" : "-translate-y-1 opacity-0"
+            "transition-all duration-150 ease-out motion-reduce:transition-none",
+            isProductOpen ? "translate-y-0 opacity-100" : "-translate-y-1 opacity-0"
           )}
           onPointerEnter={(e) => isMouse(e) && cancelClose()}
           onPointerLeave={(e) => isMouse(e) && scheduleClose()}
         >
-          <div className="mx-auto max-w-6xl px-4">
+          <div className="mx-auto flex max-w-6xl justify-center px-4">
             <div
               ref={panelRef}
-              /* A bare aria-label on a <div> applies to nothing — the name was
-                 announced to no one. This is forty links to other pages, so
-                 it's a navigation landmark, which also lets a screen reader
-                 jump straight to it. */
               role="navigation"
-              aria-label="All tools"
+              aria-label="Product"
               className={cn(
-                "overflow-hidden rounded-b-xl border border-t-0 border-graphite-800 bg-graphite-900 shadow-2xl shadow-graphite-950/60",
-                isToolsOpen ? "pointer-events-auto" : "pointer-events-none"
+                "w-[40rem] overflow-hidden rounded-xl border border-graphite-800 bg-graphite-900 shadow-2xl shadow-black/50",
+                isProductOpen ? "pointer-events-auto" : "pointer-events-none"
               )}
             >
-              {/* CSS multi-column, NOT grid. Grid forces every row to the
-                  height of its tallest cell, which is what created the dead
-                  space under short categories. Columns let each block flow
-                  into whatever space is free. */}
-              <div className="flex">
-                <aside className="hidden w-60 shrink-0 border-r border-graphite-800 bg-graphite-950/30 p-6 lg:block">
-                  <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-500">
-                    Featured
-                  </p>
-                  <div className="mt-3 space-y-1">
-                    {FEATURED.map((f) => (
-                      <Link
-                        key={f.href}
-                        href={f.href}
-                        prefetch={false}
-                        className="block rounded-md px-2 py-2 outline-none transition-colors hover:bg-graphite-850 focus-visible:ring-2 focus-visible:ring-amber-400/70"
-                      >
-                        <span className="block text-[13px] font-medium text-text-primary">{f.name}</span>
-                        <span className="block text-xs text-text-subtle">{f.desc}</span>
-                      </Link>
-                    ))}
-                  </div>
-                  <Link
-                    href="/forge"
-                    prefetch={false}
-                    className="mt-4 block rounded-md px-2 text-[13px] font-medium text-amber-400 outline-none transition-colors hover:text-amber-300 focus-visible:ring-2 focus-visible:ring-amber-400/70"
-                  >
-                    The Forge players →
-                  </Link>
-                </aside>
-                <div className="min-w-0 flex-1 columns-2 gap-x-8 p-6 [column-fill:balance] md:columns-3">
-                {CATEGORY_ORDER.map((category) => {
-                  const tools = getToolsByCategory(category);
-                  if (tools.length === 0) return null;
-                  return (
-                    <div key={category} className="mb-6 break-inside-avoid">
-                      <div className="mb-2.5 flex items-center gap-2">
-                        <span aria-hidden className="h-3 w-[2px] rounded-full bg-amber-500" />
-                        <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-text-subtle">
-                          {CATEGORY_LABELS[category]}
-                        </p>
-                      </div>
-                      <div className="space-y-px">
-                        {tools.map((tool) => (
-                          <ToolRow key={tool.slug} tool={tool} pathname={pathname} />
-                        ))}
-                      </div>
+              <div className="grid grid-cols-2 gap-6 p-5">
+                {PRODUCT_GROUPS.map((g) => (
+                  <div key={g.label}>
+                    <p className="px-2 font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-500">
+                      {g.label}
+                    </p>
+                    <div className="mt-2 space-y-0.5">
+                      {g.links.map((l) => {
+                        const active = pathname === l.href;
+                        return (
+                          <Link
+                            key={l.href}
+                            href={l.href}
+                            prefetch={false}
+                            aria-current={active ? "page" : undefined}
+                            className={cn(
+                              "block rounded-md px-2 py-2 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-amber-400/70",
+                              active ? "bg-amber-500/10" : "hover:bg-graphite-850"
+                            )}
+                          >
+                            <span className={cn("block text-[13px] font-medium", active ? "text-amber-400" : "text-text-primary")}>
+                              {l.name}
+                            </span>
+                            <span className="block text-xs text-text-subtle">{l.desc}</span>
+                          </Link>
+                        );
+                      })}
                     </div>
-                  );
-                })}
-                </div>
+                  </div>
+                ))}
               </div>
-
-              <div className="flex items-center justify-between gap-4 border-t border-graphite-800 bg-graphite-950/40 px-6 py-3">
-                {/* Was "N free tools". Most still are, but HQ separation,
-                    multi-track MIDI and transcription cost a credit — and
-                    claiming otherwise directly beside a credit balance is the
-                    worst possible place to be wrong about it. */}
-                <p className="text-xs text-text-subtle">
-                  {toolCount} tools — no sign-up, no watermark
-                </p>
+              <div className="flex items-center justify-between border-t border-graphite-800 bg-graphite-950/40 px-5 py-3 text-[13px]">
+                <Link href="/forge" prefetch={false} className="text-text-muted transition-colors hover:text-text-primary">
+                  The Forge players
+                </Link>
                 <Link
                   href="/tools"
-                  className="shrink-0 rounded-md text-[13px] font-medium text-amber-400 outline-none transition-colors hover:text-amber-300 focus-visible:ring-2 focus-visible:ring-amber-400/70"
+                  className="group flex items-center gap-1 font-medium text-amber-400 outline-none transition-colors hover:text-amber-300 focus-visible:ring-2 focus-visible:ring-amber-400/70"
                 >
-                  Browse with descriptions →
+                  All {toolCount} tools
+                  <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
                 </Link>
               </div>
             </div>
@@ -513,187 +316,75 @@ export function Navbar({ paywallEnabled = false }: { paywallEnabled?: boolean })
         </div>
       </div>
 
-      {/* Mobile sheet. The backdrop above is what makes "tap anywhere to
-          close" work on touch, where there is no mousedown to rely on.
-          `inert` when closed: max-h-0 clips these links visually but leaves
-          every one of them focusable, so Tab used to walk the whole tool
-          list behind a closed menu. */}
       <div
         ref={sheetRef}
         id="nav-mobile-sheet"
         inert={!isMobileOpen}
         className={cn(
           "relative z-10 origin-top overflow-y-auto border-b border-graphite-800 bg-graphite-950 transition-all duration-300 ease-out motion-reduce:transition-none md:hidden",
-          isMobileOpen
-            ? "max-h-[calc(100dvh-4rem)] opacity-100"
-            : "pointer-events-none max-h-0 opacity-0",
-          "[&::-webkit-scrollbar]:w-1.5",
-          "[&::-webkit-scrollbar-track]:bg-transparent",
-          "[&::-webkit-scrollbar-thumb]:rounded-full",
-          "[&::-webkit-scrollbar-thumb]:bg-graphite-700",
-          "hover:[&::-webkit-scrollbar-thumb]:bg-graphite-600"
+          isMobileOpen ? "max-h-[calc(100dvh-3.5rem)] opacity-100" : "pointer-events-none max-h-0 opacity-0"
         )}
-        style={{ scrollbarWidth: "thin", scrollbarColor: "#34343a transparent" }}
       >
-        <div className="space-y-5 px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
-          {/* Top of the sheet, above the tool list. Someone who opened this
-              after tapping their balance expects to land on their account,
-              not scroll past forty tools to find it. */}
+        <div className="space-y-6 px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
           <CreditAccountPanel variant="mobile" onNavigate={() => setIsMobileOpen(false)} />
 
-          {CATEGORY_ORDER.map((category) => {
-            const tools = getToolsByCategory(category);
-            if (tools.length === 0) return null;
-            const isOpen = openCategory === category;
-            return (
-              <div key={category}>
-                <button
-                  type="button"
-                  onClick={() => setOpenCategory(isOpen ? null : category)}
-                  aria-expanded={isOpen}
-                  className="flex w-full items-center justify-between rounded-xl px-1 py-2 outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70"
-                >
-                  <span className="flex items-center gap-2">
-                    <span aria-hidden className="h-3 w-[2px] rounded-full bg-amber-500" />
-                    <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-text-subtle">
-                      {CATEGORY_LABELS[category]}
-                    </span>
-                  </span>
-                  <ChevronDown
-                    className={cn(
-                      "h-4 w-4 text-text-subtle transition-transform duration-200 motion-reduce:transition-none",
-                      isOpen && "rotate-180"
-                    )}
-                  />
-                </button>
-                <div className={cn("space-y-1 pt-1", !isOpen && "hidden")}>
-                  {tools.map((tool) => {
-                    const isActive = pathname === `/${tool.slug}`;
-                    return tool.status === "live" ? (
-                      <Link
-                        key={tool.slug}
-                        href={`/${tool.slug}`}
-                        // Set explicitly rather than relying on clipping to
-                        // keep these out of the viewport. Once the sheet IS
-                        // open they are all on screen at once, which is
-                        // exactly the case worth not prefetching.
-                        prefetch={false}
-                        aria-current={isActive ? "page" : undefined}
-                        onClick={() => setIsMobileOpen(false)}
-                        className={cn(
-                          "flex items-center justify-between rounded-xl px-4 py-3 text-sm font-medium outline-none transition-colors duration-200",
-                          "focus-visible:ring-2 focus-visible:ring-amber-400/70",
-                          isActive
-                            ? "bg-amber-500/10 text-amber-400"
-                            : "text-text-muted hover:bg-graphite-900 hover:text-text-primary"
-                        )}
-                      >
-                        {tool.name}
-                        {isActive && (
-                          <span aria-hidden className="h-2 w-2 rounded-full bg-amber-500" />
-                        )}
-                      </Link>
-                    ) : (
-                      <div
-                        key={tool.slug}
-                        className="flex items-center justify-between rounded-xl px-4 py-3 text-sm text-text-subtle/70"
-                      >
-                        <span>{tool.name}</span>
-                        <span className="rounded-full border border-graphite-700 px-1.5 text-[9px] font-medium uppercase tracking-wide text-text-subtle">
-                          Soon
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
+          {PRODUCT_GROUPS.map((g) => (
+            <div key={g.label}>
+              <p className="px-3 font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-500">
+                {g.label}
+              </p>
+              <div className="mt-1.5 space-y-0.5">
+                {g.links.map((l) => {
+                  const active = pathname === l.href;
+                  return (
+                    <Link
+                      key={l.href}
+                      href={l.href}
+                      prefetch={false}
+                      aria-current={active ? "page" : undefined}
+                      onClick={() => setIsMobileOpen(false)}
+                      className={cn(
+                        "flex items-center justify-between rounded-lg px-3 py-2.5 text-[15px] font-medium outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70",
+                        active ? "bg-amber-500/10 text-amber-400" : "text-text-primary hover:bg-graphite-900"
+                      )}
+                    >
+                      {l.name}
+                    </Link>
+                  );
+                })}
               </div>
-            );
-          })}
+            </div>
+          ))}
 
-          <div className="space-y-1 border-t border-graphite-800 pt-4">
-            <Link
-              href="/tools"
-              onClick={() => setIsMobileOpen(false)}
-              className="flex items-center justify-between rounded-xl px-4 py-3 text-sm font-medium text-text-muted outline-none transition-colors duration-200 hover:bg-graphite-900 hover:text-text-primary focus-visible:ring-2 focus-visible:ring-amber-400/70"
-            >
-              Browse with descriptions
-              <ChevronRight className="h-4 w-4 text-amber-500/70" />
-            </Link>
-
-            <Link
-              href="/guides"
-              onClick={() => setIsMobileOpen(false)}
-              aria-current={isGuidesActive ? "page" : undefined}
-              className={cn(
-                "flex items-center justify-between rounded-xl px-4 py-3 text-sm font-medium outline-none transition-colors duration-200",
-                "focus-visible:ring-2 focus-visible:ring-amber-400/70",
-                isGuidesActive
-                  ? "bg-amber-500/10 text-amber-400"
-                  : "text-text-muted hover:bg-graphite-900 hover:text-text-primary"
-              )}
-            >
-              Guides
-            </Link>
-
-            <a
-              href="https://ko-fi.com/audioforges"
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={() => setIsMobileOpen(false)}
-              className={buttonStyles({
-                variant: "outline",
-                size: "lg",
-                className: cn(
-                  "w-full justify-start gap-2 rounded-xl text-sm",
-                  "border-amber-500/25 bg-amber-500/5 text-amber-400/90",
-                  "hover:border-amber-500/60 hover:bg-amber-500/10 hover:text-amber-300"
-                ),
-              })}
-            >
-              <Coffee />
-              Donate
-            </a>
+          <div className="space-y-0.5 border-t border-graphite-800 pt-4">
+            {[
+              { href: "/tools", label: `All ${toolCount} tools` },
+              { href: "/forge", label: "The Forge players" },
+              { href: "/pricing", label: "Pricing" },
+              { href: "/guides", label: "Guides" },
+            ].map((l) => (
+              <Link
+                key={l.href}
+                href={l.href}
+                prefetch={false}
+                onClick={() => setIsMobileOpen(false)}
+                className="flex items-center justify-between rounded-lg px-3 py-2.5 text-[15px] text-text-muted outline-none hover:bg-graphite-900 hover:text-text-primary focus-visible:ring-2 focus-visible:ring-amber-400/70"
+              >
+                {l.label}
+              </Link>
+            ))}
           </div>
+
+          <Link
+            href="/pricing"
+            prefetch={false}
+            onClick={() => setIsMobileOpen(false)}
+            className={buttonStyles({ size: "lg", className: "w-full rounded-xl" })}
+          >
+            Get credits
+          </Link>
         </div>
       </div>
     </header>
-  );
-}
-
-/** One row in the mega panel. */
-function ToolRow({ tool, pathname }: { tool: (typeof TOOLS)[number]; pathname: string }) {
-  const isActive = pathname === `/${tool.slug}`;
-
-  if (tool.status !== "live") {
-    return (
-      <div className="flex cursor-default items-center justify-between gap-2 rounded-md px-2 py-[5px] text-[13px] text-text-subtle/70">
-        <span className="truncate">{tool.name}</span>
-        <span className="shrink-0 rounded-full border border-graphite-700 px-1.5 text-[9px] font-medium uppercase tracking-wide text-text-subtle">
-          Soon
-        </span>
-      </div>
-    );
-  }
-
-  return (
-    <Link
-      href={`/${tool.slug}`}
-      // See the note at the top of this file.
-      prefetch={false}
-      aria-current={isActive ? "page" : undefined}
-      className={cn(
-        "group flex items-center justify-between gap-2 rounded-md px-2 py-[5px] text-[13px] leading-snug outline-none transition-colors",
-        "focus-visible:ring-2 focus-visible:ring-amber-400/70",
-        isActive
-          ? "bg-amber-500/10 text-amber-400"
-          : "text-text-muted hover:bg-graphite-850 hover:text-text-primary"
-      )}
-    >
-      <span className="truncate">{tool.name}</span>
-      <ChevronRight
-        aria-hidden
-        className="h-3 w-3 shrink-0 -translate-x-1 text-amber-500/70 opacity-0 transition-all duration-150 group-hover:translate-x-0 group-hover:opacity-100 motion-reduce:transition-none"
-      />
-    </Link>
   );
 }

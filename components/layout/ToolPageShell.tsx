@@ -38,10 +38,8 @@ export function ToolPageShell({
             ready to drop. Same rule the OG card uses. */}
         <h1
           className={cn(
-            "measure-wide font-bold text-text-primary",
-            title.length > 30
-              ? "text-4xl leading-[1.04] tracking-[-0.025em] sm:text-5xl"
-              : "text-5xl leading-[1.02] tracking-[-0.03em] sm:text-6xl"
+            "display measure-wide text-text-primary",
+            title.length > 30 ? "text-5xl sm:text-6xl" : "text-6xl sm:text-7xl"
           )}
         >
           {title}

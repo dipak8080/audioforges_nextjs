@@ -2,7 +2,7 @@ import { forwardRef, type ButtonHTMLAttributes } from "react";
 import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 
-type ButtonVariant = "primary" | "secondary" | "outline" | "ghost" | "danger";
+type ButtonVariant = "primary" | "accent" | "secondary" | "outline" | "ghost" | "danger";
 type ButtonSize = "sm" | "md" | "lg" | "icon-sm" | "icon" | "icon-lg";
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -62,6 +62,12 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
  */
 const variantStyles: Record<ButtonVariant, string> = {
   primary: cn(
+    "bg-text-primary text-graphite-950",
+    "shadow-[inset_0_1px_0_rgba(255,255,255,0.4)]",
+    "hover:bg-white",
+    "active:bg-graphite-100"
+  ),
+  accent: cn(
     "bg-amber-500 text-graphite-950",
     "shadow-[inset_0_1px_0_rgba(255,255,255,0.25)]",
     "hover:bg-amber-400",
@@ -92,7 +98,8 @@ const variantStyles: Record<ButtonVariant, string> = {
 /** The ring belongs to the action, not to the brand. A destructive button that
  *  focuses in amber looks like it's about to do something friendly. */
 const ringStyles: Record<ButtonVariant, string> = {
-  primary: "focus-visible:ring-amber-500/50",
+  primary: "focus-visible:ring-text-primary/40",
+  accent: "focus-visible:ring-amber-500/50",
   secondary: "focus-visible:ring-amber-500/50",
   outline: "focus-visible:ring-amber-500/50",
   ghost: "focus-visible:ring-amber-500/50",

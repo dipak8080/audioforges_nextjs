@@ -33,12 +33,12 @@ import { openConsentSettings } from "@/lib/consent";
  * workflow and from cross-links on related tool pages instead.
  */
 const FOOTER_TOOL_SLUGS = [
-  "youtube-to-wav",
   "vocal-remover",
+  "stems",
+  "youtube-vocal-remover",
   "audio-to-midi",
+  "audio-to-sheet-music",
   "key-finder",
-  "youtube-to-mp3",
-  "audio-to-text",
 ];
 
 const FOOTER_TOOL_COUNT = 6;
@@ -176,7 +176,7 @@ export function Footer({ paywallEnabled = false }: { paywallEnabled?: boolean })
             </Link>
 
             <p className="mt-3 max-w-xs text-sm leading-relaxed text-text-muted">
-              {live.length} audio tools for producers, DJs and musicians, free in the browser.
+              AI stem separation and {live.length} studio tools for producers, DJs and musicians.
             </p>
 
             <div className="mt-5">
@@ -185,7 +185,7 @@ export function Footer({ paywallEnabled = false }: { paywallEnabled?: boolean })
                   href="https://ko-fi.com/audioforges"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 rounded-lg border border-amber-500/25 bg-amber-500/5 px-4 py-2.5 text-sm font-medium text-amber-400/90 transition-colors hover:border-amber-500/60 hover:bg-amber-500/10 hover:text-amber-300 focus:outline-none focus-visible:ring-1 focus-visible:ring-amber-500/60"
+                  className="inline-flex items-center gap-2 rounded-lg border border-graphite-800 px-4 py-2.5 text-sm font-medium text-text-muted transition-colors hover:border-graphite-600 hover:text-text-primary focus:outline-none focus-visible:ring-1 focus-visible:ring-amber-500/60"
                 >
                   <Coffee className="h-4 w-4" />
                   Donate
@@ -249,7 +249,7 @@ export function Footer({ paywallEnabled = false }: { paywallEnabled?: boolean })
 
         <div className="mt-12 flex flex-col items-center justify-between gap-2 border-t border-graphite-800 pt-6 text-xs text-text-subtle sm:flex-row">
           <p>© {year} AudioForges</p>
-          <p>Independent, built and maintained by one person.</p>
+          <p>Independent. Built in Kathmandu by one person.</p>
         </div>
       </div>
     </footer>

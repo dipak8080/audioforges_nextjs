@@ -1,15 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
 import { SITE_URL } from "@/lib/constants";
 import { getLiveTools } from "@/lib/data/tools";
-import { HeroConverter } from "@/components/home/HeroConverter";
 import { HeroForgePanel } from "@/components/home/HeroForgePanel";
-import { FlagshipTools } from "@/components/home/FlagshipTools";
-import { FAQSection, type FAQItem } from "@/components/faq/FAQSection";
-import { SectionHeading } from "@/components/ui/SectionHeading";
-import { Prose } from "@/components/ui/Prose";
+import { buttonStyles } from "@/components/ui/Button";
+import { ArrowRight } from "lucide-react";
 import { SpecSheet } from "@/components/home/SpecSheet";
+import { StudioTier } from "@/components/home/StudioTier";
+import { UseCases } from "@/components/home/UseCases";
+import { AlsoInStudio } from "@/components/home/AlsoInStudio";
+import { FAQSection, type FAQItem } from "@/components/faq/FAQSection";
 import { ForgeMixerCard, shape } from "@/components/tools/ForgeMixerCard";
 import { PianoRollCard } from "@/components/tools/PianoRollCard";
 import { EngravedScore } from "@/components/ui/EngravedScore";
@@ -18,16 +18,18 @@ import { FeaturedOn } from "@/components/home/FeaturedOn";
 import { ClosingCta } from "@/components/home/ClosingCta";
 import { ogImage } from "@/lib/og";
 
-const TOOL_COUNT = getLiveTools().length;
+const DEMO_STANDARD = "/audio/demo-vocals-standard.mp3";
+const DEMO_STUDIO = "/audio/demo-vocals-studio.mp3";
+const UPDATED = "2026-09-21";
 
-const PAGE_TITLE = "AudioForges: Free Audio Tools for Producers, DJs, Musicians";
+const PAGE_TITLE = "AudioForges: AI Vocal Remover and Stem Splitter for Producers and DJs";
 const PAGE_DESCRIPTION =
-  "Free browser audio tools for producers, DJs and musicians. Every model is named, every limit is published, and results play back before you download.";
+  "Separate any track into clean stems with named models, htdemucs and MelBand RoFormer. Full length WAV, an in browser stem mixer, and a Studio Quality tier for the cleanest result.";
 
 const OG_IMAGE = ogImage(
-  "Free audio tools for producers, DJs and musicians",
-  "Every model named. Every limit published. Results play back before you download.",
-  `${TOOL_COUNT} tools · No sign-up`
+  "Separate any track into clean stems",
+  "Named models. Full length WAV. Mix the stems in the browser before you download.",
+  "AudioForges Studio"
 );
 
 export const metadata: Metadata = {
@@ -50,58 +52,6 @@ export const metadata: Metadata = {
   },
 };
 
-/**
- * PREFETCH IS SELECTIVE HERE, not blanket-disabled. The hero routes to
- * /youtube-to-wav on submit, the one route worth having ready. Everything
- * below is a menu for someone still deciding, and stays off: ~20 routes,
- * ~80 requests, not spent.
- */
-
-
-/** The producer workflow, in the order the steps happen. Step 04 carries
- *  three links: the transcription tools are new, and the homepage is the
- *  strongest internal signal a new page can get. */
-const WORKFLOW = [
-  {
-    step: "01",
-    title: "Get the audio",
-    body: "Pull a reference track, or convert what you already have.",
-    links: [
-      { href: "/youtube-to-wav", label: "YouTube to WAV" },
-      { href: "/youtube-to-mp3", label: "YouTube to MP3" },
-      { href: "/convert", label: "Format Converter" },
-    ],
-  },
-  {
-    step: "02",
-    title: "Know what you have",
-    body: "Key and tempo, before it goes into a session or a set.",
-    links: [
-      { href: "/key-finder", label: "Key & BPM Finder" },
-      { href: "/bpm-tapper", label: "BPM Tapper" },
-    ],
-  },
-  {
-    step: "03",
-    title: "Clean it up",
-    body: "Strip noise, room echo and background off a usable take.",
-    links: [
-      { href: "/noise-remove", label: "Noise Remover" },
-      { href: "/voice-clean", label: "Voice Cleaner" },
-    ],
-  },
-  {
-    step: "04",
-    title: "Take it apart",
-    body: "Split out an instrumental, an acapella, or a written transcript.",
-    links: [
-      { href: "/vocal-remover", label: "Vocal Remover" },
-      { href: "/audio-to-text", label: "Audio to Text" },
-      { href: "/youtube-to-text", label: "YouTube to Text" },
-    ],
-  },
-];
-
 const STATS_API =
   process.env.NEXT_PUBLIC_RAILWAY_API_BASE || "https://api.audioforges.com";
 
@@ -116,230 +66,146 @@ async function getProcessedTotal(): Promise<number | null> {
   }
 }
 
+const FORGE = [
+  { href: "/vocal-remover", name: "Forge Mixer", desc: "Mute, solo, volume and pan per stem. Loop a section, export the balance as WAV." },
+  { href: "/audio-to-midi", name: "Forge Roll", desc: "Crossfade against the original, in sync. Move, resize and add notes, then export." },
+  { href: "/audio-to-sheet-music", name: "Forge Score", desc: "Cursor follows the sound, bar by bar. Transpose, then print or export MusicXML." },
+];
+
 export default async function HomePage() {
   const processedTotal = await getProcessedTotal();
-  const liveTools = getLiveTools();
-  const toolCount = liveTools.length;
-
+  const toolCount = getLiveTools().length;
 
   const organizationJsonLd = {
     "@context": "https://schema.org",
     "@type": "Organization",
     name: "AudioForges",
     url: SITE_URL,
-    description:
-      "Free browser audio tools for producers, DJs and musicians. Every model is named, every limit is published, and results play back before you download.",
+    description: PAGE_DESCRIPTION,
     sameAs: [],
   };
-
   const websiteJsonLd = {
     "@context": "https://schema.org",
     "@type": "WebSite",
     name: "AudioForges",
     url: SITE_URL,
-    description:
-      "Free browser audio tools for producers, DJs and musicians. Every model is named, every limit is published, and results play back before you download.",
+    description: PAGE_DESCRIPTION,
   };
 
   const faqs: FAQItem[] = [
     {
-      question: "What tools does AudioForges offer?",
-      answer: `${toolCount} free audio tools covering conversion, trimming, volume, pitch and tempo, noise/echo/silence cleanup, vocal removal, key/BPM detection, instrument tuning, metronome practice, BPM tapping, and transcription with subtitle export.`,
+      question: "What is the difference between Standard and Studio Quality?",
+      answer:
+        "Standard runs htdemucs and costs nothing. Studio Quality runs MelBand RoFormer, a different architecture that leaves far less vocal bleed in the instrumental and fewer watery artifacts on cymbals and breaths. Studio Quality is one credit per track after the monthly free runs.",
       answerNode: (
         <>
-          {toolCount} free audio tools covering conversion, trimming, volume, pitch and tempo,
-          noise/echo/silence cleanup, vocal removal, key/BPM detection, instrument tuning,
-          metronome practice, BPM tapping, and transcription with subtitle export.{" "}
-          <Link
-            href="/tools"
-            prefetch={false}
-            className="text-amber-400 underline underline-offset-2 hover:text-amber-300"
-          >
-            See the full list
+          Standard runs htdemucs and costs nothing. Studio Quality runs MelBand RoFormer, a different
+          architecture that leaves far less vocal bleed in the instrumental and fewer watery artifacts
+          on cymbals and breaths. Studio Quality is one credit per track after the monthly free runs.{" "}
+          <Link href="/pricing" prefetch={false} className="text-amber-400 underline underline-offset-2 hover:text-amber-300">
+            See the packs
           </Link>
           .
         </>
       ),
     },
     {
-      question: "Do I need an account to use AudioForges?",
+      question: "Do I need an account?",
       answer:
-        "No. Every tool works without creating an account, entering an email, or installing anything.",
+        "No. Standard separation and every converter and editor work without an account, an email or an install. Credits attach to an email so they follow you between devices, and they never expire.",
     },
     {
-      question: "Are the tools actually free?",
+      question: "Can I hear the result before downloading?",
       answer:
-        "Almost entirely. Every tool works free with no watermark and full-quality downloads, including standard vocal removal and stem splitting. The exceptions are the jobs that need a GPU: Studio Quality separation, high-accuracy MIDI, transcription and sheet music. Everyone gets free runs of those each month, and after that they take credits: bought once, never expiring, refunded if a run fails. Fair-use limits apply so one person cannot tie up the servers.",
-      answerNode: (
-        <>
-          Almost entirely. Every tool works free with no watermark and full-quality downloads,
-          including standard vocal removal and stem splitting. The exceptions are the jobs that need a GPU:
-          Studio Quality separation, high-accuracy MIDI, transcription and sheet music. Everyone gets free runs
-          of those each month, and after that they take{" "}
-          <Link href="/pricing" prefetch={false} className="text-amber-400 underline underline-offset-2 hover:text-amber-300">
-            credits
-          </Link>
-          : bought once, never expiring, refunded if a run fails. Fair-use limits apply so one person cannot tie
-          up the servers.
-        </>
-      ),
-    },
-    {
-      question: "Can I hear my MIDI or sheet music before downloading it?",
-      answer:
-        "Yes. The Audio to MIDI converter opens every transcription in an interactive DAW-style piano roll, play it in the browser, slow it down to 50%, and on full-mix HQ runs solo or mute each stem. The Audio to Sheet Music tool renders a live engraved score with synced playback: a cursor follows the staff and each note lights up as it sounds, so you can verify the transcription before downloading the PDF, MusicXML, or MIDI.",
-      answerNode: (
-        <>
-          Yes. The{" "}
-          <Link
-            href="/audio-to-midi"
-            prefetch={false}
-            className="text-amber-400 underline underline-offset-2 hover:text-amber-300"
-          >
-            Audio to MIDI converter
-          </Link>{" "}
-          opens every transcription in an interactive DAW-style piano roll, play it in the
-          browser, slow it down to 50%, and on full-mix HQ runs solo or mute each stem. The{" "}
-          <Link
-            href="/audio-to-sheet-music"
-            prefetch={false}
-            className="text-amber-400 underline underline-offset-2 hover:text-amber-300"
-          >
-            Audio to Sheet Music
-          </Link>{" "}
-          tool renders a live engraved score with synced playback: a cursor follows the staff and
-          each note lights up as it sounds, so you can verify the transcription before
-          downloading the PDF, MusicXML, or MIDI.
-        </>
-      ),
+        "Yes. Separation opens in Forge Mixer, MIDI opens in Forge Roll, and sheet music opens in Forge Score. You hear or read what the model produced, fix what needs fixing, and only then take the file.",
     },
     {
       question: "What happens to the files I upload?",
-      // DRAFT, CHECK AGAINST THE CACHE BEFORE DEPLOY. Replace "a short
-      // period" with the real eviction window, and make the footer line agree.
       answer:
-        "Uploads are processed and not kept as personal files. Converted results are held in a temporary cache for a short period so repeat requests for the same source don't have to be processed twice, then evicted automatically. No account is attached to anything you convert.",
+        "Uploads are processed and not kept as personal files. Results are held in a short temporary cache so a repeat request for the same source is not processed twice, then evicted automatically. Nothing is attached to an account.",
     },
     {
-      question: "Who is AudioForges built for?",
-      answer:
-        "Music producers, DJs, remixers, musicians, podcasters, and content creators who need quick, accurate audio utilities without the friction of ad-heavy or sign-up-gated tools.",
+      question: "What else is in the studio?",
+      answer: `${toolCount} tools in total: the separation engine, audio to MIDI, audio to sheet music, key and BPM detection, transcription, and a full set of converters and editors. Each one names the model it runs and prints its limits.`,
     },
   ];
 
   return (
     <>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }}
-      />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd) }}
-      />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd) }} />
 
-      {/* max-w-6xl matches the nav and footer. */}
-      <main id="main" className="mx-auto max-w-6xl px-4">
-        <section className="pt-14 sm:pt-20">
-          <div className="grid items-center gap-12 lg:grid-cols-2 lg:gap-12">
-            <div>
+      <main id="main">
+        <section className="relative overflow-hidden">
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 -z-10"
+            style={{
+              background:
+                "radial-gradient(60rem 28rem at 78% 0%, rgba(232,162,61,0.10), transparent 60%), radial-gradient(40rem 20rem at 10% 100%, rgba(232,162,61,0.04), transparent 60%)",
+            }}
+          />
+          <div className="mx-auto grid max-w-6xl items-center gap-12 px-4 pb-16 pt-14 sm:pt-20 lg:grid-cols-12 lg:gap-12 lg:pb-20">
+            <div className="lg:col-span-5">
               <p className="font-mono text-xs uppercase tracking-[0.16em] text-amber-500">
-                {toolCount} tools · no sign-up
+                AI stem separation
               </p>
-              <h1 className="mt-5 text-balance text-4xl font-bold leading-[1.05] tracking-[-0.03em] text-text-primary sm:text-5xl">
-                Studio-grade audio tools that run in your browser
+              <h1 className="display mt-5 text-balance text-5xl text-text-primary sm:text-6xl lg:text-7xl">
+                Separate any track into clean stems
               </h1>
-              <p className="mt-5 max-w-xl text-lg leading-relaxed text-text-muted">
-                Split stems, find key and BPM, convert formats and clean up takes, free in the
-                browser. Every result plays back before you download it.
+              <p className="mt-5 max-w-md text-lg leading-relaxed text-text-muted">
+                Vocals, drums, bass and the rest, back as full length WAV. Mix them in the browser
+                before you download a single file.
               </p>
 
-              <div className="mt-8">
-                <HeroConverter />
-              </div>
-
-              <p className="text-sm text-text-subtle">
-                Or{" "}
-                <Link
-                  href="/tools"
-                  prefetch={false}
-                  className="text-amber-400 underline underline-offset-2 transition-colors hover:text-amber-300"
-                >
-                  browse all {toolCount} tools
-                </Link>
-                . Every one takes an uploaded file too.
-              </p>
-
-              <p className="mt-7 text-sm text-text-subtle">
-                <span className="font-medium text-text-secondary">55,000+</span> producers, DJs and
-                musicians use AudioForges every month.
-                {processedTotal !== null && (
-                  <>
-                    {" "}
-                    <span className="font-medium text-text-secondary">
-                      {processedTotal.toLocaleString("en-US")}
-                    </span>{" "}
-                    jobs processed so far.
-                  </>
-                )}
-              </p>
+              <dl className="mt-8 grid grid-cols-3 gap-4 border-t border-graphite-800 pt-6">
+                {[
+                  ["Models", "htdemucs, MelBand RoFormer"],
+                  ["Output", "WAV 16-bit 44.1 kHz"],
+                  ["Every month", processedTotal ? `${Math.round(processedTotal / 1000)}k tracks` : "55,000+ people"],
+                ].map(([k, v]) => (
+                  <div key={k}>
+                    <dt className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-subtle">{k}</dt>
+                    <dd className="mt-1 text-sm font-medium text-text-primary">{v}</dd>
+                  </div>
+                ))}
+              </dl>
             </div>
 
-            <HeroForgePanel />
+            <div className="lg:col-span-7">
+              <div className="surface grain overflow-hidden rounded-xl border border-graphite-800">
+                <HeroForgePanel />
+              </div>
+              <div className="mt-5 flex flex-wrap items-center gap-4">
+                <Link href="/vocal-remover" prefetch={false} className={buttonStyles({ size: "lg" })}>
+                  Drop your own track
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+                <p className="text-sm text-text-subtle">No account. Full length WAV back.</p>
+              </div>
+            </div>
           </div>
         </section>
 
-        <section className="mt-14">
-          <SpecSheet />
-        </section>
+        <StudioTier standardSrc={DEMO_STANDARD} studioSrc={DEMO_STUDIO} />
 
-        <section className="mt-14 border-t border-graphite-800 py-14">
-          <SectionHeading
-            eyebrow="How it fits together"
-            title="Built around how the work actually goes"
-            description="Prepping a DJ set, sampling for a beat, editing a podcast, the same few steps come up every time. Each is its own focused tool here rather than one bloated app."
-          />
+        <section className="mx-auto max-w-6xl px-4 py-16">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div className="max-w-xl">
+              <p className="font-mono text-xs uppercase tracking-[0.16em] text-amber-500">The Forge</p>
+              <h2 className="display mt-3 text-4xl text-text-primary sm:text-5xl">
+                Hear it before you download it
+              </h2>
+            </div>
+            <Link href="/forge" prefetch={false} className="text-sm text-text-muted transition-colors hover:text-amber-400">
+              All three players
+            </Link>
+          </div>
 
-          {/* items-start, or a column with three links stretches the two-link
-              columns beside it and leaves dead space under the last one. */}
-          <ol className="mt-10 grid items-start gap-x-8 gap-y-10 sm:grid-cols-2 lg:grid-cols-4">
-            {WORKFLOW.map((stage) => (
-              <li key={stage.step} className="border-t border-graphite-800 pt-4">
-                <p className="font-mono text-xs text-amber-500">{stage.step}</p>
-                <h3 className="mt-2 font-semibold text-text-primary">{stage.title}</h3>
-                <p className="mt-1.5 text-sm leading-relaxed text-text-muted">{stage.body}</p>
-                <div className="mt-3.5 flex flex-col gap-1.5">
-                  {stage.links.map((link) => (
-                    <Link
-                      key={link.href}
-                      href={link.href}
-                      prefetch={false}
-                      className="group flex w-fit items-center gap-1 text-sm text-amber-400 transition-colors hover:text-amber-300"
-                    >
-                      {link.label}
-                      <ArrowRight className="h-3 w-3 -translate-x-1 opacity-0 transition-all duration-150 group-hover:translate-x-0 group-hover:opacity-100" />
-                    </Link>
-                  ))}
-                </div>
-              </li>
-            ))}
-          </ol>
-        </section>
-
-        <section className="border-t border-graphite-800 py-14">
-          <SectionHeading
-            eyebrow="The Forge"
-            title="Hear it before you download it"
-            description="Every heavy job opens in a player built for that output: a stem mixer, a piano roll, an engraved score. You hear or read what the model produced, fix what needs fixing, and only then take the file."
-          />
-          <div className="mt-10 grid items-stretch gap-6 lg:grid-cols-3">
+          <div className="mt-10 grid items-stretch gap-4 lg:grid-cols-3">
             <div className="flex flex-col">
-              <Link href="/vocal-remover" prefetch={false} className="group mb-3 block">
-                <span className="font-semibold text-text-primary group-hover:text-amber-400">Forge Mixer</span>
-              </Link>
               <ForgeMixerCard
                 compact
-                stackPoints
                 className="flex flex-1 flex-col"
                 lanes={[
                   { name: "Vocals", peaks: shape(3, 0.9), active: true },
@@ -347,102 +213,56 @@ export default async function HomePage() {
                   { name: "Bass", peaks: shape(9, 0.7) },
                   { name: "Other", peaks: shape(13, 0.95) },
                 ]}
-                points={[
-                  "Mute, solo, volume and pan per stem.",
-                  "Loop a section, export the balance as WAV.",
-                ]}
+                points={[]}
               />
             </div>
             <div className="flex flex-col">
-              <Link href="/audio-to-midi" prefetch={false} className="group mb-3 block">
-                <span className="font-semibold text-text-primary group-hover:text-amber-400">Forge Roll</span>
-              </Link>
-              <PianoRollCard
-                stackPoints
-                className="flex flex-1 flex-col"
-                points={[
-                  "Crossfade against the original, in sync.",
-                  "Move, resize and add notes, then export.",
-                ]}
-              />
+              <PianoRollCard className="flex flex-1 flex-col" points={[]} />
             </div>
-            <div className="flex flex-col">
-              <Link href="/audio-to-sheet-music" prefetch={false} className="group mb-3 block">
-                <span className="font-semibold text-text-primary group-hover:text-amber-400">Forge Score</span>
-              </Link>
-              <div className="flex flex-1 flex-col overflow-hidden rounded-xl border border-graphite-800 bg-graphite-900">
-                <div className="flex flex-1 items-center p-4">
-                  <EngravedScore glow className="w-full px-4 py-4 sm:px-5 sm:py-5" />
-                </div>
-                <ul className="mt-auto grid gap-y-3 border-t border-graphite-800 p-5 text-sm leading-relaxed text-text-muted">
-                  {["Cursor follows the sound, bar by bar.", "Transpose, then print or export MusicXML."].map((pt) => (
-                    <li key={pt} className="flex gap-2.5">
-                      <span className="mt-[9px] h-1 w-1 shrink-0 rounded-full bg-amber-400" aria-hidden />
-                      <span>{pt}</span>
-                    </li>
-                  ))}
-                </ul>
+            <div className="surface flex flex-1 flex-col overflow-hidden rounded-xl border border-graphite-800">
+              <div className="flex flex-1 items-center justify-center p-6">
+                <EngravedScore glow className="w-full px-4 py-4 sm:px-5 sm:py-5" />
               </div>
             </div>
           </div>
 
-          <p className="mt-8 text-sm leading-relaxed text-text-muted">
-            <Link
-              href="/forge"
-              prefetch={false}
-              className="text-amber-400 underline-offset-4 hover:underline"
-            >
-              See what all three players do
-            </Link>
-            , with the controls and export formats for each.
-          </p>
-        </section>
-
-        <FlagshipTools toolCount={toolCount} />
-
-        <section className="grid gap-10 border-t border-graphite-800 py-14 lg:grid-cols-12">
-          <div className="lg:col-span-7">
-            <SectionHeading eyebrow="Background" title="Why AudioForges" />
-            <Prose className="mt-5">
-              <p>
-                AudioForges is built by Dipak, a producer in Kathmandu, for his own sessions first:
-                pulling reference audio, checking key and tempo before a session, getting clean files
-                without an ad-heavy downloader or another account. It has grown into a full toolkit
-                for conversion, editing, cleanup, analysis, tuning, tempo, practice and transcription.
-              </p>
-              <p>
-                Each tool does one job, names what it runs, and says where it fails, before you
-                upload.
-              </p>
-            </Prose>
-          </div>
-
-          {/* self-start, or the grid stretches this to match the prose column
-              and leaves the closing border floating below the last item. */}
-          <dl className="divide-y divide-graphite-800 border-y border-graphite-800 lg:col-span-5 lg:self-start">
-            {[
-              ["No account", "No sign-up, no email, nothing to install."],
-              ["Free core", "Standard separation, every converter and editor, no watermark. GPU jobs take credits after free runs."],
-              ["Honest about limits", "Rate limits, retention windows and failure cases are printed on every tool page, read live from the backend."],
-            ].map(([term, description]) => (
-              <div key={term} className="py-4">
-                <dt className="font-medium text-text-primary">{term}</dt>
-                <dd className="mt-0.5 text-sm text-text-muted">{description}</dd>
-              </div>
+          <div className="mt-4 grid gap-4 lg:grid-cols-3">
+            {FORGE.map((f) => (
+              <Link key={f.href} href={f.href} prefetch={false} className="group px-1">
+                <span className="font-semibold text-text-primary group-hover:text-amber-400">{f.name}</span>
+                <span className="mt-1 block text-sm leading-relaxed text-text-muted">{f.desc}</span>
+              </Link>
             ))}
-          </dl>
+          </div>
         </section>
 
-        <div className="border-t border-graphite-800 py-14">
-          <FAQSection eyebrow="Questions" faqs={faqs} />
-          <div className="mt-12">
-            <PageByline updated="2026-09-16" note="Homepage rebuilt around the Forge players; every tool page has named models, published limits and playable results" />
+        <UseCases />
+
+        <section className="border-y border-graphite-800 bg-graphite-900/60">
+          <div className="mx-auto max-w-6xl px-4 py-16">
+            <p className="font-mono text-xs uppercase tracking-[0.16em] text-amber-500">Checkable claims</p>
+            <div className="mt-6">
+              <SpecSheet />
+            </div>
           </div>
+        </section>
+
+        <div className="mx-auto max-w-6xl px-4">
+          <AlsoInStudio toolCount={toolCount} />
+
+          <div className="border-t border-graphite-800 py-16">
+            <FAQSection eyebrow="Questions" faqs={faqs} />
+            <div className="mt-12">
+              <PageByline
+                updated={UPDATED}
+                note="Homepage rebuilt around the separation engine and the Studio Quality tier"
+              />
+            </div>
+          </div>
+
+          <ClosingCta />
+          <FeaturedOn />
         </div>
-
-        <ClosingCta toolCount={toolCount} />
-
-        <FeaturedOn />
       </main>
     </>
   );
