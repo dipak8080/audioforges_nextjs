@@ -24,7 +24,6 @@ import {
   Repeat,
   Scissors,
   Shrink,
-  Sparkles,
   Square,
   Undo2,
   VolumeX,
@@ -81,11 +80,11 @@ type Engine = {
 };
 
 const PALETTE: [string, string][] = [
-  ["#f59e0b", "#fcd34d"],
-  ["#38bdf8", "#7dd3fc"],
+  ["#e8a23d", "#ffd58a"],
+  ["#4dd8b8", "#a5f0e0"],
+  ["#e0705c", "#ffb3a5"],
+  ["#cfcabd", "#ffffff"],
   ["#a78bfa", "#c4b5fd"],
-  ["#34d399", "#6ee7b7"],
-  ["#fb7185", "#fda4af"],
   ["#22d3ee", "#67e8f9"],
   ["#a3e635", "#bef264"],
   ["#fb923c", "#fdba74"],
@@ -622,16 +621,15 @@ export function MidiResultPlayer({
           ctx.shadowBlur = 8;
         }
         ctx.fillStyle = active ? track.bright : ramp[(n.v * 8) | 0];
-        ctx.fillRect(x, y, nw, nh);
+        const rad = Math.min(2.5, nh / 2, nw / 2);
+        ctx.beginPath();
+        ctx.roundRect(x, y, nw, nh, rad);
+        ctx.fill();
         ctx.shadowBlur = 0;
 
-        if (nh >= 5 && nw >= 3) {
-          ctx.fillStyle = "rgba(0,0,0,0.6)";
-          ctx.fillRect(x, y + nh - hair, nw, hair);
-          ctx.fillRect(x + nw - hair, y, hair, nh);
-          ctx.fillStyle = active ? "rgba(255,255,255,0.55)" : "rgba(255,255,255,0.2)";
-          ctx.fillRect(x, y, nw, hair);
-          ctx.fillRect(x, y, hair, nh);
+        if (nh >= 5 && nw >= 4) {
+          ctx.fillStyle = active ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.28)";
+          ctx.fillRect(x + rad, y, nw - rad * 2, hair);
         }
 
         if (editing && selSet.has(n)) {
@@ -774,13 +772,13 @@ export function MidiResultPlayer({
     const inRange = (p: number) => p >= d.loPitch && p <= d.hiPitch;
     const whiteW = KEYS_W - 2;
     const whiteGrad = ctx.createLinearGradient(0, 0, whiteW, 0);
-    whiteGrad.addColorStop(0, "#b9b9c0");
-    whiteGrad.addColorStop(0.14, "#e4e4e8");
-    whiteGrad.addColorStop(1, "#fafafb");
+    whiteGrad.addColorStop(0, "#77746d");
+    whiteGrad.addColorStop(0.14, "#b8b4aa");
+    whiteGrad.addColorStop(1, "#d6d2c8");
     const whiteLit = ctx.createLinearGradient(0, 0, whiteW, 0);
-    whiteLit.addColorStop(0, "#b45309");
-    whiteLit.addColorStop(0.25, "#f59e0b");
-    whiteLit.addColorStop(1, "#fde68a");
+    whiteLit.addColorStop(0, "#a8701f");
+    whiteLit.addColorStop(0.25, "#e8a23d");
+    whiteLit.addColorStop(1, "#ffd58a");
 
     /* one continuous white strip, black keys sit on top of it */
     ctx.fillStyle = whiteGrad;
@@ -2835,9 +2833,8 @@ export function MidiResultPlayer({
       }}
     >
       {/* ---------- toolbar ---------- */}
-      <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-white/[0.07] bg-black/20 px-2 py-1.5">
-        <span className="flex items-center gap-1.5 pr-1 font-mono text-[10.5px] font-semibold uppercase tracking-[0.16em] text-white/40">
-          <Sparkles className="h-3.5 w-3.5 text-amber-500/80" aria-hidden />
+      <div className="flex flex-wrap items-center gap-1.5 pb-3">
+        <span className="pr-2 font-mono text-[10px] uppercase tracking-[0.18em] text-text-subtle">
           Forge Roll
         </span>
 
@@ -3010,7 +3007,7 @@ export function MidiResultPlayer({
             <canvas
               ref={canvasRef}
               className={cn(
-                "w-full touch-none rounded-lg border border-white/10 bg-black/30",
+                "w-full touch-none rounded-xl bg-graphite-950/70 shadow-[inset_0_1px_2px_rgba(0,0,0,0.7),inset_0_0_0_1px_rgba(255,255,255,0.04)]",
                 editMode ? "cursor-crosshair" : "cursor-grab active:cursor-grabbing"
               )}
               onPointerDown={onPointerDown}
@@ -3043,17 +3040,26 @@ export function MidiResultPlayer({
           </div>
 
           {/* ---------- transport ---------- */}
-          <div className="mt-2 flex flex-wrap items-center gap-1.5 rounded-lg border border-white/[0.07] bg-black/20 px-2 py-1.5">
+          <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2">
+            <button
+              type="button"
+              onClick={togglePlay}
+              aria-label={isPlaying ? "Pause" : "Play"}
+              title={isPlaying ? "Pause (Space)" : "Play (Space)"}
+              className={cn(
+                "flex h-12 w-12 shrink-0 items-center justify-center rounded-full border outline-none transition-colors focus-visible:ring-2 focus-visible:ring-amber-400/70",
+                isPlaying
+                  ? "border-amber-500 bg-amber-500 text-graphite-950"
+                  : "border-graphite-600 text-text-primary hover:border-text-primary/70"
+              )}
+            >
+              {isPlaying ? (
+                <Pause className="h-4 w-4" fill="currentColor" />
+              ) : (
+                <Play className="ml-0.5 h-4 w-4" fill="currentColor" />
+              )}
+            </button>
             <Group>
-              <button
-                type="button"
-                onClick={togglePlay}
-                aria-label={isPlaying ? "Pause" : "Play"}
-                title={isPlaying ? "Pause (Space)" : "Play (Space)"}
-                className="flex h-7 w-10 shrink-0 items-center justify-center bg-amber-500 text-black transition hover:bg-amber-400"
-              >
-                {isPlaying ? <Pause className="h-3.5 w-3.5" /> : <Play className="ml-px h-3.5 w-3.5" />}
-              </button>
               <GBtn label="Stop" title="Stop and return to the start" onClick={stop}>
                 <Square className="h-3.5 w-3.5" />
               </GBtn>
@@ -3072,7 +3078,10 @@ export function MidiResultPlayer({
 
             <span
               ref={timeRef}
-              className="shrink-0 font-mono text-[11px] tabular-nums text-white/45"
+              className={cn(
+                "shrink-0 font-mono text-lg tabular-nums",
+                isPlaying ? "text-amber-400" : "text-text-primary"
+              )}
             >
               0:00 / 0:00
             </span>
@@ -3471,7 +3480,7 @@ function GBtn({
       onClick={onClick}
       className={cn(
         "flex h-7 min-w-[28px] items-center justify-center px-2 text-[11px] transition-colors disabled:pointer-events-none disabled:opacity-30",
-        active ? "bg-amber-500/15 text-amber-400" : "text-white/55 hover:bg-white/[0.06] hover:text-white/85",
+        active ? "bg-white/[0.12] text-white" : "text-white/55 hover:bg-white/[0.06] hover:text-white/85",
         className
       )}
     >
@@ -3618,7 +3627,7 @@ function rampFor(hex: string): string[] {
   const b = n & 255;
   const out: string[] = [];
   for (let i = 0; i <= 8; i++) {
-    const f = 0.5 + (i / 8) * 0.5;
+    const f = 0.74 + (i / 8) * 0.26;
     out.push(`rgb(${Math.round(r * f)},${Math.round(g * f)},${Math.round(b * f)})`);
   }
   RAMP_CACHE.set(hex, out);
