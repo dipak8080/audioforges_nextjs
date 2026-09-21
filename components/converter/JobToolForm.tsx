@@ -852,7 +852,7 @@ export function JobToolForm({
           }
           resetLabel={stage.resetLabel ?? "Process another file"}
           note={
-            validationError || (isFailed && error) || (status === "complete" && !chargedRun) ? (
+            validationError || (isFailed && error) || (status === "complete" && !chargedRun && !hideSupport) ? (
               <div className="space-y-4">
                 {validationError && <ValidationNote message={validationError} />}
                 {isFailed && error && <ErrorPanel error={error} />}

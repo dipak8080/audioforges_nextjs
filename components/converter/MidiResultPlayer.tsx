@@ -2970,6 +2970,7 @@ export function MidiResultPlayer({
                 </GBtn>
               </Group>
 
+              <div className="relative">
               <Group>
                 <GBtn label="Zoom out" title="Zoom out (Ctrl+scroll)" onClick={() => zoomBy(1 / 1.35)}>
                   <ZoomOut className="h-3.5 w-3.5" />
@@ -2995,6 +2996,29 @@ export function MidiResultPlayer({
                   </span>
                 </GBtn>
               </Group>
+                {tipOpen && !fullscreen && (
+                  <div
+                    role="status"
+                    className="absolute right-0 top-full z-30 mt-2.5 w-56 rounded-lg border border-graphite-600 bg-graphite-800 p-3 shadow-2xl shadow-black/60"
+                  >
+                    <span
+                      className="absolute -top-[5px] right-10 h-2.5 w-2.5 rotate-45 border-l border-t border-graphite-600 bg-graphite-800"
+                      aria-hidden
+                    />
+                    <p className="text-xs font-medium text-text-primary">More room to edit</p>
+                    <p className="mt-1 text-[11px] leading-relaxed text-text-muted">
+                      Full screen gives you taller rows and the whole window for the roll.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={dismissTip}
+                      className="mt-2 rounded text-[11px] font-medium text-text-primary underline underline-offset-2 outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70"
+                    >
+                      Got it
+                    </button>
+                  </div>
+                )}
+              </div>
 
               <Group>
                 <GBtn
@@ -3029,19 +3053,6 @@ export function MidiResultPlayer({
           </>
         )}
       </div>
-
-      {status === "ready" && tipOpen && !fullscreen && (
-        <p className="-mt-1 flex items-center gap-2 pb-3 text-xs text-text-subtle">
-          <span>Tip: open Full screen for more room to edit.</span>
-          <button
-            type="button"
-            onClick={dismissTip}
-            className="rounded underline underline-offset-2 outline-none transition-colors hover:text-text-primary focus-visible:ring-2 focus-visible:ring-amber-400/70"
-          >
-            Got it
-          </button>
-        </p>
-      )}
 
       {status === "loading" && (
         <div className="flex h-[190px] items-center justify-center text-sm text-white/40">
