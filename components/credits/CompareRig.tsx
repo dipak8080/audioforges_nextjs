@@ -392,9 +392,13 @@ export function CompareRig({
           <p className="truncate text-xs text-text-subtle">
             {loop ? (
               <>
-                Looping {fmt(loop.start)} to {fmt(loop.end)}.{" "}
-                <button type="button" onClick={() => setLoop(null)} className="text-amber-400 hover:underline">
-                  Clear
+                Looping {fmt(loop.start)} to {fmt(loop.end)}{" "}
+                <button
+                  type="button"
+                  onClick={() => setLoop(null)}
+                  className="ml-1 inline-flex items-center rounded-md border border-amber-500/50 px-2 py-0.5 text-xs font-medium text-amber-300 transition-colors hover:bg-amber-500/10"
+                >
+                  Clear loop
                 </button>
               </>
             ) : (
