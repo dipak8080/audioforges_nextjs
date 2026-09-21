@@ -62,8 +62,8 @@ export function FAQSection({
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
       />
-      <section className="space-y-6">
-        <div>
+      <section className="space-y-6 lg:in-[.shell-wide]:grid lg:in-[.shell-wide]:grid-cols-12 lg:in-[.shell-wide]:gap-x-12 lg:in-[.shell-wide]:space-y-0">
+        <div className="lg:in-[.shell-wide]:sticky lg:in-[.shell-wide]:top-24 lg:in-[.shell-wide]:col-span-4 lg:in-[.shell-wide]:self-start">
           {eyebrow && (
             <p className="font-mono text-xs uppercase tracking-[0.16em] text-amber-500">
               {eyebrow}
@@ -77,7 +77,7 @@ export function FAQSection({
             {title}
           </h2>
         </div>
-        <div className="space-y-2">
+        <div className="space-y-2 lg:in-[.shell-wide]:col-span-8">
           {faqs.map((faq, i) => (
             <FAQItemRow key={i} faq={faq} />
           ))}

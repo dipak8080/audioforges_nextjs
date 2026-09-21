@@ -97,7 +97,7 @@ export function CompareTable({
       <div
         role="table"
         className={cn(
-          "hidden overflow-hidden rounded-xl border border-graphite-800 bg-graphite-900 text-sm sm:grid",
+          "surface hidden overflow-hidden rounded-xl border border-graphite-800 text-sm sm:grid",
           colClass
         )}
       >

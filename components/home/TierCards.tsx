@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Pause, Play } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
+import { useCredits } from "@/components/credits/CreditProvider";
 
 type Tier = "standard" | "studio";
 
@@ -14,6 +15,13 @@ const TIERS: { id: Tier; name: string; model: string; note: string; price: strin
 export function TierCards({ standardSrc, studioSrc }: { standardSrc: string; studioSrc: string }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [playing, setPlaying] = useState<Tier | null>(null);
+  const { enabled, loading, isToolMetered, me } = useCredits();
+
+  const cost = me?.paywall?.tools?.["separate-hq"]?.credits ?? 1;
+  const studioPrice =
+    enabled && !loading && !isToolMetered("separate-hq")
+      ? "Free right now"
+      : `${cost} ${cost === 1 ? "credit" : "credits"} per track`;
 
   useEffect(() => {
     const el = audioRef.current;
@@ -68,7 +76,7 @@ export function TierCards({ standardSrc, studioSrc }: { standardSrc: string; stu
             </div>
             <p className="mt-6 text-sm leading-relaxed text-text-muted">{t.note}</p>
             <p className={cn("mt-5 font-mono text-[11px] uppercase tracking-[0.14em]", live ? "text-amber-400" : "text-text-subtle")}>
-              {live ? "Playing" : t.price}
+              {live ? "Playing" : t.id === "studio" ? studioPrice : t.price}
             </p>
           </button>
         );

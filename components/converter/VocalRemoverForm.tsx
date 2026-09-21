@@ -1,18 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Mic2, Sparkles, Music4, Bell, BellOff, RotateCcw } from "lucide-react";
+import { Mic2, Music4, Bell, BellOff, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { DemoQualityStrip } from "@/components/tools/DemoQualityStrip";
+import { StudioStage, type StageTier } from "@/components/tools/StudioStage";
+import { DEMO_DURATION, DEMO_PEAKS_STANDARD, DEMO_PEAKS_STUDIO } from "@/lib/data/demo-peaks";
 import {
   CooldownBar,
   ErrorPanel,
-  FormShell,
-  MixerTeaser,
-  SeparationTheater,
-  Section,
   ValidationNote,
-  WorkingPanel,
   ResultHeader,
   easedProgress,
   formatCooldown,
@@ -25,15 +21,6 @@ import {
   type FormError,
   type ProcessingStage,
 } from "@/components/tools/JobFormKit";
-import {
-  ControlField,
-  Hint,
-  OptionCards,
-  ToggleRow,
-  type CardOption,
-} from "@/components/converter/ToolControls";
-import { FileDropZone } from "@/components/ui/FileDropZone";
-import { Waveform } from "@/components/ui/Waveform";
 import { validateAudioFile } from "@/lib/utils/validation";
 import { StemMixer } from "@/components/converter/StemMixer";
 import { triggerDownload, triggerDownloadsStaggered } from "@/lib/utils/download";
@@ -56,6 +43,7 @@ import type { SeparationUiState, StemType, SubmitBilling } from "@/lib/types/con
 import type { MeteredToolKey } from "@/lib/types/credits";
 import { SupportBlock } from "@/components/ui/SupportBlock";
 import Link from "next/link";
+import { cn } from "@/lib/utils/cn";
 import { trackCredits } from "@/lib/analytics";
 import { useCreditGate } from "@/components/credits/useCreditGate";
 import { useCredits } from "@/components/credits/CreditProvider";
@@ -81,16 +69,6 @@ import { useNotificationPermission } from "@/lib/hooks/useNotificationPermission
  *    "Stop watching" copy and the tip-jar suppression were both being decided
  *    by a previous job's receipt. Cleared on cancel as well as reset.
  *
- * MOVED ONTO THE KIT: the step rail (File → Separate → Result), the working
- * panel with its stage checklist, the result and error cards, the elapsed and
- * cooldown timers, the progress curve, and a cooldown bar you can watch drain
- * rather than a number ticking inside the button label.
- *
- * MOVED ONTO ToolControls: the quality picker (OptionCards), the notify switch
- * (ToggleRow) and the stem switch (Segmented). That deletes the local
- * useRovingRadio hook — it was correct, and it was the third copy of a
- * behaviour that now lives in one place.
- *
  * KEPT, because the reasoning is right: notify flags read through refs (this
  * feature never fired for anyone before that fix); `jobQuality` as its own
  * state so the header, stages and upgrade card describe the RUNNING job rather
@@ -109,11 +87,14 @@ interface VocalRemoverFormProps {
    * period where PAYWALL_ENABLED is off, since context is null in both cases.
    */
   standardLimit?: SharedAllowanceSpec | null;
+  /** Studio limit from /limits, resolved server-side. Beats the static table. */
+  hqLimitText?: string;
 }
 
 interface QualitySpec {
   value: SeparationQuality;
   label: string;
+  model: string;
   time: string;
   detail: string;
   /** Key into RATE_LIMITS (lib/data/rate-limits.ts) — NOT a hardcoded string. */
@@ -129,8 +110,9 @@ interface QualitySpec {
 const STANDARD_SPEC: QualitySpec = {
   value: "standard",
   label: "Standard",
-  time: "20 sec–1 min",
-  detail: "Vocals and instrumental",
+  model: "htdemucs",
+  time: "20 sec to 1 min",
+  detail: "Vocals and instrumental. Some bleed on dense mixes.",
   rateLimitKey: "separate",
   toolKey: null,
 };
@@ -138,18 +120,12 @@ const STANDARD_SPEC: QualitySpec = {
 const HQ_SPEC: QualitySpec = {
   value: "hq",
   label: "Studio Quality",
-  time: "1–2 min",
-  detail: "Cleaner separation, same 2 stems",
+  model: "MelBand RoFormer",
+  time: "1 to 2 min",
+  detail: "Cleaner separation, same 2 stems. Cymbals and consonants intact.",
   rateLimitKey: "separate-hq",
   toolKey: "separate-hq",
 };
-
-const SPEC_FOR: Record<SeparationQuality, QualitySpec> = {
-  standard: STANDARD_SPEC,
-  hq: HQ_SPEC,
-};
-
-const STEPS = ["File", "Separate", "Result"] as const;
 
 // Fallback shown only if a key is ever missing from RATE_LIMITS.
 const FALLBACK_RATE_LIMIT_LABEL = "rate limited";
@@ -176,6 +152,11 @@ function formatRateLimit(max: number, windowSeconds: number): string {
         : `${windowSeconds} sec`;
   return `${max} per ${unit}`;
 }
+
+const SPEC_FOR: Record<SeparationQuality, QualitySpec> = {
+  standard: STANDARD_SPEC,
+  hq: HQ_SPEC,
+};
 
 const STANDARD_STAGES: ProcessingStage[] = [
   { at: 0, label: "Uploading and queuing" },
@@ -219,6 +200,7 @@ function humanizeError(raw: string): FormError {
 export function VocalRemoverForm({
   hqAvailable = false,
   standardLimit,
+  hqLimitText,
   demoStandardSrc,
   demoStudioSrc,
 }: VocalRemoverFormProps) {
@@ -273,7 +255,14 @@ export function VocalRemoverForm({
   const { catchCreditError, gate } = useCreditGate({
     onCredited: () => submitRef.current(),
   });
-  const { applyBalance, rateLimitFor } = useCredits();
+  const {
+    applyBalance,
+    rateLimitFor,
+    enabled: creditsEnabled,
+    loading: creditsLoading,
+    isToolMetered,
+    me,
+  } = useCredits();
   const sharedLimit = useSharedLimit("separate", standardLimit);
 
   const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -300,13 +289,7 @@ export function VocalRemoverForm({
   });
 
   const isHq = hqAvailable && quality === "hq";
-  /** What the toggle currently says — used only for the pre-submit UI. */
-  const selectedSpec = isHq ? HQ_SPEC : STANDARD_SPEC;
-  /** What the job is actually doing — used once there IS a job. */
-  const activeSpec = status === "idle" ? selectedSpec : SPEC_FOR[jobQuality];
   const canSubmit = Boolean(file) && !isBusy && !isComplete && cooldownSeconds === 0;
-
-  const step: 1 | 2 | 3 = isComplete ? 3 : isBusy ? 2 : 1;
 
   /**
    * Metered is what the SERVER said, not what the toggle says. The billing
@@ -314,8 +297,6 @@ export function VocalRemoverForm({
    * rather than an inference from a control the user can still change.
    */
   const completedCharged = billing?.charged === "credit";
-  /** Drives the honest cancel copy while a paid run is in flight. */
-  const chargedRun = billing?.charged === "credit";
 
   // Shortest window only. The picker slot fits one figure; the page FAQ carries
   // both, and the 429 names whichever actually fired.
@@ -323,7 +304,8 @@ export function VocalRemoverForm({
     sharedLimit.shortLabel ??
     getRateLimitLabel(STANDARD_SPEC.rateLimitKey) ??
     FALLBACK_RATE_LIMIT_LABEL;
-  const hqLimitLabel = getRateLimitLabel(HQ_SPEC.rateLimitKey) ?? FALLBACK_RATE_LIMIT_LABEL;
+  const hqLimitLabel =
+    hqLimitText ?? getRateLimitLabel(HQ_SPEC.rateLimitKey) ?? FALLBACK_RATE_LIMIT_LABEL;
 
   const stopPolling = useCallback(() => {
     if (pollRef.current) {
@@ -609,267 +591,197 @@ export function VocalRemoverForm({
   const stageLabel =
     status === "uploading" ? "Uploading your file" : (stages[stageIndex]?.label ?? "Separating");
 
-  const qualityOptions: CardOption<SeparationQuality>[] = [STANDARD_SPEC, HQ_SPEC].map(
-    (option) => {
-      // Live limit first, static table second. See formatRateLimit.
-      const liveLimit = option.toolKey ? rateLimitFor(option.toolKey) : null;
-      return {
-        value: option.value,
-        title: option.label,
-        titleBefore:
-          option.value === "hq" ? <Sparkles className="h-3.5 w-3.5" aria-hidden /> : undefined,
-        // Renders nothing unless this tool is metered right now. "2 free runs
-        // left" is what makes a first-timer click Studio Quality at all.
-        // Both cards carry a cost marker or neither does. AlwaysFreeTag reads
-        // the METERED sibling, so when the paywall is off both stay bare.
-        titleAfter: option.toolKey ? (
-          <FreeTierBadge tool={option.toolKey} />
-        ) : HQ_SPEC.toolKey ? (
-          <AlwaysFreeTag pairedTool={HQ_SPEC.toolKey} />
-        ) : undefined,
-        meta: option.time,
-        detail: option.detail,
-        premium: option.value === "hq",
-        // The standard tier draws from the shared pool and has no per-tool
-        // entry in rate_limit.tools, so liveLimit is always null for it.
-        footnote:
-          option.value === "hq"
-            ? liveLimit
-              ? formatRateLimit(liveLimit.max_requests, liveLimit.window_seconds)
-              : (getRateLimitLabel(option.rateLimitKey) ?? FALLBACK_RATE_LIMIT_LABEL)
-            : standardLimitLabel,
-      };
-    }
-  );
+  // Metered Studio runs are capped by free runs and credits, so the hourly
+  // figure is only shown while the paywall is off.
+  const hqMetered = creditsEnabled && !creditsLoading && isToolMetered("separate-hq");
+  const hqCost = me?.paywall?.tools?.["separate-hq"]?.credits ?? 1;
+  const hqCostNote = `${hqCost} ${hqCost === 1 ? "credit" : "credits"} per track after your free runs`;
+
+  const specs = hqAvailable ? [STANDARD_SPEC, HQ_SPEC] : [STANDARD_SPEC];
+  const tiers: StageTier<SeparationQuality>[] = specs.map((option) => {
+    // Live limit first, static table second. See formatRateLimit.
+    const liveLimit = option.toolKey ? rateLimitFor(option.toolKey) : null;
+    const demoSrc = option.value === "hq" ? demoStudioSrc : demoStandardSrc;
+    return {
+      value: option.value,
+      name: option.label,
+      short: option.value === "hq" ? "Studio" : "Standard",
+      premium: option.value === "hq",
+      model: option.model,
+      time: option.time,
+      demo:
+        demoSrc
+          ? {
+              src: demoSrc,
+              peaks: option.value === "hq" ? DEMO_PEAKS_STUDIO : DEMO_PEAKS_STANDARD,
+              duration: DEMO_DURATION,
+            }
+          : undefined,
+      // Both tiers carry a cost marker or neither does.
+      badge: option.toolKey ? (
+        <FreeTierBadge tool={option.toolKey} />
+      ) : HQ_SPEC.toolKey ? (
+        <AlwaysFreeTag pairedTool={HQ_SPEC.toolKey} />
+      ) : undefined,
+      footnote:
+        option.value === "hq"
+          ? hqMetered
+            ? hqCostNote
+            : creditsLoading
+              ? undefined
+              : liveLimit
+                ? formatRateLimit(liveLimit.max_requests, liveLimit.window_seconds)
+                : hqLimitLabel
+          : standardLimitLabel,
+    };
+  });
 
   const notifyOn = notifyEnabled && notifyPermission === "granted";
+  const notifyTitle =
+    notifyPermission === "denied"
+      ? "Notifications are blocked in your browser settings"
+      : notifyOn
+        ? "We will notify you when it is done"
+        : "Notify me when it is done";
 
-  const footer = isComplete ? null : file || isFailed ? (
-    <div className="space-y-2">
-      <Button
-        variant="primary"
-        size="lg"
-        className="w-full"
-        onClick={handleSubmit}
-        disabled={!canSubmit && !isBusy}
-        loading={isBusy}
-        loadingLabel="Separating"
+  const notifyButton =
+    notifyPermission !== "unsupported" ? (
+      <button
+        type="button"
+        onClick={handleNotifyToggle}
+        disabled={isBusy || notifyPermission === "denied"}
+        aria-pressed={notifyOn}
+        aria-label={notifyTitle}
+        title={notifyTitle}
+        className={cn(
+          "flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border outline-none transition-colors focus-visible:ring-2 focus-visible:ring-amber-400/70 disabled:cursor-not-allowed disabled:opacity-50",
+          notifyOn
+            ? "border-text-primary/70 text-text-primary"
+            : "border-graphite-700 text-text-subtle hover:border-graphite-500 hover:text-text-primary"
+        )}
       >
-        {!isBusy && <Mic2 />}
-        {isBusy
-          ? "Working"
-          : cooldownSeconds > 0
-            ? `Try again in ${formatCooldown(cooldownSeconds)}`
-            : isFailed
-              ? "Try again"
-              : isHq
-                ? "Remove vocals (Studio Quality)"
-                : "Remove vocals"}
-      </Button>
-      <CooldownBar seconds={cooldownSeconds} ceiling={cooldownCeiling} />
-    </div>
-  ) : null;
+        {notifyOn ? <Bell className="h-4 w-4" /> : <BellOff className="h-4 w-4" />}
+      </button>
+    ) : null;
+
+  const actionLabel =
+    cooldownSeconds > 0
+      ? `Try again in ${formatCooldown(cooldownSeconds)}`
+      : isFailed
+        ? "Try again"
+        : isHq
+          ? "Remove vocals in Studio Quality"
+          : "Remove vocals";
+
+  const result =
+    isComplete && jobId ? (
+      <div className="space-y-4" role="status" aria-live="polite">
+        <ResultHeader
+          verb="Done"
+          title={resultTitle || "Separation complete"}
+          meta={`Finished in ${formatElapsed(elapsedSeconds)}`}
+          tag={jobQuality === "hq" ? <StudioQualityTag /> : undefined}
+        />
+
+        <StemMixer
+          key={jobId}
+          stems={(["vocals", "instrumental"] as StemType[]).map((name) => ({
+            name: name === "vocals" ? "Vocals" : "Instrumental",
+            url: getSeparationPreviewUrl(jobId, name),
+            downloadName: `${name}.wav`,
+            icon:
+              name === "vocals" ? (
+                <Mic2 className="h-4 w-4" aria-hidden />
+              ) : (
+                <Music4 className="h-4 w-4" aria-hidden />
+              ),
+          }))}
+          onDownload={(display) => {
+            const raw: StemType = display === "Vocals" ? "vocals" : "instrumental";
+            triggerDownload(getSeparationDownloadUrl(jobId, raw));
+          }}
+          onDownloadAll={() =>
+            triggerDownloadsStaggered(
+              (["vocals", "instrumental"] as StemType[]).map((n) =>
+                getSeparationDownloadUrl(jobId, n)
+              )
+            )
+          }
+          sourceTitle={resultTitle}
+        />
+
+        {/* Never on a job that already ran at Studio Quality. */}
+        {jobQuality === "standard" && (
+          <UpgradeToHqCard family="separate" jobId={jobId} onUpgraded={handleUpgraded} />
+        )}
+
+        <CreditReceipt billing={billing} />
+
+        {/* No tip jar right after charging a credit. */}
+        {!completedCharged && <SupportBlock />}
+
+        <Button variant="outline" size="md" className="w-full sm:w-auto" onClick={handleReset}>
+          <RotateCcw />
+          Separate another track
+        </Button>
+      </div>
+    ) : undefined;
+
+  const note =
+    validationError || (isFailed && error) ? (
+      <div className="space-y-4">
+        {validationError && <ValidationNote message={validationError} />}
+        {isFailed && error && (
+          <>
+            <ErrorPanel error={error}>
+              {error.offerCredits && (
+                <Link
+                  href="/pricing"
+                  onClick={() => trackCredits("credits_rate_limited", { tool: "separate-hq" })}
+                  className="mt-2 inline-block rounded text-xs font-medium text-amber-400 outline-none underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-amber-400/70"
+                >
+                  See credit packs →
+                </Link>
+              )}
+            </ErrorPanel>
+            {/* No tip jar on a job that ran and broke, only on a rejected submit. */}
+            {status === "error" && <SupportBlock mood="sheepish" />}
+          </>
+        )}
+      </div>
+    ) : undefined;
 
   return (
     <>
-      <FormShell
-        toolLabel="Vocal remover"
-        toolMeta={`${activeSpec.label} · ${activeSpec.time}`}
-        steps={STEPS}
-        step={step}
+      <StudioStage
+        label="Vocal remover"
+        file={file}
+        onFileSelect={handleFileSelect}
+        onClear={handleReset}
+        accept="audio/*,.mp3,.wav,.m4a,.aac,.ogg,.flac"
+        formats="MP3 · WAV · FLAC · M4A · AAC · OGG"
+        tiers={tiers}
+        tier={isHq ? "hq" : "standard"}
+        onTierChange={setQuality}
+        jobTier={status === "idle" ? (isHq ? "hq" : "standard") : jobQuality}
+        demoCaption="Hear a result first: the vocal stem"
+        demoNudge={hqAvailable ? "Now switch to Studio Quality and hear the bleed disappear" : undefined}
+        demoCredit="What Would It Mean by H4RRIS feat. Nicole Apollonio, used with permission"
         busy={isBusy}
         failed={isFailed}
-        complete={isComplete}
-        footer={footer}
-        breakoutOnComplete
-      >
-        {/* SOURCE — the file, and anything wrong with it. */}
-        {!isComplete && (
-          <Section>
-            <div className="space-y-4">
-              <FileDropZone
-                onFileSelect={handleFileSelect}
-                currentFile={file}
-                onClear={handleReset}
-                disabled={isBusy}
-                accept="audio/*,.mp3,.wav,.m4a,.aac,.ogg,.flac"
-              />
-
-              {/* An error about the file belongs beside the file, not below
-                  two unrelated controls. */}
-              {validationError && <ValidationNote message={validationError} />}
-
-              <MixerTeaser />
-
-              {hqAvailable && demoStandardSrc && demoStudioSrc && (
-                <DemoQualityStrip standardSrc={demoStandardSrc} studioSrc={demoStudioSrc} />
-              )}
-            </div>
-          </Section>
-        )}
-
-        {/* WORKING */}
-        {isBusy && (
-          <Section>
-            <WorkingPanel
-              stageLabel={stageLabel}
-              stages={stages}
-              stageIndex={stageIndex}
-              showStageList={status === "processing"}
-              elapsedSeconds={elapsedSeconds}
-              progress={easedProgress(elapsedSeconds, jobQuality === "hq" ? 40 : 12)}
-              expectedRange={activeSpec.time}
-              chargedRun={chargedRun}
-              onCancel={handleCancel}
-              waveform={<Waveform />}
-              theater={<SeparationTheater lanes={["Vocals", "Instrumental"]} />}
-            />
-          </Section>
-        )}
-
-        {/* SETTINGS — the two choices, in one zone with one baseline. */}
-        {!isComplete && (hqAvailable || notifyPermission !== "unsupported") && (
-          <Section>
-            <div className="space-y-5">
-              {hqAvailable && (
-                <ControlField
-                  as="fieldset"
-                  label="Quality"
-                  hint={
-                    isHq ? (
-                      <Hint>
-                        Studio Quality can take a minute or two. The notification below saves you
-                        from babysitting this tab.
-                      </Hint>
-                    ) : undefined
-                  }
-                >
-                  <OptionCards
-                    label="Separation quality"
-                    options={qualityOptions}
-                    value={quality}
-                    onChange={setQuality}
-                    disabled={isBusy}
-                  />
-                </ControlField>
-              )}
-
-              {/*
-                HIDDEN UNTIL THERE IS A FILE, not shown disabled. With no file
-                chosen, the resting state ended on a full-width greyed-out row
-                that does nothing — and a disabled control is still a control
-                the eye has to process and dismiss.
-              */}
-              {notifyPermission !== "unsupported" && file && (
-                <ToggleRow
-                  pressed={notifyOn}
-                  onToggle={handleNotifyToggle}
-                  disabled={isBusy}
-                  iconOn={<Bell className="h-4 w-4" />}
-                  iconOff={<BellOff className="h-4 w-4" />}
-                >
-                  {notifyPermission === "denied"
-                    ? "Notifications blocked — enable them in your browser settings to use this"
-                    : notifyOn
-                      ? "We'll notify you when it's done"
-                      : "Notify me when it's done"}
-                </ToggleRow>
-              )}
-            </div>
-          </Section>
-        )}
-
-        {/* RESULT */}
-        {isComplete && jobId && (
-          <Section>
-            <div className="space-y-4" role="status" aria-live="polite">
-              <ResultHeader
-                verb="Done"
-                title={resultTitle || "Separation complete"}
-                meta={`Finished in ${formatElapsed(elapsedSeconds)}`}
-                tag={jobQuality === "hq" ? <StudioQualityTag /> : undefined}
-              />
-
-              <StemMixer
-                key={jobId}
-                stems={(["vocals", "instrumental"] as StemType[]).map((name) => ({
-                  name: name === "vocals" ? "Vocals" : "Instrumental",
-                  url: getSeparationPreviewUrl(jobId, name),
-                  downloadName: `${name}.wav`,
-                  icon:
-                    name === "vocals" ? (
-                      <Mic2 className="h-4 w-4" aria-hidden />
-                    ) : (
-                      <Music4 className="h-4 w-4" aria-hidden />
-                    ),
-                }))}
-                onDownload={(display) => {
-                  const raw: StemType = display === "Vocals" ? "vocals" : "instrumental";
-                  triggerDownload(getSeparationDownloadUrl(jobId, raw));
-                }}
-                onDownloadAll={() =>
-                  triggerDownloadsStaggered(
-                    (["vocals", "instrumental"] as StemType[]).map((n) =>
-                      getSeparationDownloadUrl(jobId, n)
-                    )
-                  )
-                }
-                sourceTitle={resultTitle}
-              />
-
-              {/* Directly under the player, above Download. The user has just
-                  heard the bleed in their own track — this is the only moment
-                  where the pitch makes itself. Renders nothing unless the
-                  server says this job is eligible, and never on a job that
-                  already ran at Studio Quality. */}
-              {jobQuality === "standard" && (
-                <UpgradeToHqCard family="separate" jobId={jobId} onUpgraded={handleUpgraded} />
-              )}
-
-              <CreditReceipt billing={billing} />
-
-              {/* Asking for a tip immediately after charging someone a credit
-                  is a bad look. Keyed on what was CHARGED, so a free-tier
-                  Studio Quality run still gets the block — nobody paid for
-                  that one. */}
-              {!completedCharged && <SupportBlock />}
-
-              <Button variant="outline" size="md" className="w-full" onClick={handleReset}>
-                <RotateCcw />
-                Separate another track
-              </Button>
-            </div>
-          </Section>
-        )}
-
-        {/* FAILED */}
-        {isFailed && error && (
-          <Section>
-            <div className="space-y-4">
-              <ErrorPanel error={error}>
-                {error.offerCredits && (
-                  <Link
-                    href="/pricing"
-                    onClick={() => trackCredits("credits_rate_limited", { tool: "separate-hq" })}
-                    className="mt-2 inline-block rounded text-xs font-medium text-amber-400 outline-none underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-amber-400/70"
-                  >
-                    See credit packs →
-                  </Link>
-                )}
-              </ErrorPanel>
-              {/*
-                NO TIP JAR ON A BROKEN RUN.
-                `error` means the SUBMIT was rejected — a file too large, an
-                unsupported format, a rate limit — which is the form doing its
-                job. `failed` means the job ran and broke, or polling gave up.
-                Following "This is taking unusually long" with "Buy us a
-                coffee" is the worst timing on the site.
-              */}
-              {status === "error" && <SupportBlock mood="sheepish" />}
-            </div>
-          </Section>
-        )}
-      </FormShell>
+        progress={easedProgress(elapsedSeconds, jobQuality === "hq" ? 40 : 12)}
+        stageLabel={stageLabel}
+        elapsed={formatElapsed(elapsedSeconds)}
+        onCancel={handleCancel}
+        actionLabel={actionLabel}
+        actionIcon={<Mic2 />}
+        actionDisabled={!canSubmit}
+        onAction={handleSubmit}
+        footerExtra={notifyButton}
+        belowAction={<CooldownBar seconds={cooldownSeconds} ceiling={cooldownCeiling} />}
+        result={result}
+        note={note}
+      />
 
       {gate}
     </>

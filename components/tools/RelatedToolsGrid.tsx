@@ -16,9 +16,11 @@ export function RelatedToolsGrid({
   if (tools.length === 0) return null;
 
   return (
-    <section>
-      <SectionHeading eyebrow={eyebrow} title={title} />
-      <div className="mt-8 grid gap-4 sm:grid-cols-2">
+    <section className="lg:in-[.shell-wide]:grid lg:in-[.shell-wide]:grid-cols-12 lg:in-[.shell-wide]:gap-x-12">
+      <div className="lg:in-[.shell-wide]:col-span-4">
+        <SectionHeading eyebrow={eyebrow} title={title} />
+      </div>
+      <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:in-[.shell-wide]:col-span-8 lg:in-[.shell-wide]:mt-0">
         {tools.map((tool) => (
           <Link
             key={tool.slug}

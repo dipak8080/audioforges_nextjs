@@ -104,7 +104,7 @@ export function ForgeMixerCard({
   const ruler = compact ? ["0:00", "1:00", "2:00", "3:00"] : ["0:00", "0:30", "1:00", "1:30", "2:00", "2:30", "3:00", "3:30"];
   const rulerSpan = compact ? 3.7 : 7.4;
   return (
-    <div className={cn("overflow-hidden rounded-xl border border-graphite-800 bg-graphite-900", className)}>
+    <div className={cn("surface grain overflow-hidden rounded-xl border border-graphite-800", className)}>
       <div className="flex items-center justify-between border-b border-graphite-800 px-3 py-2">
         <div className="flex items-center gap-3">
           <span className="flex h-7 w-7 items-center justify-center rounded-full bg-amber-500 text-graphite-950">

@@ -1,7 +1,7 @@
 export function SeparationDiagram() {
   return (
     <div className="grid gap-3 sm:grid-cols-2">
-      <figure className="rounded-xl border border-graphite-800 bg-graphite-900 p-4">
+      <figure className="surface grain rounded-xl border border-graphite-800 p-4">
         <svg viewBox="0 0 300 120" className="h-auto w-full" role="img" aria-label="Center-channel filter: subtracts one channel from the other">
           <g fill="none" stroke="var(--graphite-600)" strokeWidth="1.5">
             <rect x="12" y="22" width="60" height="26" rx="6" />

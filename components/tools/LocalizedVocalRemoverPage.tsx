@@ -70,6 +70,7 @@ export async function LocalizedVocalRemoverPage({ dict }: { dict: VocalRemoverDi
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(webAppJsonLd) }} />
 
       <ToolPageShell
+        wide
         breadcrumb={
           <Breadcrumb items={[{ name: dict.breadcrumbTools, href: "/tools" }, { name: dict.breadcrumbSelf }]} />
         }
@@ -80,6 +81,7 @@ export async function LocalizedVocalRemoverPage({ dict }: { dict: VocalRemoverDi
           <VocalRemoverForm
             hqAvailable={separationHqEnabled}
             standardLimit={standardAllowance}
+            hqLimitText={hqLimitLabel}
             demoStandardSrc={DEMO_STANDARD}
             demoStudioSrc={DEMO_STUDIO}
           />

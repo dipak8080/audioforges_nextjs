@@ -19,25 +19,27 @@ export function StemUseGrid({ outputs, jobs }: { outputs: StemOut[]; jobs: StemJ
     <div className="space-y-3">
       <div className="grid gap-3 sm:grid-cols-2">
         {outputs.map((o) => (
-          <div key={o.name} className="rounded-xl border border-amber-500/30 bg-amber-500/[0.05] p-5">
-            <p className="text-lg font-semibold text-text-primary">{o.name}</p>
-            <p className="mt-1.5 text-sm leading-relaxed text-text-muted">{o.desc}</p>
+          <div key={o.name} className="surface grain rounded-xl border border-graphite-700 p-6">
+            <p className="display text-3xl text-text-primary">{o.name}</p>
+            <p className="mt-3 text-sm leading-relaxed text-text-muted">{o.desc}</p>
           </div>
         ))}
       </div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {jobs.map((j) => (
-          <div key={j.name} className="rounded-xl border border-graphite-800 bg-graphite-900 p-4">
+          <div key={j.name} className="surface grain rounded-xl border border-graphite-800 p-4">
             <div className="flex items-baseline justify-between gap-2">
               <p className="font-medium text-text-primary">{j.name}</p>
-              <span className="shrink-0 text-[11px] text-amber-400">{j.uses}</span>
+              <span className="shrink-0 font-mono text-[10px] uppercase tracking-[0.12em] text-text-subtle">
+                {j.uses}
+              </span>
             </div>
             <p className="mt-1.5 text-sm leading-relaxed text-text-muted">
               {j.desc}
               {j.href && j.linkLabel && (
                 <>
                   {" "}
-                  <Link href={j.href} prefetch={false} className="text-amber-400 hover:underline">
+                  <Link href={j.href} prefetch={false} className="text-text-primary underline underline-offset-4 hover:text-white">
                     {j.linkLabel}
                   </Link>
                 </>
