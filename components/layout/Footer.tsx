@@ -121,6 +121,14 @@ const SOCIAL_LINKS = [
   },
 ];
 
+// Only pages that exist. Add a row when a new localized page ships.
+const LANGUAGE_LINKS = [
+  { href: "/vocal-remover", lang: "en", label: "English" },
+  { href: "/es/quitar-voz-de-una-cancion", lang: "es", label: "Español" },
+  { href: "/pt/remover-vocal", lang: "pt", label: "Português" },
+  { href: "/id/penghilang-vokal", lang: "id", label: "Bahasa Indonesia" },
+];
+
 const LEGAL_LINKS = [
   { href: "/privacy", label: "Privacy Policy" },
   { href: "/terms", label: "Terms of Service" },
@@ -249,6 +257,20 @@ export function Footer({ paywallEnabled = false }: { paywallEnabled?: boolean })
 
         <div className="mt-12 flex flex-col items-center justify-between gap-2 border-t border-graphite-800 pt-6 text-xs text-text-subtle sm:flex-row">
           <p>© {year} AudioForges</p>
+          <p className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1">
+            <span>Vocal remover in</span>
+            {LANGUAGE_LINKS.map((l) => (
+              <Link
+                key={l.href}
+                href={l.href}
+                hrefLang={l.lang}
+                prefetch={false}
+                className="rounded text-text-muted underline-offset-4 outline-none transition-colors hover:text-text-primary hover:underline focus-visible:ring-2 focus-visible:ring-amber-400/70"
+              >
+                {l.label}
+              </Link>
+            ))}
+          </p>
           <p>Independent. Built in Kathmandu by one person.</p>
         </div>
       </div>

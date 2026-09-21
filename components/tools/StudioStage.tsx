@@ -232,7 +232,35 @@ export interface StageCustomSource {
   onIdleAction: () => void;
 }
 
+export interface StageLabels {
+  done: string;
+  release: string;
+  dropHint: string;
+  chooseLink: string;
+  chooseButton: string;
+  replace: string;
+  remove: string;
+  cancel: string;
+  usually: string;
+  working: string;
+}
+
+const DEFAULT_LABELS: StageLabels = {
+  done: "Done",
+  release: "Let go",
+  dropHint: "Anywhere on this panel, or",
+  chooseLink: "choose a file",
+  chooseButton: "Choose a file",
+  replace: "Replace",
+  remove: "Remove",
+  cancel: "Cancel",
+  usually: "usually",
+  working: "Working",
+};
+
 export interface StudioStageProps<T extends string> {
+  /** Interface text. Localized pages pass their own. */
+  labels?: Partial<StageLabels>;
   label: string;
   file?: File | null;
   onFileSelect?: (file: File) => void;
@@ -315,7 +343,9 @@ export function StudioStage<T extends string>({
   stickyDone = false,
   resetLabel = "Separate another track",
   note,
+  labels,
 }: StudioStageProps<T>) {
+  const ui = { ...DEFAULT_LABELS, ...labels };
   const inputRef = useRef<HTMLInputElement | null>(null);
   const inputId = useId();
   const [dragging, setDragging] = useState(false);
@@ -422,7 +452,7 @@ export function StudioStage<T extends string>({
             {done ? (
               <>
                 <span className="shrink-0 font-mono text-[11px] font-medium uppercase tracking-[0.18em] text-teal-400">
-                  Done
+                  {ui.done}
                 </span>
                 <span className="truncate text-sm text-text-primary">
                   {doneTitle ?? label}
@@ -548,12 +578,12 @@ export function StudioStage<T extends string>({
                     )}
                   >
                     <span className="display text-5xl text-text-primary sm:text-6xl">
-                      {dragging ? "Let go" : dropTitle}
+                      {dragging ? ui.release : dropTitle}
                     </span>
                     <span className="mt-4 text-sm text-text-muted">
-                      Anywhere on this panel, or{" "}
+                      {ui.dropHint}{" "}
                       <span className="text-text-primary underline underline-offset-4">
-                        choose a file
+                        {ui.chooseLink}
                       </span>
                     </span>
                     <span className="mt-5 font-mono text-[11px] uppercase tracking-[0.16em] text-text-subtle">
@@ -607,7 +637,7 @@ export function StudioStage<T extends string>({
                       </span>
                     )}
                     <span className="hidden md:inline">
-                      usually {shown.time}
+                      {ui.usually} {shown.time}
                     </span>
                     {onCancel && (
                       <button
@@ -615,7 +645,7 @@ export function StudioStage<T extends string>({
                         onClick={onCancel}
                         className="rounded underline underline-offset-2 outline-none transition-colors hover:text-red-400 focus-visible:ring-2 focus-visible:ring-amber-400/70"
                       >
-                        Cancel
+                        {ui.cancel}
                       </button>
                     )}
                   </span>
@@ -640,14 +670,14 @@ export function StudioStage<T extends string>({
                       onClick={openPicker}
                       className="rounded underline underline-offset-2 outline-none transition-colors hover:text-text-primary focus-visible:ring-2 focus-visible:ring-amber-400/70"
                     >
-                      Replace
+                      {ui.replace}
                     </button>
                     <button
                       type="button"
                       onClick={onClear}
                       className="rounded underline underline-offset-2 outline-none transition-colors hover:text-red-400 focus-visible:ring-2 focus-visible:ring-amber-400/70"
                     >
-                      Remove
+                      {ui.remove}
                     </button>
                   </span>
                 </>
@@ -694,10 +724,10 @@ export function StudioStage<T extends string>({
               >
                 {!busy && (hasSource || failed) && actionIcon}
                 {busy
-                  ? "Working"
+                  ? ui.working
                   : hasSource || failed
                     ? actionLabel
-                    : (custom?.idleActionLabel ?? "Choose a file")}
+                    : (custom?.idleActionLabel ?? ui.chooseButton)}
               </Button>
             </div>
           </div>

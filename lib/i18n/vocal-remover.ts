@@ -1,5 +1,7 @@
 import { SITE_URL } from "@/lib/constants";
 
+import type { VocalRemoverCopy } from "@/components/converter/VocalRemoverForm";
+
 export const vocalRemoverLocales: Record<string, string> = {
   en: "/vocal-remover",
   id: "/id/penghilang-vokal",
@@ -75,6 +77,8 @@ export interface VocalRemoverDict {
   faqs: { question: string; answer: string }[];
   formatsFaq: { question: string; answer: string };
   byline: { note: string; legal: string };
+  /** Text inside the tool itself. Serializable, passed to VocalRemoverForm. */
+  form: VocalRemoverCopy;
 }
 
 export const idDict: VocalRemoverDict = {
@@ -280,6 +284,36 @@ export const idDict: VocalRemoverDict = {
     note: "Halaman versi Bahasa Indonesia",
     legal:
       "Anda bertanggung jawab memiliki hak atas lagu yang Anda unggah. AudioForges tidak menyimpan atau menyebarkan lagu yang diproses di sini.",
+  },
+  form: {
+    toolLabel: "Penghilang vokal",
+    dropTitle: "Letakkan lagu",
+    standardName: "Standar",
+    standardTime: "20 dtk sampai 1 mnt",
+    studioTime: "1 sampai 2 mnt",
+    action: "Hapus vokal",
+    actionStudio: "Hapus vokal dengan Studio Quality",
+    tryAgain: "Coba lagi",
+    tryAgainIn: "Coba lagi dalam {t}",
+    demoCaption: "Dengarkan hasilnya dulu: trek vokal",
+    demoNudge: "Sekarang pindah ke Studio Quality dan dengarkan sisa musiknya hilang",
+    demoCredit: "What Would It Mean oleh H4RRIS feat. Nicole Apollonio, digunakan dengan izin",
+    costNoteOne: "{n} kredit per lagu setelah jatah gratis habis",
+    costNoteMany: "{n} kredit per lagu setelah jatah gratis habis",
+    reset: "Pisahkan lagu lain",
+    doneFallback: "Pemisahan selesai",
+    stage: {
+      done: "Selesai",
+      release: "Lepaskan",
+      dropHint: "Di mana saja di panel ini, atau",
+      chooseLink: "pilih file",
+      chooseButton: "Pilih file",
+      replace: "Ganti",
+      remove: "Hapus",
+      cancel: "Batal",
+      usually: "biasanya",
+      working: "Memproses",
+    },
   },
 };
 
@@ -488,6 +522,36 @@ export const esDict: VocalRemoverDict = {
     legal:
       "Eres responsable de tener los derechos de la canción que subes. AudioForges no guarda ni distribuye las canciones procesadas aquí.",
   },
+  form: {
+    toolLabel: "Quitar voz",
+    dropTitle: "Suelta una canción",
+    standardName: "Estándar",
+    standardTime: "20 s a 1 min",
+    studioTime: "1 a 2 min",
+    action: "Quitar la voz",
+    actionStudio: "Quitar la voz en Studio Quality",
+    tryAgain: "Intentar de nuevo",
+    tryAgainIn: "Reintenta en {t}",
+    demoCaption: "Escucha primero un resultado: la pista de voz",
+    demoNudge: "Ahora cambia a Studio Quality y escucha cómo desaparecen los restos de música",
+    demoCredit: "What Would It Mean, de H4RRIS feat. Nicole Apollonio, usada con permiso",
+    costNoteOne: "{n} crédito por canción después de tus usos gratis",
+    costNoteMany: "{n} créditos por canción después de tus usos gratis",
+    reset: "Separar otra canción",
+    doneFallback: "Separación completa",
+    stage: {
+      done: "Listo",
+      release: "Suéltala",
+      dropHint: "En cualquier parte de este panel, o",
+      chooseLink: "elige un archivo",
+      chooseButton: "Elegir archivo",
+      replace: "Cambiar",
+      remove: "Quitar",
+      cancel: "Cancelar",
+      usually: "normalmente",
+      working: "Procesando",
+    },
+  },
 };
 
 export const ptDict: VocalRemoverDict = {
@@ -694,5 +758,35 @@ export const ptDict: VocalRemoverDict = {
     note: "Versão em português da página",
     legal:
       "Você é responsável por ter os direitos da música que envia. O AudioForges não guarda nem distribui as músicas processadas aqui.",
+  },
+  form: {
+    toolLabel: "Remover vocal",
+    dropTitle: "Solte uma música",
+    standardName: "Padrão",
+    standardTime: "20 s a 1 min",
+    studioTime: "1 a 2 min",
+    action: "Remover o vocal",
+    actionStudio: "Remover o vocal em Studio Quality",
+    tryAgain: "Tentar de novo",
+    tryAgainIn: "Tente de novo em {t}",
+    demoCaption: "Ouça um resultado primeiro: a faixa de voz",
+    demoNudge: "Agora mude para Studio Quality e ouça os restos da música sumirem",
+    demoCredit: "What Would It Mean, de H4RRIS feat. Nicole Apollonio, usada com permissão",
+    costNoteOne: "{n} crédito por música depois dos seus usos grátis",
+    costNoteMany: "{n} créditos por música depois dos seus usos grátis",
+    reset: "Separar outra música",
+    doneFallback: "Separação concluída",
+    stage: {
+      done: "Pronto",
+      release: "Pode soltar",
+      dropHint: "Em qualquer lugar deste painel, ou",
+      chooseLink: "escolha um arquivo",
+      chooseButton: "Escolher arquivo",
+      replace: "Trocar",
+      remove: "Remover",
+      cancel: "Cancelar",
+      usually: "normalmente",
+      working: "Processando",
+    },
   },
 };

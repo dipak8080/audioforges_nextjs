@@ -4,7 +4,6 @@ import { FAQSection, type FAQItem } from "@/components/faq/FAQSection";
 import { ToolPageShell } from "@/components/layout/ToolPageShell";
 import { Breadcrumb } from "@/components/layout/Breadcrumb";
 import { ToolSection } from "@/components/ui/ToolSection";
-import { StemCompare } from "@/components/credits/StemCompare";
 import { Prose } from "@/components/ui/Prose";
 import { ProofStrip } from "@/components/tools/ProofStrip";
 import { ForgeMixerCard } from "@/components/tools/ForgeMixerCard";
@@ -84,24 +83,11 @@ export async function LocalizedVocalRemoverPage({ dict }: { dict: VocalRemoverDi
             hqLimitText={hqLimitLabel}
             demoStandardSrc={DEMO_STANDARD}
             demoStudioSrc={DEMO_STUDIO}
+            copy={dict.form}
           />
         }
       >
         <ProofStrip proofs={dict.proofs} />
-
-        {separationHqEnabled && (
-          <ToolSection id="hear-the-difference" title={dict.hear.title}>
-            <p>{dict.hear.intro}</p>
-            <StemCompare
-              standardSrc={DEMO_STANDARD}
-              studioSrc={DEMO_STUDIO}
-              stemLabel={dict.hear.stemLabel}
-              trackLabel={dict.hear.trackLabel}
-              cues={dict.hear.cues}
-            />
-            <p className="text-xs text-text-subtle">{dict.hear.credit}</p>
-          </ToolSection>
-        )}
 
         <ToolSection id="forge-mixer" title={dict.mixer.title} bleed>
           <Prose className="mb-5">

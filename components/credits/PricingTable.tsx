@@ -85,7 +85,7 @@ export function PricingTable() {
         {[0, 1, 2].map((i) => (
           <div
             key={i}
-            className="h-[260px] animate-pulse rounded-xl border border-graphite-800 bg-graphite-900 motion-reduce:animate-none"
+            className="h-[300px] animate-pulse rounded-xl border border-graphite-800 bg-graphite-900 motion-reduce:animate-none"
           />
         ))}
       </div>
@@ -130,7 +130,7 @@ export function PricingTable() {
         </div>
       )}
 
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-3">
         {packs.map((pack) => {
           const perCredit = pack.price_usd / pack.credits;
           const isBest = pack.key === bestValueKey;
@@ -139,8 +139,8 @@ export function PricingTable() {
             <div
               key={pack.key}
               className={cn(
-                "relative flex flex-col rounded-xl border bg-graphite-900 p-5",
-                isBest ? "border-amber-500/50 ring-1 ring-amber-500/20" : "border-graphite-800"
+                "surface grain relative flex flex-col rounded-xl border p-6",
+                isBest ? "border-amber-500/50" : "border-graphite-800"
               )}
             >
               {isBest && (
@@ -152,12 +152,12 @@ export function PricingTable() {
                 <p className="text-xs text-text-subtle">{pack.label}</p>
               )}
               <p className="flex items-baseline gap-1.5">
-                <span className="font-mono text-3xl font-semibold tabular-nums text-text-primary">
+                <span className="display text-6xl leading-none tabular-nums text-text-primary">
                   {pack.credits}
                 </span>
                 <span className="text-sm text-text-muted">credits</span>
               </p>
-              <p className="mt-3 font-mono text-xl font-semibold tabular-nums text-amber-400">
+              <p className="mt-4 font-mono text-xl tabular-nums text-text-primary">
                 ${pack.price_usd.toFixed(2)}
               </p>
               <p className="mt-0.5 text-xs text-text-subtle">

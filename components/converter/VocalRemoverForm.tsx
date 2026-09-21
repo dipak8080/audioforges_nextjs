@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Mic2, Music4, Bell, BellOff } from "lucide-react";
-import { StudioStage, type StageTier } from "@/components/tools/StudioStage";
+import { StudioStage, type StageLabels, type StageTier } from "@/components/tools/StudioStage";
 import { DEMO_DURATION, DEMO_PEAKS_STANDARD, DEMO_PEAKS_STUDIO } from "@/lib/data/demo-peaks";
 import {
   CooldownBar,
@@ -75,7 +75,51 @@ import { useNotificationPermission } from "@/lib/hooks/useNotificationPermission
  * run or after a charge; the poll ceilings sized to the BACKEND's timeouts.
  */
 
+/** Interface text for the localized pages. Plain strings so a server page can pass it. */
+export interface VocalRemoverCopy {
+  toolLabel: string;
+  dropTitle: string;
+  standardName: string;
+  standardTime: string;
+  studioTime: string;
+  action: string;
+  actionStudio: string;
+  tryAgain: string;
+  /** "{t}" is replaced by the wait time. */
+  tryAgainIn: string;
+  demoCaption: string;
+  demoNudge: string;
+  demoCredit: string;
+  /** "{n}" is replaced by the credit cost. */
+  costNoteOne: string;
+  costNoteMany: string;
+  reset: string;
+  doneFallback: string;
+  stage: Partial<StageLabels>;
+}
+
+const DEFAULT_COPY: VocalRemoverCopy = {
+  toolLabel: "Vocal remover",
+  dropTitle: "Drop a song",
+  standardName: "Standard",
+  standardTime: "20 sec to 1 min",
+  studioTime: "1 to 2 min",
+  action: "Remove vocals",
+  actionStudio: "Remove vocals in Studio Quality",
+  tryAgain: "Try again",
+  tryAgainIn: "Try again in {t}",
+  demoCaption: "Hear a result first: the vocal stem",
+  demoNudge: "Now switch to Studio Quality and hear the bleed disappear",
+  demoCredit: "What Would It Mean by H4RRIS feat. Nicole Apollonio, used with permission",
+  costNoteOne: "{n} credit per track after your free runs",
+  costNoteMany: "{n} credits per track after your free runs",
+  reset: "Separate another track",
+  doneFallback: "Separation complete",
+  stage: {},
+};
+
 interface VocalRemoverFormProps {
+  copy?: Partial<VocalRemoverCopy>;
   hqAvailable?: boolean;
   demoStandardSrc?: string;
   demoStudioSrc?: string;
@@ -201,7 +245,9 @@ export function VocalRemoverForm({
   hqLimitText,
   demoStandardSrc,
   demoStudioSrc,
+  copy,
 }: VocalRemoverFormProps) {
+  const c = { ...DEFAULT_COPY, ...copy };
   const [file, setFile] = useState<File | null>(null);
   const [status, setStatus] = useState<SeparationUiState>("idle");
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -593,7 +639,7 @@ export function VocalRemoverForm({
   // figure is only shown while the paywall is off.
   const hqMetered = creditsEnabled && !creditsLoading && isToolMetered("separate-hq");
   const hqCost = me?.paywall?.tools?.["separate-hq"]?.credits ?? 1;
-  const hqCostNote = `${hqCost} ${hqCost === 1 ? "credit" : "credits"} per track after your free runs`;
+  const hqCostNote = (hqCost === 1 ? c.costNoteOne : c.costNoteMany).replace("{n}", String(hqCost));
 
   const specs = hqAvailable ? [STANDARD_SPEC, HQ_SPEC] : [STANDARD_SPEC];
   const tiers: StageTier<SeparationQuality>[] = specs.map((option) => {
@@ -602,11 +648,11 @@ export function VocalRemoverForm({
     const demoSrc = option.value === "hq" ? demoStudioSrc : demoStandardSrc;
     return {
       value: option.value,
-      name: option.label,
-      short: option.value === "hq" ? "Studio" : "Standard",
+      name: option.value === "hq" ? option.label : c.standardName,
+      short: option.value === "hq" ? "Studio" : c.standardName,
       premium: option.value === "hq",
       model: option.model,
-      time: option.time,
+      time: option.value === "hq" ? c.studioTime : c.standardTime,
       demo:
         demoSrc
           ? {
@@ -664,12 +710,12 @@ export function VocalRemoverForm({
 
   const actionLabel =
     cooldownSeconds > 0
-      ? `Try again in ${formatCooldown(cooldownSeconds)}`
+      ? c.tryAgainIn.replace("{t}", formatCooldown(cooldownSeconds))
       : isFailed
-        ? "Try again"
+        ? c.tryAgain
         : isHq
-          ? "Remove vocals in Studio Quality"
-          : "Remove vocals";
+          ? c.actionStudio
+          : c.action;
 
   const result =
     isComplete && jobId ? (
@@ -737,7 +783,10 @@ export function VocalRemoverForm({
   return (
     <>
       <StudioStage
-        label="Vocal remover"
+        label={c.toolLabel}
+        labels={c.stage}
+        dropTitle={c.dropTitle}
+        resetLabel={c.reset}
         file={file}
         onFileSelect={handleFileSelect}
         onClear={handleReset}
@@ -747,9 +796,9 @@ export function VocalRemoverForm({
         tier={isHq ? "hq" : "standard"}
         onTierChange={setQuality}
         jobTier={status === "idle" ? (isHq ? "hq" : "standard") : jobQuality}
-        demoCaption="Hear a result first: the vocal stem"
-        demoNudge={hqAvailable ? "Now switch to Studio Quality and hear the bleed disappear" : undefined}
-        demoCredit="What Would It Mean by H4RRIS feat. Nicole Apollonio, used with permission"
+        demoCaption={c.demoCaption}
+        demoNudge={hqAvailable ? c.demoNudge : undefined}
+        demoCredit={c.demoCredit}
         busy={isBusy}
         failed={isFailed}
         progress={easedProgress(elapsedSeconds, jobQuality === "hq" ? 40 : 12)}
@@ -763,7 +812,7 @@ export function VocalRemoverForm({
         footerExtra={notifyButton}
         belowAction={<CooldownBar seconds={cooldownSeconds} ceiling={cooldownCeiling} />}
         result={result}
-        doneTitle={resultTitle || "Separation complete"}
+        doneTitle={resultTitle || c.doneFallback}
         doneMeta={formatElapsed(elapsedSeconds)}
         doneFooter={completedCharged ? undefined : <SupportBlock variant="line" />}
         note={note}
