@@ -38,7 +38,9 @@ export interface StemMixerStem {
 
 export interface StemMixerProps {
   stems: StemMixerStem[];
-  onDownload: (name: string) => void;
+  onDownload: (name: string, format?: "wav" | "mp3") => void;
+  /** Shows the WAV / MP3 switch. Only for tools whose backend can encode MP3. */
+  mp3?: boolean;
   onDownloadAll?: () => void;
   sourceTitle?: string | null;
 }
@@ -100,7 +102,14 @@ function formatTime(sec: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
-export function StemMixer({ stems, onDownload, onDownloadAll, sourceTitle }: StemMixerProps) {
+export function StemMixer({
+  stems,
+  onDownload,
+  onDownloadAll,
+  sourceTitle,
+  mp3 = false,
+}: StemMixerProps) {
+  const [format, setFormat] = useState<"wav" | "mp3">("wav");
   const ctxRef = useRef<AudioContext | null>(null);
   const nodesRef = useRef<Map<string, LaneNodes>>(new Map());
   const buffersRef = useRef<Map<string, AudioBuffer>>(new Map());
@@ -180,7 +189,9 @@ export function StemMixer({ stems, onDownload, onDownloadAll, sourceTitle }: Ste
   };
 
   const downloadStem = (stem: StemMixerStem) => {
-    if (!saveLocalCopy(stem)) onDownload(stem.name);
+    // WAV is already in memory from playback. MP3 is encoded by the server.
+    if (format === "mp3") onDownload(stem.name, "mp3");
+    else if (!saveLocalCopy(stem)) onDownload(stem.name, "wav");
   };
 
   const downloadAllStems = () => {
@@ -774,8 +785,8 @@ export function StemMixer({ stems, onDownload, onDownloadAll, sourceTitle }: Ste
                     <button
                       type="button"
                       onClick={() => downloadStem(stem)}
-                      aria-label={`Download ${stem.name}`}
-                      title={`Download ${stem.name}`}
+                      aria-label={`Download ${stem.name} as ${format.toUpperCase()}`}
+                      title={`Download ${stem.name} as ${format.toUpperCase()}`}
                       className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-graphite-700 text-text-muted outline-none transition-colors hover:border-graphite-500 hover:text-text-primary focus-visible:ring-2 focus-visible:ring-amber-400/70"
                     >
                       <Download className="h-3.5 w-3.5" aria-hidden />
@@ -902,6 +913,32 @@ export function StemMixer({ stems, onDownload, onDownloadAll, sourceTitle }: Ste
           Space play · arrows seek · double click a slider to reset · mixed in your browser
         </span>
         <div className="flex flex-col gap-2 sm:flex-row">
+          {mp3 && (
+            <div
+              role="radiogroup"
+              aria-label="Stem download format"
+              className="flex self-start rounded-full border border-graphite-700 bg-graphite-950/60 p-0.5 sm:self-center"
+            >
+              {(["wav", "mp3"] as const).map((f) => (
+                <button
+                  key={f}
+                  type="button"
+                  role="radio"
+                  aria-checked={format === f}
+                  onClick={() => setFormat(f)}
+                  title={f === "wav" ? "Lossless WAV" : "MP3, 320 kbps"}
+                  className={cn(
+                    "rounded-full px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.1em] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-amber-400/70",
+                    format === f
+                      ? "bg-graphite-700 text-text-primary"
+                      : "text-text-muted hover:text-text-primary"
+                  )}
+                >
+                  {f}
+                </button>
+              ))}
+            </div>
+          )}
           {onDownloadAll && (
             <Button variant="outline" size="md" onClick={downloadAllStems}>
               <Download aria-hidden />

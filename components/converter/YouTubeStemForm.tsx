@@ -198,9 +198,10 @@ function StemsResult({ jobId, title }: { jobId: string; title: string | null }) 
         downloadName: `${name}.wav`,
         icon: stemIcon(name),
       }))}
-      onDownload={(display) => {
+      mp3
+      onDownload={(display, format) => {
         const raw = stems.find((n) => formatStemName(n) === display) ?? display;
-        triggerDownload(getYoutubeStemsDownloadUrl(jobId, raw));
+        triggerDownload(getYoutubeStemsDownloadUrl(jobId, raw, format));
       }}
       onDownloadAll={() =>
         triggerDownloadsStaggered(stems.map((n) => getYoutubeStemsDownloadUrl(jobId, n)))

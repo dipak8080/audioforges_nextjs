@@ -272,6 +272,8 @@ export interface StudioStageProps<T extends string> {
   doneTitle?: string;
   doneMeta?: string;
   doneFooter?: ReactNode;
+  /** Keeps the done strip pinned to the bottom of the screen while the result is tall. */
+  stickyDone?: boolean;
   resetLabel?: string;
   note?: ReactNode;
 }
@@ -310,6 +312,7 @@ export function StudioStage<T extends string>({
   doneTitle,
   doneMeta,
   doneFooter,
+  stickyDone = false,
   resetLabel = "Separate another track",
   note,
 }: StudioStageProps<T>) {
@@ -392,7 +395,7 @@ export function StudioStage<T extends string>({
     <div className="space-y-5">
       <div
         className={cn(
-          "surface grain overflow-hidden rounded-2xl border transition-colors duration-200",
+          "surface grain overflow-clip rounded-2xl border transition-colors duration-200",
           dragging
             ? "border-text-primary/60"
             : busy
@@ -701,7 +704,14 @@ export function StudioStage<T extends string>({
         )}
 
         {done && (
-          <div className="flex flex-col gap-3 border-t border-graphite-800 bg-graphite-950/40 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-7">
+          <div
+            className={cn(
+              "flex flex-col gap-3 border-t border-graphite-800 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-7",
+              stickyDone
+                ? "sticky bottom-0 z-20 rounded-b-2xl bg-graphite-900/95 backdrop-blur"
+                : "bg-graphite-950/40",
+            )}
+          >
             <button
               type="button"
               onClick={onClear}

@@ -851,6 +851,7 @@ export function JobToolForm({
             ) : undefined
           }
           resetLabel={stage.resetLabel ?? "Process another file"}
+          stickyDone={!stage.hideDownload}
           note={
             validationError || (isFailed && error) || (status === "complete" && !chargedRun && !hideSupport) ? (
               <div className="space-y-4">

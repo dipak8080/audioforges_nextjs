@@ -335,6 +335,7 @@ export function StemsForm({
       resultView="mixer"
       stemTheaterLanes={["Vocals", "Drums", "Bass", "Other"]}
       breakoutOnComplete
+      mp3Downloads
       queryParam="stem"
       onSubmit={(file, key) => submitStems(file, effectiveQuality, {}, key)}
       // Credits wiring. `meteredToolKey` reflects the CURRENT selection, so it's

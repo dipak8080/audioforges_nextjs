@@ -263,6 +263,8 @@ interface MultiOutputToolFormProps {
   stemTheaterLanes?: readonly string[];
   /** Expand the card to DAW width on the result step (separation tools). */
   breakoutOnComplete?: boolean;
+  /** The backend can serve this tool's outputs as MP3 (?format=mp3). */
+  mp3Downloads?: boolean;
   /** Renders the StudioStage skin instead of the form shell. Same engine. */
   stage?: {
     tiers: StageTier<string>[];
@@ -324,6 +326,7 @@ export function MultiOutputToolForm({
   resultView = "list",
   stemTheaterLanes,
   breakoutOnComplete = false,
+  mp3Downloads = false,
   stage,
   maxSubmitRetries = 1,
   meteredToolKey = null,
@@ -769,9 +772,11 @@ export function MultiOutputToolForm({
                 url: getMultiOutputPreviewUrl(endpoint, jobId, name, queryParam),
                 downloadName: `${name}.wav`,
               }))}
-              onDownload={(display) => {
+              mp3={mp3Downloads}
+              onDownload={(display, format) => {
                 const raw = outputs.find((n) => formatOutputName(n) === display) ?? display;
-                triggerDownload(getMultiOutputDownloadUrl(endpoint, jobId, raw, queryParam));
+                const url = getMultiOutputDownloadUrl(endpoint, jobId, raw, queryParam);
+                triggerDownload(format === "mp3" ? `${url}&format=mp3` : url);
               }}
               onDownloadAll={() =>
                 triggerDownloadsStaggered(

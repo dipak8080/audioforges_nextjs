@@ -161,9 +161,10 @@ function SeparateResult({ jobId, title }: { jobId: string; title: string | null 
             <Music4 className="h-4 w-4" aria-hidden />
           ),
       }))}
-      onDownload={(display) => {
+      mp3
+      onDownload={(display, format) => {
         const raw: StemType = display === "Vocals" ? "vocals" : "instrumental";
-        triggerDownload(getYoutubeSeparateDownloadUrl(jobId, raw));
+        triggerDownload(getYoutubeSeparateDownloadUrl(jobId, raw, format));
       }}
       onDownloadAll={() =>
         triggerDownloadsStaggered(stems.map((n) => getYoutubeSeparateDownloadUrl(jobId, n)))

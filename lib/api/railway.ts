@@ -740,12 +740,20 @@ export function getSeparationPreviewUrl(
   return `${RAILWAY_API_BASE}/${endpoint}/preview/${jobId}?stem=${stem}`;
 }
 
+export type StemDownloadFormat = "wav" | "mp3";
+
+// MP3 is encoded on the server on first request (320 kbps). WAV is the default.
+function withStemFormat(url: string, format: StemDownloadFormat = "wav"): string {
+  return format === "mp3" ? `${url}&format=mp3` : url;
+}
+
 export function getSeparationDownloadUrl(
   jobId: string,
   stem: StemType,
-  endpoint: string = "separate"
+  endpoint: string = "separate",
+  format: StemDownloadFormat = "wav"
 ): string {
-  return `${RAILWAY_API_BASE}/${endpoint}/download/${jobId}?stem=${stem}`;
+  return withStemFormat(`${RAILWAY_API_BASE}/${endpoint}/download/${jobId}?stem=${stem}`, format);
 }
 
 export function base64ToBlob(base64: string, mimeType: string): Blob {
@@ -1002,8 +1010,12 @@ export function getStemsPreviewUrl(jobId: string, stemName: string): string {
   return getMultiOutputPreviewUrl("stems", jobId, stemName, "stem");
 }
 
-export function getStemsDownloadUrl(jobId: string, stemName: string): string {
-  return getMultiOutputDownloadUrl("stems", jobId, stemName, "stem");
+export function getStemsDownloadUrl(
+  jobId: string,
+  stemName: string,
+  format: StemDownloadFormat = "wav"
+): string {
+  return withStemFormat(getMultiOutputDownloadUrl("stems", jobId, stemName, "stem"), format);
 }
 
 // /silence-split submits via the generic submitJob("silence-split", fd)
@@ -1130,8 +1142,12 @@ export function getYoutubeSeparatePreviewUrl(jobId: string, stem: StemType): str
   return getSeparationPreviewUrl(jobId, stem, "youtube/separate");
 }
 
-export function getYoutubeSeparateDownloadUrl(jobId: string, stem: StemType): string {
-  return getSeparationDownloadUrl(jobId, stem, "youtube/separate");
+export function getYoutubeSeparateDownloadUrl(
+  jobId: string,
+  stem: StemType,
+  format: StemDownloadFormat = "wav"
+): string {
+  return getSeparationDownloadUrl(jobId, stem, "youtube/separate", format);
 }
 
 // ---- /youtube/stems ----
@@ -1166,8 +1182,12 @@ export function getYoutubeStemsPreviewUrl(jobId: string, stemName: string): stri
   return getMultiOutputPreviewUrl("youtube/stems", jobId, stemName, "stem");
 }
 
-export function getYoutubeStemsDownloadUrl(jobId: string, stemName: string): string {
-  return getMultiOutputDownloadUrl("youtube/stems", jobId, stemName, "stem");
+export function getYoutubeStemsDownloadUrl(
+  jobId: string,
+  stemName: string,
+  format: StemDownloadFormat = "wav"
+): string {
+  return withStemFormat(getMultiOutputDownloadUrl("youtube/stems", jobId, stemName, "stem"), format);
 }
 
 // ============ AUDIO TO MIDI ============

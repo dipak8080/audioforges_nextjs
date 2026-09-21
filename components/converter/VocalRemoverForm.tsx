@@ -687,9 +687,10 @@ export function VocalRemoverForm({
                 <Music4 className="h-4 w-4" aria-hidden />
               ),
           }))}
-          onDownload={(display) => {
+          mp3
+          onDownload={(display, format) => {
             const raw: StemType = display === "Vocals" ? "vocals" : "instrumental";
-            triggerDownload(getSeparationDownloadUrl(jobId, raw));
+            triggerDownload(getSeparationDownloadUrl(jobId, raw, "separate", format));
           }}
           onDownloadAll={() =>
             triggerDownloadsStaggered(
