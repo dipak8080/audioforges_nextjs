@@ -1,15 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Bell, BellOff, Sparkles } from "lucide-react";
+import { Bell, BellOff } from "lucide-react";
 import { MultiOutputToolForm } from "@/components/converter/MultiOutputToolForm";
-import {
-  ControlField,
-  Hint,
-  OptionCards,
-  ToggleRow,
-  type CardOption,
-} from "@/components/converter/ToolControls";
+import type { StageTier } from "@/components/tools/StudioStage";
+import { DEMO_DURATION, DEMO_PEAKS_STANDARD, DEMO_PEAKS_STUDIO } from "@/lib/data/demo-peaks";
+import { cn } from "@/lib/utils/cn";
 import { submitStems, type SeparationQuality } from "@/lib/api/railway";
 import {
   getRateLimitLabel,
@@ -89,11 +85,16 @@ interface StemsFormProps {
    * period where PAYWALL_ENABLED is off, since context is null in both cases.
    */
   standardLimit?: SharedAllowanceSpec | null;
+  /** Studio limit from /limits, resolved server-side. */
+  hqLimitText?: string;
+  demoStandardSrc?: string;
+  demoStudioSrc?: string;
 }
 
 interface QualitySpec {
   value: SeparationQuality;
   label: string;
+  model: string;
   time: string;
   detail: string;
   /** Key into RATE_LIMITS (lib/data/rate-limits.ts). MAY BE ABSENT from the
@@ -106,7 +107,8 @@ interface QualitySpec {
 const STANDARD_SPEC: QualitySpec = {
   value: "standard",
   label: "Standard",
-  time: "20 sec–1 min",
+  model: "htdemucs, one pass",
+  time: "20 sec to 1 min",
   detail: "Vocals, drums, bass, other",
   rateLimitKey: "stems",
   toolKey: null,
@@ -115,7 +117,8 @@ const STANDARD_SPEC: QualitySpec = {
 const HQ_SPEC: QualitySpec = {
   value: "hq",
   label: "Studio Quality",
-  time: "1–2 min",
+  model: "RoFormer then htdemucs_ft",
+  time: "1 to 2 min",
   detail: "Cleaner separation, same 4 stems",
   rateLimitKey: "stems-hq",
   toolKey: "stems-hq",
@@ -202,7 +205,13 @@ const HQ_STAGES = [
   { at: 95, label: "Refining and rendering stems" },
 ];
 
-export function StemsForm({ hqAvailable = false, standardLimit }: StemsFormProps) {
+export function StemsForm({
+  hqAvailable = false,
+  standardLimit,
+  hqLimitText,
+  demoStandardSrc,
+  demoStudioSrc,
+}: StemsFormProps) {
   const [quality, setQuality] = useState<SeparationQuality>("standard");
   const [notifyEnabled, setNotifyEnabled] = useState(false);
   const { permission: notifyPermission, request: requestNotifyPermission } =
@@ -212,7 +221,13 @@ export function StemsForm({ hqAvailable = false, standardLimit }: StemsFormProps
   const isHq = effectiveQuality === "hq";
   const spec = isHq ? HQ_SPEC : STANDARD_SPEC;
 
-  const { rateLimitFor } = useCredits();
+  const {
+    rateLimitFor,
+    enabled: creditsEnabled,
+    loading: creditsLoading,
+    isToolMetered,
+    me,
+  } = useCredits();
   const sharedLimit = useSharedLimit("stems", standardLimit);
 
   /**
@@ -267,31 +282,52 @@ export function StemsForm({ hqAvailable = false, standardLimit }: StemsFormProps
 
   /** Built here rather than inline so the live per-visitor limit is resolved
    *  once per render instead of once per card. */
-  const qualityOptions: CardOption<SeparationQuality>[] = [STANDARD_SPEC, HQ_SPEC].map(
-    (option) => {
-      const liveLimit = option.toolKey ? rateLimitFor(option.toolKey) : null;
-      return {
-        value: option.value,
-        title: option.label,
-        titleBefore:
-          option.value === "hq" ? <Sparkles className="h-3.5 w-3.5" aria-hidden /> : undefined,
-        // Renders nothing unless this tool is metered right now.
-        // Both cards carry a cost marker or neither does. AlwaysFreeTag reads
-        // the METERED sibling, so when the paywall is off both stay bare.
-        titleAfter: option.toolKey ? (
-          <FreeTierBadge tool={option.toolKey} />
-        ) : HQ_SPEC.toolKey ? (
-          <AlwaysFreeTag pairedTool={HQ_SPEC.toolKey} />
-        ) : undefined,
-        meta: option.time,
-        detail: option.detail,
-        premium: option.value === "hq",
-        // Omitted when there's no real figure, rather than filled with a
-        // placeholder that reads as a shrug.
-        footnote: limitLabelFor(option, liveLimit, sharedLimit.shortLabel),
-      };
-    }
-  );
+  const hqMetered = creditsEnabled && !creditsLoading && isToolMetered("stems-hq");
+  const hqCost = me?.paywall?.tools?.["stems-hq"]?.credits ?? 1;
+  const hqCostNote = `${hqCost} ${hqCost === 1 ? "credit" : "credits"} per track after your free runs`;
+
+  const specs = hqAvailable ? [STANDARD_SPEC, HQ_SPEC] : [STANDARD_SPEC];
+  const tiers: StageTier<string>[] = specs.map((option) => {
+    const liveLimit = option.toolKey ? rateLimitFor(option.toolKey) : null;
+    const demoSrc = option.value === "hq" ? demoStudioSrc : demoStandardSrc;
+    return {
+      value: option.value,
+      name: option.label,
+      short: option.value === "hq" ? "Studio" : "Standard",
+      premium: option.value === "hq",
+      model: option.model,
+      time: option.time,
+      demo: demoSrc
+        ? {
+            src: demoSrc,
+            peaks: option.value === "hq" ? DEMO_PEAKS_STUDIO : DEMO_PEAKS_STANDARD,
+            duration: DEMO_DURATION,
+          }
+        : undefined,
+      badge: option.toolKey ? (
+        <FreeTierBadge tool={option.toolKey} />
+      ) : HQ_SPEC.toolKey ? (
+        <AlwaysFreeTag pairedTool={HQ_SPEC.toolKey} />
+      ) : undefined,
+      footnote:
+        option.value === "hq"
+          ? hqMetered
+            ? hqCostNote
+            : creditsLoading
+              ? undefined
+              : liveLimit
+                ? limitLabelFor(option, liveLimit)
+                : (hqLimitText ?? limitLabelFor(option, null))
+          : limitLabelFor(option, null, sharedLimit.shortLabel),
+    };
+  });
+
+  const notifyTitle =
+    notifyPermission === "denied"
+      ? "Notifications are blocked in your browser settings"
+      : notifyOn
+        ? "We will notify you when it is done"
+        : "Notify me when it is done";
 
   return (
     <MultiOutputToolForm
@@ -319,7 +355,7 @@ export function StemsForm({ hqAvailable = false, standardLimit }: StemsFormProps
       toolLabel="Stem separator"
       toolMeta={`${spec.label} · ${spec.time}`}
       stages={isHq ? HQ_STAGES : STANDARD_STAGES}
-      submitLabel={isHq ? "Split into stems (Studio Quality)" : "Split into stems"}
+      submitLabel={isHq ? "Split in Studio Quality" : "Split into stems"}
       processingLabel={
         isHq
           ? "Running studio quality stem separation"
@@ -347,55 +383,36 @@ export function StemsForm({ hqAvailable = false, standardLimit }: StemsFormProps
       onFailed={(message) =>
         notifyOnDone("Stem separation failed", message || "The job didn't complete.")
       }
-      renderControls={(file, disabled) => (
-        <div className="space-y-5">
-          {hqAvailable && (
-            <ControlField
-              as="fieldset"
-              label="Quality"
-              hint={
-                isHq ? (
-                  <Hint>
-                    Studio Quality can take a minute or two. Worth turning on the notification
-                    below so you don&apos;t have to babysit this tab.
-                  </Hint>
-                ) : undefined
-              }
+      stage={{
+        tiers,
+        tier: effectiveQuality,
+        onTierChange: (value) => setQuality(value === "hq" ? "hq" : "standard"),
+        formats: "MP3 · WAV · FLAC · M4A · AAC · OGG",
+        demoCaption: "Hear a result first: the vocal stem",
+        demoNudge: hqAvailable
+          ? "Now switch to Studio Quality and hear the bleed disappear"
+          : undefined,
+        demoCredit: "What Would It Mean by H4RRIS feat. Nicole Apollonio, used with permission",
+        footerExtra: (busy) =>
+          notifyPermission !== "unsupported" ? (
+            <button
+              type="button"
+              onClick={handleNotifyToggle}
+              disabled={busy || notifyPermission === "denied"}
+              aria-pressed={notifyOn}
+              aria-label={notifyTitle}
+              title={notifyTitle}
+              className={cn(
+                "flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border outline-none transition-colors focus-visible:ring-2 focus-visible:ring-amber-400/70 disabled:cursor-not-allowed disabled:opacity-50",
+                notifyOn
+                  ? "border-text-primary/70 text-text-primary"
+                  : "border-graphite-700 text-text-subtle hover:border-graphite-500 hover:text-text-primary"
+              )}
             >
-              <OptionCards
-                label="Separation quality"
-                options={qualityOptions}
-                value={quality}
-                onChange={setQuality}
-                disabled={disabled}
-              />
-            </ControlField>
-          )}
-
-          {/*
-            HIDDEN UNTIL THERE IS A FILE, not shown disabled — the same rule the
-            shell already states on its submit button. With no file chosen this
-            was a full-width greyed-out row that does nothing, and a disabled
-            control is still a control the eye has to process and dismiss.
-            Nothing to notify you about until there's a job.
-          */}
-          {notifyPermission !== "unsupported" && file && (
-            <ToggleRow
-              pressed={notifyOn}
-              onToggle={handleNotifyToggle}
-              disabled={disabled}
-              iconOn={<Bell className="h-4 w-4" />}
-              iconOff={<BellOff className="h-4 w-4" />}
-            >
-              {notifyPermission === "denied"
-                ? "Notifications blocked — enable them in your browser settings to use this"
-                : notifyOn
-                  ? "We'll notify you when it's done"
-                  : "Notify me when it's done"}
-            </ToggleRow>
-          )}
-        </div>
-      )}
+              {notifyOn ? <Bell className="h-4 w-4" /> : <BellOff className="h-4 w-4" />}
+            </button>
+          ) : null,
+      }}
     />
   );
 }

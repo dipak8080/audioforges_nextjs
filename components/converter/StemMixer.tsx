@@ -18,7 +18,6 @@ import {
   Pause,
   Play,
   Repeat,
-  Sparkles,
   Waves,
   X,
 } from "lucide-react";
@@ -66,7 +65,7 @@ interface MixPreset {
   gains: Record<string, number>;
 }
 
-const PEAK_BUCKETS = 640;
+const PEAK_BUCKETS = 1600;
 const RAMP = 0.015;
 
 function stemIcon(name: string): ReactNode {
@@ -387,9 +386,7 @@ export function StemMixer({ stems, onDownload, onDownloadAll, sourceTitle }: Ste
         // DOM, not state. setPosition here re-rendered the whole mixer on
         // every frame for the length of the track; these two writes are
         // what that render existed to produce.
-        if (timeRef.current) {
-          timeRef.current.textContent = `${formatTime(pos)} / ${formatTime(duration)}`;
-        }
+        if (timeRef.current) timeRef.current.textContent = formatTime(pos);
         if (headRef.current && duration > 0) {
           headRef.current.style.left = `${Math.min(1, pos / duration) * 100}%`;
         }
@@ -404,18 +401,25 @@ export function StemMixer({ stems, onDownload, onDownloadAll, sourceTitle }: Ste
       for (const stem of stems) {
         const lane = lanes.get(stem.name);
         const canvas = laneCanvasRefs.current.get(stem.name);
+        const color = stemColor(stem.name);
         if (canvas && lane?.peaks) {
-          drawWaveform(canvas, lane.peaks, duration > 0 ? pos / duration : 0, solos.has(stem.name));
+          drawWaveform(
+            canvas,
+            lane.peaks,
+            duration > 0 ? pos / duration : 0,
+            color,
+            effectiveGain(stem.name, gains, mutes, solos) === 0
+          );
         }
         const meter = meterRefs.current.get(stem.name);
         const nodes = nodesRef.current.get(stem.name);
-        if (meter && nodes) drawMeter(meter, nodes.analyser, playingRef.current);
+        if (meter && nodes) drawMeter(meter, nodes.analyser, playingRef.current, color);
       }
       rafRef.current = requestAnimationFrame(draw);
     };
     rafRef.current = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(rafRef.current);
-  }, [stems, lanes, duration, solos, currentPosition, pause]);
+  }, [stems, lanes, duration, gains, mutes, solos, effectiveGain, currentPosition, pause]);
 
   /* ── keyboard ── */
   useEffect(() => {
@@ -588,127 +592,246 @@ export function StemMixer({ stems, onDownload, onDownloadAll, sourceTitle }: Ste
   };
 
   const progress = duration > 0 ? Math.min(1, position / duration) : 0;
+  const ticks = rulerTicks(duration);
+  const laneHeight = stems.length > 2 ? "h-20 sm:h-24" : "h-24 sm:h-32";
 
   return (
-    <div className="overflow-hidden rounded-xl border border-graphite-700 bg-graphite-900">
-      {/* header */}
-      <div className="flex flex-wrap items-center gap-3 border-b border-graphite-800 px-4 py-3">
-        <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-500">
-          <Sparkles className="h-3.5 w-3.5" aria-hidden />
-          Forge Mixer
-        </span>
-        <div className="ml-auto flex flex-wrap items-center gap-1.5">
-          {presets.map((p) => (
-            <button
-              key={p.key}
-              type="button"
-              onClick={() => applyPreset(p)}
-              className={cn(
-                "rounded-full border px-2.5 py-1 text-xs transition-colors",
-                activePreset === p.key
-                  ? "border-amber-500/60 bg-amber-500/10 text-amber-500"
-                  : "border-graphite-700 text-text-muted hover:border-graphite-600 hover:text-text"
-              )}
-            >
-              {p.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* transport + loop ruler */}
-      <div className="flex items-center gap-3 px-4 pt-3">
-        <Button
-          variant="primary"
-          size="icon"
+    <div className="[--hd:0px] sm:[--hd:15rem]">
+      {/* transport */}
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-3 pb-5">
+        <button
+          type="button"
           onClick={togglePlay}
           disabled={!anyReady}
           aria-label={playing ? "Pause" : "Play"}
+          className={cn(
+            "flex h-14 w-14 shrink-0 items-center justify-center rounded-full border outline-none transition-colors focus-visible:ring-2 focus-visible:ring-amber-400/70 disabled:cursor-not-allowed disabled:opacity-40",
+            playing
+              ? "border-amber-500 bg-amber-500 text-graphite-950"
+              : "border-graphite-600 text-text-primary hover:border-text-primary/70"
+          )}
         >
           {playing ? (
-            <Pause className="h-4 w-4" fill="currentColor" aria-hidden />
+            <Pause className="h-5 w-5" fill="currentColor" aria-hidden />
           ) : (
-            <Play className="h-4 w-4" fill="currentColor" aria-hidden />
+            <Play className="ml-0.5 h-5 w-5" fill="currentColor" aria-hidden />
           )}
-        </Button>
-        <span
-          ref={timeRef}
-          className="w-24 shrink-0 font-mono text-xs tabular-nums text-text-muted"
-        >
-          {formatTime(position)} / {formatTime(duration)}
-        </span>
-        <div
-          role="slider"
-          aria-label="Loop region — drag to set"
-          aria-valuemin={0}
-          aria-valuemax={duration}
-          aria-valuenow={position}
-          tabIndex={0}
-          onPointerDown={onRulerPointerDown}
-          onPointerMove={onRulerPointerMove}
-          onPointerUp={endDrag}
-          onPointerCancel={endDrag}
-          className="relative h-6 min-w-0 flex-1 cursor-crosshair touch-none rounded bg-graphite-850"
-          title="Drag to set an A–B loop"
-        >
-          {loop && duration > 0 && (
-            <div
-              className="absolute inset-y-0 rounded bg-teal-400/20 ring-1 ring-teal-400/50"
-              style={{
-                left: `${(loop.a / duration) * 100}%`,
-                width: `${((loop.b - loop.a) / duration) * 100}%`,
-              }}
-            />
+        </button>
+
+        <div className="min-w-0">
+          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-text-subtle">
+            Forge Mixer
+          </p>
+          <p className="mt-1 font-mono tabular-nums leading-none">
+            <span
+              ref={timeRef}
+              className={cn("text-2xl sm:text-3xl", playing ? "text-amber-400" : "text-text-primary")}
+            >
+              {formatTime(position)}
+            </span>
+            <span className="ml-2 text-sm text-text-subtle">/ {formatTime(duration)}</span>
+          </p>
+        </div>
+
+        <div className="ml-auto flex flex-wrap items-center gap-3">
+          {loop && (
+            <button
+              type="button"
+              onClick={() => setLoopRegion(null)}
+              className="flex items-center gap-1.5 rounded-full border border-graphite-600 px-3 py-1.5 font-mono text-[11px] text-text-primary outline-none transition-colors hover:border-text-primary/70 focus-visible:ring-2 focus-visible:ring-amber-400/70"
+            >
+              <Repeat className="h-3 w-3" aria-hidden />
+              {formatTime(loop.a)} to {formatTime(loop.b)}
+              <X className="h-3 w-3" aria-hidden />
+            </button>
           )}
           <div
-            className="absolute inset-y-0 w-px bg-amber-500"
-            ref={headRef}
-            style={{ left: `${progress * 100}%` }}
-          />
-        </div>
-        {loop ? (
-          <button
-            type="button"
-            onClick={() => setLoopRegion(null)}
-            className="flex items-center gap-1 rounded-full border border-teal-400/50 bg-teal-400/10 px-2 py-1 text-xs text-teal-400"
+            role="group"
+            aria-label="Mix presets"
+            className="flex rounded-full border border-graphite-700 bg-graphite-950/60 p-0.5"
           >
-            <Repeat className="h-3 w-3" aria-hidden />
-            {formatTime(loop.a)}–{formatTime(loop.b)}
-            <X className="h-3 w-3" aria-hidden />
-          </button>
-        ) : (
-          <span className="hidden items-center gap-1 text-[11px] text-text-subtle sm:flex">
-            <Repeat className="h-3 w-3" aria-hidden /> drag bar to loop
-          </span>
-        )}
+            {presets.map((p) => (
+              <button
+                key={p.key}
+                type="button"
+                onClick={() => applyPreset(p)}
+                aria-pressed={activePreset === p.key}
+                className={cn(
+                  "rounded-full px-3 py-1.5 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-amber-400/70 sm:px-4",
+                  activePreset === p.key
+                    ? "bg-graphite-700 text-text-primary"
+                    : "text-text-muted hover:text-text-primary"
+                )}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
-      {/* lanes */}
-      <div className="divide-y divide-graphite-800 px-2 py-2">
-        {stems.map((stem) => {
+      {/* timeline: a recessed screen, one playhead across every lane */}
+      <div className="relative overflow-hidden rounded-xl bg-graphite-950/70 shadow-[inset_0_1px_2px_rgba(0,0,0,0.7),inset_0_0_0_1px_rgba(255,255,255,0.04)]">
+        <div className="grid sm:grid-cols-[15rem_minmax(0,1fr)]">
+          <div className="hidden items-end border-b border-r border-graphite-800 px-4 pb-1.5 sm:flex">
+            <span className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-text-subtle">
+              <Repeat className="h-3 w-3" aria-hidden />
+              Drag the ruler to loop
+            </span>
+          </div>
+          <div
+            role="slider"
+            aria-label="Loop region, drag to set"
+            aria-valuemin={0}
+            aria-valuemax={duration}
+            aria-valuenow={position}
+            tabIndex={0}
+            onPointerDown={onRulerPointerDown}
+            onPointerMove={onRulerPointerMove}
+            onPointerUp={endDrag}
+            onPointerCancel={endDrag}
+            title="Drag to set an A to B loop"
+            className="relative h-7 cursor-crosshair touch-none border-b border-graphite-800 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-amber-400/60"
+          >
+            {ticks.map((t) => (
+              <span
+                key={t}
+                className="pointer-events-none absolute bottom-0 flex h-full flex-col justify-end border-l border-white/10 pl-1.5 pb-1 font-mono text-[10px] leading-none text-text-subtle"
+                style={{ left: `${(t / duration) * 100}%` }}
+              >
+                {formatTime(t)}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        {stems.map((stem, index) => {
           const lane = lanes.get(stem.name);
           const muted = mutes.has(stem.name);
           const soloed = solos.has(stem.name);
           const silenced = effectiveGain(stem.name, gains, mutes, solos) === 0;
+          const color = stemColor(stem.name);
+          const gainValue = gains[stem.name] ?? 1;
+          const panValue = pans[stem.name] ?? 0;
           return (
-            <div key={stem.name} className="flex flex-col gap-2 px-2 py-3 sm:flex-row sm:items-center sm:gap-3">
-              {/* identity */}
-              <div className="flex w-full shrink-0 items-center gap-2 sm:w-36">
-                <span
-                  className={cn(
-                    "flex h-8 w-8 shrink-0 items-center justify-center rounded-full",
-                    soloed
-                      ? "bg-teal-400 text-graphite-950"
-                      : silenced
-                        ? "bg-graphite-800 text-text-subtle"
-                        : "bg-amber-500/15 text-amber-500"
-                  )}
-                >
-                  {stem.icon ?? stemIcon(stem.name)}
-                </span>
-                <span className={cn("truncate text-sm font-medium", silenced ? "text-text-subtle" : "text-text")}>
-                  {stem.name}
-                </span>
+            <div
+              key={stem.name}
+              className={cn(
+                "grid sm:grid-cols-[15rem_minmax(0,1fr)]",
+                index > 0 && "border-t border-graphite-800"
+              )}
+            >
+              {/* channel strip */}
+              <div className="flex gap-3 border-graphite-800 px-4 py-3 sm:border-r">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2.5">
+                    <span
+                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border"
+                      style={{
+                        color: silenced ? "var(--text-subtle)" : color,
+                        borderColor: silenced ? "var(--graphite-700)" : `${color}66`,
+                        backgroundColor: silenced ? "transparent" : `${color}14`,
+                      }}
+                    >
+                      {stem.icon ?? stemIcon(stem.name)}
+                    </span>
+                    <span
+                      className={cn(
+                        "min-w-0 flex-1 truncate text-sm font-medium",
+                        silenced ? "text-text-subtle" : "text-text-primary"
+                      )}
+                    >
+                      {stem.name}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => toggleMute(stem.name)}
+                      aria-pressed={muted}
+                      aria-label={`Mute ${stem.name}`}
+                      className={cn(
+                        "h-7 w-7 shrink-0 rounded-md border font-mono text-[11px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-amber-400/70",
+                        muted
+                          ? "border-text-primary bg-text-primary text-graphite-950"
+                          : "border-graphite-700 text-text-muted hover:border-graphite-500 hover:text-text-primary"
+                      )}
+                    >
+                      M
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => toggleSolo(stem.name)}
+                      aria-pressed={soloed}
+                      aria-label={`Solo ${stem.name}`}
+                      className={cn(
+                        "h-7 w-7 shrink-0 rounded-md border font-mono text-[11px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-amber-400/70",
+                        soloed
+                          ? "border-amber-500 bg-amber-500 text-graphite-950"
+                          : "border-graphite-700 text-text-muted hover:border-graphite-500 hover:text-text-primary"
+                      )}
+                    >
+                      S
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => downloadStem(stem)}
+                      aria-label={`Download ${stem.name}`}
+                      title={`Download ${stem.name}`}
+                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-graphite-700 text-text-muted outline-none transition-colors hover:border-graphite-500 hover:text-text-primary focus-visible:ring-2 focus-visible:ring-amber-400/70"
+                    >
+                      <Download className="h-3.5 w-3.5" aria-hidden />
+                    </button>
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-[minmax(0,3fr)_minmax(0,2fr)] gap-4">
+                    <label className="block">
+                      <span className="flex items-baseline justify-between font-mono text-[10px] uppercase tracking-[0.12em] text-text-subtle">
+                        Vol
+                        <span className="tabular-nums text-text-muted">
+                          {Math.round(gainValue * 100)}
+                        </span>
+                      </span>
+                      <input
+                        type="range"
+                        min={0}
+                        max={1.5}
+                        step={0.01}
+                        value={gainValue}
+                        onChange={(e) => setGain(stem.name, Number(e.target.value))}
+                        onDoubleClick={() => setGain(stem.name, 1)}
+                        aria-label={`${stem.name} volume`}
+                        className="fm-range mt-1.5 w-full"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="flex items-baseline justify-between font-mono text-[10px] uppercase tracking-[0.12em] text-text-subtle">
+                        Pan
+                        <span className="tabular-nums text-text-muted">{panLabel(panValue)}</span>
+                      </span>
+                      <input
+                        type="range"
+                        min={-1}
+                        max={1}
+                        step={0.01}
+                        value={panValue}
+                        onDoubleClick={() => setPan(stem.name, 0)}
+                        onChange={(e) => setPan(stem.name, Number(e.target.value))}
+                        aria-label={`${stem.name} pan`}
+                        className="fm-range mt-1.5 w-full"
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                <canvas
+                  ref={(el) => {
+                    if (el) meterRefs.current.set(stem.name, el);
+                    else meterRefs.current.delete(stem.name);
+                  }}
+                  width={8}
+                  height={112}
+                  className="w-1 shrink-0 self-stretch rounded-full bg-graphite-800"
+                  aria-hidden
+                />
               </div>
 
               {/* waveform */}
@@ -717,19 +840,16 @@ export function StemMixer({ stems, onDownload, onDownloadAll, sourceTitle }: Ste
                 onPointerMove={onWavePointerMove}
                 onPointerUp={endDrag}
                 onPointerCancel={endDrag}
-                className={cn(
-                  "relative h-14 min-w-0 flex-1 cursor-pointer touch-none overflow-hidden rounded-md bg-graphite-850",
-                  silenced && "opacity-40"
-                )}
+                className={cn("relative min-w-0 cursor-pointer touch-none", laneHeight)}
               >
                 {lane?.status === "loading" && (
-                  <div className="absolute inset-0 flex items-center justify-center gap-2 text-xs text-text-subtle">
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> Loading stem…
+                  <div className="absolute inset-0 flex items-center justify-center gap-2 font-mono text-[11px] text-text-subtle">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> Loading stem
                   </div>
                 )}
                 {lane?.status === "error" && (
-                  <div className="absolute inset-0 flex items-center justify-center text-xs text-red-400">
-                    Failed to load — use the download button instead
+                  <div className="absolute inset-0 flex items-center justify-center px-4 text-center text-xs text-red-400">
+                    This stem did not load. Use its download button instead.
                   </div>
                 )}
                 {lane?.status === "ready" && (
@@ -738,138 +858,158 @@ export function StemMixer({ stems, onDownload, onDownloadAll, sourceTitle }: Ste
                       if (el) laneCanvasRefs.current.set(stem.name, el);
                       else laneCanvasRefs.current.delete(stem.name);
                     }}
-                    width={PEAK_BUCKETS * 2}
-                    height={112}
-                    className="h-full w-full"
+                    className="absolute inset-0 h-full w-full"
                   />
                 )}
-              </div>
-
-              {/* meter */}
-              <canvas
-                ref={(el) => {
-                  if (el) meterRefs.current.set(stem.name, el);
-                  else meterRefs.current.delete(stem.name);
-                }}
-                width={8}
-                height={112}
-                className="hidden h-14 w-1.5 rounded-full bg-graphite-850 sm:block"
-                aria-hidden
-              />
-
-              {/* controls */}
-              <div className="flex shrink-0 items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => toggleMute(stem.name)}
-                  aria-pressed={muted}
-                  aria-label={`Mute ${stem.name}`}
-                  className={cn(
-                    "h-7 w-7 rounded-md border text-xs font-semibold transition-colors",
-                    muted
-                      ? "border-amber-500 bg-amber-500 text-graphite-950"
-                      : "border-graphite-700 text-text-muted hover:border-graphite-600"
-                  )}
-                >
-                  M
-                </button>
-                <button
-                  type="button"
-                  onClick={() => toggleSolo(stem.name)}
-                  aria-pressed={soloed}
-                  aria-label={`Solo ${stem.name}`}
-                  className={cn(
-                    "h-7 w-7 rounded-md border text-xs font-semibold transition-colors",
-                    soloed
-                      ? "border-teal-400 bg-teal-400 text-graphite-950"
-                      : "border-graphite-700 text-text-muted hover:border-graphite-600"
-                  )}
-                >
-                  S
-                </button>
-                <label className="flex items-center gap-1.5" title={`${stem.name} volume`}>
-                  <span className="text-[10px] uppercase tracking-wide text-text-subtle">Vol</span>
-                  <input
-                    type="range"
-                    min={0}
-                    max={1.5}
-                    step={0.01}
-                    value={gains[stem.name] ?? 1}
-                    onChange={(e) => setGain(stem.name, Number(e.target.value))}
-                    aria-label={`${stem.name} volume`}
-                    className="w-20 accent-amber-500"
-                  />
-                </label>
-                <label className="flex items-center gap-1.5" title={`${stem.name} pan`}>
-                  <span className="text-[10px] uppercase tracking-wide text-text-subtle">L·R</span>
-                  <input
-                    type="range"
-                    min={-1}
-                    max={1}
-                    step={0.01}
-                    value={pans[stem.name] ?? 0}
-                    onDoubleClick={() => setPan(stem.name, 0)}
-                    onChange={(e) => setPan(stem.name, Number(e.target.value))}
-                    aria-label={`${stem.name} pan`}
-                    className="w-14 accent-amber-500"
-                  />
-                </label>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  onClick={() => downloadStem(stem)}
-                  aria-label={`Download ${stem.name}`}
-                >
-                  <Download className="h-4 w-4" aria-hidden />
-                </Button>
               </div>
             </div>
           );
         })}
+
+        {/* overlay on the timeline column: grid, loop region, playhead */}
+        <div
+          className="pointer-events-none absolute inset-y-0 right-0 hidden sm:block"
+          style={{ left: "var(--hd)" }}
+          aria-hidden
+        >
+          {ticks.map((t) => (
+            <span
+              key={t}
+              className="absolute inset-y-0 w-px bg-white/[0.04]"
+              style={{ left: `${(t / duration) * 100}%` }}
+            />
+          ))}
+          {loop && duration > 0 && (
+            <div
+              className="absolute inset-y-0 border-x border-white/40 bg-white/[0.06]"
+              style={{
+                left: `${(loop.a / duration) * 100}%`,
+                width: `${((loop.b - loop.a) / duration) * 100}%`,
+              }}
+            />
+          )}
+          <div
+            ref={headRef}
+            className="absolute inset-y-0 w-px bg-amber-400 shadow-[0_0_10px_rgba(232,162,61,0.7)]"
+            style={{ left: `${progress * 100}%` }}
+          />
+        </div>
       </div>
 
       {/* footer */}
-      <div className="flex flex-wrap items-center gap-2 border-t border-graphite-800 px-4 py-3">
-        <Button
-          variant="primary"
-          size="sm"
-          onClick={exportMix}
-          disabled={!allReady}
-          loading={exporting}
-          loadingLabel="Rendering mix"
-        >
-          <Download className="mr-1.5 h-4 w-4" aria-hidden />
-          Export my mix (WAV)
-        </Button>
-        {onDownloadAll && (
-          <Button variant="outline" size="sm" onClick={downloadAllStems}>
-            Download all stems
-          </Button>
-        )}
-        <span className="ml-auto hidden text-[11px] text-text-subtle sm:block">
-          Space = play · ← → = seek · mixed in your browser
+      <div className="flex flex-col gap-3 pt-5 sm:flex-row sm:items-center sm:justify-between">
+        <span className="hidden font-mono text-[10px] uppercase tracking-[0.14em] text-text-subtle sm:block">
+          Space play · arrows seek · double click a slider to reset · mixed in your browser
         </span>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          {onDownloadAll && (
+            <Button variant="outline" size="md" onClick={downloadAllStems}>
+              <Download aria-hidden />
+              Download all stems
+            </Button>
+          )}
+          <Button
+            variant="primary"
+            size="md"
+            onClick={exportMix}
+            disabled={!allReady}
+            loading={exporting}
+            loadingLabel="Rendering mix"
+          >
+            Export my mix as WAV
+          </Button>
+        </div>
       </div>
+
+      <style href="af-forge-mixer" precedence="default">
+        {RANGE_CSS}
+      </style>
     </div>
   );
 }
 
-function drawWaveform(canvas: HTMLCanvasElement, peaks: Float32Array, progress: number, soloed: boolean) {
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return;
-  const { width, height } = canvas;
-  ctx.clearRect(0, 0, width, height);
-  const barW = width / peaks.length;
-  const mid = height / 2;
-  const cut = Math.floor(progress * peaks.length);
-  for (let i = 0; i < peaks.length; i++) {
-    const h = Math.max(2, peaks[i] * (height - 8));
-    ctx.fillStyle = i < cut ? (soloed ? "#4dd8b8" : "#e8a23d") : "#45454d";
-    ctx.fillRect(i * barW, mid - h / 2, Math.max(1, barW - 1), h);
-  }
+const RANGE_CSS = `
+.fm-range{appearance:none;-webkit-appearance:none;height:14px;background:transparent;cursor:pointer;display:block}
+.fm-range::-webkit-slider-runnable-track{height:2px;border-radius:2px;background:var(--graphite-600)}
+.fm-range::-moz-range-track{height:2px;border-radius:2px;background:var(--graphite-600)}
+.fm-range::-webkit-slider-thumb{-webkit-appearance:none;height:12px;width:12px;margin-top:-5px;border-radius:9999px;background:var(--text-primary);box-shadow:0 0 0 3px var(--graphite-900)}
+.fm-range::-moz-range-thumb{height:12px;width:12px;border:0;border-radius:9999px;background:var(--text-primary);box-shadow:0 0 0 3px var(--graphite-900)}
+.fm-range:focus-visible{outline:2px solid rgba(232,162,61,.7);outline-offset:3px;border-radius:4px}
+`;
+
+const STEM_COLORS = {
+  vocal: "#e8a23d",
+  drum: "#e0705c",
+  bass: "#4dd8b8",
+  other: "#cfcabd",
+} as const;
+
+function stemColor(name: string): string {
+  const n = name.toLowerCase();
+  if (n.includes("vocal") || n.includes("voice")) return STEM_COLORS.vocal;
+  if (n.includes("drum")) return STEM_COLORS.drum;
+  if (n.includes("bass") || n.includes("instrument")) return STEM_COLORS.bass;
+  return STEM_COLORS.other;
 }
 
-function drawMeter(canvas: HTMLCanvasElement, analyser: AnalyserNode, playing: boolean) {
+function panLabel(pan: number): string {
+  const v = Math.round(pan * 100);
+  if (v === 0) return "C";
+  return v < 0 ? `L${-v}` : `R${v}`;
+}
+
+function rulerTicks(duration: number): number[] {
+  if (duration <= 0) return [];
+  const step = [5, 10, 15, 30, 60, 120, 300].find((s) => duration / s <= 9) ?? 600;
+  const out: number[] = [];
+  for (let t = 0; t < duration - step * 0.25; t += step) out.push(t);
+  return out;
+}
+
+function drawWaveform(
+  canvas: HTMLCanvasElement,
+  peaks: Float32Array,
+  progress: number,
+  color: string,
+  silenced: boolean
+) {
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const width = Math.round(canvas.clientWidth * dpr);
+  const height = Math.round(canvas.clientHeight * dpr);
+  if (width === 0 || height === 0) return;
+  if (canvas.width !== width || canvas.height !== height) {
+    canvas.width = width;
+    canvas.height = height;
+  }
+  ctx.clearRect(0, 0, width, height);
+
+  const mid = Math.round(height / 2);
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = "rgba(255,255,255,0.06)";
+  ctx.fillRect(0, mid, width, 1);
+
+  const barW = Math.max(1, Math.round(2 * dpr));
+  const pitch = barW + Math.max(1, Math.round(dpr));
+  const bars = Math.floor(width / pitch);
+  const cut = progress * bars;
+  const tone = silenced ? "#4a4a52" : color;
+  ctx.fillStyle = tone;
+
+  for (let i = 0; i < bars; i++) {
+    const from = Math.floor((i / bars) * peaks.length);
+    const to = Math.max(from + 1, Math.floor(((i + 1) / bars) * peaks.length));
+    let peak = 0;
+    for (let j = from; j < to && j < peaks.length; j++) if (peaks[j] > peak) peak = peaks[j];
+    const h = Math.max(dpr, peak * height * 0.88);
+    ctx.globalAlpha = silenced ? 0.5 : i < cut ? 1 : 0.34;
+    ctx.fillRect(i * pitch, mid - h / 2, barW, h);
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawMeter(canvas: HTMLCanvasElement, analyser: AnalyserNode, playing: boolean, color: string) {
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
   const { width, height } = canvas;
@@ -884,8 +1024,8 @@ function drawMeter(canvas: HTMLCanvasElement, analyser: AnalyserNode, playing: b
   }
   const h = Math.min(1, peak * 1.4) * height;
   const grad = ctx.createLinearGradient(0, height, 0, 0);
-  grad.addColorStop(0, "#e8a23d");
-  grad.addColorStop(0.8, "#e8a23d");
+  grad.addColorStop(0, color);
+  grad.addColorStop(0.82, color);
   grad.addColorStop(1, "#ef4444");
   ctx.fillStyle = grad;
   ctx.fillRect(0, height - h, width, h);

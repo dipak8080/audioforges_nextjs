@@ -67,6 +67,7 @@ import {
   SeparationTheater,
   resolveRateLimitMessage,
 } from "@/components/tools/JobFormKit";
+import { StudioStage, type StageTier } from "@/components/tools/StudioStage";
 
 export type { ProcessingStage };
 
@@ -262,6 +263,17 @@ interface MultiOutputToolFormProps {
   stemTheaterLanes?: readonly string[];
   /** Expand the card to DAW width on the result step (separation tools). */
   breakoutOnComplete?: boolean;
+  /** Renders the StudioStage skin instead of the form shell. Same engine. */
+  stage?: {
+    tiers: StageTier<string>[];
+    tier: string;
+    onTierChange: (tier: string) => void;
+    formats?: string;
+    demoCaption?: string;
+    demoNudge?: string;
+    demoCredit?: string;
+    footerExtra?: (busy: boolean) => ReactNode;
+  };
   maxSubmitRetries?: number;
   /**
    * OPT-IN CREDITS WIRING.
@@ -312,6 +324,7 @@ export function MultiOutputToolForm({
   resultView = "list",
   stemTheaterLanes,
   breakoutOnComplete = false,
+  stage,
   maxSubmitRetries = 1,
   meteredToolKey = null,
   upgradeFamily,
@@ -722,98 +735,19 @@ export function MultiOutputToolForm({
   // anything ran, and disagreed with the two sibling shells.
   const step: 1 | 2 | 3 = status === "complete" ? 3 : isBusy ? 2 : 1;
 
-  return (
-    <>
-      <FormShell
-        toolLabel={toolLabel || submitLabel}
-        toolMeta={toolMeta}
-        steps={STEPS}
-        step={step}
-        busy={isBusy}
-        failed={isFailed}
-        complete={status === "complete"}
-        breakoutOnComplete={breakoutOnComplete}
-        footer={
-        /* Hidden until there's a file, rather than shown disabled — a full-width
-           h-12 slab at 40% opacity carries the weight of the primary action
-           while doing nothing, and a dimmed amber fill renders as a muddy brown
-           bar. isFailed keeps "Try again" reachable after an error. */
-        status !== "complete" && (file || isFailed) ? (
-          <>
-            <Button
-              variant="primary"
-              size="lg"
-              className="w-full"
-              onClick={handleSubmit}
-              disabled={!canSubmit && !isBusy}
-              loading={isBusy}
-            >
-              {!isBusy && <Wand2 />}
-              {isBusy
-                ? "Working"
-                : cooldownSeconds > 0
-                  ? `Try again in ${formatCooldown(cooldownSeconds)}`
-                  : isFailed
-                    ? "Try again"
-                    : submitLabel}
-            </Button>
-            <CooldownBar seconds={cooldownSeconds} ceiling={cooldownCeiling} />
-          </>
-        ) : undefined
-      }
-    >
-      {/* SOURCE — the file, and anything wrong with it. */}
-      {status !== "complete" && (
-        <Section className="space-y-4">
-          <FileDropZone
-            onFileSelect={handleFileSelect}
-            currentFile={file}
-            onClear={handleReset}
-            disabled={isBusy}
-            accept={fileAccept}
-          />
-          {/* An error about the file belongs beside the file, not below the
-              tool's controls. */}
-          {validationError && <ValidationNote message={validationError} />}
-          {resultView === "mixer" && <MixerTeaser />}
-        </Section>
-      )}
-
-      {/* SETTINGS — whatever this tool needs before it can run. */}
-      {status !== "complete" && controls && <Section>{controls}</Section>}
-
-      {/* WORKING */}
-      {isBusy && (
-        <Section>
-          <WorkingPanel
-            theater={
-              stemTheaterLanes ? <SeparationTheater lanes={stemTheaterLanes} /> : undefined
-            }
-            stageLabel={stageLabel}
-            stages={stages}
-            stageIndex={stageIndex}
-            showStageList={status === "processing"}
-            elapsedSeconds={elapsedSeconds}
-            progress={progress}
-            expectedRange={expectedRange}
-            chargedRun={chargedRun}
-            onCancel={handleCancel}
-            waveform={<Waveform />}
-          />
-        </Section>
-      )}
-
-      {/* RESULT */}
-      {status === "complete" && jobId && (
-        <Section className="space-y-4">
-          <ResultHeader
-            verb={resultVerb}
-            title={resultTitle || `${outputs.length} outputs ready`}
-            meta={`Finished in ${formatElapsed(elapsedSeconds)}`}
-            /* Marks WHICH model produced these files. Someone downloading four
-               stems over a week can't tell from the filenames. */
-            tag={completedMetered ? <StudioQualityTag /> : undefined}
-          />
+  const resultBody =
+    status === "complete" && jobId ? (
+      <>
+          {!stage && (
+            <ResultHeader
+              verb={resultVerb}
+              title={resultTitle || `${outputs.length} outputs ready`}
+              meta={`Finished in ${formatElapsed(elapsedSeconds)}`}
+              /* Marks WHICH model produced these files. Someone downloading four
+                 stems over a week can't tell from the filenames. */
+              tag={completedMetered ? <StudioQualityTag /> : undefined}
+            />
+          )}
 
           {/*
             Track-list layout, not tabs: every output is visible as its own row
@@ -938,18 +872,20 @@ export function MultiOutputToolForm({
 
           {/* Asking for a tip right after charging someone a credit is a bad
               look. A free-tier run is still free, so it keeps the block. */}
-          {!chargedRun && <SupportBlock />}
+          {!stage && !chargedRun && <SupportBlock />}
 
-          <Button variant="outline" size="md" className="w-full" onClick={handleReset}>
-            <RotateCcw />
-            Process another file
-          </Button>
-        </Section>
-      )}
+          {!stage && (
+            <Button variant="outline" size="md" className="w-full" onClick={handleReset}>
+              <RotateCcw />
+              Process another file
+            </Button>
+          )}
+      </>
+    ) : null;
 
-      {/* FAILED */}
-      {isFailed && error && (
-        <Section className="space-y-4">
+  const failedBody =
+    isFailed && error ? (
+      <>
           <ErrorPanel error={error}>
             {error.offerCredits && (
               <Link
@@ -974,8 +910,156 @@ export function MultiOutputToolForm({
             worst timing on the site.
           */}
           {status === "error" && <SupportBlock mood="sheepish" />}
+      </>
+    ) : null;
+
+  if (stage) {
+    const premium = stage.tiers.find((t) => t.premium);
+    const jobTier =
+      status === "complete" && premium
+        ? completedMetered
+          ? premium.value
+          : (stage.tiers.find((t) => !t.premium)?.value ?? stage.tier)
+        : stage.tier;
+    return (
+      <>
+        <StudioStage
+          label={toolLabel || submitLabel}
+          file={file}
+          onFileSelect={handleFileSelect}
+          onClear={handleReset}
+          accept={fileAccept}
+          formats={stage.formats}
+          tiers={stage.tiers}
+          tier={stage.tier}
+          onTierChange={stage.onTierChange}
+          jobTier={jobTier}
+          demoCaption={stage.demoCaption}
+          demoNudge={stage.demoNudge}
+          demoCredit={stage.demoCredit}
+          busy={isBusy}
+          failed={isFailed}
+          progress={progress}
+          stageLabel={stageLabel}
+          elapsed={formatElapsed(elapsedSeconds)}
+          onCancel={handleCancel}
+          actionLabel={
+            cooldownSeconds > 0
+              ? `Try again in ${formatCooldown(cooldownSeconds)}`
+              : isFailed
+                ? "Try again"
+                : submitLabel
+          }
+          actionIcon={<Wand2 />}
+          actionDisabled={!canSubmit}
+          onAction={handleSubmit}
+          footerExtra={stage.footerExtra?.(isBusy)}
+          belowAction={<CooldownBar seconds={cooldownSeconds} ceiling={cooldownCeiling} />}
+          result={resultBody ?? undefined}
+          doneTitle={resultTitle || `${outputs.length} outputs ready`}
+          doneMeta={formatElapsed(elapsedSeconds)}
+          doneFooter={chargedRun ? undefined : <SupportBlock variant="line" />}
+          resetLabel="Process another file"
+          note={
+            validationError || failedBody ? (
+              <div className="space-y-4">
+                {validationError && <ValidationNote message={validationError} />}
+                {failedBody}
+              </div>
+            ) : undefined
+          }
+        />
+        {gate}
+      </>
+    );
+  }
+
+  return (
+    <>
+      <FormShell
+        toolLabel={toolLabel || submitLabel}
+        toolMeta={toolMeta}
+        steps={STEPS}
+        step={step}
+        busy={isBusy}
+        failed={isFailed}
+        complete={status === "complete"}
+        breakoutOnComplete={breakoutOnComplete}
+        footer={
+        /* Hidden until there's a file, rather than shown disabled — a full-width
+           h-12 slab at 40% opacity carries the weight of the primary action
+           while doing nothing, and a dimmed amber fill renders as a muddy brown
+           bar. isFailed keeps "Try again" reachable after an error. */
+        status !== "complete" && (file || isFailed) ? (
+          <>
+            <Button
+              variant="primary"
+              size="lg"
+              className="w-full"
+              onClick={handleSubmit}
+              disabled={!canSubmit && !isBusy}
+              loading={isBusy}
+            >
+              {!isBusy && <Wand2 />}
+              {isBusy
+                ? "Working"
+                : cooldownSeconds > 0
+                  ? `Try again in ${formatCooldown(cooldownSeconds)}`
+                  : isFailed
+                    ? "Try again"
+                    : submitLabel}
+            </Button>
+            <CooldownBar seconds={cooldownSeconds} ceiling={cooldownCeiling} />
+          </>
+        ) : undefined
+      }
+    >
+      {/* SOURCE — the file, and anything wrong with it. */}
+      {status !== "complete" && (
+        <Section className="space-y-4">
+          <FileDropZone
+            onFileSelect={handleFileSelect}
+            currentFile={file}
+            onClear={handleReset}
+            disabled={isBusy}
+            accept={fileAccept}
+          />
+          {/* An error about the file belongs beside the file, not below the
+              tool's controls. */}
+          {validationError && <ValidationNote message={validationError} />}
+          {resultView === "mixer" && <MixerTeaser />}
         </Section>
       )}
+
+      {/* SETTINGS — whatever this tool needs before it can run. */}
+      {status !== "complete" && controls && <Section>{controls}</Section>}
+
+      {/* WORKING */}
+      {isBusy && (
+        <Section>
+          <WorkingPanel
+            theater={
+              stemTheaterLanes ? <SeparationTheater lanes={stemTheaterLanes} /> : undefined
+            }
+            stageLabel={stageLabel}
+            stages={stages}
+            stageIndex={stageIndex}
+            showStageList={status === "processing"}
+            elapsedSeconds={elapsedSeconds}
+            progress={progress}
+            expectedRange={expectedRange}
+            chargedRun={chargedRun}
+            onCancel={handleCancel}
+            waveform={<Waveform />}
+          />
+        </Section>
+      )}
+
+      {/* RESULT */}
+      {resultBody && <Section className="space-y-4">{resultBody}</Section>}
+
+      {/* FAILED */}
+      {failedBody && <Section className="space-y-4">{failedBody}</Section>}
 
     </FormShell>
 

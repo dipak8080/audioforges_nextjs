@@ -1,15 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Mic2, Music4, Bell, BellOff, RotateCcw } from "lucide-react";
-import { Button } from "@/components/ui/Button";
+import { Mic2, Music4, Bell, BellOff } from "lucide-react";
 import { StudioStage, type StageTier } from "@/components/tools/StudioStage";
 import { DEMO_DURATION, DEMO_PEAKS_STANDARD, DEMO_PEAKS_STUDIO } from "@/lib/data/demo-peaks";
 import {
   CooldownBar,
   ErrorPanel,
   ValidationNote,
-  ResultHeader,
   easedProgress,
   formatCooldown,
   formatElapsed,
@@ -49,7 +47,7 @@ import { useCreditGate } from "@/components/credits/useCreditGate";
 import { useCredits } from "@/components/credits/CreditProvider";
 import { AlwaysFreeTag, FreeTierBadge } from "@/components/credits/FreeTierBadge";
 import { UpgradeToHqCard } from "@/components/credits/UpgradeToHqCard";
-import { CreditReceipt, StudioQualityTag } from "@/components/credits/CreditReceipt";
+import { CreditReceipt } from "@/components/credits/CreditReceipt";
 import { useNotificationPermission } from "@/lib/hooks/useNotificationPermission";
 
 /**
@@ -675,14 +673,7 @@ export function VocalRemoverForm({
 
   const result =
     isComplete && jobId ? (
-      <div className="space-y-4" role="status" aria-live="polite">
-        <ResultHeader
-          verb="Done"
-          title={resultTitle || "Separation complete"}
-          meta={`Finished in ${formatElapsed(elapsedSeconds)}`}
-          tag={jobQuality === "hq" ? <StudioQualityTag /> : undefined}
-        />
-
+      <div className="space-y-5" role="status" aria-live="polite">
         <StemMixer
           key={jobId}
           stems={(["vocals", "instrumental"] as StemType[]).map((name) => ({
@@ -717,13 +708,6 @@ export function VocalRemoverForm({
 
         <CreditReceipt billing={billing} />
 
-        {/* No tip jar right after charging a credit. */}
-        {!completedCharged && <SupportBlock />}
-
-        <Button variant="outline" size="md" className="w-full sm:w-auto" onClick={handleReset}>
-          <RotateCcw />
-          Separate another track
-        </Button>
       </div>
     ) : undefined;
 
@@ -780,6 +764,9 @@ export function VocalRemoverForm({
         footerExtra={notifyButton}
         belowAction={<CooldownBar seconds={cooldownSeconds} ceiling={cooldownCeiling} />}
         result={result}
+        doneTitle={resultTitle || "Separation complete"}
+        doneMeta={formatElapsed(elapsedSeconds)}
+        doneFooter={completedCharged ? undefined : <SupportBlock variant="line" />}
         note={note}
       />
 

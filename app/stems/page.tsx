@@ -5,7 +5,6 @@ import { FAQSection, type FAQItem } from "@/components/faq/FAQSection";
 import { ToolPageShell } from "@/components/layout/ToolPageShell";
 import { Breadcrumb } from "@/components/layout/Breadcrumb";
 import { ToolSection } from "@/components/ui/ToolSection";
-import { StemCompare } from "@/components/credits/StemCompare";
 import { Prose } from "@/components/ui/Prose";
 import { RelatedToolsGrid } from "@/components/tools/RelatedToolsGrid";
 import { ProofStrip } from "@/components/tools/ProofStrip";
@@ -92,7 +91,8 @@ const webAppJsonLd = {
 
 export default async function StemsPage() {
   const relatedTools = getRelatedTools("stems", 5);
-  const { separationHqEnabled } = await getFeatureFlags();
+  const { separationHqEnabled, paywallEnabled, paywallTools } = await getFeatureFlags();
+  const hqMetered = paywallEnabled && Boolean(paywallTools["stems-hq"]);
   const limits = await getLimits();
 
   // "stems_hq" is this tool's own key. The standard tier has no key of its own
@@ -197,7 +197,16 @@ export default async function StemsPage() {
         meta={["No account", "No watermark", "Four full-length stems"]}
         title="Free AI Stem Splitter"
         lede="Split a song into vocals, drums, bass and other. Four separate WAV files, no sign-up, nothing to install."
-        tool={<StemsForm hqAvailable={separationHqEnabled} standardLimit={standardAllowance} />}
+        wide
+        tool={
+          <StemsForm
+            hqAvailable={separationHqEnabled}
+            standardLimit={standardAllowance}
+            hqLimitText={hqLimitLabel}
+            demoStandardSrc={DEMO_STANDARD}
+            demoStudioSrc={DEMO_STUDIO}
+          />
+        }
       >
         <ProofStrip
           proofs={[
@@ -218,31 +227,6 @@ export default async function StemsPage() {
             },
           ]}
         />
-
-        {separationHqEnabled && (
-          <ToolSection id="hear-the-difference" title="Hear the difference">
-            <p>
-              The vocal stem from both tiers, on the same song. Click a lane to switch while it plays; the playhead
-              stays put, so you hear the same bar twice. Drag on a lane to loop the part you want to compare. The
-              vocal is the stem where the two tiers differ most, and on Studio Quality it is what the other three are
-              separated around.
-            </p>
-            <StemCompare
-              standardSrc={DEMO_STANDARD}
-              studioSrc={DEMO_STUDIO}
-              stemLabel="Vocals"
-              trackLabel="Full mix with lead vocal"
-              cues={[
-                { at: 2, label: "vocal in" },
-                { at: 21, label: "chorus" },
-                { at: 37, label: "vocal peak" },
-              ]}
-            />
-            <p className="text-xs text-text-subtle">
-              Music: What Would It Mean by H4RRIS feat. Nicole Apollonio, used with permission
-            </p>
-          </ToolSection>
-        )}
 
         <ToolSection id="forge-mixer" title="Mix four stems before you download" bleed>
           <Prose className="mb-5">
@@ -357,7 +341,9 @@ export default async function StemsPage() {
                       mono: true,
                       sub: standardAllowance ? "shared across all four separation tools" : undefined,
                     },
-                    { text: hqLimitLabel, mono: true, sub: "on the free tier" },
+                    hqMetered
+                      ? { text: "Free runs every month", sub: "the tool shows how many you have left" }
+                      : { text: hqLimitLabel, mono: true },
                   ],
                 },
                 {

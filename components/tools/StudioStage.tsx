@@ -8,7 +8,7 @@ import {
   type DragEvent,
   type ReactNode,
 } from "react";
-import { Pause, Play, Sparkles } from "lucide-react";
+import { Pause, Play, RotateCcw, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { WaveformCanvas } from "@/components/ui/WaveformCanvas";
 import {
@@ -254,6 +254,10 @@ export interface StudioStageProps<T extends string> {
   belowAction?: ReactNode;
   /** Replaces the waveform once the job is done. */
   result?: ReactNode;
+  doneTitle?: string;
+  doneMeta?: string;
+  doneFooter?: ReactNode;
+  resetLabel?: string;
   note?: ReactNode;
 }
 
@@ -284,6 +288,10 @@ export function StudioStage<T extends string>({
   footerExtra,
   belowAction,
   result,
+  doneTitle,
+  doneMeta,
+  doneFooter,
+  resetLabel = "Separate another track",
   note,
 }: StudioStageProps<T>) {
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -388,9 +396,18 @@ export function StudioStage<T extends string>({
               )}
               aria-hidden
             />
-            <span className="truncate font-mono text-[11px] font-medium uppercase tracking-[0.18em] text-text-muted">
-              {label}
-            </span>
+            {done ? (
+              <>
+                <span className="shrink-0 font-mono text-[11px] font-medium uppercase tracking-[0.18em] text-teal-400">
+                  Done
+                </span>
+                <span className="truncate text-sm text-text-primary">{doneTitle ?? label}</span>
+              </>
+            ) : (
+              <span className="truncate font-mono text-[11px] font-medium uppercase tracking-[0.18em] text-text-muted">
+                {label}
+              </span>
+            )}
           </div>
 
           {tiers.length > 1 && !busy && !done ? (
@@ -433,13 +450,14 @@ export function StudioStage<T extends string>({
                 shown.premium ? "text-amber-400" : "text-text-subtle",
               )}
             >
+              {done && doneMeta ? `${doneMeta} · ` : ""}
               {shown.name} · {shown.model}
             </span>
           )}
         </div>
 
         {done ? (
-          <div className="p-4 sm:p-7">{result}</div>
+          <div className="space-y-5 p-4 sm:p-7">{result}</div>
         ) : (
           <>
             <input
@@ -633,6 +651,20 @@ export function StudioStage<T extends string>({
                     : "Choose a file"}
               </Button>
             </div>
+          </div>
+        )}
+
+        {done && (
+          <div className="flex flex-col gap-3 border-t border-graphite-800 bg-graphite-950/40 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-7">
+            <button
+              type="button"
+              onClick={onClear}
+              className="flex items-center gap-2 self-start rounded text-sm text-text-muted outline-none transition-colors hover:text-text-primary focus-visible:ring-2 focus-visible:ring-amber-400/70"
+            >
+              <RotateCcw className="h-3.5 w-3.5" aria-hidden />
+              {resetLabel}
+            </button>
+            {doneFooter}
           </div>
         )}
 

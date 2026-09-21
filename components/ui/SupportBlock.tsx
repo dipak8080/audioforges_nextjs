@@ -213,10 +213,33 @@ function Panda({ mood }: { mood: Mood }) {
   );
 }
 
-export function SupportBlock({ mood = "happy" }: { mood?: Mood }) {
+export function SupportBlock({
+  mood = "happy",
+  variant = "card",
+}: {
+  mood?: Mood;
+  /** "line" is one quiet sentence, no mascot. Used inside the stage. */
+  variant?: "card" | "line";
+}) {
   const state = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
   const [closed, setClosed] = useState(false);
   const showPanda = !closed;
+
+  if (variant === "line") {
+    return (
+      <p className="text-xs text-text-subtle">
+        AudioForges stays free because people chip in.{" "}
+        <a
+          href="https://ko-fi.com/audioforges"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-text-muted underline underline-offset-4 outline-none transition-colors hover:text-text-primary focus-visible:ring-2 focus-visible:ring-amber-400/70"
+        >
+          Support it
+        </a>
+      </p>
+    );
+  }
 
   return (
     <div

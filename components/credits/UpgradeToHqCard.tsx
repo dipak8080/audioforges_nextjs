@@ -326,36 +326,19 @@ export function UpgradeToHqCard({
 
   return (
     <>
-      <div className="overflow-hidden rounded-xl border border-amber-500/25 bg-amber-500/[0.05]">
-        <div className="flex items-center justify-between border-b border-amber-500/15 px-4 py-2">
-          <span className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-amber-400">
+      <div className="rounded-xl border border-amber-500/30 bg-amber-500/6 p-5 sm:flex sm:items-center sm:justify-between sm:gap-8 sm:p-6">
+        <div className="min-w-0">
+          <p className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-amber-400">
             <Sparkles className="h-3 w-3" aria-hidden />
             Studio Quality
-          </span>
-          <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-text-subtle">
-            {isFree ? "Free run" : "1 credit"}
-          </span>
-        </div>
-
-        <div className="p-4">
-          {/*
-            Names the thing they can hear. "Upgrade to HQ" describes a
-            transaction; "hear it cleaner" describes the result, and the result
-            is what they were just listening to.
-          */}
-          <p className="text-sm font-medium text-text-primary">Hear this cleaner</p>
-          <p className="mt-1 text-xs leading-relaxed text-text-muted">
-            Runs a heavier model on the same file, with noticeably less bleed between the stems. No
-            re-upload, no waiting for another conversion.
+          </p>
+          <p className="display mt-2 text-2xl text-text-primary sm:text-3xl">Hear this cleaner</p>
+          <p className="mt-2 max-w-xl text-sm leading-relaxed text-text-muted">
+            A heavier model on the same file, with noticeably less bleed between the stems. No
+            re-upload.
           </p>
 
           {showExpiry && (
-            /*
-              Stated because it's true, not to pressure. The source file really
-              is deleted on a 2h TTL, and someone who leaves the tab open should
-              know the one-click path has a deadline before it silently
-              disappears.
-            */
             <p className="mt-2 flex items-center gap-1.5 text-[11px] text-text-subtle">
               <Clock className="h-3 w-3 shrink-0" aria-hidden />
               One-click re-run available for another {remainingMinutes} min
@@ -363,9 +346,6 @@ export function UpgradeToHqCard({
           )}
 
           {error && (
-            /* Was a bare red sentence inside an amber box — on the one card
-               where the message's whole job is to say nothing was charged. It
-               reads as a failure panel now, like every other one on the site. */
             <div
               role="alert"
               className="mt-3 flex items-start gap-2 rounded-lg border border-red-500/25 bg-red-500/[0.07] p-2.5 text-xs leading-relaxed text-red-200"
@@ -374,23 +354,22 @@ export function UpgradeToHqCard({
               <span>{error}</span>
             </div>
           )}
+        </div>
 
+        <div className="mt-4 shrink-0 sm:mt-0 sm:text-right">
           <Button
-            variant="primary"
-            size="md"
+            variant="accent"
+            size="lg"
             loading={submitting}
             loadingLabel="Starting Studio Quality"
             onClick={handleUpgrade}
-            className="mt-3.5 w-full"
+            className="w-full sm:w-auto"
           >
-            {/* One label, not two. `loading` overlays a spinner on top of this
-                and keeps its width — swapping the text underneath changed a
-                string nobody can see and made the button jump on release. */}
-            {isFree ? "Run at Studio Quality · free" : "Run at Studio Quality · 1 credit"}
+            {isFree ? "Run in Studio Quality · free" : "Run in Studio Quality · 1 credit"}
           </Button>
 
           {isFree && freeLeft > 0 && (
-            <p className="mt-2 text-center text-[11px] text-text-subtle">
+            <p className="mt-2 text-center text-[11px] text-text-subtle sm:text-right">
               {freeLeft === 1
                 ? "This is your last free run this month"
                 : `Uses one of your ${freeLeft} free runs this month`}
