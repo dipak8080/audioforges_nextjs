@@ -29,8 +29,8 @@ import {
 } from "@/lib/api/limits";
 import { ogForTool } from "@/lib/og";
 
-const DEMO_STANDARD = "/audio/demo-vocals-standard.mp3";
-const DEMO_STUDIO = "/audio/demo-vocals-studio.mp3";
+const STEM_DEMO_STANDARD = "/audio/stems/stems-drums-standard.mp3";
+const STEM_DEMO_STUDIO = "/audio/stems/stems-drums-studio.mp3";
 
 const UPDATED = "2026-09-10";
 
@@ -204,8 +204,8 @@ export default async function YouTubeStemSplitterPage() {
             hqAvailable={separationHqEnabled}
             standardLimit={standardAllowance}
             hqLimitText={hqLimitLabel}
-            demoStandardSrc={DEMO_STANDARD}
-            demoStudioSrc={DEMO_STUDIO}
+            demoStandardSrc={STEM_DEMO_STANDARD}
+            demoStudioSrc={STEM_DEMO_STUDIO}
           />
         }
       >

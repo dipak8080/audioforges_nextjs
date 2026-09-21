@@ -14,6 +14,11 @@ import { triggerDownload, triggerDownloadsStaggered } from "@/lib/utils/download
 import { Hint } from "@/components/converter/ToolControls";
 import { NotifyBell, STAGE_DEMO_CREDIT, useSeparationTiers } from "@/components/tools/stageKit";
 import {
+  STEM_DEMO_DURATION,
+  STEM_DEMO_PEAKS_STANDARD,
+  STEM_DEMO_PEAKS_STUDIO,
+} from "@/lib/data/stem-demo-peaks";
+import {
   submitYoutubeStems,
   getYoutubeStemsStatus,
   getYoutubeStemsPreviewUrl,
@@ -290,6 +295,11 @@ export function YouTubeStemForm({
     hqLimitLabel,
     demoStandardSrc,
     demoStudioSrc,
+    demoPeaks: {
+      standard: STEM_DEMO_PEAKS_STANDARD,
+      studio: STEM_DEMO_PEAKS_STUDIO,
+      duration: STEM_DEMO_DURATION,
+    },
   });
 
   return (
@@ -338,9 +348,9 @@ export function YouTubeStemForm({
         tiers,
         tier: effectiveQuality,
         onTierChange: (value) => setQuality(value === "hq" ? "hq" : "standard"),
-        demoCaption: "Hear a result first: the vocal stem",
+        demoCaption: "Hear a result first: the drums stem",
         demoNudge: hqAvailable
-          ? "Now switch to Studio Quality and hear the bleed disappear"
+          ? "Now switch to Studio Quality and hear the drums clean up"
           : undefined,
         demoCredit: STAGE_DEMO_CREDIT,
         footerExtra: (busy) => (

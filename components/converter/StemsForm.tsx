@@ -4,7 +4,11 @@ import { useEffect, useRef, useState } from "react";
 import { Bell, BellOff } from "lucide-react";
 import { MultiOutputToolForm } from "@/components/converter/MultiOutputToolForm";
 import type { StageTier } from "@/components/tools/StudioStage";
-import { DEMO_DURATION, DEMO_PEAKS_STANDARD, DEMO_PEAKS_STUDIO } from "@/lib/data/demo-peaks";
+import {
+  STEM_DEMO_DURATION,
+  STEM_DEMO_PEAKS_STANDARD,
+  STEM_DEMO_PEAKS_STUDIO,
+} from "@/lib/data/stem-demo-peaks";
 import { cn } from "@/lib/utils/cn";
 import { submitStems, type SeparationQuality } from "@/lib/api/railway";
 import {
@@ -300,8 +304,8 @@ export function StemsForm({
       demo: demoSrc
         ? {
             src: demoSrc,
-            peaks: option.value === "hq" ? DEMO_PEAKS_STUDIO : DEMO_PEAKS_STANDARD,
-            duration: DEMO_DURATION,
+            peaks: option.value === "hq" ? STEM_DEMO_PEAKS_STUDIO : STEM_DEMO_PEAKS_STANDARD,
+            duration: STEM_DEMO_DURATION,
           }
         : undefined,
       badge: option.toolKey ? (
@@ -389,9 +393,9 @@ export function StemsForm({
         tier: effectiveQuality,
         onTierChange: (value) => setQuality(value === "hq" ? "hq" : "standard"),
         formats: "MP3 · WAV · FLAC · M4A · AAC · OGG",
-        demoCaption: "Hear a result first: the vocal stem",
+        demoCaption: "Hear a result first: the drums stem",
         demoNudge: hqAvailable
-          ? "Now switch to Studio Quality and hear the bleed disappear"
+          ? "Now switch to Studio Quality and hear the drums clean up"
           : undefined,
         demoCredit: "What Would It Mean by H4RRIS feat. Nicole Apollonio, used with permission",
         footerExtra: (busy) =>

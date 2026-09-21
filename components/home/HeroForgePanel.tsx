@@ -1,28 +1,20 @@
 import { cn } from "@/lib/utils/cn";
+import {
+  HERO_PEAKS_BASS,
+  HERO_PEAKS_DRUMS,
+  HERO_PEAKS_OTHER,
+  HERO_PEAKS_VOCALS,
+} from "@/lib/data/hero-stem-peaks";
 
-const BARS = 84;
-
-function shape(seed: number, density: number): number[] {
-  const out: number[] = [];
-  for (let i = 0; i < BARS; i++) {
-    const t = i / BARS;
-    const env = 0.35 + 0.65 * Math.pow(Math.sin(t * Math.PI), 0.6);
-    const a = Math.abs(Math.sin(i * 0.61 * seed + seed));
-    const b = Math.abs(Math.cos(i * 1.37 + seed * 0.3));
-    const c = Math.abs(Math.sin(i * 3.1 + seed));
-    out.push(Math.min(1, env * (0.18 + (a * 0.5 + b * 0.35 + c * 0.15) * density)));
-  }
-  return out;
-}
 
 const LANES = [
-  { name: "Vocals", peaks: shape(3, 0.9), color: "#e8a23d" },
-  { name: "Drums", peaks: shape(5, 1.1), color: "#e0705c" },
-  { name: "Bass", peaks: shape(9, 0.7), color: "#4dd8b8" },
-  { name: "Other", peaks: shape(13, 0.95), color: "#cfcabd" },
+  { name: "Vocals", peaks: HERO_PEAKS_VOCALS, color: "#e8a23d" },
+  { name: "Drums", peaks: HERO_PEAKS_DRUMS, color: "#e0705c" },
+  { name: "Bass", peaks: HERO_PEAKS_BASS, color: "#4dd8b8" },
+  { name: "Other", peaks: HERO_PEAKS_OTHER, color: "#cfcabd" },
 ];
 
-const RULER = ["0:00", "0:30", "1:00", "1:30", "2:00", "2:30", "3:00", "3:30"];
+const RULER = ["0:00", "0:10", "0:20", "0:30", "0:40"];
 
 export function HeroForgePanel() {
   return (
@@ -49,8 +41,8 @@ export function HeroForgePanel() {
                 Forge Mixer
               </p>
               <p className="mt-0.5 font-mono tabular-nums leading-none">
-                <span className="text-lg text-amber-400">1:24</span>
-                <span className="ml-1.5 text-[11px] text-text-subtle">/ 3:41</span>
+                <span className="text-lg text-amber-400">0:19</span>
+                <span className="ml-1.5 text-[11px] text-text-subtle">/ 0:50</span>
               </p>
             </div>
           </div>
@@ -77,7 +69,7 @@ export function HeroForgePanel() {
                 <span
                   key={t}
                   className="absolute bottom-0 flex h-full items-end border-l border-white/10 pb-1 pl-1 font-mono text-[9px] text-text-subtle"
-                  style={{ left: `${(i / 7.4) * 100}%` }}
+                  style={{ left: `${(i / 5) * 100}%` }}
                 >
                   {t}
                 </span>
@@ -116,7 +108,7 @@ export function HeroForgePanel() {
               <span
                 key={t}
                 className="absolute inset-y-0 w-px bg-white/[0.04]"
-                style={{ left: `${(i / 7.4) * 100}%` }}
+                style={{ left: `${(i / 5) * 100}%` }}
               />
             ))}
             <span

@@ -34,6 +34,7 @@ export function useSeparationTiers({
   hqLimitLabel,
   demoStandardSrc,
   demoStudioSrc,
+  demoPeaks,
 }: {
   hqAvailable: boolean;
   hqToolKey: MeteredToolKey;
@@ -43,6 +44,8 @@ export function useSeparationTiers({
   hqLimitLabel: string;
   demoStandardSrc?: string;
   demoStudioSrc?: string;
+  /** Waveform data for the demo clips. Defaults to the vocal demo. */
+  demoPeaks?: { standard: number[]; studio: number[]; duration: number };
 }): StageTier<string>[] {
   const { rateLimitFor, enabled, loading, isToolMetered, me } = useCredits();
   const metered = enabled && !loading && isToolMetered(hqToolKey);
@@ -59,7 +62,11 @@ export function useSeparationTiers({
       footnote: standardLimitLabel,
       badge: <AlwaysFreeTag pairedTool={hqToolKey} />,
       demo: demoStandardSrc
-        ? { src: demoStandardSrc, peaks: DEMO_PEAKS_STANDARD, duration: DEMO_DURATION }
+        ? {
+            src: demoStandardSrc,
+            peaks: demoPeaks?.standard ?? DEMO_PEAKS_STANDARD,
+            duration: demoPeaks?.duration ?? DEMO_DURATION,
+          }
         : undefined,
     },
   ];
@@ -80,7 +87,11 @@ export function useSeparationTiers({
             : hqLimitLabel,
       badge: <FreeTierBadge tool={hqToolKey} />,
       demo: demoStudioSrc
-        ? { src: demoStudioSrc, peaks: DEMO_PEAKS_STUDIO, duration: DEMO_DURATION }
+        ? {
+            src: demoStudioSrc,
+            peaks: demoPeaks?.studio ?? DEMO_PEAKS_STUDIO,
+            duration: demoPeaks?.duration ?? DEMO_DURATION,
+          }
         : undefined,
     });
   }
