@@ -28,6 +28,7 @@ import {
   sharedAllowanceProse,
   sharedPoolNote,
 } from "@/lib/api/limits";
+import { vocalRemoverLanguageAlternates } from "@/lib/i18n/vocal-remover";
 import { ogForTool } from "@/lib/og";
 
 // Shared with /pricing: same 41 s clip through both tiers, level-matched.
@@ -37,7 +38,7 @@ const DEMO_STUDIO = "/audio/demo-vocals-studio.mp3";
 // Bumped whenever the copy or the numbers on this page change.
 const UPDATED = "2026-09-10";
 
-const PAGE_TITLE = "Free AI Vocal Remover – Remove Vocals & Voice Online";
+const PAGE_TITLE = "Free AI Vocal Remover: Remove Vocals & Voice Online";
 const PAGE_DESCRIPTION =
   "Free AI vocal remover and LALAL.AI alternative. Remove vocals from a song to get an instrumental or acapella. MP3, WAV, FLAC, AAC. No sign-up, no watermark.";
 
@@ -46,7 +47,10 @@ const OG_IMAGE = ogForTool("vocal-remover", "Free AI Vocal Remover");
 export const metadata: Metadata = {
   title: { absolute: PAGE_TITLE },
   description: PAGE_DESCRIPTION,
-  alternates: { canonical: `${SITE_URL}/vocal-remover` },
+  alternates: {
+    canonical: `${SITE_URL}/vocal-remover`,
+    languages: vocalRemoverLanguageAlternates,
+  },
   openGraph: {
     title: PAGE_TITLE,
     description: PAGE_DESCRIPTION,
@@ -86,7 +90,7 @@ const webAppJsonLd = {
   featureList: [
     "GPU-accelerated AI vocal and instrumental separation",
     "Forge Mixer: multi-track stem player with per-stem mute, solo, volume and pan",
-    "Mix presets, A–B loop, and in-browser WAV export of your custom balance",
+    "Mix presets, A-B loop, and in-browser WAV export of your custom balance",
     "No sign-up required",
     "No download or software install required",
     "Karaoke track creation",

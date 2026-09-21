@@ -32,11 +32,11 @@ import { ogForTool } from "@/lib/og";
 const DEMO_STANDARD = "/audio/demo-vocals-standard.mp3";
 const DEMO_STUDIO = "/audio/demo-vocals-studio.mp3";
 
-const UPDATED = "2026-09-10";
+const UPDATED = "2026-09-21";
 
-const PAGE_TITLE = "YouTube Vocal Remover – Free Instrumental & Acapella";
+const PAGE_TITLE = "YouTube Vocal Remover: Free Instrumental & Acapella";
 const PAGE_DESCRIPTION =
-  "Remove vocals from any YouTube video free. Paste a link and get a clean instrumental and an isolated acapella — no download, no sign-up, no watermark.";
+  "Remove vocals from any YouTube video free. Paste a link and get a clean instrumental and an isolated acapella. No download, no sign-up, no watermark.";
 
 const OG_IMAGE = ogForTool("youtube-vocal-remover", "Free YouTube Vocal Remover");
 
@@ -66,6 +66,7 @@ const webAppJsonLd = {
   name: "YouTube Vocal Remover",
   alternateName: [
     "YouTube Vocal Remover",
+    "Remove Vocals from YouTube",
     "YouTube Karaoke Maker",
     "YouTube Acapella Extractor",
     "YouTube Instrumental Extractor",
@@ -119,6 +120,11 @@ export default async function YouTubeVocalRemoverPage() {
   );
 
   const faqs: FAQItem[] = [
+    {
+      question: "How do I remove vocals from a YouTube video?",
+      answer:
+        "Paste the video's link into the tool above and start the separation. The audio is fetched server-side, the vocals and instrumental are split on a GPU, and both come back as full-length WAV files you can download or mix in the browser. No account, no software, no watermark, and you never download the video yourself.",
+    },
     {
       question: "How long can the video be?",
       answer: `Up to ${standardDurationLabel}${hqDurationDiffers ? `, and ${hqDurationLabel} on Studio Quality` : " on both tiers"}. The cap is on separation, not the fetch, so a longer video is refused rather than downloaded first and rejected afterwards. Usage is limited to ${standardLimitProse} per IP address so the tool stays free.${standardPoolNote ? ` ${standardPoolNote}` : ""}`,
@@ -235,6 +241,37 @@ export default async function YouTubeVocalRemoverPage() {
             },
           ]}
         />
+
+        <ToolSection id="how-to" title="How to remove vocals from a YouTube video" bleed>
+          <ol className="grid gap-3 sm:grid-cols-3">
+            {[
+              [
+                "Paste the link",
+                "Any public YouTube URL. You never download the video; the audio is fetched server-side.",
+              ],
+              [
+                "Wait for the split",
+                "20 seconds to 1 minute on standard for a typical song, 1 to 2 minutes on Studio Quality.",
+              ],
+              [
+                "Download or mix",
+                "Vocals and instrumental as full-length WAVs, or open them in Forge Mixer and export your own balance.",
+              ],
+            ].map(([t, d], i) => (
+              <li key={t} className="rounded-xl border border-graphite-800 bg-graphite-900 p-5">
+                <p className="font-mono text-[11px] text-amber-400">Step {i + 1}</p>
+                <p className="mt-1.5 font-medium text-text-primary">{t}</p>
+                <p className="mt-1.5 text-sm leading-relaxed text-text-muted">{d}</p>
+              </li>
+            ))}
+          </ol>
+          <Prose className="mt-5">
+            <p>
+              That is the whole process to remove vocals from YouTube: no account, no watermark, and nothing to
+              install. The result is a karaoke-ready instrumental and a usable acapella from the same run.
+            </p>
+          </Prose>
+        </ToolSection>
 
         {separationHqEnabled && (
           <ToolSection id="hear-the-difference" title="Hear the difference">
@@ -509,7 +546,7 @@ export default async function YouTubeVocalRemoverPage() {
 
         <PageByline
           updated={UPDATED}
-          note="Studio Quality now runs MelBand RoFormer"
+          note="Added the step-by-step how-to and rechecked competitor claims"
           legal="You are responsible for having the right to process any video you paste. AudioForges does not host or distribute the audio processed here."
         />
       </ToolPageShell>

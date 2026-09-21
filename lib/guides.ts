@@ -369,6 +369,15 @@ export const guides: Guide[] = [
     category: "production",
   },
   {
+    slug: "vocal-remover-no-sign-up",
+    title: "Vocal Remover With No Sign Up and No Watermark",
+    description:
+      "Remove vocals free with no account, no email, and no watermark. We signed up for 8 tools so you don't have to; here is what each one really gates.",
+    publishedDate: "2026-09-21",
+    updatedDate: "2026-09-21",
+    category: "production",
+  },
+  {
     slug: "lalal-ai-alternative",
     title: "LALAL.AI Alternative Without a Subscription",
     description:
