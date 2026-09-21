@@ -596,7 +596,7 @@ export function StemMixer({ stems, onDownload, onDownloadAll, sourceTitle }: Ste
   const laneHeight = stems.length > 2 ? "h-20 sm:h-24" : "h-24 sm:h-32";
 
   return (
-    <div className="[--hd:0px] sm:[--hd:15rem]">
+    <div className="[--hd:0px] sm:[--hd:18rem]">
       {/* transport */}
       <div className="flex flex-wrap items-center gap-x-5 gap-y-3 pb-5">
         <button
@@ -672,7 +672,7 @@ export function StemMixer({ stems, onDownload, onDownloadAll, sourceTitle }: Ste
 
       {/* timeline: a recessed screen, one playhead across every lane */}
       <div className="relative overflow-hidden rounded-xl bg-graphite-950/70 shadow-[inset_0_1px_2px_rgba(0,0,0,0.7),inset_0_0_0_1px_rgba(255,255,255,0.04)]">
-        <div className="grid sm:grid-cols-[15rem_minmax(0,1fr)]">
+        <div className="grid sm:grid-cols-[18rem_minmax(0,1fr)]">
           <div className="hidden items-end border-b border-r border-graphite-800 px-4 pb-1.5 sm:flex">
             <span className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-text-subtle">
               <Repeat className="h-3 w-3" aria-hidden />
@@ -717,16 +717,16 @@ export function StemMixer({ stems, onDownload, onDownloadAll, sourceTitle }: Ste
             <div
               key={stem.name}
               className={cn(
-                "grid sm:grid-cols-[15rem_minmax(0,1fr)]",
+                "grid sm:grid-cols-[18rem_minmax(0,1fr)]",
                 index > 0 && "border-t border-graphite-800"
               )}
             >
               {/* channel strip */}
               <div className="flex gap-3 border-graphite-800 px-4 py-3 sm:border-r">
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2.5">
+                  <div className="flex items-center gap-1.5">
                     <span
-                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border"
+                      className="mr-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-md border"
                       style={{
                         color: silenced ? "var(--text-subtle)" : color,
                         borderColor: silenced ? "var(--graphite-700)" : `${color}66`,
