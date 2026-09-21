@@ -90,7 +90,7 @@ const PALETTE: [string, string][] = [
   ["#fb923c", "#fdba74"],
 ];
 
-const TIP_KEY = "af-roll-fullscreen-tip";
+const TIP_KEY = "af-roll-fullscreen-tip-v2";
 const MIN_NOTE_SEC = 0.03;
 const FOLLOW_AT = 0.72;
 const KEYS_W = 62;

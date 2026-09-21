@@ -57,6 +57,18 @@ const fmtTime = (s: number) => {
  */
 const clampBpm = (bpm: number) => Math.min(400, Math.max(20, bpm || 120));
 
+// The engraver cannot draw more than seven sharps or flats. A theoretical key
+// (G flat minor is nine flats) is swapped for its enharmonic twin. Note pitches
+// carry their own alter values, so playback is unchanged.
+function playableKeys(xml: string): string {
+  return xml.replace(/<fifths>\s*(-?\d+)\s*<\/fifths>/g, (whole, raw: string) => {
+    const n = Number(raw);
+    if (n < -7) return `<fifths>${n + 12}</fifths>`;
+    if (n > 7) return `<fifths>${n - 12}</fifths>`;
+    return whole;
+  });
+}
+
 export function SheetResultPlayer({
   musicXmlUrl,
   tempoBpm,
@@ -138,7 +150,7 @@ export function SheetResultPlayer({
       try {
         const res = await fetch(musicXmlUrl);
         if (!res.ok) throw new Error(String(res.status));
-        const xml = await res.text();
+        const xml = playableKeys(await res.text());
         const { OpenSheetMusicDisplay } = await import("opensheetmusicdisplay");
         if (!alive || !hostRef.current) return;
 
@@ -194,7 +206,8 @@ export function SheetResultPlayer({
         stepIndexRef.current = 0;
         setStatus("ready");
         syncTimeUi();
-      } catch {
+      } catch (err) {
+        console.error("Forge Score could not load:", err);
         if (alive) setStatus("error");
       }
     })();
