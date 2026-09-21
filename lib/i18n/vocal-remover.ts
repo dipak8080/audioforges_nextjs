@@ -3,6 +3,8 @@ import { SITE_URL } from "@/lib/constants";
 export const vocalRemoverLocales: Record<string, string> = {
   en: "/vocal-remover",
   id: "/id/penghilang-vokal",
+  es: "/es/quitar-voz-de-una-cancion",
+  pt: "/pt/remover-vocal",
 };
 
 export const vocalRemoverLanguageAlternates: Record<string, string> = Object.fromEntries([
@@ -278,5 +280,419 @@ export const idDict: VocalRemoverDict = {
     note: "Halaman versi Bahasa Indonesia",
     legal:
       "Anda bertanggung jawab memiliki hak atas lagu yang Anda unggah. AudioForges tidak menyimpan atau menyebarkan lagu yang diproses di sini.",
+  },
+};
+
+export const esDict: VocalRemoverDict = {
+  locale: "es",
+  path: vocalRemoverLocales.es,
+  updated: "2026-09-21",
+  pageTitle: "Quitar la Voz de una Canción Gratis: Separador de Voz con IA",
+  pageDescription:
+    "Quita la voz de cualquier canción gratis con IA. Descarga el instrumental y el acapella en WAV completo. Sin registro, sin marca de agua, directo en el navegador.",
+  ogTitle: "Quitar la Voz de una Canción Gratis",
+  appName: "Separador de Voz IA",
+  appAlternateNames: [
+    "Quitar Voz de una Canción",
+    "Quitar Voz Online",
+    "Separador de Voz",
+    "Quita Voces",
+    "Extractor de Acapella",
+    "Creador de Karaoke",
+    "Creador de Instrumentales",
+  ],
+  breadcrumbTools: "Herramientas",
+  breadcrumbSelf: "Quitar Voz",
+  heroTitle: "Quitar la Voz de una Canción",
+  heroLede:
+    "Sube una canción y recibe la voz y el instrumental como dos archivos WAV separados. Sin crear cuenta, sin instalar nada.",
+  heroMeta: ["Sin cuenta", "Sin marca de agua", "WAV completo"],
+  proofs: [
+    {
+      label: "Modelos",
+      value: "htdemucs y MelBand RoFormer",
+      note: "Nombramos los modelos para que puedas verificarlos tú mismo. Separación de fuentes real, no un truco de canal central.",
+    },
+    {
+      label: "Salida",
+      value: "WAV estéreo 16-bit 44.1 kHz",
+      note: "Sin pérdida, con la especificación publicada. La mayoría de herramientas de esta categoría nunca lo dicen.",
+    },
+    {
+      label: "Precio",
+      value: "Canciones completas gratis, sin marca de agua",
+      note: "Sin cuenta, sin nivel que solo deja escuchar. Limitado por IP para que siga siendo gratis para todos.",
+    },
+  ],
+  hear: {
+    title: "Escucha la diferencia",
+    intro:
+      "La pista de voz de ambos niveles, en la misma canción. Haz clic en un carril para cambiar mientras suena; la posición de reproducción no se mueve, así escuchas el mismo compás dos veces. Arrastra sobre un carril para repetir la parte que quieras comparar.",
+    stemLabel: "Voz",
+    trackLabel: "Mezcla completa con voz principal",
+    cues: [
+      { at: 2, label: "entra la voz" },
+      { at: 21, label: "estribillo" },
+      { at: 37, label: "pico vocal" },
+    ],
+    credit: "Música: What Would It Mean de H4RRIS feat. Nicole Apollonio, usada con permiso",
+  },
+  mixer: {
+    title: "Ajusta la mezcla antes de descargar",
+    intro:
+      "El resultado se abre en Forge Mixer, un reproductor de dos carriles integrado en esta página. Ambas pistas corren con el mismo reloj, así que nunca se desfasan. Ajusta el balance que te guste y expórtalo como WAV sin salir del navegador.",
+    points: [
+      "Silenciar, solo, volumen hasta 150% y paneo completo en cada pista.",
+      "Presets de Karaoke y Acapella, con un toque.",
+      "Arrastra sobre la línea de tiempo para repetir una sección, con precisión de muestra.",
+      "Exporta la mezcla que ajustaste como WAV. Se procesa en tu equipo, sin gastar créditos.",
+    ],
+  },
+  stems: {
+    title: "Dos pistas, cuatro usos",
+    outputs: [
+      {
+        name: "Instrumental",
+        desc: "La mezcla completa con la voz eliminada. Batería, bajo y todo lo demás quedan intactos.",
+      },
+      {
+        name: "Voz",
+        desc: "Voz principal y coros por su cuenta. Sirve como acapella tal cual.",
+      },
+    ],
+    jobs: [
+      { name: "Karaoke", uses: "instrumental", desc: "Canta sobre el arreglo original, no sobre una versión MIDI." },
+      { name: "Remix", uses: "either", desc: "Construye sobre una base limpia o un hook limpio." },
+      { name: "Mashup de DJ", uses: "vocals", desc: "Pon el acapella de una canción sobre el instrumental de otra." },
+      { name: "Referencia para covers", uses: "instrumental", desc: "Escucha cada parte con claridad sin la voz principal encima." },
+    ],
+  },
+  tiers: {
+    title: "Standard vs. Studio Quality",
+    labels: {
+      model: "Modelo",
+      bleed: "Restos de voz en el instrumental",
+      artifacts: "Artefactos acuosos",
+      time: "Tiempo",
+      limit: "Límite",
+      cost: "Costo",
+    },
+    columns: ["Standard", "Studio Quality"],
+    bleedCells: ["Se oyen en mezclas densas y colas de reverb largas", "Desaparecen en casi todo el material"],
+    artifactCells: ["En platillos, respiraciones y sibilancias", "Platillos y consonantes quedan intactos"],
+    timeCells: ["20 segundos a 1 minuto", "1 a 2 minutos"],
+    limitSubStandard: "compartido entre todas las herramientas de separación",
+    limitSubHq: "en el nivel gratuito",
+    costCells: ["Gratis, siempre", "Cupo gratis mensual, luego 1 crédito por proceso"],
+    costSubHq: "cupo compartido entre las herramientas Studio Quality",
+  },
+  compare: {
+    title: "Comparado con las herramientas de pago",
+    intro:
+      "Cada celda de abajo se puede verificar en las páginas de esos sitios. No hacemos ninguna afirmación que no puedas comprobar; la demo de arriba y tus oídos juzgan el resto.",
+    columns: ["AudioForges", "LALAL.AI", "Vocalremover.org"],
+    rows: [
+      {
+        label: "Resultado completo sin pagar",
+        cells: [
+          { state: "yes", text: "Sí" },
+          { state: "no", text: "Solo vista previa, la descarga completa es de pago" },
+          { state: "yes", text: "Sí" },
+        ],
+      },
+      {
+        label: "Sin necesidad de cuenta",
+        cells: [
+          { state: "yes", text: "Sí" },
+          { state: "no", text: "Cuenta obligatoria para ver resultados" },
+          { state: "yes", text: "Sí" },
+        ],
+      },
+      {
+        label: "Modelos nombrados",
+        cells: [
+          { state: "yes", text: "htdemucs, MelBand RoFormer", sub: "código abierto, verificable" },
+          { state: "partial", text: "Motor Andromeda, cerrado" },
+          { state: "unknown", text: "No lo dicen" },
+        ],
+      },
+      {
+        label: "Especificación de salida publicada",
+        cells: [
+          { state: "yes", text: "WAV 16-bit 44.1 kHz" },
+          { state: "unknown", text: "No lo dicen" },
+          { state: "unknown", text: "No lo dicen" },
+        ],
+      },
+      {
+        label: "Mezclar pistas en el navegador",
+        cells: [
+          { state: "yes", text: "Forge Mixer", sub: "silenciar, solo, paneo, loop, exportar" },
+          { state: "no", text: "Solo fragmentos de vista previa" },
+          { state: "no", text: "Solo reproducción" },
+        ],
+      },
+      {
+        label: "Nivel de pago",
+        cells: [
+          { text: "1 crédito por proceso, nunca caducan" },
+          { text: "Suscripción mensual, más recargas de minutos" },
+          { text: "No tiene, se financia con donaciones" },
+        ],
+      },
+    ],
+    footnote: "Verificado en sus propias páginas el 21 de septiembre de 2026. Los detalles pueden cambiar.",
+    ctaTitle: "Prueba la misma canción en los dos.",
+    ctaBody:
+      "La vista previa de cualquier herramienta de pago contra AudioForges, misma canción, misma sección. Es la única comparación que importa y no cuesta nada.",
+  },
+  faqs: [
+    {
+      question: "¿Hay una forma de quitar la voz de una canción gratis y sin registro?",
+      answer:
+        "Sí, esta página. AudioForges separa canciones completas gratis, sin cuenta, y el resultado se descarga como WAV completo. Para el resultado más limpio, Studio Quality usa el modelo MelBand RoFormer por un crédito por canción, sin suscripción, y los créditos nunca caducan.",
+    },
+    {
+      question: "¿Guardan mis archivos?",
+      answer:
+        "Tu archivo se conserva solo el tiempo necesario para procesarlo y luego se borra automáticamente junto con las pistas separadas. No hay cuentas, así que nada queda vinculado a ti, ni se publica, ni se comparte.",
+    },
+    {
+      question: "¿Qué es Studio Quality?",
+      answer:
+        "Un segundo nivel que usa MelBand RoFormer en lugar de htdemucs. Es otra arquitectura, no el mismo modelo forzado, y la diferencia se oye: muchos menos restos de voz en el instrumental y menos artefactos acuosos en platillos y respiraciones. Tarda 1 a 2 minutos y cuesta un crédito por proceso después del cupo gratis mensual.",
+    },
+    {
+      question: "¿Puedo quitar la voz de un video de YouTube directamente?",
+      answer:
+        "Sí. Pega el enlace en nuestra herramienta YouTube Vocal Remover, sin descargar el audio primero, siempre que tengas derecho a procesar ese contenido.",
+    },
+    {
+      question: "¿Funciona con grabaciones en vivo?",
+      answer:
+        "Funciona, pero el resultado no queda tan limpio como con una mezcla de estudio. El ruido del público y las filtraciones del escenario son más difíciles de distinguir de la voz para el modelo.",
+    },
+    {
+      question: "¿Mejora la calidad del audio?",
+      answer:
+        "No. La herramienta aísla lo que ya está en la mezcla. No remasteriza ni agrega calidad que la grabación original no tenía, y la salida siempre es WAV estéreo 16-bit 44.1 kHz sin importar qué archivo subas.",
+    },
+  ],
+  formatsFaq: {
+    question: "¿Qué formatos puedo subir y cuál es el límite de tamaño?",
+    answer:
+      "{formats}, hasta {size} por subida. La calidad Standard está limitada por dirección IP para que siga siendo gratis para todos.",
+  },
+  byline: {
+    note: "Versión en español de la página",
+    legal:
+      "Eres responsable de tener los derechos de la canción que subes. AudioForges no guarda ni distribuye las canciones procesadas aquí.",
+  },
+};
+
+export const ptDict: VocalRemoverDict = {
+  locale: "pt",
+  path: vocalRemoverLocales.pt,
+  updated: "2026-09-21",
+  pageTitle: "Remover Vocal de Música Grátis: Separador de Voz com IA",
+  pageDescription:
+    "Remova o vocal de qualquer música grátis com IA. Baixe o instrumental e o acapella em WAV completo. Sem cadastro, sem marca d'água, direto no navegador.",
+  ogTitle: "Remover Vocal de Música Grátis",
+  appName: "Removedor de Vocal IA",
+  appAlternateNames: [
+    "Remover Vocal",
+    "Remover Vocal Online",
+    "Removedor de Voz",
+    "Separador de Voz",
+    "Extrator de Acapella",
+    "Criador de Karaokê",
+    "Criador de Instrumental",
+  ],
+  breadcrumbTools: "Ferramentas",
+  breadcrumbSelf: "Remover Vocal",
+  heroTitle: "Remover Vocal de Música",
+  heroLede:
+    "Envie uma música e receba o vocal e o instrumental como dois arquivos WAV separados. Sem criar conta, sem instalar nada.",
+  heroMeta: ["Sem conta", "Sem marca d'água", "WAV completo"],
+  proofs: [
+    {
+      label: "Modelos",
+      value: "htdemucs e MelBand RoFormer",
+      note: "Dizemos o nome dos modelos para você poder conferir. Separação de fontes de verdade, não um truque de canal central.",
+    },
+    {
+      label: "Saída",
+      value: "WAV estéreo 16-bit 44.1 kHz",
+      note: "Sem perdas, com a especificação publicada. A maioria das ferramentas dessa categoria nunca diz.",
+    },
+    {
+      label: "Preço",
+      value: "Músicas completas grátis, sem marca d'água",
+      note: "Sem conta, sem nível que só deixa ouvir. Limitado por IP para continuar grátis para todo mundo.",
+    },
+  ],
+  hear: {
+    title: "Ouça a diferença",
+    intro:
+      "A pista de vocal dos dois níveis, na mesma música. Clique em uma faixa para alternar enquanto toca; a posição de reprodução não muda, então você ouve o mesmo compasso duas vezes. Arraste sobre uma faixa para repetir o trecho que quiser comparar.",
+    stemLabel: "Vocal",
+    trackLabel: "Mixagem completa com vocal principal",
+    cues: [
+      { at: 2, label: "entrada do vocal" },
+      { at: 21, label: "refrão" },
+      { at: 37, label: "pico do vocal" },
+    ],
+    credit: "Música: What Would It Mean de H4RRIS feat. Nicole Apollonio, usada com permissão",
+  },
+  mixer: {
+    title: "Ajuste a mixagem antes de baixar",
+    intro:
+      "O resultado abre no Forge Mixer, um player de duas faixas embutido nesta página. As duas pistas rodam no mesmo relógio, então nunca desalinham. Ajuste o balanço do seu jeito e exporte como WAV sem sair do navegador.",
+    points: [
+      "Mudo, solo, volume até 150% e pan completo em cada pista.",
+      "Presets de Karaokê e Acapella, com um toque.",
+      "Arraste na linha do tempo para repetir um trecho, com precisão de amostra.",
+      "Exporte a mixagem que você ajustou como WAV. Processado no seu aparelho, sem gastar créditos.",
+    ],
+  },
+  stems: {
+    title: "Duas pistas, quatro usos",
+    outputs: [
+      {
+        name: "Instrumental",
+        desc: "A mixagem completa com a voz removida. Bateria, baixo e todo o resto ficam intactos.",
+      },
+      {
+        name: "Vocal",
+        desc: "Vocal principal e backing vocals sozinhos. Serve como acapella do jeito que vem.",
+      },
+    ],
+    jobs: [
+      { name: "Karaokê", uses: "instrumental", desc: "Cante sobre o arranjo original, não sobre uma versão MIDI." },
+      { name: "Remix", uses: "either", desc: "Construa sobre uma base limpa ou um hook limpo." },
+      { name: "Mashup de DJ", uses: "vocals", desc: "Coloque o acapella de uma música sobre o instrumental de outra." },
+      { name: "Referência para covers", uses: "instrumental", desc: "Ouça cada parte com clareza sem o vocal principal por cima." },
+    ],
+  },
+  tiers: {
+    title: "Standard vs. Studio Quality",
+    labels: {
+      model: "Modelo",
+      bleed: "Resto de vocal no instrumental",
+      artifacts: "Artefatos aquosos",
+      time: "Tempo",
+      limit: "Limite",
+      cost: "Custo",
+    },
+    columns: ["Standard", "Studio Quality"],
+    bleedCells: ["Aparece em mixagens densas e caudas longas de reverb", "Some em quase todo material"],
+    artifactCells: ["Em pratos, respirações e sibilância", "Pratos e consoantes ficam intactos"],
+    timeCells: ["20 segundos a 1 minuto", "1 a 2 minutos"],
+    limitSubStandard: "compartilhado entre todas as ferramentas de separação",
+    limitSubHq: "no nível gratuito",
+    costCells: ["Grátis, para sempre", "Cota grátis mensal, depois 1 crédito por processo"],
+    costSubHq: "cota compartilhada entre as ferramentas Studio Quality",
+  },
+  compare: {
+    title: "Comparado com as ferramentas pagas",
+    intro:
+      "Cada célula abaixo pode ser conferida nas páginas dos próprios sites. Nenhuma afirmação aqui é impossível de verificar; a demo acima e os seus ouvidos julgam o resto.",
+    columns: ["AudioForges", "LALAL.AI", "Vocalremover.org"],
+    rows: [
+      {
+        label: "Resultado completo sem pagar",
+        cells: [
+          { state: "yes", text: "Sim" },
+          { state: "no", text: "Só prévia, o download completo é pago" },
+          { state: "yes", text: "Sim" },
+        ],
+      },
+      {
+        label: "Sem precisar de conta",
+        cells: [
+          { state: "yes", text: "Sim" },
+          { state: "no", text: "Conta obrigatória para ver resultados" },
+          { state: "yes", text: "Sim" },
+        ],
+      },
+      {
+        label: "Modelos com nome divulgado",
+        cells: [
+          { state: "yes", text: "htdemucs, MelBand RoFormer", sub: "código aberto, verificável" },
+          { state: "partial", text: "Motor Andromeda, fechado" },
+          { state: "unknown", text: "Não informam" },
+        ],
+      },
+      {
+        label: "Especificação de saída publicada",
+        cells: [
+          { state: "yes", text: "WAV 16-bit 44.1 kHz" },
+          { state: "unknown", text: "Não informam" },
+          { state: "unknown", text: "Não informam" },
+        ],
+      },
+      {
+        label: "Mixar pistas no navegador",
+        cells: [
+          { state: "yes", text: "Forge Mixer", sub: "mudo, solo, pan, loop, exportar" },
+          { state: "no", text: "Só trechos de prévia" },
+          { state: "no", text: "Só reprodução" },
+        ],
+      },
+      {
+        label: "Nível pago",
+        cells: [
+          { text: "1 crédito por processo, nunca expiram" },
+          { text: "Assinatura mensal, mais recargas de minutos" },
+          { text: "Não tem, financiado por doações" },
+        ],
+      },
+    ],
+    footnote: "Conferido nas páginas deles em 21 de setembro de 2026. Os detalhes podem mudar.",
+    ctaTitle: "Teste a mesma música nos dois.",
+    ctaBody:
+      "A prévia de qualquer ferramenta paga contra o AudioForges, mesma música, mesmo trecho. É a única comparação que importa e não custa nada.",
+  },
+  faqs: [
+    {
+      question: "Existe um removedor de vocal grátis e sem cadastro?",
+      answer:
+        "Existe, esta página. O AudioForges separa músicas completas grátis, sem conta, e o resultado sai como WAV completo para download. Para o resultado mais limpo, o Studio Quality usa o modelo MelBand RoFormer por um crédito por música, sem assinatura, e os créditos nunca expiram.",
+    },
+    {
+      question: "Meus arquivos ficam guardados?",
+      answer:
+        "Seu arquivo fica guardado só o tempo necessário para o processamento e depois é apagado automaticamente junto com as pistas separadas. Não há contas, então nada fica ligado a você, nem é publicado, nem compartilhado.",
+    },
+    {
+      question: "O que é Studio Quality?",
+      answer:
+        "Um segundo nível que usa MelBand RoFormer no lugar do htdemucs. É outra arquitetura, não o mesmo modelo forçado, e a diferença dá para ouvir: muito menos resto de vocal no instrumental e menos artefatos aquosos em pratos e respirações. Leva 1 a 2 minutos e custa um crédito por processo depois da cota grátis mensal.",
+    },
+    {
+      question: "Dá para remover o vocal de um vídeo do YouTube direto?",
+      answer:
+        "Dá. Cole o link na nossa ferramenta YouTube Vocal Remover, sem baixar o áudio antes, desde que você tenha o direito de processar esse conteúdo.",
+    },
+    {
+      question: "Funciona com gravações ao vivo?",
+      answer:
+        "Funciona, mas o resultado não fica tão limpo quanto com uma mixagem de estúdio. O barulho da plateia e o vazamento do palco são mais difíceis de separar do vocal para o modelo.",
+    },
+    {
+      question: "A qualidade do áudio melhora?",
+      answer:
+        "Não. A ferramenta isola o que já está na mixagem. Ela não remasteriza nem adiciona qualidade que a gravação original não tinha, e a saída é sempre WAV estéreo 16-bit 44.1 kHz, não importa o arquivo que você envie.",
+    },
+  ],
+  formatsFaq: {
+    question: "Quais formatos posso enviar e qual é o limite de tamanho?",
+    answer:
+      "{formats}, até {size} por envio. A qualidade Standard é limitada por endereço IP para continuar grátis para todo mundo.",
+  },
+  byline: {
+    note: "Versão em português da página",
+    legal:
+      "Você é responsável por ter os direitos da música que envia. O AudioForges não guarda nem distribui as músicas processadas aqui.",
   },
 };
