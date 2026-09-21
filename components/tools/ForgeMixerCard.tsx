@@ -28,56 +28,84 @@ const DEFAULT_LANES: Lane[] = [
 
 const PLAYHEAD = 0.38;
 
-function LaneRow({ lane, compact }: { lane: Lane; compact: boolean }) {
+const STEM_COLORS = { vocal: "#e8a23d", drum: "#e0705c", bass: "#4dd8b8", other: "#cfcabd" };
+
+function stemColor(name: string): string {
+  const n = name.toLowerCase();
+  if (n.includes("vocal") || n.includes("voice")) return STEM_COLORS.vocal;
+  if (n.includes("drum")) return STEM_COLORS.drum;
+  if (n.includes("bass") || n.includes("instrument")) return STEM_COLORS.bass;
+  return STEM_COLORS.other;
+}
+
+function Knob({ label, value, at }: { label: string; value: string; at: number }) {
   return (
-    <div className="flex items-stretch">
+    <div>
+      <div className="flex items-baseline justify-between font-mono text-[9px] uppercase tracking-[0.12em] text-text-subtle">
+        {label}
+        <span className="text-text-muted">{value}</span>
+      </div>
+      <div className="relative mt-2 h-0.5 rounded-full bg-graphite-600">
+        <span
+          className="absolute top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-text-primary"
+          style={{ left: `${at * 100}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function LaneRow({ lane, compact, first }: { lane: Lane; compact: boolean; first: boolean }) {
+  const color = stemColor(lane.name);
+  const cut = Math.floor(PLAYHEAD * lane.peaks.length);
+  return (
+    <div className={cn("flex items-stretch", !first && "border-t border-graphite-800")}>
       <div
         className={cn(
-          "flex shrink-0 flex-col justify-center border-r border-graphite-800 px-3 py-3",
-          compact ? "w-24" : "w-28 sm:w-32"
+          "shrink-0 border-r border-graphite-800 px-3 py-3",
+          compact ? "w-24" : "w-28 sm:w-44"
         )}
       >
-        <p className="text-xs font-medium text-text-primary">{lane.name}</p>
-        <div className="mt-1.5 flex gap-1">
-          <span className="rounded border border-graphite-700 px-1.5 text-[10px] leading-4 text-text-subtle">M</span>
+        <div className="flex items-center gap-1.5">
+          <span
+            className="h-2.5 w-2.5 shrink-0 rounded-sm"
+            style={{ backgroundColor: color }}
+            aria-hidden
+          />
+          <p className="min-w-0 flex-1 truncate text-xs font-medium text-text-primary">{lane.name}</p>
+          <span className="hidden rounded border border-graphite-700 px-1.5 font-mono text-[9px] leading-4 text-text-subtle sm:block">
+            M
+          </span>
           <span
             className={cn(
-              "rounded border px-1.5 text-[10px] leading-4",
-              lane.active ? "border-amber-500/60 bg-amber-500/15 text-amber-400" : "border-graphite-700 text-text-subtle"
+              "hidden rounded border px-1.5 font-mono text-[9px] leading-4 sm:block",
+              lane.active
+                ? "border-amber-500 bg-amber-500 text-graphite-950"
+                : "border-graphite-700 text-text-subtle"
             )}
           >
             S
           </span>
-          <span className="ml-auto h-1 w-8 self-center overflow-hidden rounded-full bg-graphite-800">
-            <span className={cn("block h-full rounded-full", lane.active ? "w-3/4 bg-amber-500" : "w-1/3 bg-graphite-600")} />
-          </span>
+        </div>
+        <div className={cn("mt-3 grid-cols-[3fr_2fr] gap-3", compact ? "hidden" : "hidden sm:grid")}>
+          <Knob label="Vol" value={lane.active ? "100" : "82"} at={lane.active ? 0.66 : 0.55} />
+          <Knob label="Pan" value="C" at={0.5} />
         </div>
       </div>
-      <div className="relative h-16 flex-1" aria-hidden>
-        <div className="absolute inset-x-0 top-1/2 h-px bg-graphite-700" />
-        <div className="absolute inset-0 flex items-center gap-px px-2">
+      <div className="relative h-16 flex-1 sm:h-20" aria-hidden>
+        <div className="absolute inset-x-0 top-1/2 h-px bg-white/[0.06]" />
+        <div className="absolute inset-0 flex items-center gap-px px-1">
           {lane.peaks.map((p, i) => (
             <span
               key={i}
-              className={cn("w-full rounded-[0.5px]", lane.active ? "bg-amber-400/85" : "bg-graphite-500")}
-              style={{ height: `${Math.max(3, p * 88)}%` }}
+              className="w-full rounded-[0.5px]"
+              style={{
+                height: `${Math.max(3, p * 88)}%`,
+                backgroundColor: color,
+                opacity: i < cut ? 1 : 0.34,
+              }}
             />
           ))}
-        </div>
-      </div>
-      <div
-        className={cn(
-          "w-24 shrink-0 flex-col justify-center border-l border-graphite-800 px-3",
-          compact ? "hidden" : "hidden sm:flex"
-        )}
-      >
-        <div className="relative h-1 rounded-full bg-graphite-700">
-          <span className="absolute left-1/2 top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-graphite-500 bg-graphite-900" />
-        </div>
-        <div className="mt-1.5 flex justify-between text-[10px] text-text-subtle">
-          <span>L</span>
-          <span>pan</span>
-          <span>R</span>
         </div>
       </div>
     </div>
@@ -95,31 +123,42 @@ export function ForgeMixerCard({
   lanes?: Lane[];
   presets?: string[];
   points: string[];
-  /** For narrow columns: shorter label gutter, no pan column, sparser ruler. */
   compact?: boolean;
-  /** Single-column bullets pinned to the card bottom (needs a flex-col className). */
   stackPoints?: boolean;
   className?: string;
 }) {
-  const ruler = compact ? ["0:00", "1:00", "2:00", "3:00"] : ["0:00", "0:30", "1:00", "1:30", "2:00", "2:30", "3:00", "3:30"];
+  const ruler = compact
+    ? ["0:00", "1:00", "2:00", "3:00"]
+    : ["0:00", "0:30", "1:00", "1:30", "2:00", "2:30", "3:00", "3:30"];
   const rulerSpan = compact ? 3.7 : 7.4;
+  const strip = compact ? "left-24" : "left-28 sm:left-44";
   return (
     <div className={cn("surface grain overflow-hidden rounded-xl border border-graphite-800", className)}>
-      <div className="flex items-center justify-between border-b border-graphite-800 px-3 py-2">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-4 pb-4 pt-4">
         <div className="flex items-center gap-3">
-          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-amber-500 text-graphite-950">
-            <svg viewBox="0 0 12 12" className="ml-px h-3 w-3 fill-current"><path d="M3 2l7 4-7 4z" /></svg>
+          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-500 text-graphite-950">
+            <svg viewBox="0 0 12 12" className="h-3 w-3 fill-current">
+              <path d="M2.5 2h2.5v8H2.5zM7 2h2.5v8H7z" />
+            </svg>
           </span>
-          <span className="text-xs font-semibold text-text-primary">Forge Mixer</span>
-          <span className="font-mono text-[11px] tabular-nums text-text-subtle">1:24 / 3:41</span>
+          <div>
+            <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-text-subtle">
+              Forge Mixer
+            </p>
+            <p className="mt-0.5 font-mono tabular-nums leading-none">
+              <span className="text-lg text-amber-400">1:24</span>
+              <span className="ml-1.5 text-[11px] text-text-subtle">/ 3:41</span>
+            </p>
+          </div>
         </div>
-        <div className="flex gap-1.5">
-          {presets.map((p, i) => (
+        <div className="flex rounded-full border border-graphite-700 bg-graphite-950/60 p-0.5">
+          {["Original", ...presets].map((p, i) => (
             <span
               key={p}
               className={cn(
-                "rounded-md px-2 py-0.5 text-[11px]",
-                i === 0 ? "bg-amber-500 text-graphite-950" : "border border-graphite-700 text-text-muted"
+                "rounded-full px-2.5 py-1 text-[11px] font-medium",
+                i === 1 ? "bg-graphite-700 text-text-primary" : "text-text-muted",
+                compact && i === 0 && "hidden"
               )}
             >
               {p}
@@ -128,61 +167,62 @@ export function ForgeMixerCard({
         </div>
       </div>
 
-      <div className="relative">
+      <div className="relative mx-3 mb-3 overflow-hidden rounded-lg bg-graphite-950/70 shadow-[inset_0_1px_2px_rgba(0,0,0,0.7),inset_0_0_0_1px_rgba(255,255,255,0.04)]">
         <div
           className={cn(
-            "flex h-5 items-end border-b border-graphite-800 text-[9px] text-text-subtle",
-            compact ? "pl-24" : "pl-28 sm:pl-32"
+            "flex h-6 items-end border-b border-graphite-800 text-[9px] text-text-subtle",
+            compact ? "pl-24" : "pl-28 sm:pl-44"
           )}
           aria-hidden
         >
-          <div className="relative flex-1">
+          <div className="relative h-full flex-1">
             {ruler.map((t, i) => (
               <span
                 key={t}
-                className={cn("absolute bottom-0.5 font-mono", i === 0 ? "translate-x-1" : "-translate-x-1/2")}
+                className="absolute bottom-0 flex h-full items-end border-l border-white/10 pb-1 pl-1 font-mono"
                 style={{ left: `${(i / rulerSpan) * 100}%` }}
               >
                 {t}
               </span>
             ))}
           </div>
-          {!compact && <div className="hidden w-24 sm:block" />}
         </div>
-        <div className="divide-y divide-graphite-800">
-          {lanes.map((l) => (
-            <LaneRow key={l.name} lane={l} compact={compact} />
+        {lanes.map((l, i) => (
+          <LaneRow key={l.name} lane={l} compact={compact} first={i === 0} />
+        ))}
+        <div className={cn("pointer-events-none absolute inset-y-0 right-0", strip)} aria-hidden>
+          {ruler.map((t, i) => (
+            <span
+              key={t}
+              className="absolute inset-y-0 w-px bg-white/[0.04]"
+              style={{ left: `${(i / rulerSpan) * 100}%` }}
+            />
           ))}
-        </div>
-        <div
-          className={cn(
-            "pointer-events-none absolute bottom-0 top-0 right-0",
-            compact ? "left-24" : "left-28 sm:left-32 sm:right-24"
-          )}
-          aria-hidden
-        >
-          <div className="absolute inset-y-0 w-px bg-text-primary/80" style={{ left: `${PLAYHEAD * 100}%` }} />
           <div
-            className="absolute inset-y-5 border-x border-amber-500/50 bg-amber-500/[0.07]"
+            className="absolute inset-y-0 border-x border-white/40 bg-white/[0.06]"
             style={{ left: `${(PLAYHEAD - 0.1) * 100}%`, width: "18%" }}
+          />
+          <div
+            className="absolute inset-y-0 w-px bg-amber-400 shadow-[0_0_10px_rgba(232,162,61,0.7)]"
+            style={{ left: `${PLAYHEAD * 100}%` }}
           />
         </div>
       </div>
 
       {points.length > 0 && (
-      <ul
-        className={cn(
-          "grid gap-x-6 gap-y-3 border-t border-graphite-800 p-5 text-sm leading-relaxed text-text-muted",
-          stackPoints ? "mt-auto" : "sm:grid-cols-2"
-        )}
-      >
-        {points.map((pt) => (
-          <li key={pt} className="flex gap-2.5">
-            <span className="mt-[9px] h-1 w-1 shrink-0 rounded-full bg-amber-400" aria-hidden />
-            <span>{pt}</span>
-          </li>
-        ))}
-      </ul>
+        <ul
+          className={cn(
+            "grid gap-x-6 gap-y-3 border-t border-graphite-800 p-5 text-sm leading-relaxed text-text-muted",
+            stackPoints ? "mt-auto" : "sm:grid-cols-2"
+          )}
+        >
+          {points.map((pt) => (
+            <li key={pt} className="flex gap-2.5">
+              <span className="mt-[9px] h-1 w-1 shrink-0 rounded-full bg-text-subtle" aria-hidden />
+              <span>{pt}</span>
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );

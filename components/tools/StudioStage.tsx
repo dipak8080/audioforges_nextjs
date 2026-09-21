@@ -633,7 +633,7 @@ export function StudioStage<T extends string>({
             <div className="flex shrink-0 items-center gap-2">
               {file && footerExtra}
               <Button
-                variant="primary"
+                variant={busy ? "secondary" : "primary"}
                 size="lg"
                 className="flex-1 sm:min-w-44 sm:flex-none"
                 onClick={file || failed ? onAction : openPicker}
