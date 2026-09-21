@@ -90,6 +90,7 @@ const PALETTE: [string, string][] = [
   ["#fb923c", "#fdba74"],
 ];
 
+const TIP_KEY = "af-roll-fullscreen-tip";
 const MIN_NOTE_SEC = 0.03;
 const FOLLOW_AT = 0.72;
 const KEYS_W = 62;
@@ -117,7 +118,7 @@ const SNAP_OPTIONS: { value: SnapMode; label: string }[] = [
 
 const ROW_MIN = 17;
 const ROW_MAX = 24;
-const CANVAS_MAX_H = 540;
+const CANVAS_MAX_H = 620;
 const SCROLL_W = 9;
 const SCROLL_H = 9;
 const BLACK_PC = new Set([1, 3, 6, 8, 10]);
@@ -304,6 +305,19 @@ export function MidiResultPlayer({
   const [editMode, setEditMode] = useState(true);
   const coarse = useSyncExternalStore(subscribeCoarse, getCoarse, () => false);
   const [fullscreen, setFullscreen] = useState(false);
+  const [tipOpen, setTipOpen] = useState(() => {
+    try {
+      return !window.localStorage.getItem(TIP_KEY);
+    } catch {
+      return false;
+    }
+  });
+  const dismissTip = () => {
+    setTipOpen(false);
+    try {
+      window.localStorage.setItem(TIP_KEY, "1");
+    } catch {}
+  };
   const fullscreenRef = useRef(false);
   const [snap, setSnap] = useState<SnapMode>("line");
   const [tool, setTool] = useState<"draw" | "slice">("draw");
@@ -615,7 +629,7 @@ export function MidiResultPlayer({
         const active = audible && playingRef.current && now >= n.t && now < n.t + n.d;
         if (active) activePitches.add(n.p);
 
-        ctx.globalAlpha = audible ? 1 : 0.13;
+        ctx.globalAlpha = !audible ? 0.13 : playingRef.current && n.t > now ? 0.42 : 1;
         if (active && fancy) {
           ctx.shadowColor = track.bright;
           ctx.shadowBlur = 8;
@@ -715,8 +729,13 @@ export function MidiResultPlayer({
     /* playhead */
     const px = sx(now);
     if (px >= KEYS_W - 1 && px <= w + 1) {
-      ctx.fillStyle = "rgba(251,191,36,0.9)";
-      ctx.fillRect(px, RULER_H, hair, plotH);
+      if (fancy) {
+        ctx.shadowColor = "rgba(232,162,61,0.85)";
+        ctx.shadowBlur = 10;
+      }
+      ctx.fillStyle = "#f0b862";
+      ctx.fillRect(px, RULER_H, Math.max(hair, 1.5), plotH);
+      ctx.shadowBlur = 0;
     }
     ctx.restore();
 
@@ -772,9 +791,10 @@ export function MidiResultPlayer({
     const inRange = (p: number) => p >= d.loPitch && p <= d.hiPitch;
     const whiteW = KEYS_W - 2;
     const whiteGrad = ctx.createLinearGradient(0, 0, whiteW, 0);
-    whiteGrad.addColorStop(0, "#77746d");
-    whiteGrad.addColorStop(0.14, "#b8b4aa");
-    whiteGrad.addColorStop(1, "#d6d2c8");
+    whiteGrad.addColorStop(0, "#8d8a82");
+    whiteGrad.addColorStop(0.1, "#d9d5ca");
+    whiteGrad.addColorStop(0.7, "#f4f1e8");
+    whiteGrad.addColorStop(1, "#fffdf6");
     const whiteLit = ctx.createLinearGradient(0, 0, whiteW, 0);
     whiteLit.addColorStop(0, "#a8701f");
     whiteLit.addColorStop(0.25, "#e8a23d");
@@ -1005,9 +1025,19 @@ export function MidiResultPlayer({
         vInitRef.current = true;
         let sum = 0;
         let cnt = 0;
-        for (const t of d.tracks) for (const n of t.notes) { sum += n.p; cnt++; }
-        const mid = cnt ? sum / cnt : (d.hiPitch + d.loPitch) / 2;
-        vScrollRef.current = (d.hiPitch - mid) * rowH - plotH / 2;
+        let lo = Infinity;
+        let hi = -Infinity;
+        for (const t of d.tracks)
+          for (const n of t.notes) {
+            sum += n.p;
+            cnt++;
+            if (n.p < lo) lo = n.p;
+            if (n.p > hi) hi = n.p;
+          }
+        // Whole range on screen when it fits, otherwise centre on where the notes are.
+        const fits = cnt > 0 && (hi - lo + 3) * rowH <= plotH;
+        const mid = !cnt ? (d.hiPitch + d.loPitch) / 2 : fits ? (hi + lo) / 2 : sum / cnt;
+        vScrollRef.current = (d.hiPitch - mid) * rowH - plotH / 2 + rowH / 2;
       }
       vScrollRef.current = Math.max(0, Math.min(maxV, vScrollRef.current));
       const nextW = Math.round(w * dpr);
@@ -2954,9 +2984,15 @@ export function MidiResultPlayer({
                   label={fullscreen ? "Exit full screen" : "Full screen"}
                   title={fullscreen ? "Back to normal size (Esc)" : "Edit in full screen"}
                   active={fullscreen}
-                  onClick={() => setFullscreen((f) => !f)}
+                  onClick={() => {
+                    dismissTip();
+                    setFullscreen((f) => !f);
+                  }}
                 >
                   {fullscreen ? <Shrink className="h-3.5 w-3.5" /> : <Expand className="h-3.5 w-3.5" />}
+                  <span className="ml-1.5 hidden text-white/80 sm:inline">
+                    {fullscreen ? "Exit" : "Full screen"}
+                  </span>
                 </GBtn>
               </Group>
 
@@ -2993,6 +3029,19 @@ export function MidiResultPlayer({
           </>
         )}
       </div>
+
+      {status === "ready" && tipOpen && !fullscreen && (
+        <p className="-mt-1 flex items-center gap-2 pb-3 text-xs text-text-subtle">
+          <span>Tip: open Full screen for more room to edit.</span>
+          <button
+            type="button"
+            onClick={dismissTip}
+            className="rounded underline underline-offset-2 outline-none transition-colors hover:text-text-primary focus-visible:ring-2 focus-visible:ring-amber-400/70"
+          >
+            Got it
+          </button>
+        </p>
+      )}
 
       {status === "loading" && (
         <div className="flex h-[190px] items-center justify-center text-sm text-white/40">

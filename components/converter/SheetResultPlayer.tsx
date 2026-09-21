@@ -10,7 +10,6 @@ import {
   Play,
   Printer,
   Repeat,
-  Sparkles,
   Square,
   ZoomIn,
   ZoomOut,
@@ -807,8 +806,7 @@ export function SheetResultPlayer({
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="flex items-center gap-1.5 font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-500">
-          <Sparkles className="h-3.5 w-3.5" aria-hidden />
+        <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-text-subtle">
           Forge Score
         </span>
         {status === "ready" && (
@@ -863,7 +861,7 @@ export function SheetResultPlayer({
       <div
         ref={scrollRef}
         className={cn(
-          "relative max-h-[70vh] overflow-y-auto overscroll-contain rounded-xl border border-amber-500/30 bg-white shadow-[0_8px_40px_-12px_rgba(232,162,61,0.35)]",
+          "relative max-h-[70vh] overflow-y-auto overscroll-contain rounded-xl bg-[#fbf9f3] shadow-[0_0_0_1px_rgba(0,0,0,0.5),0_24px_60px_-24px_rgba(0,0,0,0.8)]",
           status === "loading" && "min-h-[220px]"
         )}
       >
@@ -877,19 +875,33 @@ export function SheetResultPlayer({
 
       {status === "ready" && (
         <>
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2.5 pt-1">
             <button
               type="button"
               onClick={togglePlay}
               aria-label={isPlaying ? "Pause" : "Play"}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-amber-500 text-black shadow-lg shadow-amber-500/20 transition hover:bg-amber-400 active:scale-95"
+              className={cn(
+                "flex h-12 w-12 shrink-0 items-center justify-center rounded-full border outline-none transition-colors focus-visible:ring-2 focus-visible:ring-amber-400/70",
+                isPlaying
+                  ? "border-amber-500 bg-amber-500 text-graphite-950"
+                  : "border-graphite-600 text-text-primary hover:border-text-primary/70"
+              )}
             >
               {isPlaying ? (
-                <Pause className="h-4.5 w-4.5" />
+                <Pause className="h-4 w-4" fill="currentColor" />
               ) : (
-                <Play className="ml-0.5 h-4.5 w-4.5" />
+                <Play className="ml-0.5 h-4 w-4" fill="currentColor" />
               )}
             </button>
+            <span
+              ref={timeRef}
+              className={cn(
+                "shrink-0 font-mono text-lg tabular-nums",
+                isPlaying ? "text-amber-400" : "text-text-primary"
+              )}
+            >
+              0:00 / 0:00
+            </span>
             <IconBtn label="Stop" onClick={stop}>
               <Square className="h-3.5 w-3.5" />
             </IconBtn>
@@ -914,13 +926,6 @@ export function SheetResultPlayer({
                 seekTo((Number(e.target.value) / 1000) * durationTicksRef.current)
               }
             />
-
-            <span
-              ref={timeRef}
-              className="shrink-0 font-mono text-[11px] tabular-nums text-white/60"
-            >
-              0:00 / 0:00
-            </span>
           </div>
 
           <div className="flex items-center gap-2">
@@ -963,7 +968,7 @@ export function SheetResultPlayer({
                 className={cn(
                   "rounded-full border px-2.5 py-1 text-[11px] transition-colors",
                   instrument === inst.key
-                    ? "border-amber-500/60 bg-amber-500/10 text-amber-400"
+                    ? "border-graphite-600 bg-graphite-700 text-text-primary"
                     : "border-white/10 text-white/55 hover:border-white/20 hover:text-white/80"
                 )}
               >
@@ -1096,7 +1101,7 @@ function IconBtn({
       onClick={onClick}
       className={cn(
         "flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-white/10 bg-black/20 transition hover:bg-white/10 active:scale-95 disabled:pointer-events-none disabled:opacity-35",
-        active ? "bg-amber-500/20 text-amber-400" : "text-white/60"
+        active ? "bg-white/[0.12] text-white" : "text-white/60"
       )}
     >
       {children}

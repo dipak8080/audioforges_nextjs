@@ -158,7 +158,7 @@ export function EngravedScore({
   return (
     <div
       className={cn(
-        "overflow-hidden rounded-xl border border-amber-500/30 bg-white px-5 py-6 shadow-[0_8px_40px_-12px_rgba(232,162,61,0.35)] sm:px-8 sm:py-8",
+        "overflow-hidden rounded-xl bg-[#fbf9f3] px-5 py-6 shadow-[0_0_0_1px_rgba(0,0,0,0.5),0_24px_60px_-24px_rgba(0,0,0,0.8)] sm:px-8 sm:py-8",
         className
       )}
     >

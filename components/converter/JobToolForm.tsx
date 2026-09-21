@@ -356,6 +356,8 @@ interface JobToolFormProps {
     aside?: ReactNode;
     tray?: (disabled: boolean) => ReactNode;
     downloadLabel?: string;
+    /** The result renders its own download buttons. */
+    hideDownload?: boolean;
     resetLabel?: string;
   };
 }
@@ -837,7 +839,7 @@ export function JobToolForm({
           doneTitle={resultTitle || file?.name || "Your file is ready"}
           doneMeta={formatElapsed(elapsedSeconds)}
           doneFooter={
-            status === "complete" && jobId ? (
+            status === "complete" && jobId && !stage.hideDownload ? (
               <a
                 href={getJobDownloadUrl(endpoint, jobId)}
                 download={downloadName || true}

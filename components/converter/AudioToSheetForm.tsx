@@ -13,9 +13,9 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { JobToolForm } from "@/components/converter/JobToolForm";
-import { ForgeTeaser } from "@/components/tools/JobFormKit";
 import type { ProcessingStage } from "@/components/tools/JobFormKit";
-import { OptionCards, type CardOption } from "@/components/converter/ToolControls";
+import { StageScorePreview } from "@/components/tools/StageScorePreview";
+import { useCredits } from "@/components/credits/CreditProvider";
 import { FreeTierBadge } from "@/components/credits/FreeTierBadge";
 import { cn } from "@/lib/utils/cn";
 import dynamic from "next/dynamic";
@@ -124,14 +124,8 @@ export function AudioToSheetForm() {
 
   const isPiano = instrument === "piano";
 
-  const instrumentOptions: CardOption<Instrument>[] = INSTRUMENTS.map((o) => ({
-    value: o.value,
-    title: o.title,
-    titleBefore: o.icon,
-    detail: o.detail,
-    meta: o.value === "piano" ? "Best quality" : undefined,
-    metaTone: o.value === "piano" ? "good" : "default",
-  }));
+  const { me } = useCredits();
+  const cost = me?.paywall?.tools?.["audio-to-sheet"]?.credits ?? 3;
 
   return (
     <JobToolForm
@@ -169,50 +163,78 @@ export function AudioToSheetForm() {
         // it applies so the request reads honestly.
         ...(isPiano ? { hand_split: String(handSplit) } : {}),
       })}
-      renderControls={(_file, disabled) => (
-        <div className="space-y-5">
-          <ForgeTeaser player="score" />
-          <OptionCards
-            label="Instrument"
-            options={instrumentOptions}
-            value={instrument}
-            onChange={setInstrument}
-            columns={4}
-            disabled={disabled}
+      stage={{
+        tiers: [
+          {
+            value: "sheet",
+            name: "Engraved score",
+            premium: true,
+            model: isPiano ? "Transkun piano model" : "AI transcription",
+            time: "1 to 2 min",
+            footnote: `30 sec clips free, then ${cost} ${cost === 1 ? "credit" : "credits"} per song`,
+            badge: <FreeTierBadge tool="audio-to-sheet" />,
+          },
+        ],
+        tier: "sheet",
+        onTierChange: () => {},
+        dropTitle: "Drop a recording",
+        formats: "MP3 · WAV · FLAC · M4A · AIFF · OGG",
+        hideDownload: true,
+        aside: (
+          <StageScorePreview
+            caption="Audio in, a playable score out"
+            sub="PDF · MusicXML · MIDI · SVG"
           />
-
-          {isPiano && (
-            <label
-              className={cn(
-                "flex items-start gap-3 rounded-lg border border-graphite-700 bg-graphite-850 px-4 py-3",
-                disabled && "opacity-60"
-              )}
-            >
-              <input
-                type="checkbox"
-                checked={handSplit}
-                onChange={(e) => setHandSplit(e.target.checked)}
-                disabled={disabled}
-                className="mt-0.5 h-4 w-4 accent-amber-500"
-              />
-              <span className="text-sm">
-                <span className="font-medium text-text-primary">
-                  Split into two hands (grand staff)
-                </span>
-                <span className="mt-0.5 block text-text-muted">
-                  Separates the notes onto treble and bass staves — the way piano
-                  music is normally written. Turn off for a single-staff lead sheet.
-                </span>
+        ),
+        tray: (disabled) => (
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+              <span className="mr-1 font-mono text-[10px] uppercase tracking-[0.14em] text-text-subtle">
+                Instrument
               </span>
-            </label>
-          )}
-
-          <p className="flex items-center gap-2 text-xs text-text-subtle">
-            <FreeTierBadge tool="audio-to-sheet" />
-            <span>Clips of 30 seconds or less are always free. Longer songs include a couple of free runs each month, then 3 credits per song.</span>
-          </p>
-        </div>
-      )}
+              {INSTRUMENTS.map((o) => {
+                const active = instrument === o.value;
+                return (
+                  <button
+                    key={o.value}
+                    type="button"
+                    onClick={() => setInstrument(o.value)}
+                    aria-pressed={active}
+                    disabled={disabled}
+                    title={o.detail}
+                    className={cn(
+                      "rounded-full border px-3 py-1.5 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-amber-400/70 disabled:cursor-not-allowed disabled:opacity-40",
+                      active
+                        ? "border-graphite-600 bg-graphite-700 text-text-primary"
+                        : "border-graphite-800 text-text-muted hover:border-graphite-600 hover:text-text-primary"
+                    )}
+                  >
+                    {o.title}
+                  </button>
+                );
+              })}
+            </div>
+            {isPiano && (
+              <label
+                className={cn(
+                  "flex shrink-0 cursor-pointer items-center gap-2 text-xs text-text-muted",
+                  disabled && "opacity-60"
+                )}
+                title="Treble and bass staves, the way piano music is written. Off gives a single staff lead sheet."
+              >
+                <input
+                  type="checkbox"
+                  checked={handSplit}
+                  onChange={(e) => setHandSplit(e.target.checked)}
+                  disabled={disabled}
+                  className="h-3.5 w-3.5 accent-[#f2efe8]"
+                />
+                Two hands, grand staff
+              </label>
+            )}
+          </div>
+        ),
+      }}
     />
   );
 }
@@ -256,7 +278,7 @@ function SheetResultPanel({ jobId, sourceFile }: { jobId: string; sourceFile: Fi
   const availableFormats = new Set(result?.formats ?? ["pdf", "musicxml", "midi", "svg"]);
 
   return (
-    <div className="mt-5 space-y-4">
+    <div className="space-y-5">
       {/* Stats strip — the proof it worked, in the brand's mono/amber voice. */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-text-muted">
         {result ? (
@@ -292,7 +314,7 @@ function SheetResultPanel({ jobId, sourceFile }: { jobId: string; sourceFile: Fi
         sourceFile={sourceFile}
         title={sourceFile?.name ?? null}
         fallback={
-          <div className="overflow-hidden rounded-xl border border-amber-500/30 bg-white shadow-[0_8px_40px_-12px_rgba(232,162,61,0.35)]">
+          <div className="overflow-hidden rounded-xl bg-white">
             <object
               data={getSheetPreviewUrl(jobId)}
               type="image/svg+xml"
@@ -327,22 +349,24 @@ function SheetResultPanel({ jobId, sourceFile }: { jobId: string; sourceFile: Fi
               className={cn(
                 "group flex flex-col items-start gap-1 rounded-lg border px-3.5 py-3 transition-colors",
                 b.primary
-                  ? "border-amber-500 bg-amber-500/10 hover:bg-amber-500/20"
-                  : "border-graphite-700 bg-graphite-850 hover:border-graphite-600 hover:bg-graphite-800",
+                  ? "border-text-primary bg-text-primary hover:bg-white"
+                  : "border-graphite-700 hover:border-graphite-500",
                 !enabled && "pointer-events-none opacity-40"
               )}
             >
               <span
                 className={cn(
                   "flex items-center gap-2 text-sm font-medium",
-                  b.primary ? "text-amber-300" : "text-text-primary"
+                  b.primary ? "text-graphite-950" : "text-text-primary"
                 )}
               >
                 {b.icon}
                 {b.label}
                 <Download className="h-3.5 w-3.5 opacity-0 transition-opacity group-hover:opacity-70" aria-hidden />
               </span>
-              <span className="text-xs text-text-subtle">{b.hint}</span>
+              <span className={cn("text-xs", b.primary ? "text-graphite-800" : "text-text-subtle")}>
+                {b.hint}
+              </span>
             </a>
           );
         })}

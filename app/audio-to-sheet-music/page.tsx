@@ -153,6 +153,7 @@ export default async function AudioToSheetMusicPage() {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(webAppJsonLd) }} />
 
       <ToolPageShell
+        wide
         breadcrumb={<Breadcrumb items={[{ name: "Tools", href: "/tools" }, { name: "Audio to Sheet Music" }]} />}
         meta={["No account", "30-second clips free", "PDF, MusicXML, MIDI"]}
         title="Audio to Sheet Music Converter"
@@ -189,7 +190,7 @@ export default async function AudioToSheetMusicPage() {
 
         <section id="preview" className="space-y-4">
           <div className="space-y-1.5">
-            <h2 className="text-2xl font-bold tracking-tight text-text-primary sm:text-3xl">
+            <h2 className="display text-3xl leading-[1.05] text-text-primary sm:text-4xl">
               A real recording, engraved into a readable score
             </h2>
           </div>
