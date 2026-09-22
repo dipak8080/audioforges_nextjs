@@ -195,7 +195,7 @@ export default async function WavToMp3Page() {
               Keep the WAV when the file is headed into a DAW, a sampler, a CD burner or another round of editing.
               Convert when it is headed to a phone, an email, an upload form or a car. After the MP3:{" "}
               <Link href="/trim">trim it</Link>, <Link href="/volume">adjust the volume</Link>, or{" "}
-              <Link href="/audio-to-text">transcribe it</Link>. Going the other way?{" "}
+              <Link href="/stems">split it into stems</Link>. Going the other way?{" "}
               <Link href="/mp3-to-wav">MP3 to WAV</Link> is the same converter with WAV preselected.
             </p>
           </Prose>

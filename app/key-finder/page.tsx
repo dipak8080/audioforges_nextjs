@@ -185,6 +185,7 @@ export default async function KeyFinderPage() {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(webAppJsonLd) }} />
 
       <ToolPageShell
+        wide
         breadcrumb={
           <Breadcrumb items={[{ name: "Tools", href: "/tools" }, { name: "Key & BPM Finder" }]} />
         }

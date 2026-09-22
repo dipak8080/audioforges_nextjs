@@ -1,76 +1,47 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Music, RotateCcw } from "lucide-react";
-import { Button } from "@/components/ui/Button";
+import { Music } from "lucide-react";
 import {
   CooldownBar,
   ErrorPanel,
-  FormShell,
-  Section,
   ValidationNote,
-  WorkingPanel,
   easedProgress,
   formatCooldown,
+  formatElapsed,
   stageIndexFor,
   useCooldownSeconds,
   useElapsedSeconds,
   type FormError,
   type ProcessingStage,
 } from "@/components/tools/JobFormKit";
-import { FileDropZone } from "@/components/ui/FileDropZone";
-import { Waveform } from "@/components/ui/Waveform";
+import { StudioStage, type StageTier } from "@/components/tools/StudioStage";
 import { SupportBlock } from "@/components/ui/SupportBlock";
 import { AnalysisResultCard, toAnalysisResult } from "@/components/converter/AnalysisResultCard";
 import { validateAudioFile } from "@/lib/utils/validation";
 import { getRetryAfterFallback } from "@/lib/data/rate-limits";
 import { analyzeAudioFile, isAbortError, ApiError } from "@/lib/api/railway";
 import { KeyFinderBatch, type BatchPhase, type BatchStatus } from "@/components/converter/KeyFinderBatch";
-import { MAX_BATCH_FILES } from "@/lib/data/key-finder";
+import { BATCH_CONCURRENCY, MAX_BATCH_FILES } from "@/lib/data/key-finder";
+import { cn } from "@/lib/utils/cn";
 import type { AnalysisResult, ProcessingState } from "@/lib/types/converter";
 
-/**
- * ── THIS PASS ──────────────────────────────────────────────────────────
- *
- * 1. A CLIENT-SIDE RATE LIMIT THAT ISN'T THE REAL ONE. `checkRateLimit(
- *    "keyfinder", 10, 60000)` refused an eleventh analysis in a minute — a
- *    rule that exists nowhere on the backend. /analyze has no entry in
- *    RATE_LIMITS at all, so this number was invented here and enforced only
- *    here.
- *
- *    It also protects nothing: it lives in the tab and a reload clears it. What
- *    it does reliably is block the one session that matters — a DJ checking a
- *    folder of tracks, which is the entire use case for this tool. Removed;
- *    see the note in handleAnalyze for the one-line revert.
- *
- * 2. THERE WAS NO WAY TO CANCEL, AND NO ABORT ON UNMOUNT. /analyze runs up to
- *    90 seconds synchronously with no cancel affordance anywhere on the card,
- *    and navigating away mid-analysis left the request in flight to resolve
- *    into setState on an unmounted component. It takes an AbortSignal — it
- *    just was never given one.
- *
- * 3. THE COOLDOWN GUESSED 60 SECONDS. /analyze isn't in RATE_LIMITS, so
- *    getRetryAfterFallback returns its own 300s default — which is the honest
- *    answer when we don't know the window, rather than a number picked to look
- *    reasonable. The server's Retry-After overrides it whenever present.
- *
- * 4. THE RESPONSE MAPPING IS SHARED. This file and YouTubeAnalyzeForm carried
- *    identical copies of the AnalyzeResponse → AnalysisResult conversion. It
- *    lives beside AnalysisResultCard now, so the same track can't report
- *    different confidence depending on whether it was uploaded or pasted.
- *
- * 5. IT USES THE SHELL. Step rail (File → Analyze → Result), the working panel
- *    with its stage checklist, the shared error panel, and the action pinned to
- *    the footer instead of moving with the content.
- */
-
-const STEPS = ["File", "Analyze", "Result"] as const;
-
+// Timed for the sped-up /analyze (~8s warm on a full song).
 const STAGES: ProcessingStage[] = [
   { at: 0, label: "Reading the audio" },
-  { at: 6, label: "Reading the tempo grid" },
-  { at: 16, label: "Estimating the key" },
-  { at: 28, label: "Cross-checking both detectors" },
+  { at: 2, label: "Reading the tempo grid" },
+  { at: 4, label: "Estimating the key" },
+  { at: 7, label: "Cross-checking both detectors" },
+];
+
+const TIERS: StageTier<"free">[] = [
+  {
+    value: "free",
+    name: "Free",
+    model: "TempoCNN · Essentia",
+    time: "about 10 seconds",
+    footnote: `Batch up to ${MAX_BATCH_FILES} files`,
+  },
 ];
 
 function humanizeError(raw: string): FormError {
@@ -85,6 +56,28 @@ function humanizeError(raw: string): FormError {
     return { title: "The connection dropped", hint: "Check your internet and run it again." };
   }
   return { title: raw, hint: "Run it again. If it keeps failing, try a different file." };
+}
+
+// Right pane of the idle stage. Every line is measured or published, nothing invented.
+function KeyFinderAside() {
+  const rows: Array<[string, string]> = [
+    ["Reads", "Key, BPM and Camelot code"],
+    ["Measured", "75% exact BPM on the 662-track GiantSteps set"],
+    ["Batch", `Up to ${MAX_BATCH_FILES} files. CSV or renamed-file export`],
+    ["Privacy", "Deleted the moment analysis finishes"],
+  ];
+  return (
+    <div className="flex h-full flex-col justify-center gap-3.5 px-5 py-6 sm:px-7">
+      {rows.map(([label, value]) => (
+        <div key={label} className="flex items-baseline gap-3">
+          <span className="w-20 shrink-0 font-mono text-[11px] uppercase tracking-[0.16em] text-text-subtle">
+            {label}
+          </span>
+          <span className="text-sm leading-snug text-text-primary">{value}</span>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 export function KeyFinderForm() {
@@ -104,34 +97,15 @@ export function KeyFinderForm() {
 
   const [elapsedSeconds, setElapsedSeconds] = useElapsedSeconds(isProcessing);
   const [cooldownSeconds, setCooldownSeconds] = useCooldownSeconds();
-  /**
-   * STATE, NOT A REF, because CooldownBar renders it. As a ref it only showed
-   * the right ceiling because the setCooldownSeconds call on the next line
-   * happened to trigger the render that read it.
-   */
   const [cooldownCeiling, setCooldownCeiling] = useState(getRetryAfterFallback("analyze"));
 
-  /** /analyze can run for ninety seconds. Without this there is no way to stop
-   *  waiting, and no way to stop the response arriving after unmount. */
+  // /analyze can run for ninety seconds; abort covers Cancel and unmount.
   const abortRef = useRef<AbortController | null>(null);
   const cancelledRef = useRef(false);
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
   const canAnalyze = Boolean(file) && !isProcessing && !isComplete && cooldownSeconds === 0;
-  const batchRunning = Boolean(batchFiles) && batchPhase === "running";
-  const batchFinished = Boolean(batchFiles) && batchPhase === "finished";
-  const step: 1 | 2 | 3 = batchFiles
-    ? batchPhase === "ready"
-      ? 1
-      : batchRunning
-        ? 2
-        : 3
-    : isComplete
-      ? 3
-      : isProcessing
-        ? 2
-        : 1;
 
   const handleBatchStatus = useCallback((s: BatchStatus) => {
     setBatchPhase(s.phase);
@@ -151,7 +125,7 @@ export function KeyFinderForm() {
     setError(null);
   };
 
-  /** One file behaves exactly as before. Two or more switch to the queue. */
+  // One file behaves exactly as before. Two or more switch to the queue.
   const handleFilesSelect = (selected: File[]) => {
     if (selected.length <= 1) {
       setBatchNote(null);
@@ -183,17 +157,8 @@ export function KeyFinderForm() {
   const handleAnalyze = useCallback(async () => {
     if (!file) return;
 
-    /*
-      NO CLIENT-SIDE RATE LIMIT HERE ANY MORE.
-
-      There used to be `checkRateLimit("keyfinder", 10, 60000)` — ten per
-      minute, a number that exists nowhere on the backend; /analyze has no
-      RATE_LIMITS entry at all. Checking a folder of tracks is the entire point
-      of this tool, and that rule refused the eleventh while protecting
-      nothing: it lives in the tab and a reload clears it. To restore it, put
-      the call back at the top of this function.
-    */
-
+    // No client-side rate limit here on purpose; /analyze has no RATE_LIMITS
+    // entry and checking a folder of tracks is the whole point of this tool.
     const controller = new AbortController();
     abortRef.current = controller;
     cancelledRef.current = false;
@@ -206,13 +171,9 @@ export function KeyFinderForm() {
     try {
       const data = await analyzeAudioFile(file, { signal: controller.signal });
       if (cancelledRef.current) return;
-      // Shared with YouTubeAnalyzeForm — see AnalysisResultCard.
       setResult(toAnalysisResult(data));
       setStatus("complete");
     } catch (err) {
-      // A cancelled request rejects with a raw AbortError rather than an
-      // ApiError, so this guard comes first — otherwise pressing Cancel
-      // renders "Something went wrong".
       if (cancelledRef.current || isAbortError(err) || controller.signal.aborted) return;
 
       console.error("Analysis error:", err);
@@ -221,9 +182,6 @@ export function KeyFinderForm() {
           title: "You're going a little fast",
           hint: "Wait for the timer, then try again.",
         });
-        // /analyze isn't in RATE_LIMITS, so this is the helper's own default
-        // rather than a number invented to look plausible. Retry-After wins
-        // whenever the server sends one.
         const wait = err.retryAfterSeconds ?? getRetryAfterFallback("analyze");
         setCooldownCeiling(Math.max(1, wait));
         setCooldownSeconds(wait);
@@ -257,120 +215,96 @@ export function KeyFinderForm() {
     setElapsedSeconds(0);
   };
 
-  const stageIndex = stageIndexFor(STAGES, elapsedSeconds);
-
-  /* One button, two jobs — so the styling switches with the job. As a reset
-     it's `outline`, matching "Process another file" in every other form; as the
-     primary action it's amber. It used to stay amber in both states, which made
-     "Analyze another" compete with the results it sat under.
-
-     Hidden entirely while idle with no file: a dimmed amber fill at 40% opacity
-     renders as a muddy brown bar, and there's nothing to analyse yet anyway. */
-  const footer =
-    batchFiles ? undefined : file || isComplete || isFailed ? (
-      <div className="space-y-2">
-        <Button
-          variant={isComplete ? "outline" : "primary"}
-          size="lg"
-          className="w-full"
-          onClick={isComplete ? handleReset : handleAnalyze}
-          disabled={isComplete ? false : !canAnalyze && !isProcessing}
-          loading={isProcessing}
-          loadingLabel="Analyzing"
-        >
-          {!isProcessing && (isComplete ? <RotateCcw /> : <Music />)}
-          {isProcessing
-            ? "Analyzing"
-            : isComplete
-              ? "Analyze another"
-              : cooldownSeconds > 0
-                ? `Try again in ${formatCooldown(cooldownSeconds)}`
-                : "Analyze audio"}
-        </Button>
-        <CooldownBar seconds={cooldownSeconds} ceiling={cooldownCeiling} />
-      </div>
-    ) : undefined;
-
-  return (
-    <FormShell
-      toolLabel="Key & BPM finder"
-      toolMeta={batchFiles ? `${batchCount} files, two at a time` : "Camelot · cross-checked"}
-      steps={STEPS}
-      step={step}
-      busy={isProcessing || batchRunning}
-      failed={isFailed}
-      complete={isComplete || batchFinished}
-      footer={footer}
-    >
-      {batchFiles && (
+  // Batch mode keeps the stage frame but Forge Crate runs the show inside it.
+  if (batchFiles) {
+    const led =
+      batchPhase === "finished"
+        ? "bg-teal-400"
+        : batchPhase === "running"
+          ? "bg-amber-500"
+          : "bg-graphite-600";
+    return (
+      <div className="surface grain overflow-clip rounded-2xl border border-graphite-800">
+        <div className="flex min-h-14 items-center justify-between gap-3 border-b border-graphite-800 px-4 py-2.5 sm:px-7">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <span
+              className={cn("h-1.5 w-1.5 shrink-0 rounded-full", led, batchPhase === "running" && "animate-pulse")}
+              aria-hidden
+            />
+            <span className="truncate font-mono text-[11px] font-medium uppercase tracking-[0.18em] text-text-muted">
+              Key &amp; BPM finder
+            </span>
+          </div>
+          <span className="shrink-0 font-mono text-[11px] text-text-subtle">
+            {batchCount} files · {BATCH_CONCURRENCY} at a time
+          </span>
+        </div>
         <KeyFinderBatch
           files={batchFiles}
           note={batchNote}
           onReset={handleBatchReset}
           onStatusChange={handleBatchStatus}
         />
-      )}
+      </div>
+    );
+  }
 
-      {/* SOURCE */}
-      {!batchFiles && !isComplete && (
-        <Section className="space-y-4">
-          <FileDropZone
-            onFileSelect={handleFileSelect}
-            multiple
-            onFilesSelect={handleFilesSelect}
-            currentFile={file}
-            onClear={handleReset}
-            disabled={isProcessing}
-            accept="audio/*,.mp3,.wav,.m4a,.aac,.ogg,.flac"
-          />
-          {/* An error about the file belongs beside the file. */}
-          {validationError && <ValidationNote message={validationError} />}
-          {!file && (
-            <p className="text-xs text-text-subtle">
-              Drop up to {MAX_BATCH_FILES} files to analyse a folder in one go. Results download as a
-              CSV, or as your files renamed with their key and BPM.
-            </p>
-          )}
-        </Section>
-      )}
+  const stageIndex = stageIndexFor(STAGES, elapsedSeconds);
 
-      {/* WORKING */}
-      {!batchFiles && isProcessing && (
-        <Section>
-          <WorkingPanel
-            stageLabel={STAGES[stageIndex]?.label ?? "Analyzing"}
-            stages={STAGES}
-            stageIndex={stageIndex}
-            showStageList
-            elapsedSeconds={elapsedSeconds}
-            progress={easedProgress(elapsedSeconds, 18)}
-            expectedRange="30–60 seconds"
-            chargedRun={false}
-            onCancel={handleCancel}
-            waveform={<Waveform />}
-          />
-        </Section>
-      )}
-
-      {/* RESULT */}
-      {!batchFiles && isComplete && result && (
-        <Section>
-          <div className="space-y-4" role="status" aria-live="polite">
-            <AnalysisResultCard result={result} />
-            <SupportBlock />
-          </div>
-        </Section>
-      )}
-
-      {/* FAILED */}
-      {!batchFiles && isFailed && error && (
-        <Section>
-          <div className="space-y-4">
+  const note =
+    validationError || (isFailed && error) ? (
+      <div className="space-y-4">
+        {validationError && <ValidationNote message={validationError} />}
+        {isFailed && error && (
+          <>
             <ErrorPanel error={error} />
             <SupportBlock mood="sheepish" />
-          </div>
-        </Section>
-      )}
-    </FormShell>
+          </>
+        )}
+      </div>
+    ) : undefined;
+
+  const resultNode =
+    isComplete && result ? (
+      <div role="status" aria-live="polite">
+        <AnalysisResultCard result={result} />
+      </div>
+    ) : undefined;
+
+  return (
+    <StudioStage
+      label="Key & BPM finder"
+      file={file}
+      onFileSelect={handleFileSelect}
+      multiple
+      onFilesSelect={handleFilesSelect}
+      onClear={handleReset}
+      accept="audio/*,.mp3,.wav,.m4a,.aac,.ogg,.flac,.aiff,.aif"
+      formats="MP3 · WAV · FLAC · M4A · AAC · OGG"
+      tiers={TIERS}
+      tier="free"
+      onTierChange={() => {}}
+      jobTier="free"
+      aside={<KeyFinderAside />}
+      dropTitle="Drop a song"
+      busy={isProcessing}
+      failed={isFailed}
+      progress={easedProgress(elapsedSeconds, 8)}
+      stageLabel={STAGES[stageIndex]?.label ?? "Analyzing"}
+      elapsed={formatElapsed(elapsedSeconds)}
+      onCancel={handleCancel}
+      actionLabel={cooldownSeconds > 0 ? `Try again in ${formatCooldown(cooldownSeconds)}` : "Find key & BPM"}
+      actionIcon={<Music />}
+      actionDisabled={!canAnalyze}
+      onAction={handleAnalyze}
+      belowAction={<CooldownBar seconds={cooldownSeconds} ceiling={cooldownCeiling} />}
+      result={resultNode}
+      doneTitle={file?.name}
+      doneMeta={formatElapsed(elapsedSeconds)}
+      doneFooter={<SupportBlock variant="line" />}
+      resetLabel="Analyze another track"
+      labels={{ dropHint: `Up to ${MAX_BATCH_FILES} at once, anywhere on this panel, or`, working: "Analyzing" }}
+      note={note}
+    />
   );
 }

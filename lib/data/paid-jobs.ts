@@ -18,13 +18,6 @@ const GROUPS: Array<Omit<PaidJob, "credits">> = [
     keys: ["separate-hq", "stems-hq", "youtube/separate-hq", "youtube/stems-hq"],
   },
   {
-    id: "transcribe",
-    short: "transcription",
-    label: "Transcription",
-    detail: "Audio, video or YouTube to text",
-    keys: ["transcribe"],
-  },
-  {
     id: "midi",
     short: "MIDI",
     label: "High-accuracy MIDI",

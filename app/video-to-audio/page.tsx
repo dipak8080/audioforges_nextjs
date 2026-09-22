@@ -161,23 +161,6 @@ export default async function VideoToAudioPage() {
       question: "Are my uploaded videos kept?",
       answer: `${retention.input} ${retention.output} There are no accounts, so nothing is linked to you, published, or shared.`,
     },
-    {
-      question: "Can I get a transcript from my video without converting it first?",
-      answer:
-        "Yes, Video to Text takes MP4, MOV, MKV and WEBM directly and returns a transcript with timestamps, plus SRT or VTT subtitle export. Use this converter when you want the audio file itself; use that one when text is all you're after.",
-      answerNode: (
-        <>
-          Yes.{" "}
-          <Link href="/video-to-text" prefetch={false} className="text-amber-400 hover:underline">
-            Video to Text
-          </Link>{" "}
-          takes MP4, MOV, MKV and WEBM directly and returns a transcript with
-          timestamps, plus SRT or VTT subtitle export. Use this converter when you
-          want the audio file itself; use that one when text is all you&apos;re
-          after.
-        </>
-      ),
-    },
   ];
 
   return (
@@ -260,9 +243,7 @@ export default async function VideoToAudioPage() {
           />
           <Prose className="mt-5">
             <p>
-              Only need the words? Skip the audio file: <Link href="/video-to-text">Video to Text</Link> transcribes
-              the video directly, with timestamps and subtitle export. Need WAV specifically and want the sizes
-              first? <Link href="/mp4-to-wav">The MP4 to WAV page</Link> has a size table by sample rate.{" "}
+              Need WAV specifically and want the sizes first? <Link href="/mp4-to-wav">The MP4 to WAV page</Link> has a size table by sample rate.{" "}
               <Link href="/guides/why-m4a-extraction-is-instant">Why M4A extraction is instant</Link> covers what
               a stream copy is.
             </p>
@@ -272,7 +253,7 @@ export default async function VideoToAudioPage() {
         <ToolSection id="next" title="After the audio" bleed>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {[
-              ["Transcribe it", "An interview or lecture, with timestamps and SRT.", "/audio-to-text"],
+              ["Clean it up", "Noise and reverb in one pass.", "/voice-clean"],
               ["Split into stems", "Vocals, drums, bass and other.", "/stems"],
               ["Find key and BPM", "A live set or a reference track.", "/key-finder"],
               ["Trim it", "Just the section you need, lossless.", "/trim"],

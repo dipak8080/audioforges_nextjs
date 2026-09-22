@@ -126,7 +126,7 @@ export default async function HomePage() {
     },
     {
       question: "What else is in the studio?",
-      answer: `${toolCount} tools in total: the separation engine, audio to MIDI, audio to sheet music, key and BPM detection, transcription, and a full set of converters and editors. Each one names the model it runs and prints its limits.`,
+      answer: `${toolCount} tools in total: the separation engine, audio to MIDI, audio to sheet music, key and BPM detection, and a full set of converters and editors. Each one names the model it runs and prints its limits.`,
     },
   ];
 

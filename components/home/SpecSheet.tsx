@@ -1,12 +1,10 @@
 import Link from "next/link";
 import { ArrowRight, Check } from "lucide-react";
-import { TRANSCRIPTION_MODEL } from "@/lib/api/transcription";
 
 const MODELS = [
   { name: "MelBand RoFormer", href: "/vocal-remover" },
   { name: "htdemucs", href: "/stems" },
   { name: "Transkun", href: "/audio-to-sheet-music" },
-  { name: TRANSCRIPTION_MODEL, href: "/audio-to-text" },
 ];
 
 const METERS = [

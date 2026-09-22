@@ -248,12 +248,12 @@ function SignedIn() {
                 <span className="font-medium text-amber-400">
                   {freeLeft} free {freeLeft === 1 ? "run" : "runs"}
                 </span>{" "}
-                this month. Credits are for Studio Quality separation, transcription, high-accuracy MIDI and
+                this month. Credits are for Studio Quality separation, high-accuracy MIDI and
                 sheet music once those run out.
               </>
             ) : (
               <>
-                Credits unlock Studio Quality separation, transcription, high-accuracy MIDI and sheet music.
+                Credits unlock Studio Quality separation, high-accuracy MIDI and sheet music.
                 Every other tool stays free.
               </>
             )}

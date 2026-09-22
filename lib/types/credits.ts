@@ -27,7 +27,6 @@ export type MeteredToolKey =
   | "stems-hq"
   | "youtube/separate-hq"
   | "youtube/stems-hq"
-  | "transcribe"
   | "audio-to-midi-hq"
   | "audio-to-midi-hq-mix"
   | "audio-to-sheet";

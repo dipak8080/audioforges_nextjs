@@ -4,56 +4,50 @@ import { useEffect, useState } from "react";
 import { YouTubeUrlForm } from "@/components/converter/YouTubeUrlForm";
 import { AnalysisResultCard, toAnalysisResult } from "@/components/converter/AnalysisResultCard";
 import { Hint } from "@/components/converter/ToolControls";
+import type { StageTier } from "@/components/tools/StudioStage";
 import { submitYoutubeAnalyze, getYoutubeAnalyzeResult, ApiError } from "@/lib/api/railway";
 import { getRateLimitLabel } from "@/lib/data/rate-limits";
+import { getDurationLabel } from "@/lib/data/tool-limits";
 import type { AnalysisResult } from "@/lib/types/converter";
 
-/**
- * FROM THE PREVIOUS PASS, all still true:
- *
- * The cleanest of the four /youtube/* forms — no quality tier, no credits, no
- * notify toggle, and it never drew the duplicate result header the other two
- * did.
- *
- * 1. THE RATE-LIMIT COPY DIDN'T SAY WHAT THE LIMIT WAS. "You've reached the
- *    limit for this tool. Try again in a few minutes" is a guess wearing a
- *    fact's clothes — the number is in RATE_LIMITS, and "a few minutes" is
- *    wrong if the window is an hour.
- *
- * 2. THE ERROR WAS A HAND-ROLLED RED BOX, missing the icon and the role="alert"
- *    every other failure on the site has. Hint carries both.
- *
- * 3. progressTau IS EXPLICIT. The default of 20 happens to suit a 20–60s job,
- *    but it was the default rather than a decision — and now that its siblings
- *    set 45 and 110, leaving this one implicit reads as an oversight rather
- *    than a fit.
- *
- * ── THIS PASS ──────────────────────────────────────────────────────────
- *
- * THE RESPONSE MAPPING WAS THE SECOND COPY. KeyFinderForm carried the same
- * conversion character for character — the same `toPct`, the same fallbacks,
- * the same `typeof … === "boolean"` guards on cross_check. Both tools hit the
- * same analysis backend, so two copies means two places to fix when the
- * response gains a field, and the first symptom of drift would be the same
- * track reporting different confidence depending on whether it was uploaded or
- * pasted.
- *
- * It lives beside AnalysisResultCard now — the component that consumes it — so
- * a change to the shape and a change to the rendering land in the same file.
- * The percentage rule is documented there too, including why a clean 1.0 has
- * to read as 100% rather than 1%.
- */
-
 const RATE_LIMIT_LABEL = getRateLimitLabel("youtube/analyze");
+const DURATION_LABEL = getDurationLabel("youtube/analyze") ?? "40 minutes";
 
-/* ------------------------------------------------------------------ */
-/* Result fetch                                                        */
-/* ------------------------------------------------------------------ */
+const TIERS: StageTier<"free">[] = [
+  {
+    value: "free",
+    name: "Free",
+    model: "TempoCNN · Essentia",
+    time: "20–60 seconds",
+    footnote: RATE_LIMIT_LABEL ?? undefined,
+  },
+];
 
-// Fetches the analysis result once the job status flips to "complete" -
-// YouTubeUrlForm only knows generic job status (status/title/error), not
-// this tool's actual key/BPM payload, so that one extra fetch happens
-// here, scoped to this tool alone.
+// Right pane of the idle stage. Every line is measured, published or read from
+// the limits table, nothing invented.
+function AnalyzeAside() {
+  const rows: Array<[string, string]> = [
+    ["Reads", "Key, BPM and Camelot code"],
+    ["Measured", "75% exact BPM on the 662-track GiantSteps set"],
+    ["Length", `Videos up to ${DURATION_LABEL}`],
+    ["Free", "No account, no download step"],
+  ];
+  return (
+    <div className="flex h-full flex-col justify-center gap-3.5 px-5 py-6 sm:px-7">
+      {rows.map(([label, value]) => (
+        <div key={label} className="flex items-baseline gap-3">
+          <span className="w-20 shrink-0 font-mono text-[11px] uppercase tracking-[0.16em] text-text-subtle">
+            {label}
+          </span>
+          <span className="text-sm leading-snug text-text-primary">{value}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Fetches the analysis result once the job flips to complete. YouTubeUrlForm
+// only knows generic job status, not this tool's key/BPM payload.
 function AnalyzeResult({ jobId }: { jobId: string }) {
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -64,8 +58,7 @@ function AnalyzeResult({ jobId }: { jobId: string }) {
       try {
         const data = await getYoutubeAnalyzeResult(jobId);
         if (cancelled) return;
-        // Shared with KeyFinderForm — see AnalysisResultCard. Both tools hit
-        // the same backend and must not read it differently.
+        // Shared with KeyFinderForm — see AnalysisResultCard.
         setResult(toAnalysisResult(data));
       } catch (err) {
         if (cancelled) return;
@@ -77,8 +70,6 @@ function AnalyzeResult({ jobId }: { jobId: string }) {
     };
   }, [jobId]);
 
-  // Was a bare red <p> — no icon, no role="alert", nothing the rest of the site
-  // uses to say "this went wrong".
   if (error) return <Hint tone="bad">{error}</Hint>;
 
   if (!result) {
@@ -93,19 +84,14 @@ function AnalyzeResult({ jobId }: { jobId: string }) {
   return <AnalysisResultCard result={result} />;
 }
 
-/* ------------------------------------------------------------------ */
-
 export function YouTubeAnalyzeForm() {
   return (
     <YouTubeUrlForm
       endpoint="youtube/analyze"
       onSubmit={(url, key) => submitYoutubeAnalyze(url, {}, key)}
       pollIntervalMs={3000}
-      // Explicit rather than inherited: its siblings run 45 and 110, so an
-      // unstated default here would read as something nobody looked at.
       progressTau={25}
-      toolLabel="Key & BPM finder"
-      toolMeta="Camelot · cross-checked"
+      toolLabel="YouTube key & BPM finder"
       submitLabel="Find key & BPM"
       processingLabel="Downloading and analyzing"
       expectedRange="20–60 seconds"
@@ -120,6 +106,14 @@ export function YouTubeAnalyzeForm() {
           ? `This tool is limited to ${RATE_LIMIT_LABEL}. Wait for the timer, then run it again.`
           : "You've reached the limit for this tool. Wait for the timer, then run it again."
       }
+      stage={{
+        tiers: TIERS,
+        tier: "free",
+        onTierChange: () => {},
+        aside: <AnalyzeAside />,
+        doneFallback: "Analysis complete",
+        resetLabel: "Analyze another link",
+      }}
       renderComplete={(jobId) => <AnalyzeResult jobId={jobId} />}
     />
   );

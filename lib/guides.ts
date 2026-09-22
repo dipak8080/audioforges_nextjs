@@ -153,15 +153,6 @@ export const guides: Guide[] = [
     category: "podcast-cleanup",
   },
   {
-    slug: "transcribing-audio-accurately",
-    title: "How to Improve Transcription Accuracy",
-    description:
-      "Why transcripts come back wrong, and what to fix first. Audio cleanup, language selection, SRT vs VTT, and handling recordings over 20 minutes.",
-    publishedDate: "2026-08-20",
-    updatedDate: "2026-08-20",
-    category: "podcast-cleanup",
-  },
-  {
     slug: "ai-stem-separation-explained",
     title: "How AI Stem Separation Actually Works",
     description:

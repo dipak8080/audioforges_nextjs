@@ -174,6 +174,7 @@ export default function YouTubeKeyFinderPage() {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(webAppJsonLd) }} />
 
       <ToolPageShell
+        wide
         breadcrumb={
           <Breadcrumb
             items={[{ name: "Tools", href: "/tools" }, { name: "YouTube Key & BPM Finder" }]}

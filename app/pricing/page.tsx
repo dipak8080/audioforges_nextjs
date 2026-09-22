@@ -122,11 +122,6 @@ export default async function PricingPage() {
       detail:
         "Splits the track into stems, then transcribes each part with the model best at it: bass, piano, guitar, vocals and other on separate tracks, with the real BPM and key from your audio written in. Works on whole songs and single sounds alike. Returns MIDI.",
     },
-    {
-      name: "Transcription",
-      cost: 1,
-      detail: "Audio, video or a YouTube link, turned into text.",
-    },
     ...(sheetCharges
       ? [
           {
@@ -146,8 +141,8 @@ export default async function PricingPage() {
   // The metered list named in the "still free" FAQ, kept in step with what
   // actually charges. Understating this is the one error that becomes a refund.
   const meteredList = sheetCharges
-    ? "Studio Quality separation, high-accuracy MIDI, transcription, and audio-to-sheet-music"
-    : "Studio Quality separation, high-accuracy MIDI, and transcription";
+    ? "Studio Quality separation, high-accuracy MIDI, and audio-to-sheet-music"
+    : "Studio Quality separation and high-accuracy MIDI";
 
   const faqs: FAQItem[] = [
     {

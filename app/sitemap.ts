@@ -24,18 +24,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { path: "/guides", priority: 0.8, changeFrequency: "weekly" as const },
     // NOT IN `TOOLS`, SO IT HAS TO BE LISTED BY HAND.
     //
-    // /free-transcription-no-sign-up is editorial, not a tool — it has no
-    // form and no backend endpoint, so it was never going to appear in a
-    // TOOLS-driven sitemap. It was missing entirely until now.
-    //
-    // Priority 0.8 rather than a tool's 0.7: it's the wedge page the three
-    // transcription tools all link into, and the one most likely to earn a
-    // link on its own merits.
-    {
-      path: "/free-transcription-no-sign-up",
-      priority: 0.8,
-      changeFrequency: "monthly" as const,
-    },
     // Added alongside removing its noindex. An indexed page that appears in
     // no sitemap and is linked only from the footer is discoverable in
     // principle and invisible in practice — and this is the one page on the

@@ -221,12 +221,12 @@ export default async function Mp4ToWavPage() {
           />
         </ToolSection>
 
-        <ToolSection id="which-format" title="WAV, MP3, or just the words?" bleed>
+        <ToolSection id="which-format" title="Which output fits the job" bleed>
           <div className="grid gap-3 sm:grid-cols-3">
             {[
               ["Editing", "WAV, this page", "Going into a DAW, a timeline, a sampler or a transcription pipeline. No second lossy pass on top of the AAC.", null],
               ["Listening or sharing", "MP3 or M4A", "A fraction of the size, sounds the same in a car or on a phone.", "/video-to-audio"],
-              ["Only the words", "Transcript", "Skip the audio file. Video to text transcribes the MP4 directly, with timestamps and subtitle export.", "/video-to-text"],
+              ["Sampling one hit", "WAV, trimmed", "Cut the WAV down to just the hit or phrase and drop it straight in a sampler.", "/trim"],
             ].map(([job, pick, desc, href]) => {
               const inner = (
                 <>
@@ -253,8 +253,7 @@ export default async function Mp4ToWavPage() {
           </div>
           <Prose className="mt-5">
             <p>
-              After the WAV: <Link href="/trim">trim it</Link>, <Link href="/audio-to-text">transcribe it</Link>,{" "}
-              <Link href="/stems">split it into stems</Link>, or <Link href="/convert">send it to another format</Link>.
+              After the WAV: <Link href="/trim">trim it</Link>, <Link href="/stems">split it into stems</Link>, or <Link href="/convert">send it to another format</Link>.
             </p>
           </Prose>
         </ToolSection>

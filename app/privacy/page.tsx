@@ -155,7 +155,7 @@ export default function PrivacyPage() {
           aggregate site usage,
           and the following providers to run the site and tools: Vercel for the
           website, VPS Dime for general backend processing, RunPod for the
-          GPU-accelerated compute used by separation, transcription and
+          GPU-accelerated compute used by separation and
           high-accuracy MIDI, PayPal to process credit purchases, and Ko-fi for donations. When you use one of those separation tools, the
           audio file or fetched YouTube audio is processed on RunPod&apos;s
           infrastructure for the time needed to complete that job, under the same

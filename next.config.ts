@@ -52,7 +52,32 @@ const nextConfig: NextConfig = {
     return [
       {
         source: "/speech-to-text",
-        destination: "/audio-to-text",
+        destination: "/tools",
+        permanent: true,
+      },
+      {
+        source: "/audio-to-text",
+        destination: "/tools",
+        permanent: true,
+      },
+      {
+        source: "/youtube-to-text",
+        destination: "/tools",
+        permanent: true,
+      },
+      {
+        source: "/video-to-text",
+        destination: "/tools",
+        permanent: true,
+      },
+      {
+        source: "/free-transcription-no-sign-up",
+        destination: "/tools",
+        permanent: true,
+      },
+      {
+        source: "/guides/transcribing-audio-accurately",
+        destination: "/guides",
         permanent: true,
       },
       {

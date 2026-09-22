@@ -192,9 +192,7 @@ export default async function VoiceCleanPage() {
           <Prose className="mt-5">
             <p>
               Want control over how hard the denoise works? <Link href="/noise-remove">Noise Remover</Link> has the
-              slider. Room echo? <Link href="/echo-remove">Echo Remover</Link>. Once it is clean,{" "}
-              <Link href="/audio-to-text">Audio to Text</Link> transcribes it, and clean input is what makes that
-              accurate.
+              slider. Room echo? <Link href="/echo-remove">Echo Remover</Link>.
             </p>
           </Prose>
         </ToolSection>

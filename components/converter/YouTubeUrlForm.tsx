@@ -156,6 +156,11 @@ interface YouTubeUrlFormProps {
     demoNudge?: string;
     demoCredit?: string;
     footerExtra?: (busy: boolean) => ReactNode;
+    /** Right pane of the idle stage when the tier has no audio demo. */
+    aside?: ReactNode;
+    /** Done-strip title when the job reports no track title. */
+    doneFallback?: string;
+    resetLabel?: string;
   };
 }
 
@@ -723,6 +728,7 @@ export function YouTubeUrlForm({
           actionDisabled={!canSubmit}
           onAction={handleSubmit}
           footerExtra={stage.footerExtra?.(isBusy)}
+          aside={stage.aside}
           belowAction={<CooldownBar seconds={cooldownSeconds} ceiling={cooldownCeiling} />}
           result={
             status === "complete" && jobId ? (
@@ -735,10 +741,10 @@ export function YouTubeUrlForm({
               </>
             ) : undefined
           }
-          doneTitle={resultTitle || preview?.title || "Separation complete"}
+          doneTitle={resultTitle || preview?.title || stage.doneFallback || "Separation complete"}
           doneMeta={formatElapsed(elapsedSeconds)}
           doneFooter={chargedRun ? undefined : <SupportBlock variant="line" />}
-          resetLabel="Process another link"
+          resetLabel={stage.resetLabel ?? "Process another link"}
           note={
             isFailed && error ? (
               <div className="space-y-4">

@@ -51,7 +51,7 @@ export type { SharedAllowanceSpec, SharedWindowSpec };
 // pages import them from here.
 export { rateLimitLabel, sharedAllowanceLabel, sharedAllowanceProse };
 
-export type RetentionShape = "separation" | "audio_tools" | "transcription";
+export type RetentionShape = "separation" | "audio_tools";
 
 export interface DownloadCache {
   scope: string;
@@ -68,7 +68,6 @@ export interface Retention {
   /** NULL, not 0, when inputDeletedWhen is "job_end". */
   inputSeconds: number | null;
   outputSeconds: number;
-  /** "text" is transcription: nothing sits on disk after processing. */
   outputKind: "file" | "files" | "text";
 }
 
@@ -90,8 +89,6 @@ export interface Durations {
 export interface Limits {
   maxUploadMb: number;
   maxVideoUploadMb: number;
-  /** /video-to-text only. Caps lower than the general video upload limit. */
-  maxVideoTranscribeMb: number;
   /** Both totals reject independently, and neither implies the per-file cap. */
   join: {
     maxFiles: number;
@@ -105,7 +102,6 @@ export interface Limits {
     midi: number;
     midiHq: number;
     separationHq: number;
-    transcription: number;
   };
   durations: Durations;
   allowedAudioFormats: string[];
@@ -139,7 +135,6 @@ function fallback(): Limits {
   return {
     maxUploadMb: 80,
     maxVideoUploadMb: 200,
-    maxVideoTranscribeMb: 100,
     join: { maxFiles: 10, maxTotalMb: 150, maxPerFileMb: 80 },
     // Hides the paid tool rather than offering something that would 503.
     midiHqEnabled: false,
@@ -147,7 +142,6 @@ function fallback(): Limits {
       midi: TOOL_LIMITS["audio-to-midi"]?.maxTotalDurationSeconds ?? 600,
       midiHq: TOOL_LIMITS["audio-to-midi-hq"]?.maxTotalDurationSeconds ?? 600,
       separationHq: TOOL_LIMITS["separate-hq"]?.maxTotalDurationSeconds ?? 600,
-      transcription: 1200,
     },
     durations: {
       audioToolsDefaultSeconds: 3600,
@@ -177,9 +171,6 @@ function fallback(): Limits {
       youtube_stems_hq: RATE_LIMITS["youtube/stems-hq"]?.limit ?? 2,
       audio_to_midi: RATE_LIMITS["audio-to-midi"]?.limit ?? 5,
       audio_to_midi_hq: RATE_LIMITS["audio-to-midi-hq"]?.limit ?? 2,
-      speech_to_text: RATE_LIMITS["speech-to-text"]?.limit ?? 2,
-      video_to_text: RATE_LIMITS["video-to-text"]?.limit ?? 2,
-      youtube_transcribe: RATE_LIMITS["youtube/transcribe"]?.limit ?? 2,
     },
     windows: {
       audio_to_midi: RATE_LIMITS["audio-to-midi"]?.windowSeconds ?? 300,
@@ -198,12 +189,6 @@ function fallback(): Limits {
         inputSeconds: null,
         outputSeconds: 3600,
         outputKind: "file",
-      },
-      transcription: {
-        inputDeletedWhen: "job_end",
-        inputSeconds: null,
-        outputSeconds: 3600,
-        outputKind: "text",
       },
     },
     downloadCache: {
@@ -349,7 +334,6 @@ export async function getLimits(): Promise<Limits> {
     return {
       maxUploadMb: asNumber(d.max_upload_mb, base.maxUploadMb),
       maxVideoUploadMb: asNumber(d.max_video_upload_mb, base.maxVideoUploadMb),
-      maxVideoTranscribeMb: asNumber(d.max_video_transcribe_mb, base.maxVideoTranscribeMb),
       // Nested under `join`, not top-level.
       join: readJoin(d.join, base.join),
       midiHqEnabled: Boolean(f.midi_hq_enabled),
@@ -359,10 +343,6 @@ export async function getLimits(): Promise<Limits> {
         separationHq: asNumber(
           f.separation_hq_max_duration_seconds,
           base.featureDurations.separationHq
-        ),
-        transcription: asNumber(
-          f.transcription_max_duration_seconds,
-          base.featureDurations.transcription
         ),
       },
       durations: readDurations(d.durations, base.durations),
@@ -393,7 +373,6 @@ export async function getLimits(): Promise<Limits> {
       retention: {
         separation: readRetention(ret.separation, base.retention.separation),
         audio_tools: readRetention(ret.audio_tools, base.retention.audio_tools),
-        transcription: readRetention(ret.transcription, base.retention.transcription),
       },
     };
   } catch {

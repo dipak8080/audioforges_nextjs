@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { TRANSCRIPTION_MODEL } from "@/lib/api/transcription";
 import { SITE_URL } from "@/lib/constants";
 import { getLimits, limitLabelFor, sharedAllowanceFor, sharedAllowanceProse, sharedPoolNote } from "@/lib/api/limits";
 import { Breadcrumb } from "@/components/layout/Breadcrumb";
@@ -59,7 +58,7 @@ const aboutJsonLd = {
     name: "AudioForges",
     url: SITE_URL,
     description:
-      "Free audio tools for music producers, DJs, musicians and creators, conversion, editing, cleanup, analysis, practice and transcription. No accounts, no ads.",
+      "Free audio tools for music producers, DJs, musicians and creators, conversion, editing, cleanup, analysis and practice. No accounts, no ads.",
     foundingDate: "2025",
   },
 };
@@ -139,19 +138,6 @@ export default async function AboutPage() {
             Quality runs a heavier model that costs real money per run;
             everyone gets free runs of it each month, and beyond that it takes{" "}
             <Link href="/pricing">a credit</Link>.
-          </p>
-          <p>
-            {/* Names the model rather than saying "AI-powered". Every competitor
-                on this SERP says "advanced AI engine" and declines to say which
-                one. Stating it is checkable, and being checkable is the whole
-                position. */}
-            <strong>Transcription</strong> runs on {TRANSCRIPTION_MODEL}, the largest
-            model in that family, on a GPU worker. Three routes into it:{" "}
-            <Link href="/audio-to-text">Audio to Text</Link> for a file you already
-            have, <Link href="/youtube-to-text">YouTube to Text</Link> for a link, and{" "}
-            <Link href="/video-to-text">Video to Text</Link> for an MP4 or MOV without
-            extracting the audio first. All three detect the spoken language or let you
-            set it, translate to English on request, and export plain text, SRT or VTT.
           </p>
           <p>
             <Link href="/bpm-tapper">

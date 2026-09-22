@@ -72,18 +72,6 @@ export const RATE_LIMITS: Record<string, RateLimitSpec> = {
 
   // The three transcription routes draw from one pool keyed on the rule, not
   // the path. Any copy implying three separate allowances is wrong.
-  "speech-to-text": {
-    limit: 2, windowSeconds: 3600, label: "2 per hour",
-    envVar: "AUDIO_TRANSCRIBE_RATE_LIMIT_MAX_REQUESTS",
-  },
-  "youtube/transcribe": {
-    limit: 2, windowSeconds: 3600, label: "2 per hour",
-    envVar: "YOUTUBE_TRANSCRIBE_RATE_LIMIT_MAX_REQUESTS",
-  },
-  "video-to-text": {
-    limit: 2, windowSeconds: 3600, label: "2 per hour",
-    envVar: "VIDEO_TRANSCRIBE_RATE_LIMIT_MAX_REQUESTS",
-  },
 
   "audio-to-midi": {
     limit: 5, windowSeconds: 300, label: "5 per 5 minutes",

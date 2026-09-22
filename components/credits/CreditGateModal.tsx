@@ -12,7 +12,6 @@ import { preloadPayPal } from "@/lib/api/paypal";
 import { trackCredits } from "@/lib/analytics";
 import { ApiError } from "@/lib/api/railway";
 import type { CreditPack, InsufficientCreditsPayload } from "@/lib/types/credits";
-import { TRANSCRIPTION_LIMITS } from "@/lib/api/transcription";
 import { TOOL_LIMITS } from "@/lib/data/tool-limits";
 
 type Step = "packs" | "email" | "signin";
@@ -60,17 +59,6 @@ const TOOL_COPY: Record<string, ToolCopy> = {
   "stems-hq": STEMS_HQ,
   "youtube/separate-hq": SEPARATE_HQ,
   "youtube/stems-hq": STEMS_HQ,
-  transcribe: {
-    title: "Transcription",
-    unit: ["transcript", "transcripts"],
-    creditDetail: `One transcript, up to ${TRANSCRIPTION_LIMITS.durationSeconds / 60} minutes of audio`,
-    spec: [
-      ["You get", "Full text with timestamps, language detected automatically"],
-      ["Shared", "One allowance across audio, video and YouTube transcription"],
-    ],
-    closing:
-      "Your free runs reset every month, and every tool that doesn't need a GPU stays free.",
-  },
   "audio-to-midi-hq": {
     title: "High-accuracy MIDI",
     unit: ["MIDI file", "MIDI files"],

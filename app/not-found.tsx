@@ -16,7 +16,6 @@ const SUGGESTED_SLUGS = [
   "key-finder",
   "audio-to-midi",
   "convert",
-  "audio-to-text",
 ];
 
 export default function NotFound() {

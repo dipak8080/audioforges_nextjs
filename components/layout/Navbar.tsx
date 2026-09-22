@@ -10,31 +10,49 @@ import { TOOLS } from "@/lib/data/tools";
 import { BrandMark } from "@/components/brand/BrandMark";
 import { CreditMenu, CreditChipMobile } from "@/components/credits/CreditMenu";
 import { CreditAccountPanel } from "@/components/credits/CreditAccountPanel";
+import { DEMO_PEAKS_STUDIO } from "@/lib/data/demo-peaks";
 import { useCredits } from "@/components/credits/CreditProvider";
 
 type MenuLink = { href: string; name: string; desc: string };
+
+// The hero of the premium repositioning: a card of its own, not row one of a list.
+const FEATURED: MenuLink = {
+  href: "/vocal-remover",
+  name: "Vocal Remover",
+  desc: "Vocals and instrumental as WAV. Free, with a Studio Quality tier.",
+};
 
 const PRODUCT_GROUPS: { label: string; links: MenuLink[] }[] = [
   {
     label: "Separation",
     links: [
-      { href: "/vocal-remover", name: "Vocal Remover", desc: "Vocals and instrumental, WAV" },
       { href: "/stems", name: "Stem Splitter", desc: "Vocals, drums, bass, other" },
       { href: "/youtube-vocal-remover", name: "YouTube Vocal Remover", desc: "Paste a link, get two stems" },
       { href: "/youtube-stem-splitter", name: "YouTube Stem Splitter", desc: "Paste a link, get four stems" },
     ],
   },
   {
-    label: "Transcription",
+    label: "Notation",
     links: [
       { href: "/audio-to-midi", name: "Audio to MIDI", desc: "Edit the notes in Forge Roll" },
       { href: "/audio-to-sheet-music", name: "Audio to Sheet Music", desc: "Engraved score, synced playback" },
+    ],
+  },
+  {
+    label: "Analysis",
+    links: [
       { href: "/key-finder", name: "Key & BPM Finder", desc: "Key, tempo, Camelot code" },
+      { href: "/youtube-key-finder", name: "YouTube Key & BPM Finder", desc: "Paste a link, get key and BPM" },
     ],
   },
 ];
 
-const PRODUCT_HREFS = new Set(PRODUCT_GROUPS.flatMap((g) => g.links.map((l) => l.href)));
+// Mobile has no featured card, so its Separation list stays complete.
+const MOBILE_GROUPS = PRODUCT_GROUPS.map((g, i) =>
+  i === 0 ? { ...g, links: [FEATURED, ...g.links] } : g
+);
+
+const PRODUCT_HREFS = new Set([FEATURED, ...PRODUCT_GROUPS.flatMap((g) => g.links)].map((l) => l.href));
 
 export function Navbar({ paywallEnabled = false }: { paywallEnabled?: boolean }) {
   const pathname = usePathname();
@@ -265,11 +283,47 @@ export function Navbar({ paywallEnabled = false }: { paywallEnabled?: boolean })
               role="navigation"
               aria-label="Product"
               className={cn(
-                "w-[40rem] overflow-hidden rounded-xl border border-graphite-800 bg-graphite-900 shadow-2xl shadow-black/50",
+                "surface grain w-[42rem] overflow-hidden rounded-xl border border-graphite-800 shadow-2xl shadow-black/50",
                 isProductOpen ? "pointer-events-auto" : "pointer-events-none"
               )}
             >
-              <div className="grid grid-cols-2 gap-6 p-5">
+              <Link
+                href={FEATURED.href}
+                prefetch={false}
+                aria-current={pathname === FEATURED.href ? "page" : undefined}
+                className={cn(
+                  "flex items-center gap-5 border-b border-graphite-800 px-5 py-4 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-amber-400/70",
+                  pathname === FEATURED.href ? "bg-amber-500/10" : "hover:bg-graphite-850"
+                )}
+              >
+                <div className="min-w-0">
+                  <span className="flex items-center gap-2">
+                    <span
+                      className={cn(
+                        "text-[13px] font-medium",
+                        pathname === FEATURED.href ? "text-amber-400" : "text-text-primary"
+                      )}
+                    >
+                      {FEATURED.name}
+                    </span>
+                    <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-500">
+                      Flagship
+                    </span>
+                  </span>
+                  <span className="mt-0.5 block text-xs text-text-subtle">{FEATURED.desc}</span>
+                </div>
+                {/* Real peaks from the H4RRIS demo clip, not a synthetic shape. */}
+                <div className="ml-auto flex h-8 w-40 shrink-0 items-end gap-px" aria-hidden>
+                  {DEMO_PEAKS_STUDIO.filter((_, i) => i % 5 === 0).map((peak, i) => (
+                    <span
+                      key={i}
+                      className="flex-1 rounded-full bg-graphite-600"
+                      style={{ height: `${Math.max(8, peak * 100)}%` }}
+                    />
+                  ))}
+                </div>
+              </Link>
+              <div className="grid grid-cols-2 gap-x-6 gap-y-5 p-5">
                 {PRODUCT_GROUPS.map((g) => (
                   <div key={g.label}>
                     <p className="px-2 font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-500">
@@ -329,7 +383,7 @@ export function Navbar({ paywallEnabled = false }: { paywallEnabled?: boolean })
         <div className="space-y-6 px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
           <CreditAccountPanel variant="mobile" onNavigate={() => setIsMobileOpen(false)} />
 
-          {PRODUCT_GROUPS.map((g) => (
+          {MOBILE_GROUPS.map((g) => (
             <div key={g.label}>
               <p className="px-3 font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-500">
                 {g.label}

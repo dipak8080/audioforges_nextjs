@@ -264,6 +264,9 @@ export interface StudioStageProps<T extends string> {
   label: string;
   file?: File | null;
   onFileSelect?: (file: File) => void;
+  /** Allow dropping or picking several files at once; they arrive via onFilesSelect. */
+  multiple?: boolean;
+  onFilesSelect?: (files: File[]) => void;
   custom?: StageCustomSource;
   onClear: () => void;
   accept?: string;
@@ -310,6 +313,8 @@ export function StudioStage<T extends string>({
   label,
   file = null,
   onFileSelect,
+  multiple = false,
+  onFilesSelect,
   custom,
   onClear,
   accept = "audio/*",
@@ -409,8 +414,10 @@ export function StudioStage<T extends string>({
     event.preventDefault();
     setDragging(false);
     if (!canPick) return;
-    const dropped = event.dataTransfer.files?.[0];
-    if (dropped) onFileSelect?.(dropped);
+    const dropped = Array.from(event.dataTransfer.files ?? []);
+    if (!dropped.length) return;
+    if (multiple && onFilesSelect) onFilesSelect(dropped);
+    else onFileSelect?.(dropped[0]);
   }
 
   const led = done
@@ -520,11 +527,15 @@ export function StudioStage<T extends string>({
               id={inputId}
               type="file"
               accept={accept}
+              multiple={multiple}
               className="sr-only"
               tabIndex={-1}
               onChange={(e) => {
-                const picked = e.target.files?.[0];
-                if (picked) onFileSelect?.(picked);
+                const picked = Array.from(e.target.files ?? []);
+                if (picked.length) {
+                  if (multiple && onFilesSelect) onFilesSelect(picked);
+                  else onFileSelect?.(picked[0]);
+                }
                 e.target.value = "";
               }}
             />

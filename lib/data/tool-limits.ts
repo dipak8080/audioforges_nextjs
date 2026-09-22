@@ -31,7 +31,6 @@
 //                                    RAISED from 360 on 2026-08-28;
 //                                    HQ now matches the standard tier,
 //                                    so the two no longer differ here.
-//   MAX_TRANSCRIPTION_DURATION_SECONDS 1200 (20 min) — transcription
 //
 // The SMALLER of the pair is what a user hits, and it is the only one
 // worth showing them. Advertising 40 minutes on a separation page
@@ -218,35 +217,6 @@ export const TOOL_LIMITS: Record<string, ToolLimits> = {
   "youtube/analyze": {
     maxTotalDurationSeconds: 2400,
     envVars: ["MAX_VIDEO_DURATION_SECONDS"],
-  },
-
-  // ---- TRANSCRIPTION ----
-  "speech-to-text": {
-    maxFileBytes: 80 * MB,
-    maxTotalDurationSeconds: 1200,
-    envVars: ["MAX_UPLOAD_BYTES", "MAX_TRANSCRIPTION_DURATION_SECONDS"],
-  },
-  "video-to-text": {
-    // 90, not 100 — see the Cloudflare note at the top. 100 sat exactly ON
-    // the edge limit, so multipart overhead alone could push a passing file
-    // over it.
-    maxFileBytes: 90 * MB,
-    maxTotalDurationSeconds: 1200,
-    envVars: ["MAX_VIDEO_TRANSCRIBE_BYTES", "MAX_TRANSCRIPTION_DURATION_SECONDS"],
-  },
-  // 20 minutes, NOT the downloader's 40. This entry exists specifically
-  // because there was nothing here before, so /youtube-to-text had no
-  // source to read and inherited whatever number the copy happened to
-  // state. A user pasting a 30-minute video is refused after the
-  // download completes, having waited for a fetch that was never going
-  // to be usable.
-  //
-  // This 1200 is also the sentence that six other pages copied and got
-  // wrong — it is correct HERE and on the three transcription pages, and
-  // was wrong everywhere else it appeared. See the note at the top.
-  "youtube/transcribe": {
-    maxTotalDurationSeconds: 1200,
-    envVars: ["MAX_TRANSCRIPTION_DURATION_SECONDS", "MAX_VIDEO_DURATION_SECONDS"],
   },
 
   // ---- MIDI ----

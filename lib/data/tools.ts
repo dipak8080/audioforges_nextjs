@@ -134,7 +134,7 @@ export const CATEGORY_LABELS: Record<ToolCategory, string> = {
   "pitch-tempo": "Pitch & Tempo",
   cleanup: "Cleanup & Enhance",
   vocals: "Vocals & Key",
-  transcription: "Transcription",
+  transcription: "Notation",
   browser: "Browser Tools",
 };
 
@@ -295,7 +295,7 @@ export const TOOLS: Tool[] = [
     shortDescription: "Extract uncompressed WAV audio from an MP4 video.",
     category: "convert",
     status: "live",
-    related: ["video-to-audio", "convert", "wav-to-mp3", "audio-to-text", "trim"],
+    related: ["video-to-audio", "convert", "wav-to-mp3", "trim"],
   },
   {
     slug: "trim",
@@ -396,7 +396,6 @@ export const TOOLS: Tool[] = [
 
   // ---------- CLEANUP & ENHANCE ----------
   //
-  // Each cleanup entry ends with audio-to-text. That is not padding: the
   // cleanup tools are overwhelmingly used on speech recordings, and a
   // cleaned-up recording is the input a transcript wants. It also gives
   // the transcription cluster five inbound internal links it did not
@@ -408,7 +407,7 @@ export const TOOLS: Tool[] = [
     shortDescription: "Reduce background noise with adjustable strength.",
     category: "cleanup",
     status: "live",
-    related: ["voice-clean", "silence-remove", "echo-remove", "volume", "audio-to-text"],
+    related: ["voice-clean", "silence-remove", "echo-remove", "volume"],
   },
   {
     slug: "voice-clean",
@@ -416,7 +415,7 @@ export const TOOLS: Tool[] = [
     shortDescription: "Speech-optimized cleanup: denoise, rumble cut, normalize.",
     category: "cleanup",
     status: "live",
-    related: ["noise-remove", "echo-remove", "silence-remove", "audio-to-text", "volume"],
+    related: ["noise-remove", "echo-remove", "silence-remove", "volume"],
   },
   {
     slug: "echo-remove",
@@ -424,7 +423,7 @@ export const TOOLS: Tool[] = [
     shortDescription: "Reduce mild echo and slap-back in a recording.",
     category: "cleanup",
     status: "live",
-    related: ["voice-clean", "noise-remove", "silence-remove", "volume", "audio-to-text"],
+    related: ["voice-clean", "noise-remove", "silence-remove", "volume"],
   },
   {
     slug: "silence-remove",
@@ -432,7 +431,7 @@ export const TOOLS: Tool[] = [
     shortDescription: "Strip silent gaps throughout a track, not just the ends.",
     category: "cleanup",
     status: "live",
-    related: ["silence-split", "voice-clean", "noise-remove", "trim", "audio-to-text"],
+    related: ["silence-split", "voice-clean", "noise-remove", "trim"],
   },
   {
     slug: "silence-split",
@@ -440,43 +439,10 @@ export const TOOLS: Tool[] = [
     shortDescription: "Split one long recording into separate tracks at silent gaps.",
     category: "cleanup",
     status: "live",
-    related: ["silence-remove", "trim", "voice-clean", "audio-joiner", "audio-to-text"],
+    related: ["silence-remove", "trim", "voice-clean", "audio-joiner"],
   },
 
   // ---------- TRANSCRIPTION ----------
-  {
-    slug: "audio-to-text",
-    name: "Audio to Text",
-    shortDescription: "Transcribe audio to text with timestamps, no account needed.",
-    category: "transcription",
-    status: "live",
-    // voice-clean and silence-split are the two the page copy actually
-    // recommends: clean the recording first, split it if it's over the
-    // duration cap. noise-remove replaces youtube-to-wav in the fifth slot
-    // — it's the other cleanup step people need before a usable transcript,
-    // and youtube-to-wav already has ample inbound links elsewhere.
-    related: ["youtube-to-text", "video-to-text", "voice-clean", "silence-split", "noise-remove"],
-  },
-  {
-    slug: "youtube-to-text",
-    name: "YouTube to Text",
-    shortDescription: "Paste a YouTube link and get the full transcript, even with captions off.",
-    category: "transcription",
-    status: "live",
-    // youtube-to-wav and silence-split are steps 1 and 2 of the
-    // over-the-limit workaround the page documents.
-    related: ["audio-to-text", "video-to-text", "youtube-to-wav", "silence-split", "video-to-audio"],
-  },
-  {
-    slug: "video-to-text",
-    name: "Video to Text",
-    shortDescription: "Upload a video and get a transcript or subtitle file.",
-    category: "transcription",
-    status: "live",
-    // video-to-audio is what the page tells people to use when a file is
-    // over the byte cap.
-    related: ["audio-to-text", "youtube-to-text", "video-to-audio", "voice-clean", "silence-split"],
-  },
 
   // ---------- AUDIO TO MIDI ----------
   //

@@ -225,7 +225,7 @@ export default function VoiceRecorderPage() {
             {[
               ["Remove background noise", "Room hum, fan, traffic.", "/noise-remove"],
               ["Clean up the voice", "Noise plus reverb in one pass.", "/voice-clean"],
-              ["Transcribe it", "Words with timestamps.", "/audio-to-text"],
+              ["Trim it", "Just the take you want, lossless.", "/trim"],
               ["Convert to MP3", "For sharing or a phone.", "/convert"],
             ].map(([title, desc, href]) => (
               <Link

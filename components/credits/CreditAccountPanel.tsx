@@ -173,7 +173,7 @@ export function CreditAccountPanel({
           )}
 
           <p className="mt-2 text-xs leading-relaxed text-text-subtle">
-            Credits unlock Studio Quality separation, transcription, high-accuracy MIDI and sheet music. Every
+            Credits unlock Studio Quality separation, high-accuracy MIDI and sheet music. Every
             other tool is free.
           </p>
 
