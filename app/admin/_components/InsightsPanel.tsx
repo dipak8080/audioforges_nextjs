@@ -27,7 +27,7 @@ interface Sources {
   checkouts_started: StartedRow[];
 }
 interface TopIp {
-  ip_hash: string;
+  ip_hash: string | null;
   runs: number;
   est_cost_usd: number;
   active_days: number;
@@ -247,7 +247,7 @@ export function InsightsPanel({ tick }: { tick: number }) {
                               {sourceLabel(r.source)}
                             </Badge>
                           </Td>
-                          <Td className="text-text-muted">{r.tool === "pricing" ? "Pricing page" : r.tool === "(unknown)" ? "–" : toolLabel(r.tool)}</Td>
+                          <Td className="text-text-muted">{r.tool === "pricing" ? "Pricing page" : !r.tool || r.tool === "(unknown)" ? "–" : toolLabel(r.tool)}</Td>
                           <Td right>{s ? num(s) : "–"}</Td>
                           <Td right className="font-medium text-text-primary">{num(r.orders)}</Td>
                           <Td right>{conv === null ? "–" : `${Math.min(conv, 100)}%`}</Td>
@@ -290,15 +290,16 @@ export function InsightsPanel({ tick }: { tick: number }) {
                   </thead>
                   <tbody>
                     {abuse.top.map((r, i) => {
-                      const perDay = r.runs / Math.max(1, r.active_days);
+                      const perDay = (r.runs ?? 0) / Math.max(1, r.active_days ?? 1);
                       const hot = perDay >= 10;
+                      const hash = r.ip_hash ?? "";
                       return (
-                        <Tr key={r.ip_hash}>
+                        <Tr key={hash || `unknown-${i}`}>
                           <Td>
                             <span className="inline-flex items-center gap-2">
                               <span className="w-4 text-right font-mono text-[11px] text-text-subtle">{i + 1}</span>
-                              <span className="font-mono text-[12px] text-text-muted" title={r.ip_hash}>
-                                {r.ip_hash.slice(0, 10)}
+                              <span className="font-mono text-[12px] text-text-muted" title={hash || "Recorded before IP hashing"}>
+                                {hash ? hash.slice(0, 10) : "unrecorded"}
                               </span>
                               {hot && <Badge tone="bad">{Math.round(perDay)}/day</Badge>}
                             </span>
@@ -307,7 +308,7 @@ export function InsightsPanel({ tick }: { tick: number }) {
                           <Td right>{num(r.active_days)}</Td>
                           <Td className="text-text-muted">
                             <span className="block max-w-[180px] truncate" title={r.tools ?? ""}>
-                              {(r.tools ?? "").split(",").filter(Boolean).map(toolLabel).join(", ")}
+                              {String(r.tools ?? "").split(",").filter(Boolean).map((t) => toolLabel(t)).join(", ")}
                             </span>
                           </Td>
                           <Td right>{money(r.est_cost_usd, 2)}</Td>
@@ -329,7 +330,7 @@ export function InsightsPanel({ tick }: { tick: number }) {
           <div>
             <p className="text-sm font-semibold">Monthly net</p>
             <p className="mt-0.5 text-[11px] text-text-subtle">
-              Revenue minus metered GPU cost minus fixed cost (${monthly?.fixed_cost_usd.toFixed(2)} a month, set in Config). GPU is the metering floor, not the RunPod invoice.
+              Revenue minus metered GPU cost minus fixed cost ({money(monthly?.fixed_cost_usd, 2)} a month, set in Config). GPU is the metering floor, not the RunPod invoice.
             </p>
           </div>
           {monthly && (
