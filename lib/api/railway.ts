@@ -7,6 +7,7 @@
 // fits the shared job helpers below. They still reuse fetchWithTimeout and
 // readRetryAfter from here, which is why those two are exported.
 
+import { requestTurnstile } from "@/lib/security/turnstile";
 import type {
   DownloadResponse,
   AnalyzeResponse,
@@ -238,6 +239,28 @@ export async function fetchWithTimeout(
   try {
     // Spread order matters: the internal signal MUST overwrite whatever
     // came in on init, or the timeout silently stops working.
+    const res = await fetch(input, { ...init, signal: controller.signal });
+    if (res.status !== 428) return res;
+    // Turnstile: the backend wants a human check before a free GPU run.
+    // Solve it in the sitewide modal, register the pass, and replay the
+    // exact same request once. Bodies here are FormData or strings, so a
+    // replay is safe.
+    const body = await res.clone().json().catch(() => null);
+    if (body?.detail?.error !== "turnstile_required") return res;
+    try {
+      const token = await requestTurnstile();
+      const verify = await fetch(`${RAILWAY_API_BASE}/credits/turnstile/verify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ token }),
+        signal: controller.signal,
+      });
+      if (!verify.ok) return res;
+    } catch (e) {
+      if ((e as Error)?.name === "AbortError") throw e;
+      return res;
+    }
     return await fetch(input, { ...init, signal: controller.signal });
   } catch (err) {
     if ((err as Error)?.name === "AbortError") {

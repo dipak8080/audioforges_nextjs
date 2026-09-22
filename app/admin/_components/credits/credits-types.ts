@@ -1,6 +1,6 @@
-import { Clock, Coins, Inbox, Lock, Search, ShoppingBag, SlidersHorizontal, Wallet, Zap } from "lucide-react";
+import { Clock, Coins, Inbox, Lock, Search, ShoppingBag, SlidersHorizontal, TrendingUp, Wallet, Zap } from "lucide-react";
 
-export type View = "lookup" | "overview" | "orders" | "costs" | "jobs" | "gate" | "webhooks" | "settings";
+export type View = "lookup" | "overview" | "orders" | "costs" | "jobs" | "gate" | "webhooks" | "insights" | "settings";
 
 export interface Overview {
   paywall?: {
@@ -51,6 +51,7 @@ export const VIEWS: { id: View; label: string; hint: string; icon: typeof Coins 
   { id: "jobs", label: "Jobs", hint: "Every GPU job with its cost and charge", icon: Clock },
   { id: "gate", label: "Gate", hint: "Who hit the paywall and what they did next", icon: Lock },
   { id: "webhooks", label: "Payments", hint: "Ko-fi payment deliveries", icon: Inbox },
+  { id: "insights", label: "Insights", hint: "Where sales come from, who eats the free tier, monthly net", icon: TrendingUp },
   { id: "settings", label: "Config", hint: "Runtime limits and flags, no redeploy", icon: SlidersHorizontal },
 ];
 

@@ -61,6 +61,10 @@ const READ_VIEWS = {
    * Render the panel from this payload, never from a TS mirror of
    * KNOWN_KEYS. It carries `type` and `group` per key for exactly that.
    */
+  /** Insights view: attribution, free-tier concentration, monthly net. */
+  sources: "/admin/credits/sources",
+  abuse: "/admin/credits/abuse",
+  monthly: "/admin/credits/monthly",
   settings: "/admin/credits/settings",
   settings_audit: "/admin/credits/settings/audit",
 } as const;
@@ -123,6 +127,7 @@ export async function GET(request: NextRequest) {
   // a caller reach parameters this proxy has never seen.
   for (const key of [
     "days",
+    "months",
     "limit",
     "offset",
     "email",

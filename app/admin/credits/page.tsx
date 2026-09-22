@@ -6,6 +6,7 @@ import { Coins } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { RefreshControl } from "../_components/RefreshControl";
 import { GatePanel } from "../_components/GatePanel";
+import { InsightsPanel } from "../_components/InsightsPanel";
 import { OrdersPanel } from "../_components/OrdersPanel";
 import { SettingsPanel } from "../_components/SettingsPanel";
 import { AUTO_MS, VIEWS } from "../_components/credits/credits-types";
@@ -177,6 +178,8 @@ function AdminCreditsPage() {
           <OrdersPanel tick={tick} onOpenCustomer={goToCustomer} />
         ) : view === "gate" ? (
           <GatePanel tick={tick} />
+        ) : view === "insights" ? (
+          <InsightsPanel tick={tick} />
         ) : view === "settings" ? (
           <SettingsPanel tick={tick} onToast={push} />
         ) : (

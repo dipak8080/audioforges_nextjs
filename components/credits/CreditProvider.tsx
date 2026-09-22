@@ -11,6 +11,7 @@ import {
 } from "react";
 import { getCreditsMe } from "@/lib/api/credits";
 import { captureOriginFromUrl } from "@/lib/credits/purchase-source";
+import { TurnstileGate } from "@/components/security/TurnstileGate";
 import {
   findSharedAllowance,
   toSharedAllowance,
@@ -382,5 +383,10 @@ export function CreditProvider({
     };
   }, [enabled, me, loading, refresh, applyBalance, sharedLimits]);
 
-  return <CreditContext.Provider value={value}>{children}</CreditContext.Provider>;
+  return (
+    <CreditContext.Provider value={value}>
+      {children}
+      <TurnstileGate />
+    </CreditContext.Provider>
+  );
 }
