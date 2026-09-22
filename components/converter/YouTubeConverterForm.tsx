@@ -18,6 +18,7 @@ import {
   type ProcessingStage,
 } from "@/components/tools/JobFormKit";
 import { ControlField } from "@/components/converter/ToolControls";
+import { StudioStage, type StageTier } from "@/components/tools/StudioStage";
 import { FormatSelector } from "@/components/ui/FormatSelector";
 import { Waveform } from "@/components/ui/Waveform";
 import { AudioPlayer } from "@/components/ui/AudioPlayer";
@@ -99,6 +100,50 @@ import { markOpusUnsupported, pickSourceCodec, sourceToWav, type SourceCodec } f
  */
 
 /** Single source of truth for format copy lives in FORMAT_OPTIONS. */
+const DOWNLOAD_RATE_LABEL = getRateLimitLabel("download");
+
+const TIERS: StageTier<"free">[] = [
+  {
+    value: "free",
+    name: "Free",
+    model: "WAV · MP3",
+    time: "under a minute",
+    footnote: DOWNLOAD_RATE_LABEL ?? undefined,
+  },
+];
+
+// Same deterministic strip the other stage forms draw while busy.
+const BUSY_BARS = Array.from({ length: 260 }, (_, i) => {
+  const t = i / 260;
+  const env = 0.45 + 0.55 * Math.pow(Math.sin(t * Math.PI), 0.5);
+  const a = Math.abs(Math.sin(i * 1.93 + 0.7));
+  const b = Math.abs(Math.cos(i * 0.71 + 2.1));
+  const c = Math.abs(Math.sin(i * 0.13));
+  return Math.max(0.05, env * (0.12 + (a * 0.45 + b * 0.35) * (0.5 + c * 0.5)));
+});
+
+// Right pane of the idle stage. Facts only; Output follows the selector.
+function ConverterAside({ format }: { format: OutputFormat }) {
+  const rows: Array<[string, string]> = [
+    ["Output", formatOption(format).spec ?? formatOption(format).label],
+    ["Source", "YouTube's own audio stream"],
+    ["Works", "Watch links, youtu.be and Shorts"],
+    ["Free", "No account, nothing to install"],
+  ];
+  return (
+    <div className="flex h-full flex-col justify-center gap-3.5 px-5 py-6 sm:px-7">
+      {rows.map(([label, value]) => (
+        <div key={label} className="flex items-baseline gap-3">
+          <span className="w-20 shrink-0 font-mono text-[11px] uppercase tracking-[0.16em] text-text-subtle">
+            {label}
+          </span>
+          <span className="text-sm leading-snug text-text-primary">{value}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function formatOption(value: OutputFormat) {
   return FORMAT_OPTIONS.find((o) => o.value === value) ?? FORMAT_OPTIONS[0];
 }
@@ -269,9 +314,11 @@ interface YouTubeConverterFormProps {
    * decides they want WAV can still switch, and vice versa.
    */
   defaultFormat?: OutputFormat;
+  /** Renders the StudioStage skin instead of the form shell. Same engine. */
+  stage?: boolean;
 }
 
-export function YouTubeConverterForm({ defaultFormat = "wav" }: YouTubeConverterFormProps = {}) {
+export function YouTubeConverterForm({ defaultFormat = "wav", stage = false }: YouTubeConverterFormProps = {}) {
   const [url, setUrl] = useState("");
   const [format, setFormat] = useState<OutputFormat>(defaultFormat);
   const [status, setStatus] = useState<ProcessingState>("idle");
@@ -752,6 +799,261 @@ export function YouTubeConverterForm({ defaultFormat = "wav" }: YouTubeConverter
       <CooldownBar seconds={cooldownSeconds} ceiling={cooldownCeiling} />
     </div>
   );
+
+  if (stage) {
+    const idle = (
+      <div>
+        <label htmlFor="youtube-url" className="display block text-5xl text-text-primary sm:text-6xl">
+          Paste a link
+        </label>
+
+        <div className="relative mt-5 flex items-center">
+          <Link2
+            className={cn(
+              "pointer-events-none absolute left-4 h-4 w-4 transition-colors",
+              videoId ? "text-amber-500" : "text-text-subtle"
+            )}
+            aria-hidden
+          />
+          <input
+            ref={inputRef}
+            id="youtube-url"
+            type="url"
+            value={url}
+            onChange={handleUrlChange}
+            onKeyDown={handleKeyDown}
+            placeholder="https://youtube.com/watch?v=..."
+            disabled={isProcessing}
+            autoComplete="off"
+            spellCheck={false}
+            maxLength={500}
+            aria-invalid={Boolean(validationError)}
+            aria-describedby={validationError ? "url-error" : "url-hint"}
+            className={cn(
+              "w-full rounded-lg border bg-graphite-950/60 py-3.5 pl-11 pr-24 text-sm text-text-primary transition-colors placeholder:text-text-subtle focus:outline-none focus:ring-2 disabled:opacity-50",
+              validationError
+                ? "border-red-500/60 focus:ring-red-500/25"
+                : videoId
+                  ? "border-amber-500/40 focus:ring-amber-500/20"
+                  : "border-graphite-700 focus:border-amber-500/50 focus:ring-amber-500/20"
+            )}
+          />
+          <div className="absolute right-2.5 flex items-center gap-1">
+            {url && !isProcessing && (
+              <button
+                type="button"
+                onClick={handleClearUrl}
+                aria-label="Clear link"
+                className="rounded-md p-1.5 text-text-subtle transition-colors hover:bg-graphite-800 hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+            {!url && (
+              <button
+                type="button"
+                onClick={handlePaste}
+                disabled={isProcessing}
+                className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-text-muted transition-colors hover:bg-graphite-800 hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40 disabled:pointer-events-none disabled:opacity-40"
+              >
+                <ClipboardPaste className="h-3.5 w-3.5" />
+                Paste
+              </button>
+            )}
+          </div>
+        </div>
+
+        {validationError ? (
+          <p id="url-error" role="alert" className="mt-3 flex items-center gap-1.5 text-sm text-red-400">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            {validationError}
+          </p>
+        ) : preview && !isProcessing ? (
+          <div className="mt-3 flex items-center gap-3 rounded-lg border border-graphite-800 bg-graphite-850/60 p-2 pr-3">
+            <div className="relative h-10 w-[4.5rem] shrink-0 overflow-hidden rounded bg-graphite-800">
+              {!thumbFailed && (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img
+                  src={`https://i.ytimg.com/vi/${preview.id}/mqdefault.jpg`}
+                  alt=""
+                  className="h-full w-full object-cover"
+                  onError={() => setThumbFailed(true)}
+                  loading="lazy"
+                />
+              )}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium text-text-primary">
+                {preview.title || "Video ready to convert"}
+              </p>
+              <p className="truncate text-xs text-text-muted">{preview.author || preview.id}</p>
+            </div>
+            <CheckCircle2 className="h-4 w-4 shrink-0 text-teal-400" aria-hidden />
+          </div>
+        ) : (
+          <p id="url-hint" className="mt-4 font-mono text-[11px] uppercase tracking-[0.16em] text-text-subtle">
+            Watch links · youtu.be · Shorts
+          </p>
+        )}
+      </div>
+    );
+
+    const busyView = (fraction: number) => (
+      <div className="flex h-44 flex-col px-5 py-4 sm:h-52 sm:px-7 lg:h-56">
+        <p className="truncate text-sm font-medium text-text-primary">
+          {localPhase ?? stages[stageIndex]?.label ?? "Converting"}
+        </p>
+        <div className="relative mt-3 min-h-0 flex-1" aria-hidden>
+          <div className="absolute inset-0 flex items-center gap-px">
+            {BUSY_BARS.map((h, i) => (
+              <span
+                key={i}
+                className={cn(
+                  "flex-1 transition-colors duration-700",
+                  i % 2 === 1 && "max-sm:hidden",
+                  i / BUSY_BARS.length < fraction ? "bg-amber-500" : "bg-graphite-600"
+                )}
+                style={{ height: `${h * 100}%` }}
+              />
+            ))}
+          </div>
+          <span
+            className="absolute inset-y-0 w-px bg-amber-400 shadow-[0_0_12px_rgba(232,162,61,0.8)] transition-[left] duration-1000 ease-out motion-reduce:transition-none"
+            style={{ left: `${fraction * 100}%` }}
+          />
+        </div>
+      </div>
+    );
+
+    const resultNode =
+      isComplete && result ? (
+        <div className="space-y-4" role="status" aria-live="polite">
+          <div className="overflow-hidden rounded-xl border border-teal-400/25 bg-teal-400/[0.07]">
+            <div className="flex items-start gap-3 p-4">
+              {resultThumbId && !thumbFailed ? (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img
+                  src={`https://i.ytimg.com/vi/${resultThumbId}/mqdefault.jpg`}
+                  alt=""
+                  onError={() => setThumbFailed(true)}
+                  className="h-12 w-20 shrink-0 rounded object-cover"
+                />
+              ) : (
+                <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-teal-400" aria-hidden />
+              )}
+
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-mono text-sm text-text-primary">{result.filename}</p>
+                <p className="mt-1 font-mono text-[11px] text-text-subtle">
+                  {formatOption(result.format).spec}
+                  {result.sizeBytes !== undefined ? ` · ${formatBytes(result.sizeBytes)}` : ""}
+                  {previewDuration ? ` · ${formatElapsed(Math.round(previewDuration))}` : ""}
+                </p>
+              </div>
+
+              <span
+                className={cn(
+                  "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider",
+                  hasDownloaded ? "bg-teal-400/15 text-teal-300" : "bg-amber-500/15 text-amber-400"
+                )}
+              >
+                {hasDownloaded ? "Saved" : "Not saved"}
+              </span>
+            </div>
+
+            <div className="border-t border-teal-400/15 px-4 py-3">
+              <AudioPlayer
+                src={result.localUrl ?? inlineDownloadUrl(result.href)}
+                onDuration={setPreviewDuration}
+                className="border-0 bg-transparent p-0"
+              />
+            </div>
+          </div>
+
+          <div ref={downloadSlotRef}>
+            <Button
+              variant="primary"
+              size="lg"
+              className="w-full sm:w-auto sm:min-w-56"
+              loading={refreshing}
+              loadingLabel="Refreshing the link"
+              onClick={() => void handleDownload()}
+            >
+              <Download />
+              {hasDownloaded ? "Download again" : `Download ${formatOption(result.format).label}`}
+            </Button>
+          </div>
+
+          <YouTubeVocalFunnel
+            key={result.href}
+            url={url.trim()}
+            title={preview?.title ?? null}
+            onWide={setFunnelWide}
+          />
+
+          <SupportBlock />
+        </div>
+      ) : undefined;
+
+    return (
+      <StudioStage
+        label="YouTube to audio"
+        custom={{
+          ready: Boolean(videoId) && !validationError,
+          idle,
+          busy: busyView,
+          idleActionLabel: "Paste a link",
+          onIdleAction: handlePaste,
+        }}
+        onClear={handleReset}
+        tiers={TIERS}
+        tier="free"
+        onTierChange={() => {}}
+        jobTier="free"
+        aside={<ConverterAside format={format} />}
+        tray={
+          <ControlField as="fieldset" label="Output format">
+            <FormatSelector
+              options={FORMAT_OPTIONS}
+              value={format}
+              onChange={setFormat}
+              disabled={isProcessing}
+            />
+          </ControlField>
+        }
+        busy={isProcessing}
+        failed={isFailed}
+        progress={easedProgress(elapsedSeconds, 16)}
+        stageLabel={localPhase ?? stages[stageIndex]?.label ?? "Converting"}
+        elapsed={formatElapsed(elapsedSeconds)}
+        onCancel={handleCancel}
+        actionLabel={
+          cooldownSeconds > 0
+            ? `Try again in ${formatCooldown(cooldownSeconds)}`
+            : isFailed
+              ? "Try again"
+              : `Convert to ${formatOption(format).label}`
+        }
+        actionIcon={<Download />}
+        actionDisabled={!canConvert || isProcessing}
+        onAction={() => void handleConvert()}
+        belowAction={<CooldownBar seconds={cooldownSeconds} ceiling={cooldownCeiling} />}
+        result={resultNode}
+        doneTitle={preview?.title ?? result?.filename ?? "Your file is ready"}
+        doneMeta={result ? formatOption(result.format).spec : undefined}
+        resetLabel="Convert another"
+        labels={{ working: "Converting" }}
+        note={
+          isFailed && error ? (
+            <div className="space-y-4">
+              <ErrorPanel error={error} />
+              <SupportBlock mood="sheepish" />
+            </div>
+          ) : undefined
+        }
+      />
+    );
+  }
 
   return (
     <FormShell

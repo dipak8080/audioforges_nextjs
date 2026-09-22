@@ -219,6 +219,7 @@ export default function YouTubeToMp3Page() {
       />
 
       <ToolPageShell
+        wide
         breadcrumb={
           <Breadcrumb items={[{ name: "Tools", href: "/tools" }, { name: "YouTube to MP3" }]} />
         }
@@ -228,7 +229,7 @@ export default function YouTubeToMp3Page() {
         /* defaultFormat="mp3" — without it the form loads with WAV preselected
            and the page promises something the tool doesn't offer on arrival.
            See YouTubeConverterForm's prop. */
-        tool={<YouTubeConverterForm defaultFormat="mp3" />}
+        tool={<YouTubeConverterForm defaultFormat="mp3" stage />}
       >
         <ProofStrip
           proofs={[

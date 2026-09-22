@@ -205,13 +205,14 @@ export default async function YouTubeToWavPage() {
       />
 
       <ToolPageShell
+        wide
         breadcrumb={
           <Breadcrumb items={[{ name: "Tools", href: "/tools" }, { name: "YouTube to WAV" }]} />
         }
         meta={["No account", "No watermark", "Lossless WAV"]}
         title="Free YouTube to WAV Converter"
         lede="Paste a link and download lossless WAV audio in seconds. No sign-up, no watermark, no app to install."
-        tool={<YouTubeConverterForm />}
+        tool={<YouTubeConverterForm stage />}
       >
         <ProofStrip
           proofs={[
