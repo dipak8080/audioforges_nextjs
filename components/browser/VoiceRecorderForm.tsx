@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { encodeWav } from "@/lib/audio/mix-export";
 import { Mic, Square, Play, Pause, Download, RotateCcw, AlertTriangle } from "lucide-react";
 import { Button, buttonStyles } from "@/components/ui/Button";
+import { cn } from "@/lib/utils/cn";
 
 type RecorderState = "idle" | "requesting" | "recording" | "stopped" | "denied" | "unsupported";
 
@@ -13,10 +14,8 @@ function formatTime(seconds: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
-// Picks the first mimeType the browser's MediaRecorder actually supports,
-// preferring formats that produce smaller files and wider compatibility.
-// Different browsers support different subsets (Safari in particular is
-// far more limited than Chrome/Firefox), so this can't be hardcoded.
+// First mimeType the browser's MediaRecorder actually supports; Safari's
+// set is far smaller than Chrome/Firefox's, so this can't be hardcoded.
 function pickSupportedMimeType(): string | null {
   const candidates = [
     "audio/webm;codecs=opus",
@@ -36,6 +35,28 @@ function extensionForMimeType(mimeType: string): string {
   if (mimeType.includes("mp4")) return "m4a";
   if (mimeType.includes("ogg")) return "ogg";
   return "webm";
+}
+
+// Right pane of the idle stage. Facts only.
+function RecorderAside() {
+  const rows: Array<[string, string]> = [
+    ["Private", "Nothing is uploaded, the audio never leaves your device"],
+    ["Saves", "WAV, plus the browser's native WebM or M4A"],
+    ["Meter", "Live input level while you record"],
+    ["Free", "No account, nothing to install"],
+  ];
+  return (
+    <div className="flex h-full flex-col justify-center gap-3.5 px-5 py-6 sm:px-7">
+      {rows.map(([label, value]) => (
+        <div key={label} className="flex items-baseline gap-3">
+          <span className="w-20 shrink-0 font-mono text-[11px] uppercase tracking-[0.16em] text-text-subtle">
+            {label}
+          </span>
+          <span className="text-sm leading-snug text-text-primary">{value}</span>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 export function VoiceRecorderForm() {
@@ -77,14 +98,8 @@ export function VoiceRecorderForm() {
     }
   };
 
-  /**
-   * Declared after stopTimer/stopLevelMeter so it isn't reaching values from
-   * further down the file.
-   *
-   * `audioUrl` is read through a ref rather than listed as a dependency: the
-   * cleanup must run ONCE, on unmount, and depending on the URL would tear the
-   * recorder down every time a new one was created.
-   */
+  // Cleanup must run once, on unmount; the URL is read through a ref so a
+  // new recording doesn't tear the recorder down.
   const audioUrlRef = useRef<string | null>(null);
   useEffect(() => {
     audioUrlRef.current = audioUrl;
@@ -100,9 +115,8 @@ export function VoiceRecorderForm() {
     };
   }, []);
 
-  // Live input-level bars while recording - purely visual feedback so the
-  // person can see the mic is actually picking up sound, not a waveform
-  // of the final recording.
+  // Live input-level bars: feedback that the mic is picking up sound, not
+  // a waveform of the final recording.
   const startLevelMeter = (stream: MediaStream) => {
     const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
     const ctx = new Ctx();
@@ -198,17 +212,9 @@ export function VoiceRecorderForm() {
 
   const downloadFilename = mimeType ? `recording.${extensionForMimeType(mimeType)}` : "recording.webm";
 
-  /*
-    WAV EXPORT. MediaRecorder hands back whatever the browser encodes natively:
-    WebM/Opus on Chrome and Firefox, M4A on Safari. Neither opens in most DAWs
-    or in Windows without help, which is what people recording a voice memo
-    actually need next.
-
-    Decoding the blob and re-encoding with encodeWav (the same encoder Forge
-    Mixer uses) runs entirely in the page, so the "nothing is uploaded" claim
-    on this tool stays literally true. It is lossy-to-PCM, not a quality gain:
-    the WAV is a lossless container around audio Opus already compressed.
-  */
+  // Decode + re-encode with encodeWav runs entirely in the page, so the
+  // "nothing is uploaded" claim stays literally true. Lossy-to-PCM, not a
+  // quality gain.
   const handleWavExport = async () => {
     if (!audioUrl || wavBusy) return;
     setWavBusy(true);
@@ -234,9 +240,18 @@ export function VoiceRecorderForm() {
     }
   };
 
+  const recording = state === "recording";
+  const stopped = state === "stopped" && Boolean(audioUrl);
+
+  const led = stopped
+    ? "bg-teal-400"
+    : recording
+      ? "bg-red-500 animate-pulse"
+      : "bg-graphite-600";
+
   if (state === "unsupported") {
     return (
-      <div className="rounded-2xl border border-graphite-800 bg-graphite-900 p-6 sm:p-8">
+      <div className="surface grain rounded-2xl border border-graphite-800 p-6 sm:p-8">
         <div className="flex items-center gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3">
           <AlertTriangle className="h-4 w-4 shrink-0 text-red-500" />
           <span className="text-sm text-text-primary">
@@ -248,129 +263,166 @@ export function VoiceRecorderForm() {
   }
 
   return (
-    <div className="rounded-2xl border border-graphite-800 bg-graphite-900 p-6 sm:p-8 space-y-6">
+    <div className="surface grain overflow-clip rounded-2xl border border-graphite-800">
+      <div className="flex min-h-14 items-center justify-between gap-3 border-b border-graphite-800 px-4 py-2.5 sm:px-7">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", led)} aria-hidden />
+          {stopped ? (
+            <>
+              <span className="shrink-0 font-mono text-[11px] font-medium uppercase tracking-[0.18em] text-teal-400">
+                Done
+              </span>
+              <span className="truncate text-sm text-text-primary">Your recording</span>
+            </>
+          ) : (
+            <span className="truncate font-mono text-[11px] font-medium uppercase tracking-[0.18em] text-text-muted">
+              Voice recorder
+            </span>
+          )}
+        </div>
+        <span className={cn("shrink-0 font-mono text-[11px] tabular-nums", recording ? "text-red-400" : "text-text-subtle")}>
+          {recording
+            ? `REC ${formatTime(elapsedSeconds)}`
+            : stopped
+              ? `${formatTime(elapsedSeconds)} · in your browser`
+              : "Free · In your browser"}
+        </span>
+      </div>
+
       {state === "denied" && (
-        <div className="flex items-center gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3">
-          <AlertTriangle className="h-4 w-4 shrink-0 text-red-500" />
-          <span className="text-sm text-text-primary">
-            Microphone access was denied or unavailable. Check your browser&apos;s site permissions and try again.
-          </span>
+        <div className="border-b border-graphite-800 px-4 py-3 sm:px-7">
+          <div className="flex items-center gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3">
+            <AlertTriangle className="h-4 w-4 shrink-0 text-red-500" />
+            <span className="text-sm text-text-primary">
+              Microphone access was denied or unavailable. Check your browser&apos;s site permissions and try again.
+            </span>
+          </div>
         </div>
       )}
 
       {(state === "idle" || state === "requesting" || state === "denied") && (
-        <div className="flex flex-col items-center gap-4 py-8">
-          {/* NOT a <Button>: this and the stop/play controls below are
-              circular transport buttons at h-20/h-16/h-12. Button's sizes
-              are rectangular and capped at h-12, so fitting them would
-              mean overriding height, width, radius and padding - nothing
-              of the component would survive. If these three ever need to
-              agree with each other, that's a PlayButton component, not
-              this one. */}
+        <div className="grid lg:h-56 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
           <button
             type="button"
             onClick={handleStart}
             disabled={state === "requesting"}
-            className="flex h-20 w-20 items-center justify-center rounded-full bg-amber-500 text-graphite-950 shadow-[inset_0_1px_0_rgba(255,255,255,0.25)] transition-colors hover:bg-amber-400 active:bg-amber-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-graphite-900 disabled:pointer-events-none disabled:opacity-50"
-            aria-label="Start recording"
+            className="group flex items-center justify-between gap-5 px-5 py-8 text-left outline-none transition-colors hover:bg-white/[0.015] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-amber-400/60 disabled:pointer-events-none sm:px-7 lg:py-0"
           >
-            <Mic className="h-8 w-8" />
+            <span>
+              <span className="display block text-5xl text-text-primary sm:text-6xl">Record</span>
+              <span className="mt-4 block text-sm text-text-muted">
+                {state === "requesting" ? "Requesting microphone access…" : "Tap to start. Stop whenever you like."}
+              </span>
+            </span>
+            <span
+              aria-hidden
+              className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-amber-500 text-graphite-950 shadow-[inset_0_1px_0_rgba(255,255,255,0.25)] transition-colors group-hover:bg-amber-400 group-active:bg-amber-600 group-disabled:opacity-50"
+            >
+              <Mic className="h-8 w-8" />
+            </span>
           </button>
-          <p className="text-sm text-text-muted">
-            {state === "requesting" ? "Requesting microphone access…" : "Tap to start recording"}
-          </p>
+
+          <div className="border-t border-graphite-800 bg-graphite-950/30 lg:border-l lg:border-t-0">
+            <RecorderAside />
+          </div>
         </div>
       )}
 
-      {state === "recording" && (
-        <div className="flex flex-col items-center gap-4 py-6">
-          <div className="flex h-16 items-end gap-1">
+      {recording && (
+        <>
+          <div className="flex h-44 items-end gap-1 px-4 pb-4 pt-6 sm:h-52 sm:px-7 lg:h-56">
             {levels.map((level, i) => (
               <span
                 key={i}
-                className="w-1.5 rounded-full bg-amber-500 transition-all duration-75"
+                className="flex-1 rounded-full bg-amber-500 transition-all duration-75"
                 style={{ height: `${level * 100}%` }}
               />
             ))}
           </div>
-          <p className="text-2xl font-mono font-bold text-text-primary tabular-nums">
-            {formatTime(elapsedSeconds)}
-          </p>
-          <button
-            type="button"
-            onClick={handleStop}
-            className="flex h-16 w-16 items-center justify-center rounded-full bg-red-500 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.15)] transition-colors hover:bg-red-400 active:bg-red-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-graphite-900"
-            aria-label="Stop recording"
-          >
-            <Square className="h-6 w-6" fill="currentColor" />
-          </button>
-          <p className="text-sm text-text-muted">Recording…</p>
-        </div>
-      )}
-
-      {state === "stopped" && audioUrl && (
-        <div className="space-y-4">
-          <audio
-            ref={audioElRef}
-            src={audioUrl}
-            onPlay={() => setIsPlaying(true)}
-            onPause={() => setIsPlaying(false)}
-            onEnded={() => setIsPlaying(false)}
-          />
-
-          <div className="flex items-center gap-4 rounded-lg border border-graphite-700 bg-graphite-850 p-4">
+          <div className="flex items-center justify-between gap-4 border-t border-graphite-800 bg-graphite-950/40 px-4 py-3 sm:px-7">
+            <p className="font-mono text-2xl font-bold tabular-nums text-text-primary">
+              {formatTime(elapsedSeconds)}
+            </p>
             <button
               type="button"
-              onClick={togglePlayback}
-              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-amber-500 text-graphite-950 shadow-[inset_0_1px_0_rgba(255,255,255,0.25)] transition-colors hover:bg-amber-400 active:bg-amber-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-graphite-850"
-              aria-label={isPlaying ? "Pause" : "Play"}
+              onClick={handleStop}
+              className="flex h-12 items-center gap-2.5 rounded-full bg-red-500 px-6 text-sm font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.15)] transition-colors hover:bg-red-400 active:bg-red-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-graphite-900"
             >
-              {isPlaying ? <Pause className="h-5 w-5" fill="currentColor" /> : <Play className="h-5 w-5 ml-0.5" fill="currentColor" />}
+              <Square className="h-4 w-4" fill="currentColor" aria-hidden />
+              Stop recording
             </button>
-            <div className="flex-1">
-              <p className="text-sm font-medium text-text-primary">Your recording</p>
-              <p className="text-xs font-mono text-text-subtle tabular-nums">{formatTime(elapsedSeconds)} long</p>
+          </div>
+        </>
+      )}
+
+      {stopped && audioUrl && (
+        <>
+          <div className="space-y-4 p-4 sm:p-7">
+            <audio
+              ref={audioElRef}
+              src={audioUrl}
+              onPlay={() => setIsPlaying(true)}
+              onPause={() => setIsPlaying(false)}
+              onEnded={() => setIsPlaying(false)}
+            />
+
+            <div className="flex items-center gap-4 rounded-xl border border-graphite-700 bg-graphite-950/40 p-4">
+              <button
+                type="button"
+                onClick={togglePlayback}
+                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-amber-500 text-graphite-950 shadow-[inset_0_1px_0_rgba(255,255,255,0.25)] transition-colors hover:bg-amber-400 active:bg-amber-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-graphite-900"
+                aria-label={isPlaying ? "Pause" : "Play"}
+              >
+                {isPlaying ? <Pause className="h-5 w-5" fill="currentColor" /> : <Play className="h-5 w-5 ml-0.5" fill="currentColor" />}
+              </button>
+              <div className="flex-1">
+                <p className="text-sm font-medium text-text-primary">Your recording</p>
+                <p className="font-mono text-xs tabular-nums text-text-subtle">{formatTime(elapsedSeconds)} long</p>
+              </div>
             </div>
+
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <a
+                href={audioUrl}
+                download={downloadFilename}
+                className={buttonStyles({ size: "lg", className: "flex-1" })}
+              >
+                <Download />
+                Download recording
+              </a>
+              <Button
+                variant="outline"
+                size="lg"
+                className="flex-1"
+                onClick={handleWavExport}
+                disabled={wavBusy}
+              >
+                <Download />
+                {wavBusy ? "Converting to WAV…" : "Download as WAV"}
+              </Button>
+            </div>
+
+            {wavError && (
+              <p className="text-xs text-red-400">
+                WAV conversion failed in this browser. The other download still works.
+              </p>
+            )}
           </div>
 
-          {/* Stays an <a> - a real object URL, so it can be middle-clicked
-              and opened in a new tab. Borrows the Button's styles rather
-              than repeating them. */}
-          <a
-            href={audioUrl}
-            download={downloadFilename}
-            className={buttonStyles({ size: "lg", className: "w-full" })}
-          >
-            <Download />
-            Download recording
-          </a>
-
-          <Button
-            variant="outline"
-            size="md"
-            className="w-full"
-            onClick={handleWavExport}
-            disabled={wavBusy}
-          >
-            <Download />
-            {wavBusy ? "Converting to WAV…" : "Download as WAV"}
-          </Button>
-
-          {wavError && (
-            <p className="text-center text-xs text-red-400">
-              WAV conversion failed in this browser. The download above still works.
+          <div className="flex flex-col gap-3 border-t border-graphite-800 bg-graphite-950/40 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-7">
+            <button
+              type="button"
+              onClick={handleReset}
+              className="flex items-center gap-2 self-start rounded text-sm text-text-muted outline-none transition-colors hover:text-text-primary focus-visible:ring-2 focus-visible:ring-amber-400/70"
+            >
+              <RotateCcw className="h-3.5 w-3.5" aria-hidden />
+              Record another
+            </button>
+            <p className="text-xs text-text-subtle">
+              Both downloads are made in your browser. Nothing is ever uploaded anywhere.
             </p>
-          )}
-
-          <Button variant="outline" size="md" className="w-full" onClick={handleReset}>
-            <RotateCcw />
-            Record another
-          </Button>
-
-          <p className="text-xs text-text-subtle text-center">
-            Both downloads are made in your browser. Nothing is ever uploaded anywhere.
-          </p>
-        </div>
+          </div>
+        </>
       )}
     </div>
   );

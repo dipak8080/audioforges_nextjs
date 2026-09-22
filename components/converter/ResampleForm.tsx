@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { JobToolForm } from "@/components/converter/JobToolForm";
+import type { StageTier } from "@/components/tools/StudioStage";
 import {
   ControlField,
   Hint,
@@ -58,6 +59,37 @@ const SAMPLE_RATES: RateSpec[] = [
 ];
 
 const BIT_DEPTHS = [16, 24, 32] as const;
+
+const TIERS: StageTier<"free">[] = [
+  {
+    value: "free",
+    name: "Free",
+    model: "ffmpeg",
+    time: "a few seconds",
+  },
+];
+
+// Right pane of the idle stage. Facts only.
+function ResampleAside() {
+  const rows: Array<[string, string]> = [
+    ["Rates", "Six targets, 8 kHz up to 96 kHz"],
+    ["Depth", "16, 24 or 32-bit on WAV and AIFF"],
+    ["Reads", "Shows your file's current rate before you convert"],
+    ["Free", "No account, nothing to install"],
+  ];
+  return (
+    <div className="flex h-full flex-col justify-center gap-3.5 px-5 py-6 sm:px-7">
+      {rows.map(([label, value]) => (
+        <div key={label} className="flex items-baseline gap-3">
+          <span className="w-20 shrink-0 font-mono text-[11px] uppercase tracking-[0.16em] text-text-subtle">
+            {label}
+          </span>
+          <span className="text-sm leading-snug text-text-primary">{value}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
 const BIT_DEPTH_NOTES: Record<number, string> = {
   16: "~96 dB dynamic range — CD standard",
   24: "~144 dB — studio/mastering headroom",
@@ -239,58 +271,67 @@ export function ResampleForm() {
         if (bitDepth !== null) fields.bit_depth = String(bitDepth);
         return fields;
       }}
-      renderControls={(file, disabled) => (
-        <div className="space-y-5">
-          <FileProbe file={file} onProbe={setFileInfo} />
+      stage={{
+        tiers: TIERS,
+        tier: "free",
+        onTierChange: () => {},
+        dropTitle: "Drop a file",
+        aside: <ResampleAside />,
+        downloadLabel: "Download",
+        resetLabel: "Convert another file",
+        tray: (disabled, file) => (
+          <div className="space-y-5">
+            <FileProbe file={file} onProbe={setFileInfo} />
 
-          {fileInfo.sampleRate !== null && (
-            <Hint>
-              Your file is currently {formatKhz(fileInfo.sampleRate)} kHz
-              {fileInfo.bitDepth !== null ? `, ${fileInfo.bitDepth}-bit` : ""}.
-            </Hint>
-          )}
+            {fileInfo.sampleRate !== null && (
+              <Hint>
+                Your file is currently {formatKhz(fileInfo.sampleRate)} kHz
+                {fileInfo.bitDepth !== null ? `, ${fileInfo.bitDepth}-bit` : ""}.
+              </Hint>
+            )}
 
-          <ControlField
-            as="fieldset"
-            label="Sample rate"
-            hint={rateGuidance ? <Hint>{rateGuidance}</Hint> : undefined}
-          >
-            <OptionCards
+            <ControlField
+              as="fieldset"
               label="Sample rate"
-              options={rateOptions}
-              value={String(sampleRate)}
-              onChange={(v) => setSampleRate(Number(v))}
-              disabled={disabled}
-              mono
-            />
-          </ControlField>
+              hint={rateGuidance ? <Hint>{rateGuidance}</Hint> : undefined}
+            >
+              <OptionCards
+                label="Sample rate"
+                options={rateOptions}
+                value={String(sampleRate)}
+                onChange={(v) => setSampleRate(Number(v))}
+                disabled={disabled}
+                mono
+              />
+            </ControlField>
 
-          <ControlField
-            as="fieldset"
-            label="Bit depth"
-            meta="WAV/AIFF only"
-            hint={
-              <>
-                <span className="block">
-                  {bitDepth !== null
-                    ? BIT_DEPTH_NOTES[bitDepth]
-                    : "Only applies to uncompressed WAV/AIFF — ignored for MP3, FLAC, AAC, and OGG."}
-                </span>
-                {depthGuidance && <Hint>{depthGuidance}</Hint>}
-              </>
-            }
-          >
-            <Segmented
+            <ControlField
+              as="fieldset"
               label="Bit depth"
-              options={BIT_DEPTH_OPTIONS}
-              value={bitChoice}
-              onChange={setBitChoice}
-              disabled={disabled}
-              mono
-            />
-          </ControlField>
-        </div>
-      )}
+              meta="WAV/AIFF only"
+              hint={
+                <>
+                  <span className="block">
+                    {bitDepth !== null
+                      ? BIT_DEPTH_NOTES[bitDepth]
+                      : "Only applies to uncompressed WAV/AIFF. Ignored for MP3, FLAC, AAC, and OGG."}
+                  </span>
+                  {depthGuidance && <Hint>{depthGuidance}</Hint>}
+                </>
+              }
+            >
+              <Segmented
+                label="Bit depth"
+                options={BIT_DEPTH_OPTIONS}
+                value={bitChoice}
+                onChange={setBitChoice}
+                disabled={disabled}
+                mono
+              />
+            </ControlField>
+          </div>
+        ),
+      }}
     />
   );
 }

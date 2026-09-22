@@ -165,6 +165,7 @@ export default async function SampleRateConverterPage() {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(webAppJsonLd) }} />
 
       <ToolPageShell
+        wide
         breadcrumb={<Breadcrumb items={[{ name: "Tools", href: "/tools" }, { name: "Sample Rate Converter" }]} />}
         meta={["No account", "22.05 to 96 kHz", "Bit depth too"]}
         title="Sample Rate Converter"

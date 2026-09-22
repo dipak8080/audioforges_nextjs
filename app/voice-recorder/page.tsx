@@ -14,9 +14,9 @@ import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
 import { ogForTool } from "@/lib/og";
 
-const PAGE_TITLE = "Online Voice Recorder – Free, Download as WAV";
+const PAGE_TITLE = "Online Voice Recorder – Free, Private, Nothing Uploaded";
 const PAGE_DESCRIPTION =
-  "Record from your microphone in the browser and download it as a WAV. Free, no sign-up, and nothing is uploaded: the recording never leaves your device.";
+  "Record your voice in the browser and save it as WAV or M4A. Nothing is uploaded, the audio never leaves your device. Free, no sign-up, nothing to install.";
 
 const UPDATED = "2026-09-10";
 
@@ -118,6 +118,7 @@ export default function VoiceRecorderPage() {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(webAppJsonLd) }} />
 
       <ToolPageShell
+        wide
         breadcrumb={<Breadcrumb items={[{ name: "Tools", href: "/tools" }, { name: "Voice Recorder" }]} />}
         meta={["No account", "Nothing uploaded", "WAV download"]}
         title="Free Online Voice Recorder"

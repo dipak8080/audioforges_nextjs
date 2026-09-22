@@ -354,7 +354,7 @@ interface JobToolFormProps {
     dropTitle?: string;
     formats?: string;
     aside?: ReactNode;
-    tray?: (disabled: boolean) => ReactNode;
+    tray?: (disabled: boolean, file: File | null) => ReactNode;
     downloadLabel?: string;
     /** The result renders its own download buttons. */
     hideDownload?: boolean;
@@ -805,7 +805,7 @@ export function JobToolForm({
           formats={stage.formats}
           dropTitle={stage.dropTitle}
           aside={stage.aside}
-          tray={stage.tray?.(isBusy)}
+          tray={stage.tray?.(isBusy, file)}
           tiers={stage.tiers}
           tier={stage.tier}
           onTierChange={stage.onTierChange}

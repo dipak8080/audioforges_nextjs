@@ -1,15 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Download, AlertTriangle, ClipboardPaste, Link2, X, RotateCcw, Music2, Wrench } from "lucide-react";
-import { Button, buttonStyles } from "@/components/ui/Button";
+import { Download, AlertTriangle, ClipboardPaste, Link2, X, Music2, Wrench } from "lucide-react";
+import { buttonStyles } from "@/components/ui/Button";
 import {
   CooldownBar,
   ErrorPanel,
-  FormShell,
-  ResultHeader,
-  Section,
-  WorkingPanel,
   easedProgress,
   formatCooldown,
   formatElapsed,
@@ -17,57 +13,39 @@ import {
   useElapsedSeconds,
   type FormError,
 } from "@/components/tools/JobFormKit";
+import { StudioStage, type StageTier } from "@/components/tools/StudioStage";
 import { AudioPlayer } from "@/components/ui/AudioPlayer";
-import { Waveform } from "@/components/ui/Waveform";
 import { SupportBlock } from "@/components/ui/SupportBlock";
 import { cn } from "@/lib/utils/cn";
 import { sanitizeUserInput } from "@/lib/utils/validation";
-import { getRetryAfterFallback } from "@/lib/data/rate-limits";
+import { getRetryAfterFallback, getRateLimitLabel } from "@/lib/data/rate-limits";
+import { getDurationLabel } from "@/lib/data/tool-limits";
 import { convertTikTokToMp3, base64ToBlob, isAbortError, ApiError, RAILWAY_API_BASE } from "@/lib/api/railway";
-
-/**
- * ── THIS PASS ──────────────────────────────────────────────────────────
- *
- * 1. A RATE LIMIT SENT THE USER TO A DEAD END. `toTikTokError` sets
- *    `retryable: false` on the 429 — correct for its own purposes, since that
- *    path handles a plain-string detail from shared middleware and can't tell
- *    a permanent failure from a temporary one. But this form derives
- *    `isDeadEnd` from `!retryable`, so a rate limit flipped the button to "Try
- *    another link" and wired it to handleReset.
- *
- *    So: convert 31 times in an hour, get told to try a DIFFERENT LINK, press
- *    it, and your link is wiped — while the cooldown timer that would have let
- *    you retry the same one is still running underneath. The one failure on
- *    this page that is definitely temporary was the one presented as
- *    permanent.
- *
- *    A 429 is retryable by definition: the timer IS the retry. Folded into the
- *    retryable expression rather than special-cased at the render site, so
- *    every consumer of that flag agrees.
- *
- * 2. THE COOLDOWN GUESSED 60 SECONDS AND PRINTED RAW SECONDS. /tiktok-to-mp3
- *    runs on a 30-per-HOUR window, so a 429 with no Retry-After re-enabled the
- *    button in a minute — straight into another 429. And when the header WAS
- *    present the label read "Try again in 3600s". getRetryAfterFallback and
- *    formatCooldown, as everywhere else.
- *
- * 3. CANCEL NOW ACTUALLY CANCELS. convertTikTokToMp3 takes a signal and was
- *    never given one, so Cancel stopped the UI waiting while the request ran
- *    on — up to 95 seconds of held connection for a result nobody would read.
- *    Also aborts on unmount.
- *
- * 4. IT USES THE SHELL — step rail, working panel, result header, error panel,
- *    cooldown bar.
- *
- * NOT A BUG, though I thought it was: the object-URL lifecycle is already
- * correct. handleConvert releases the previous URL before starting, the
- * cancelled-guard sits BEFORE the blob is created so a cancelled run never
- * makes one, and the unmount effect releases whatever is live. Nothing leaks.
- */
 
 type UiState = "idle" | "working" | "complete" | "error";
 
-const STEPS = ["Link", "Convert", "Download"] as const;
+const RATE_LIMIT_LABEL = getRateLimitLabel("tiktok-to-mp3");
+const DURATION_LABEL = getDurationLabel("tiktok-to-mp3") ?? "10 minutes";
+
+const TIERS: StageTier<"free">[] = [
+  {
+    value: "free",
+    name: "Free",
+    model: "MP3 · 44.1 kHz stereo",
+    time: "a few seconds",
+    footnote: RATE_LIMIT_LABEL ?? undefined,
+  },
+];
+
+// Same deterministic strip the YouTube stage forms draw while busy.
+const BUSY_BARS = Array.from({ length: 260 }, (_, i) => {
+  const t = i / 260;
+  const env = 0.45 + 0.55 * Math.pow(Math.sin(t * Math.PI), 0.5);
+  const a = Math.abs(Math.sin(i * 1.93 + 0.7));
+  const b = Math.abs(Math.cos(i * 0.71 + 2.1));
+  const c = Math.abs(Math.sin(i * 0.13));
+  return Math.max(0.05, env * (0.12 + (a * 0.45 + b * 0.35) * (0.5 + c * 0.5)));
+});
 
 interface ConversionResult {
   objectUrl: string;
@@ -78,36 +56,18 @@ interface ConversionResult {
   size: number;
 }
 
-/* ------------------------------------------------------------------ */
-/* Helpers                                                             */
-/* ------------------------------------------------------------------ */
-
 function formatBytes(bytes: number): string {
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-/**
- * Deliberately loose: host recognition only.
- *
- * The backend owns every real rejection - photo posts, age gates,
- * region blocks, over-length videos - and returns a message written for
- * that exact case. Duplicating any of that here would mean two sources
- * of truth that drift, and the client version would always be the worse
- * one. This exists purely so an obviously-not-a-link paste doesn't cost
- * a network round trip to find out.
- */
+// Host recognition only; the backend owns every real rejection.
 function isLikelyTikTokUrl(input: string): boolean {
   const value = input.trim();
   if (!value || /\s/.test(value)) return false;
   return /^(https?:\/\/)?([\w-]+\.)*tiktok\.com\/\S+/i.test(value);
 }
 
-/**
- * TikTok captions carry emoji, hashtags, slashes and newlines - none of
- * which belong in a filename. Strip to a safe set and fall back to the
- * numeric post id, which always is one.
- */
 function buildFilename(title: string, id: string | null): string {
   const safe = (title || "")
     .replace(/[^\w\s-]/g, "")
@@ -117,16 +77,8 @@ function buildFilename(title: string, id: string | null): string {
   return `${safe || `tiktok-${id || "audio"}`}.mp3`;
 }
 
-/* ------------------------------------------------------------------ */
-/* Component                                                           */
-/* ------------------------------------------------------------------ */
-
-/**
- * The sitewide pause switch, flipped from /admin when TikTok is broken for
- * everyone. Read once on mount from a tiny no-store endpoint so the notice
- * shows BEFORE a paste, not after a failed conversion. Any fetch problem
- * reads as "not paused": a flaky status check must never hide the tool.
- */
+// Sitewide pause switch, read once on mount. A flaky status check must
+// never hide the tool, so any fetch problem reads as "not paused".
 function useTikTokMaintenance(): string | null {
   const [notice, setNotice] = useState<string | null>(null);
   useEffect(() => {
@@ -140,6 +92,28 @@ function useTikTokMaintenance(): string | null {
     return () => controller.abort();
   }, []);
   return notice;
+}
+
+// Right pane of the idle stage. Facts only, nothing invented.
+function TikTokAside() {
+  const rows: Array<[string, string]> = [
+    ["Output", "MP3, 44.1 kHz stereo"],
+    ["Source", "Converted once from TikTok's own audio stream"],
+    ["Length", `Sounds up to ${DURATION_LABEL}`],
+    ["Free", "No account, nothing to install"],
+  ];
+  return (
+    <div className="flex h-full flex-col justify-center gap-3.5 px-5 py-6 sm:px-7">
+      {rows.map(([label, value]) => (
+        <div key={label} className="flex items-baseline gap-3">
+          <span className="w-20 shrink-0 font-mono text-[11px] uppercase tracking-[0.16em] text-text-subtle">
+            {label}
+          </span>
+          <span className="text-sm leading-snug text-text-primary">{value}</span>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 export function TikTokToMp3Form() {
@@ -156,11 +130,6 @@ export function TikTokToMp3Form() {
 
   const [elapsedSeconds, setElapsedSeconds] = useElapsedSeconds(isWorking);
   const [cooldownSeconds, setCooldownSeconds] = useCooldownSeconds();
-  /**
-   * STATE, NOT A REF, because CooldownBar renders it. As a ref it only showed
-   * the right ceiling because the setCooldownSeconds call on the next line
-   * happened to trigger the render that read it.
-   */
   const [cooldownCeiling, setCooldownCeiling] = useState(getRetryAfterFallback("tiktok-to-mp3"));
 
   const inputRef = useRef<HTMLInputElement>(null);
@@ -168,24 +137,12 @@ export function TikTokToMp3Form() {
   const cancelledRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
 
-  /**
-   * A failure the backend says cannot succeed on retry - a photo post, a
-   * deleted video, a region block. The action has to CHANGE, not just be
-   * relabelled: pressing convert again on the same link reproduces the
-   * same error, so this clears the field and hands focus back instead.
-   *
-   * A RATE LIMIT IS NOT ONE OF THESE. See the note on `retryable` in the catch
-   * below — it used to land here and tell a rate-limited user to try a
-   * different link.
-   */
+  // A failure the backend says cannot succeed on retry. A rate limit is
+  // NOT one of these; the timer is the retry.
   const isDeadEnd = isFailed && Boolean(error) && !error?.retryable;
   const looksValid = useMemo(() => isLikelyTikTokUrl(url), [url]);
   const canConvert = looksValid && !isWorking && cooldownSeconds === 0 && !maintenance;
-  const step: 1 | 2 | 3 = isComplete ? 3 : isWorking ? 2 : 1;
 
-  /* --- one object URL alive at a time, revoked on replace/unmount ---
-     A 1 MB blob per conversion adds up fast on a page where someone
-     grabs several sounds in a row. */
   const releaseObjectUrl = useCallback(() => {
     if (objectUrlRef.current) {
       URL.revokeObjectURL(objectUrlRef.current);
@@ -201,9 +158,7 @@ export function TikTokToMp3Form() {
     [releaseObjectUrl]
   );
 
-  /* Debounced by 400ms, matching the YouTube forms: deriving this
-     straight from `looksValid` would flash the field red on every
-     keystroke of a link being typed out. */
+  // Debounced so the field doesn't flash red on every keystroke.
   useEffect(() => {
     const trimmed = url.trim();
     if (!trimmed) {
@@ -215,10 +170,6 @@ export function TikTokToMp3Form() {
   }, [url]);
 
   const handleCancel = () => {
-    /* Now a real abort, not just a flag. convertTikTokToMp3 takes a signal and
-       was never given one, so Cancel used to stop the UI waiting while the
-       request kept running — up to 95 seconds of held connection for a result
-       nobody would ever read. */
     cancelledRef.current = true;
     abortRef.current?.abort();
     abortRef.current = null;
@@ -238,11 +189,9 @@ export function TikTokToMp3Form() {
   const handlePaste = async () => {
     try {
       const text = await navigator.clipboard.readText();
-      // Share links copied out of the TikTok app frequently carry a
-      // trailing space or newline.
       if (text) setUrl(sanitizeUserInput(text.trim(), 2048));
     } catch {
-      // Clipboard blocked — the field is still there to type into.
+      // Clipboard blocked - the field is still there to type into.
     }
     inputRef.current?.focus();
   };
@@ -291,25 +240,12 @@ export function TikTokToMp3Form() {
       });
       setStatus("complete");
     } catch (err) {
-      // A cancelled request rejects with a raw AbortError, not an ApiError.
       if (cancelledRef.current || isAbortError(err) || controller.signal.aborted) return;
       console.error("tiktok-to-mp3 error:", err);
 
       if (err instanceof ApiError) {
-        // The message and the retry decision both come from the backend.
-        // No rewriting, no prefixing, and no local opinion about which
-        // failures are worth retrying - seven of the ten failure kinds
-        // fail identically forever, and a retry button on those is worse
-        // than no button at all.
-        //
-        // WITH ONE EXCEPTION, and it's the reason this line changed: a 429
-        // arrives through toTikTokError's plain-string branch, which sets
-        // `retryable: false` because it can't tell a permanent failure from a
-        // temporary one. That flag drives `isDeadEnd`, so a rate limit
-        // relabelled the button "Try another link" and wired it to a reset —
-        // wiping the user's link while the cooldown that would have let them
-        // retry it ticked down underneath. A 429 is retryable by definition;
-        // the timer IS the retry.
+        // Message and retry decision come from the backend. A 429 is
+        // retryable by definition; the timer is the retry.
         setError({
           message: err.message,
           retryable:
@@ -320,7 +256,6 @@ export function TikTokToMp3Form() {
             err.status === 0,
         });
         if (err.isRateLimit) {
-          // 30 per HOUR, not the flat 60 seconds this used to guess.
           const wait = err.retryAfterSeconds ?? getRetryAfterFallback("tiktok-to-mp3");
           setCooldownCeiling(Math.max(1, wait));
           setCooldownSeconds(wait);
@@ -343,8 +278,6 @@ export function TikTokToMp3Form() {
 
   const formError: FormError | null = error
     ? {
-        // Straight from the backend — it writes these for the end user and they
-        // carry the specifics. The hint is ours and must not contradict it.
         title: error.message,
         hint: error.retryable
           ? "Wait for the timer if there is one, then run it again."
@@ -352,218 +285,190 @@ export function TikTokToMp3Form() {
       }
     : null;
 
-  const footer = isComplete ? (
-    <Button variant="outline" size="lg" className="w-full" onClick={handleReset}>
-      <RotateCcw />
-      Convert another
-    </Button>
-  ) : (
-    <div className="space-y-2">
-      <Button
-        /* Outline on a dead end: the only useful move is to start over with
-           another link, which is a secondary action, not the primary one.
-           Amber here would put the loudest element on the card behind a button
-           that can't succeed. */
-        variant={isDeadEnd ? "outline" : looksValid ? "primary" : "secondary"}
-        size="lg"
-        className="w-full"
-        onClick={isDeadEnd ? handleReset : handleConvert}
-        disabled={isDeadEnd ? false : !canConvert && !isWorking}
-        loading={isWorking}
-        loadingLabel="Converting"
-      >
-        {!isWorking && (isDeadEnd ? <RotateCcw /> : <Music2 />)}
-        {isWorking
-          ? "Converting"
-          : cooldownSeconds > 0
-            ? `Try again in ${formatCooldown(cooldownSeconds)}`
-            : isDeadEnd
-              ? "Try another link"
-              : isFailed
-                ? "Try again"
-                : "Convert to MP3"}
-      </Button>
-      <CooldownBar seconds={cooldownSeconds} ceiling={cooldownCeiling} />
+  const idle = (
+    <div>
+      <label htmlFor="tiktok-url" className="display block text-5xl text-text-primary sm:text-6xl">
+        Paste a link
+      </label>
+
+      <div className="relative mt-5 flex items-center">
+        <Link2
+          className={cn(
+            "pointer-events-none absolute left-4 h-4 w-4 transition-colors",
+            looksValid ? "text-text-primary" : "text-text-subtle"
+          )}
+          aria-hidden
+        />
+        <input
+          ref={inputRef}
+          id="tiktok-url"
+          type="url"
+          value={url}
+          onChange={handleUrlChange}
+          onKeyDown={handleKeyDown}
+          placeholder="https://www.tiktok.com/@user/video/..."
+          disabled={isWorking || Boolean(maintenance)}
+          autoComplete="off"
+          spellCheck={false}
+          maxLength={2048}
+          aria-invalid={showInvalid}
+          aria-describedby={showInvalid ? "tiktok-url-error" : "tiktok-url-hint"}
+          className={cn(
+            "w-full rounded-lg border bg-graphite-950/60 py-3.5 pl-11 pr-24 text-sm text-text-primary transition-colors placeholder:text-text-subtle focus:outline-none focus:ring-2 disabled:opacity-50",
+            showInvalid
+              ? "border-red-500/60 focus:ring-red-500/25"
+              : "border-graphite-700 focus:border-text-primary/50 focus:ring-white/10"
+          )}
+        />
+        <div className="absolute right-2.5 flex items-center gap-1">
+          {url && !isWorking && (
+            <button
+              type="button"
+              onClick={handleReset}
+              aria-label="Clear link"
+              className="rounded-md p-1.5 text-text-subtle outline-none transition-colors hover:bg-graphite-800 hover:text-text-primary focus-visible:ring-2 focus-visible:ring-amber-400/70"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+          {!url && (
+            <button
+              type="button"
+              onClick={handlePaste}
+              disabled={isWorking || Boolean(maintenance)}
+              className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-text-muted outline-none transition-colors hover:bg-graphite-800 hover:text-text-primary focus-visible:ring-2 focus-visible:ring-amber-400/70 disabled:pointer-events-none disabled:opacity-60"
+            >
+              <ClipboardPaste className="h-3.5 w-3.5" aria-hidden />
+              Paste
+            </button>
+          )}
+        </div>
+      </div>
+
+      {showInvalid ? (
+        <p id="tiktok-url-error" role="alert" className="mt-3 flex items-center gap-1.5 text-sm text-red-400">
+          <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden />
+          That doesn&apos;t look like a TikTok link
+        </p>
+      ) : (
+        <p id="tiktok-url-hint" className="mt-4 font-mono text-[11px] uppercase tracking-[0.16em] text-text-subtle">
+          Share links · vt.tiktok.com · vm.tiktok.com
+        </p>
+      )}
     </div>
   );
 
+  const busyView = (fraction: number) => (
+    <div className="flex h-44 flex-col px-5 py-4 sm:h-52 sm:px-7 lg:h-56">
+      <p className="truncate text-sm font-medium text-text-primary">Pulling the audio from TikTok</p>
+      <div className="relative mt-3 min-h-0 flex-1" aria-hidden>
+        <div className="absolute inset-0 flex items-center gap-px">
+          {BUSY_BARS.map((h, i) => (
+            <span
+              key={i}
+              className={cn(
+                "flex-1 transition-colors duration-700",
+                i % 2 === 1 && "max-sm:hidden",
+                i / BUSY_BARS.length < fraction ? "bg-amber-500" : "bg-graphite-600"
+              )}
+              style={{ height: `${h * 100}%` }}
+            />
+          ))}
+        </div>
+        <span
+          className="absolute inset-y-0 w-px bg-amber-400 shadow-[0_0_12px_rgba(232,162,61,0.8)] transition-[left] duration-1000 ease-out motion-reduce:transition-none"
+          style={{ left: `${fraction * 100}%` }}
+        />
+      </div>
+    </div>
+  );
+
+  const note = (
+    <>
+      {maintenance && !isComplete && (
+        <div
+          role="status"
+          className="flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/[0.06] px-4 py-3"
+        >
+          <Wrench className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" aria-hidden />
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-text-primary">TikTok to MP3 is paused</p>
+            <p className="mt-0.5 text-[13px] text-text-muted">{maintenance}</p>
+          </div>
+        </div>
+      )}
+      {isFailed && formError && (
+        <div className="mt-4 space-y-4 first:mt-0">
+          <ErrorPanel error={formError} />
+          <SupportBlock mood="sheepish" />
+        </div>
+      )}
+    </>
+  );
+
+  const resultNode =
+    isComplete && result ? (
+      <div className="space-y-4" role="status" aria-live="polite">
+        <AudioPlayer src={result.objectUrl} />
+        <a
+          href={result.objectUrl}
+          download={result.filename}
+          className={buttonStyles({ variant: "primary", size: "lg", className: "w-full sm:w-auto sm:min-w-56" })}
+        >
+          <Download />
+          Download MP3
+        </a>
+      </div>
+    ) : undefined;
+
   return (
-    <FormShell
-      toolLabel="TikTok to MP3"
-      /* Format facts, not a quality claim. No bitrate number here on purpose:
-         TikTok's source audio is ~64 kbps AAC, so any figure we print invites a
-         comparison we'd lose to competitors happily printing "320 kbps" over
-         the same source. */
-      toolMeta="MP3 · 44.1 kHz stereo"
-      steps={STEPS}
-      step={step}
+    <StudioStage
+      label="TikTok to MP3"
+      custom={{
+        ready: looksValid,
+        idle,
+        busy: busyView,
+        idleActionLabel: "Paste a link",
+        onIdleAction: handlePaste,
+      }}
+      onClear={handleReset}
+      tiers={TIERS}
+      tier="free"
+      onTierChange={() => {}}
+      jobTier="free"
+      aside={<TikTokAside />}
       busy={isWorking}
       failed={isFailed}
-      complete={isComplete}
-      footer={footer}
-    >
-      {/* PAUSED SITEWIDE */}
-      {maintenance && !isComplete && (
-        <Section>
-          <div
-            role="status"
-            className="flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/[0.06] px-4 py-3"
-          >
-            <Wrench className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" aria-hidden />
-            <div className="min-w-0">
-              <p className="text-sm font-medium text-text-primary">TikTok to MP3 is paused</p>
-              <p className="mt-0.5 text-[13px] text-text-muted">{maintenance}</p>
-            </div>
-          </div>
-        </Section>
-      )}
-
-      {/* SOURCE */}
-      {!isComplete && (
-        <Section>
-          <div className="space-y-2">
-            <label htmlFor="tiktok-url" className="text-sm font-medium text-text-primary">
-              Paste a TikTok link
-            </label>
-
-            <div className="relative flex items-center">
-              <Link2
-                className={cn(
-                  "pointer-events-none absolute left-4 h-4 w-4 transition-colors",
-                  looksValid ? "text-amber-500" : "text-text-subtle"
-                )}
-                aria-hidden
-              />
-              <input
-                ref={inputRef}
-                id="tiktok-url"
-                type="url"
-                value={url}
-                onChange={handleUrlChange}
-                onKeyDown={handleKeyDown}
-                placeholder="https://www.tiktok.com/@user/video/..."
-                disabled={isWorking || Boolean(maintenance)}
-                autoComplete="off"
-                spellCheck={false}
-                maxLength={2048}
-                aria-invalid={showInvalid}
-                aria-describedby={showInvalid ? "tiktok-url-error" : "tiktok-url-hint"}
-                className={cn(
-                  "w-full rounded-xl border bg-graphite-850 py-3.5 pl-11 pr-24 text-text-primary",
-                  "placeholder:text-text-subtle transition-colors",
-                  "focus:outline-none focus:ring-2 disabled:opacity-50",
-                  showInvalid
-                    ? "border-red-500/60 focus:ring-red-500/25"
-                    : looksValid
-                      ? "border-amber-500/40 focus:ring-amber-500/20"
-                      : "border-graphite-700 focus:border-amber-500/50 focus:ring-amber-500/20"
-                )}
-              />
-
-              <div className="absolute right-2.5 flex items-center gap-1">
-                {url && !isWorking && (
-                  <button
-                    type="button"
-                    onClick={handleReset}
-                    aria-label="Clear link"
-                    className="rounded-md p-1.5 text-text-subtle outline-none transition-colors hover:bg-graphite-800 hover:text-text-primary focus-visible:ring-2 focus-visible:ring-amber-500/40"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                )}
-                {!url && (
-                  <button
-                    type="button"
-                    onClick={handlePaste}
-                    disabled={isWorking}
-                    className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-text-muted outline-none transition-colors hover:bg-graphite-800 hover:text-text-primary focus-visible:ring-2 focus-visible:ring-amber-500/40 disabled:pointer-events-none disabled:opacity-60"
-                  >
-                    <ClipboardPaste className="h-3.5 w-3.5" aria-hidden />
-                    Paste
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {showInvalid ? (
-              <p
-                id="tiktok-url-error"
-                role="alert"
-                className="flex items-center gap-1.5 text-sm text-red-400"
-              >
-                <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden />
-                That doesn&apos;t look like a TikTok link
-              </p>
-            ) : (
-              <p id="tiktok-url-hint" className="text-xs text-text-subtle">
-                Works with the app&apos;s Share link, vt.tiktok.com and vm.tiktok.com
-              </p>
-            )}
-          </div>
-        </Section>
-      )}
-
-      {/* WORKING */}
-      {isWorking && (
-        <Section>
-          <WorkingPanel
-            stageLabel="Pulling the audio from TikTok"
-            stageIndex={-1}
-            showStageList={false}
-            elapsedSeconds={elapsedSeconds}
-            /* Shorter time constant than the job tools: this is a 2–8 second
-               conversion, not a 20-second one. */
-            progress={easedProgress(elapsedSeconds, 4)}
-            expectedRange="a few seconds"
-            chargedRun={false}
-            onCancel={handleCancel}
-            waveform={<Waveform />}
-          />
-        </Section>
-      )}
-
-      {/* COMPLETE */}
-      {isComplete && result && (
-        <Section>
-          <div className="space-y-4" role="status" aria-live="polite">
-            {/* Captions run long and carry emoji and hashtags. ResultHeader
-                truncates to one line; the meta carries the facts. */}
-            <ResultHeader
-              verb="Ready"
-              title={result.title}
-              meta={`MP3 · ${formatBytes(result.size)}${
-                /* duration is null on a cache hit, which is every repeat
-                   request for the same video — so this line has to read
-                   correctly with it missing, not just with it present. */
-                result.duration !== null ? ` · ${formatElapsed(Math.round(result.duration))}` : ""
-              }`}
-            />
-
-            <AudioPlayer src={result.objectUrl} />
-
-            <a
-              href={result.objectUrl}
-              download={result.filename}
-              className={buttonStyles({ variant: "primary", size: "lg", className: "w-full" })}
-            >
-              <Download />
-              Download MP3
-            </a>
-
-            <SupportBlock />
-          </div>
-        </Section>
-      )}
-
-      {/* FAILED */}
-      {isFailed && formError && (
-        <Section>
-          <div className="space-y-4">
-            <ErrorPanel error={formError} />
-            <SupportBlock mood="sheepish" />
-          </div>
-        </Section>
-      )}
-    </FormShell>
+      progress={easedProgress(elapsedSeconds, 4)}
+      stageLabel="Pulling the audio from TikTok"
+      elapsed={formatElapsed(elapsedSeconds)}
+      onCancel={handleCancel}
+      actionLabel={
+        cooldownSeconds > 0
+          ? `Try again in ${formatCooldown(cooldownSeconds)}`
+          : isDeadEnd
+            ? "Try another link"
+            : isFailed
+              ? "Try again"
+              : "Convert to MP3"
+      }
+      actionIcon={<Music2 />}
+      actionDisabled={isDeadEnd ? false : !canConvert}
+      onAction={isDeadEnd ? handleReset : handleConvert}
+      belowAction={<CooldownBar seconds={cooldownSeconds} ceiling={cooldownCeiling} />}
+      result={resultNode}
+      doneTitle={result?.title}
+      doneMeta={
+        result
+          ? `MP3 · ${formatBytes(result.size)}${
+              result.duration !== null ? ` · ${formatElapsed(Math.round(result.duration))}` : ""
+            }`
+          : undefined
+      }
+      doneFooter={<SupportBlock variant="line" />}
+      resetLabel="Convert another"
+      labels={{ working: "Converting" }}
+      note={note}
+    />
   );
 }

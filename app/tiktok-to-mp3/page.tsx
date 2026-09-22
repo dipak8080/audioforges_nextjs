@@ -194,6 +194,7 @@ export default function TikTokToMp3Page() {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(webAppJsonLd) }} />
 
       <ToolPageShell
+        wide
         breadcrumb={<Breadcrumb items={[{ name: "Tools", href: "/tools" }, { name: "TikTok to MP3" }]} />}
         meta={["No account", "No app", "128kbps, honestly"]}
         title="TikTok to MP3 Converter"
