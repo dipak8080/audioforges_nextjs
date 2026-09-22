@@ -1,5 +1,6 @@
 "use client";
 
+import { markOrigin } from "@/lib/credits/purchase-source";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Mic2, Music4 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
@@ -180,6 +181,7 @@ export function YouTubeVocalFunnel({ url, title, onWide }: Props) {
 
   const start = async () => {
     trackCredits("funnel_vocal_clicked");
+    markOrigin("youtube-funnel");
     setError(null);
     setIsHq(false);
     setBilling(null);

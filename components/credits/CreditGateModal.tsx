@@ -1,5 +1,6 @@
 "use client";
 
+import { markTrigger } from "@/lib/credits/purchase-source";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { X, Check, ArrowLeft, Mail } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
@@ -171,8 +172,10 @@ export function CreditGateModal({
   // Warm PayPal while the buyer is still reading the packs, so the
   // checkout step renders its buttons instantly.
   useEffect(() => {
-    if (open) preloadPayPal();
-  }, [open]);
+    if (!open) return;
+    preloadPayPal();
+    markTrigger(window.location.pathname === "/pricing" ? "pricing" : payload.tool);
+  }, [open, payload.tool]);
 
   useEffect(() => {
     if (!open) return;

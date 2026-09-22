@@ -1,3 +1,4 @@
+import { purchaseSource } from "@/lib/credits/purchase-source";
 import { ApiError, RAILWAY_API_BASE, fetchWithTimeout } from "@/lib/api/railway";
 import type { PackKey } from "@/lib/types/credits";
 
@@ -81,7 +82,7 @@ export async function createPayPalOrder(pack: PackKey, email: string): Promise<s
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ pack, email }),
+      body: JSON.stringify({ pack, email, ...purchaseSource() }),
     },
     20_000
   );

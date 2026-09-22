@@ -10,6 +10,7 @@ import {
   useState,
 } from "react";
 import { getCreditsMe } from "@/lib/api/credits";
+import { captureOriginFromUrl } from "@/lib/credits/purchase-source";
 import {
   findSharedAllowance,
   toSharedAllowance,
@@ -211,6 +212,7 @@ export function CreditProvider({
 
   useEffect(() => {
     mounted.current = true;
+    captureOriginFromUrl();
     return () => {
       mounted.current = false;
     };
