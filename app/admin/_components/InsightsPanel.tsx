@@ -44,7 +44,7 @@ interface Abuse {
   top: TopIp[];
   daily: { day: string; runs: number; ips: number; est_cost_usd: number }[];
   budget: { daily_usd: number; today: { spent_usd: number; in_flight: number; projected_usd: number; jobs: number } };
-  limits: { free_runs_before_challenge: number; daily_separation_cap: string | null };
+  limits: { free_runs_before_challenge: number; daily_separation_cap: number | string | null };
   turnstile: { solved: number; active: number; enabled: boolean };
 }
 interface MonthRow {
@@ -148,7 +148,7 @@ export function InsightsPanel({ tick }: { tick: number }) {
   if (loading && !abuse) return <SkeletonPanel />;
 
   return (
-    <div className="af-rise flex min-h-0 flex-1 flex-col gap-4">
+    <div className="af-rise af-scroll -mr-2 flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain pb-6 pr-2">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <SectionLabel>Window</SectionLabel>
@@ -172,7 +172,7 @@ export function InsightsPanel({ tick }: { tick: number }) {
         </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+      <div className="grid shrink-0 gap-3 sm:grid-cols-2 xl:grid-cols-6">
         <Stat label="Revenue" value={money(revenue, 2)} sub={`${num(orders)} paid orders in ${days}d`} tone="accent" icon={Wallet} />
         <Stat
           label="From the funnel"
@@ -212,8 +212,8 @@ export function InsightsPanel({ tick }: { tick: number }) {
         />
       </div>
 
-      <div className="grid min-h-0 gap-4 xl:grid-cols-2">
-        <Card className="flex min-h-0 flex-col">
+      <div className="grid shrink-0 gap-4 xl:grid-cols-2">
+        <Card className="flex shrink-0 flex-col">
           <div className="flex items-baseline justify-between px-4 pt-4">
             <div>
               <p className="text-sm font-semibold">Where sales come from</p>
@@ -262,12 +262,12 @@ export function InsightsPanel({ tick }: { tick: number }) {
           </div>
         </Card>
 
-        <Card className="flex min-h-0 flex-col">
+        <Card className="flex shrink-0 flex-col">
           <div className="flex items-baseline justify-between px-4 pt-4">
             <div>
               <p className="text-sm font-semibold">Heaviest free users</p>
               <p className="mt-0.5 text-[11px] text-text-subtle">
-                Hashed IPs, never raw addresses. Daily cap {abuse?.limits.daily_separation_cap ?? "–"} separations.
+                Hashed IPs, never raw addresses.{abuse?.limits.daily_separation_cap ? ` Daily cap ${abuse.limits.daily_separation_cap} separations.` : ""}
               </p>
             </div>
           </div>
@@ -298,7 +298,7 @@ export function InsightsPanel({ tick }: { tick: number }) {
                           <Td>
                             <span className="inline-flex items-center gap-2">
                               <span className="w-4 text-right font-mono text-[11px] text-text-subtle">{i + 1}</span>
-                              <span className="font-mono text-[12px] text-text-muted" title={hash || "Recorded before IP hashing"}>
+                              <span className="font-mono text-[12px] text-text-muted" title={hash || "Saved without an IP hash"}>
                                 {hash ? hash.slice(0, 10) : "unrecorded"}
                               </span>
                               {hot && <Badge tone="bad">{Math.round(perDay)}/day</Badge>}
@@ -325,7 +325,7 @@ export function InsightsPanel({ tick }: { tick: number }) {
         </Card>
       </div>
 
-      <Card className="flex min-h-0 flex-col">
+      <Card className="flex shrink-0 flex-col">
         <div className="flex flex-wrap items-baseline justify-between gap-2 px-4 pt-4">
           <div>
             <p className="text-sm font-semibold">Monthly net</p>
