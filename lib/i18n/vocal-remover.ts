@@ -165,7 +165,7 @@ export const idDict: VocalRemoverDict = {
     ],
   },
   tiers: {
-    title: "Standard vs. Studio Quality",
+    title: "Standar vs. Studio Quality",
     labels: {
       model: "Model",
       bleed: "Sisa vokal di instrumental",
@@ -174,7 +174,7 @@ export const idDict: VocalRemoverDict = {
       limit: "Batas",
       cost: "Biaya",
     },
-    columns: ["Standard", "Studio Quality"],
+    columns: ["Standar", "Studio Quality"],
     bleedCells: ["Terdengar pada mix padat dan ekor reverb panjang", "Hilang pada hampir semua materi"],
     artifactCells: ["Pada cymbal, napas dan sibilan", "Cymbal dan konsonan tetap utuh"],
     timeCells: ["20 detik sampai 1 menit", "1 sampai 2 menit"],
@@ -402,7 +402,7 @@ export const esDict: VocalRemoverDict = {
     ],
   },
   tiers: {
-    title: "Standard vs. Studio Quality",
+    title: "Estándar vs. Studio Quality",
     labels: {
       model: "Modelo",
       bleed: "Restos de voz en el instrumental",
@@ -411,7 +411,7 @@ export const esDict: VocalRemoverDict = {
       limit: "Límite",
       cost: "Costo",
     },
-    columns: ["Standard", "Studio Quality"],
+    columns: ["Estándar", "Studio Quality"],
     bleedCells: ["Se oyen en mezclas densas y colas de reverb largas", "Desaparecen en casi todo el material"],
     artifactCells: ["En platillos, respiraciones y sibilancias", "Platillos y consonantes quedan intactos"],
     timeCells: ["20 segundos a 1 minuto", "1 a 2 minutos"],
@@ -639,7 +639,7 @@ export const ptDict: VocalRemoverDict = {
     ],
   },
   tiers: {
-    title: "Standard vs. Studio Quality",
+    title: "Padrão vs. Studio Quality",
     labels: {
       model: "Modelo",
       bleed: "Resto de vocal no instrumental",
@@ -648,7 +648,7 @@ export const ptDict: VocalRemoverDict = {
       limit: "Limite",
       cost: "Custo",
     },
-    columns: ["Standard", "Studio Quality"],
+    columns: ["Padrão", "Studio Quality"],
     bleedCells: ["Aparece em mixagens densas e caudas longas de reverb", "Some em quase todo material"],
     artifactCells: ["Em pratos, respirações e sibilância", "Pratos e consoantes ficam intactos"],
     timeCells: ["20 segundos a 1 minuto", "1 a 2 minutos"],

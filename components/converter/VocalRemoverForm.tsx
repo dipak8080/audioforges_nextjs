@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { localizeLimit } from "@/lib/i18n/ui";
 import { Mic2, Music4, Bell, BellOff } from "lucide-react";
 import { StudioStage, type StageLabels, type StageTier } from "@/components/tools/StudioStage";
 import { DEMO_DURATION, DEMO_PEAKS_STANDARD, DEMO_PEAKS_STUDIO } from "@/lib/data/demo-peaks";
@@ -98,6 +99,8 @@ export interface VocalRemoverCopy {
   reset: string;
   doneFallback: string;
   stage: Partial<StageLabels>;
+  /** Page locale for limit and badge text. Omitted on the English page. */
+  locale?: string;
 }
 
 const DEFAULT_COPY: VocalRemoverCopy = {
@@ -700,9 +703,9 @@ export function VocalRemoverForm({
           : undefined,
       // Both tiers carry a cost marker or neither does.
       badge: option.toolKey ? (
-        <FreeTierBadge tool={option.toolKey} />
+        <FreeTierBadge tool={option.toolKey} locale={c.locale} />
       ) : HQ_SPEC.toolKey ? (
-        <AlwaysFreeTag pairedTool={HQ_SPEC.toolKey} />
+        <AlwaysFreeTag pairedTool={HQ_SPEC.toolKey} locale={c.locale} />
       ) : undefined,
       footnote:
         option.value === "hq"
@@ -711,9 +714,9 @@ export function VocalRemoverForm({
             : creditsLoading
               ? undefined
               : liveLimit
-                ? formatRateLimit(liveLimit.max_requests, liveLimit.window_seconds)
-                : hqLimitLabel
-          : standardLimitLabel,
+                ? localizeLimit(formatRateLimit(liveLimit.max_requests, liveLimit.window_seconds), c.locale)
+                : localizeLimit(hqLimitLabel, c.locale)
+          : localizeLimit(standardLimitLabel, c.locale),
     };
   });
 

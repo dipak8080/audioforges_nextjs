@@ -3,6 +3,7 @@
 import { cn } from "@/lib/utils/cn";
 import { useCredits } from "./CreditProvider";
 import type { MeteredToolKey } from "@/lib/types/credits";
+import { uiStrings } from "@/lib/i18n/ui";
 
 /**
  * The small marker on the Studio Quality option.
@@ -64,17 +65,20 @@ const MAX_MARKS = 5;
 export function FreeTierBadge({
   tool,
   className,
+  locale,
 }: {
   tool: MeteredToolKey;
   className?: string;
+  locale?: string;
 }) {
+  const t = uiStrings(locale);
   const { enabled, loading, balance, freeRemaining, isToolMetered, me } = useCredits();
 
   // The real per-run cost for THIS tool, from the paywall rule — not a hardcoded
   // 1. audio-to-sheet is 3; everything else is currently 1. Falls back to 1 only
   // if the rule isn't loaded yet.
   const cost = me?.paywall?.tools?.[tool]?.credits ?? 1;
-  const costLabel = `${cost} ${cost === 1 ? "credit" : "credits"}`;
+  const costLabel = `${cost} ${cost === 1 ? t.credit : t.credits}`;
 
   // Nothing to say while the paywall is off or this specific tool isn't metered
   // — Studio Quality is simply free, and a "free" badge on a free thing is
@@ -139,7 +143,7 @@ export function FreeTierBadge({
         aria-hidden
         className="font-mono text-[9px] font-semibold uppercase tracking-[0.14em] text-teal-400"
       >
-        free left
+        {t.freeLeft}
       </span>
       {/* The marks carry the number visually; this carries it for everyone
           else. Without it a screen reader announces "free left" and no
@@ -169,9 +173,11 @@ export function FreeTierBadge({
 export function AlwaysFreeTag({
   pairedTool,
   className,
+  locale,
 }: {
   pairedTool: MeteredToolKey;
   className?: string;
+  locale?: string;
 }) {
   const { enabled, loading, isToolMetered } = useCredits();
 
@@ -185,7 +191,7 @@ export function AlwaysFreeTag({
       )}
       title="Free and unlimited \u2014 no credit, no monthly allowance"
     >
-      always free
+      {uiStrings(locale).alwaysFree}
     </span>
   );
 }

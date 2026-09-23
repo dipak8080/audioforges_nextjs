@@ -20,6 +20,7 @@ import {
   sharedAllowanceLabel,
 } from "@/lib/api/limits";
 import type { VocalRemoverDict } from "@/lib/i18n/vocal-remover";
+import { localizeLimit, uiStrings } from "@/lib/i18n/ui";
 
 const DEMO_STANDARD = "/audio/demo-vocals-standard.mp3";
 const DEMO_STUDIO = "/audio/demo-vocals-studio.mp3";
@@ -29,13 +30,18 @@ export async function LocalizedVocalRemoverPage({ dict }: { dict: VocalRemoverDi
   const limits = await getLimits();
 
   const standardAllowance = sharedAllowanceFor(limits, "separate");
-  const standardLimitLabel = standardAllowance
-    ? sharedAllowanceLabel(standardAllowance)
-    : rateLimitLabel(limits.rateLimits.separate, windowFor(limits, "separate"));
-  const hqLimitLabel = rateLimitLabel(
+  const t = uiStrings(dict.locale);
+  const standardLimitLabel = localizeLimit(
+    standardAllowance
+      ? sharedAllowanceLabel(standardAllowance)
+      : rateLimitLabel(limits.rateLimits.separate, windowFor(limits, "separate")),
+    dict.locale
+  );
+  const hqLimitLabelEn = rateLimitLabel(
     limits.rateLimits.separate_hq,
     windowFor(limits, "separate_hq")
   );
+  const hqLimitLabel = localizeLimit(hqLimitLabelEn, dict.locale);
   const maxUploadLabel = `${limits.maxUploadMb}MB`;
 
   const formats = limits.allowedAudioFormats.map((f) => f.toUpperCase());
@@ -80,10 +86,10 @@ export async function LocalizedVocalRemoverPage({ dict }: { dict: VocalRemoverDi
           <VocalRemoverForm
             hqAvailable={separationHqEnabled}
             standardLimit={standardAllowance}
-            hqLimitText={hqLimitLabel}
+            hqLimitText={hqLimitLabelEn}
             demoStandardSrc={DEMO_STANDARD}
             demoStudioSrc={DEMO_STUDIO}
-            copy={dict.form}
+            copy={{ ...dict.form, locale: dict.locale }}
           />
         }
       >
@@ -167,15 +173,20 @@ export async function LocalizedVocalRemoverPage({ dict }: { dict: VocalRemoverDi
           </div>
         </ToolSection>
 
-        <FAQSection faqs={faqs} />
+        <FAQSection faqs={faqs} title={t.faqTitle} />
 
         <div className="text-sm text-text-muted">
           <Link href="/vocal-remover" className="text-amber-400 hover:underline">
-            English version
+            {t.englishVersion}
           </Link>
         </div>
 
-        <PageByline updated={dict.updated} note={dict.byline.note} legal={dict.byline.legal} />
+        <PageByline
+          updated={dict.updated}
+          note={dict.byline.note}
+          legal={dict.byline.legal}
+          locale={dict.locale}
+        />
       </ToolPageShell>
     </>
   );
