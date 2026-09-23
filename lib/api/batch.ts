@@ -103,11 +103,31 @@ export async function createBatch(kind: BatchKind, count: number, opts: RequestO
   return json<BatchCreateResponse>(res);
 }
 
-export async function addToBatch(batchId: string, file: File, opts: RequestOptions = {}): Promise<BatchAddResponse> {
-  const fd = new FormData();
-  fd.append("file", file);
-  const res = await fetchWithTimeout(`${RAILWAY_API_BASE}/batch/${batchId}/add`, { method: "POST", body: fd, signal: opts.signal, ...withCreds }, 180_000);
-  return json<BatchAddResponse>(res);
+export function addToBatch(
+  batchId: string,
+  file: File,
+  onProgress?: (fraction: number) => void,
+  timeoutMs = 300_000
+): Promise<BatchAddResponse> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", `${RAILWAY_API_BASE}/batch/${batchId}/add`);
+    xhr.withCredentials = true;
+    xhr.responseType = "text";
+    xhr.timeout = timeoutMs;
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable && onProgress) onProgress(e.loaded / e.total);
+    };
+    xhr.onerror = () => reject(new ApiError("We couldn't reach the server. Check your connection and try again.", 0));
+    xhr.ontimeout = () => reject(new ApiError("The upload took too long. Try a smaller file or a faster connection.", 0, { isTimeout: true }));
+    xhr.onload = () => {
+      const res = new Response(xhr.responseText, { status: xhr.status, headers: { "Content-Type": "application/json" } });
+      json<BatchAddResponse>(res).then(resolve, reject);
+    };
+    const fd = new FormData();
+    fd.append("file", file);
+    xhr.send(fd);
+  });
 }
 
 export async function startBatch(batchId: string): Promise<{ batch_id: string; status: BatchStatus; jobs?: number }> {
