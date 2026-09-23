@@ -74,8 +74,22 @@
 
 /* Display type: one serif, regular weight, for h1 and section titles only.
    Body stays Geist, labels stay mono. */
+/* Metric-matched stand-in for Instrument Serif while it loads. next/font's own
+   fallback only names Times New Roman, which Linux lacks, so lab tests fell
+   through to a much wider serif and the hero headline reflowed on swap.
+   Liberation Serif and Tinos share Times New Roman's metrics. */
+@font-face {
+  font-family: "Display Fallback";
+  src: local("Times New Roman"), local("TimesNewRomanPSMT"), local("Liberation Serif"),
+    local("LiberationSerif"), local("Tinos");
+  ascent-override: 117.94%;
+  descent-override: 36.93%;
+  line-gap-override: 0%;
+  size-adjust: 83.94%;
+}
+
 .display {
-  font-family: var(--font-display), Georgia, serif;
+  font-family: var(--font-display), "Display Fallback", Georgia, serif;
   font-weight: 400;
   letter-spacing: -0.015em;
   line-height: 1;
