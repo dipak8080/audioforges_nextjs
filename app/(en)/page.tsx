@@ -150,7 +150,7 @@ export default async function HomePage() {
               <p className="font-mono text-xs uppercase tracking-[0.16em] text-amber-500">
                 AI stem separation
               </p>
-              <h1 className="display mt-5 text-balance text-5xl text-text-primary sm:text-6xl lg:text-7xl">
+              <h1 className="display mt-5 text-balance text-[2.625rem] text-text-primary min-[400px]:text-5xl sm:text-6xl lg:text-7xl">
                 Separate any track into clean stems
               </h1>
               <p className="mt-5 max-w-md text-lg leading-relaxed text-text-muted">
@@ -158,13 +158,13 @@ export default async function HomePage() {
                 before you download a single file.
               </p>
 
-              <dl className="mt-8 grid grid-cols-3 gap-4 border-t border-graphite-800 pt-6">
+              <dl className="mt-8 grid grid-cols-2 gap-x-4 gap-y-5 border-t border-graphite-800 pt-6 sm:grid-cols-3">
                 {[
                   ["Models", "htdemucs, MelBand RoFormer"],
                   ["Output", "WAV 16-bit 44.1 kHz"],
                   ["Every month", processedTotal ? `${Math.round(processedTotal / 1000)}k tracks` : "55,000+ people"],
-                ].map(([k, v]) => (
-                  <div key={k}>
+                ].map(([k, v], i) => (
+                  <div key={k} className={i === 0 ? "col-span-2 sm:col-span-1" : undefined}>
                     <dt className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-subtle">{k}</dt>
                     <dd className="mt-1 text-sm font-medium text-text-primary">{v}</dd>
                   </div>
