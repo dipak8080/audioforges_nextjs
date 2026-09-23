@@ -571,7 +571,7 @@ export function StudioStage<T extends string>({
             ) : (
               <div
                 className={cn(
-                  custom ? "grid lg:min-h-56" : "grid lg:h-56",
+                  custom ? "grid grid-cols-1 lg:min-h-56" : "grid grid-cols-1 lg:h-56",
                   hasDemo && "lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]",
                 )}
               >
@@ -604,7 +604,7 @@ export function StudioStage<T extends string>({
                 )}
 
                 {hasDemo && (
-                  <div className="border-t border-graphite-800 bg-graphite-950/30 lg:border-l lg:border-t-0">
+                  <div className="min-w-0 border-t border-graphite-800 bg-graphite-950/30 lg:border-l lg:border-t-0">
                     {selected.demo ? (
                       <DemoDeck
                         tier={selected}

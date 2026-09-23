@@ -257,7 +257,7 @@ export function HeroForgePanel() {
                 />
               ))}
             </span>
-            <span className="flex items-center gap-1 rounded-full bg-amber-500 px-2.5 py-1 text-[10px] font-medium text-graphite-950">
+            <span className="flex shrink-0 items-center gap-1 rounded-full bg-amber-500 px-2.5 py-1 text-[10px] font-medium text-graphite-950">
               Studio Quality
             </span>
           </div>
@@ -370,7 +370,7 @@ export function HeroForgePanel() {
               </button>
             ))}
           </div>
-          <span className="truncate font-mono text-[10px] uppercase tracking-[0.14em] text-text-subtle">
+          <span className="min-w-0 truncate font-mono text-[10px] uppercase tracking-[0.14em] text-text-subtle">
             {state === "error" ? "Demo unavailable" : "H4RRIS · What Would It Mean"}
           </span>
         </div>

@@ -407,7 +407,7 @@ export function StemCompare({
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium text-text-primary">
             {stemLabel} stem
-            {trackLabel && <span className="font-normal text-text-subtle"> · {trackLabel}</span>}
+            {trackLabel && <span className="hidden font-normal text-text-subtle sm:inline"> · {trackLabel}</span>}
           </p>
           <p className="truncate text-xs text-text-subtle">
             {loop ? (

@@ -146,7 +146,7 @@ export default async function HomePage() {
             }}
           />
           <div className="mx-auto grid max-w-6xl items-center gap-12 px-4 pb-16 pt-14 sm:pt-20 lg:grid-cols-12 lg:gap-12 lg:pb-20">
-            <div className="lg:col-span-5">
+            <div className="min-w-0 lg:col-span-5">
               <p className="font-mono text-xs uppercase tracking-[0.16em] text-amber-500">
                 AI stem separation
               </p>
@@ -172,7 +172,7 @@ export default async function HomePage() {
               </dl>
             </div>
 
-            <div className="lg:col-span-7">
+            <div className="min-w-0 lg:col-span-7">
               <div className="surface grain overflow-hidden rounded-xl border border-graphite-800">
                 <HeroForgePanel />
               </div>
