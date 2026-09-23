@@ -2,6 +2,7 @@
 
 import { useId, useState, useSyncExternalStore } from "react";
 import { Heart, X } from "lucide-react";
+import { PAYMENTS_PAUSED } from "@/lib/credits/payments-status";
 
 type Mood = "happy" | "sheepish";
 type PandaState = "pending" | "new" | "seen";
@@ -224,6 +225,9 @@ export function SupportBlock({
   const state = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
   const [closed, setClosed] = useState(false);
   const showPanda = !closed;
+
+  // No processor is connected, so there is nothing to ask for.
+  if (PAYMENTS_PAUSED) return null;
 
   if (variant === "line") {
     return (

@@ -1,13 +1,18 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { Sparkles } from "lucide-react";
+import { PauseCircle, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { Button, buttonStyles } from "@/components/ui/Button";
 import { useCredits } from "./CreditProvider";
 import { CreditGateModal } from "./CreditGateModal";
 import { PackCoverage } from "./PackCoverage";
 import { trackCredits } from "@/lib/analytics";
+import {
+  PAYMENTS_PAUSED,
+  PAYMENTS_PAUSED_BODY,
+  PAYMENTS_PAUSED_TITLE,
+} from "@/lib/credits/payments-status";
 import type { CreditPack, InsufficientCreditsPayload } from "@/lib/types/credits";
 
 /**
@@ -105,6 +110,16 @@ export function PricingTable() {
 
   return (
     <>
+      {PAYMENTS_PAUSED && (
+        <div className="mb-5 flex items-start gap-2.5 rounded-xl border border-graphite-800 bg-graphite-900/60 px-4 py-3 text-sm">
+          <PauseCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" aria-hidden />
+          <span className="text-text-muted">
+            <span className="font-medium text-text-primary">{PAYMENTS_PAUSED_TITLE}.</span>{" "}
+            {PAYMENTS_PAUSED_BODY}
+          </span>
+        </div>
+      )}
+
       {(balance > 0 || freeRemaining > 0) && (
         <div className="mb-5 flex items-center gap-2.5 rounded-xl border border-amber-500/25 bg-amber-500/5 px-4 py-3 text-sm">
           <Sparkles className="h-4 w-4 shrink-0 text-amber-400" aria-hidden />
