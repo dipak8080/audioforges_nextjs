@@ -21,6 +21,8 @@ import { AlwaysFreeTag, FreeTierBadge } from "@/components/credits/FreeTierBadge
 import type { MeteredToolKey } from "@/lib/types/credits";
 import type { RateLimitRule } from "@/lib/types/credits";
 import { useNotificationPermission } from "@/lib/hooks/useNotificationPermission";
+import { BatchSeparation } from "@/components/converter/BatchSeparation";
+import { readStoredBatch } from "@/lib/api/batch";
 
 /**
  * KEPT FROM EARLIER PASSES, all still true:
@@ -218,6 +220,19 @@ export function StemsForm({
 }: StemsFormProps) {
   const [quality, setQuality] = useState<SeparationQuality>("standard");
   const [notifyEnabled, setNotifyEnabled] = useState(false);
+  const [batchFiles, setBatchFiles] = useState<File[] | null>(null);
+  const [batchResumeId, setBatchResumeId] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    if (!hqAvailable) return;
+    const stored = readStoredBatch("stems");
+    if (!stored) return;
+    const id = setTimeout(() => {
+      setBatchResumeId(stored.batchId);
+      setBatchFiles([]);
+    }, 0);
+    return () => clearTimeout(id);
+  }, [hqAvailable]);
   const { permission: notifyPermission, request: requestNotifyPermission } =
     useNotificationPermission();
 
@@ -333,6 +348,20 @@ export function StemsForm({
         ? "We will notify you when it is done"
         : "Notify me when it is done";
 
+  if (batchFiles) {
+    return (
+      <BatchSeparation
+        kind="stems"
+        files={batchFiles}
+        resumeBatchId={batchResumeId}
+        onExit={() => {
+          setBatchFiles(null);
+          setBatchResumeId(undefined);
+        }}
+      />
+    );
+  }
+
   return (
     <MultiOutputToolForm
       endpoint="stems"
@@ -398,6 +427,12 @@ export function StemsForm({
           ? "Now switch to Studio Quality and hear the drums clean up"
           : undefined,
         demoCredit: "What Would It Mean by H4RRIS feat. Nicole Apollonio, used with permission",
+        onFilesSelect: hqAvailable
+          ? (picked) => {
+              setBatchResumeId(undefined);
+              setBatchFiles(picked);
+            }
+          : undefined,
         footerExtra: (busy) =>
           notifyPermission !== "unsupported" ? (
             <button

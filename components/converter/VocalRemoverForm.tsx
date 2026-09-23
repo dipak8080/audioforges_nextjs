@@ -49,6 +49,8 @@ import { AlwaysFreeTag, FreeTierBadge } from "@/components/credits/FreeTierBadge
 import { UpgradeToHqCard } from "@/components/credits/UpgradeToHqCard";
 import { CreditReceipt } from "@/components/credits/CreditReceipt";
 import { useNotificationPermission } from "@/lib/hooks/useNotificationPermission";
+import { BatchSeparation } from "@/components/converter/BatchSeparation";
+import { readStoredBatch } from "@/lib/api/batch";
 
 /**
  * ── THIS PASS ──────────────────────────────────────────────────────────
@@ -273,6 +275,19 @@ export function VocalRemoverForm({
   const [notifyEnabled, setNotifyEnabled] = useState(false);
   const { permission: notifyPermission, request: requestNotifyPermission } =
     useNotificationPermission();
+  const [batchFiles, setBatchFiles] = useState<File[] | null>(null);
+  const [batchResumeId, setBatchResumeId] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    if (!hqAvailable) return;
+    const stored = readStoredBatch("separate");
+    if (!stored) return;
+    const id = setTimeout(() => {
+      setBatchResumeId(stored.batchId);
+      setBatchFiles([]);
+    }, 0);
+    return () => clearTimeout(id);
+  }, [hqAvailable]);
 
   const isBusy = status === "uploading" || status === "processing";
   const isFailed = status === "failed" || status === "error";
@@ -485,6 +500,28 @@ export function VocalRemoverForm({
     // anything on screen.
     setBilling(null);
     setJobQuality("standard");
+  };
+
+  const handleFilesSelect = (selected: File[]) => {
+    if (selected.length <= 1 || !hqAvailable) {
+      if (selected[0]) handleFileSelect(selected[0]);
+      return;
+    }
+    stopPolling();
+    cancelledRef.current = true;
+    setFile(null);
+    setStatus("idle");
+    setValidationError(null);
+    setError(null);
+    setJobId(null);
+    setBilling(null);
+    setBatchResumeId(undefined);
+    setBatchFiles(selected);
+  };
+
+  const handleBatchExit = () => {
+    setBatchFiles(null);
+    setBatchResumeId(undefined);
   };
 
   const handleSubmit = async () => {
@@ -780,6 +817,17 @@ export function VocalRemoverForm({
       </div>
     ) : undefined;
 
+  if (batchFiles) {
+    return (
+      <BatchSeparation
+        kind="separate"
+        files={batchFiles}
+        resumeBatchId={batchResumeId}
+        onExit={handleBatchExit}
+      />
+    );
+  }
+
   return (
     <>
       <StudioStage
@@ -789,6 +837,8 @@ export function VocalRemoverForm({
         resetLabel={c.reset}
         file={file}
         onFileSelect={handleFileSelect}
+        multiple={hqAvailable}
+        onFilesSelect={handleFilesSelect}
         onClear={handleReset}
         accept="audio/*,.mp3,.wav,.m4a,.aac,.ogg,.flac"
         formats="MP3 · WAV · FLAC · M4A · AAC · OGG"

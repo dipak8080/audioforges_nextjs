@@ -275,6 +275,8 @@ interface MultiOutputToolFormProps {
     demoNudge?: string;
     demoCredit?: string;
     footerExtra?: (busy: boolean) => ReactNode;
+    /** Two or more files at once go here; a single pick stays on the normal path. */
+    onFilesSelect?: (files: File[]) => void;
   };
   maxSubmitRetries?: number;
   /**
@@ -932,6 +934,11 @@ export function MultiOutputToolForm({
           label={toolLabel || submitLabel}
           file={file}
           onFileSelect={handleFileSelect}
+          multiple={Boolean(stage.onFilesSelect)}
+          onFilesSelect={(picked) => {
+            if (picked.length > 1 && stage.onFilesSelect) stage.onFilesSelect(picked);
+            else if (picked[0]) handleFileSelect(picked[0]);
+          }}
           onClear={handleReset}
           accept={fileAccept}
           formats={stage.formats}
