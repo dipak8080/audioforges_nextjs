@@ -380,15 +380,9 @@ export function BatchSeparation({ kind, files, resumeBatchId, onExit }: BatchSep
       poll(id);
     } catch (err) {
       if (deadRef.current) return;
-      if (err instanceof ApiError && err.kind === "insufficient_credits") {
-        setPhase("ready");
-        return;
-      }
-      if (catchCreditError(err)) {
-        setPhase("ready");
-        return;
-      }
       setPhase("ready");
+      if (catchCreditError(err)) return;
+      if (err instanceof ApiError && err.kind === "insufficient_credits") return;
       if (err instanceof ApiError && err.isRateLimit) {
         setError({ title: "Too many batch requests", hint: `Wait ${formatWait(err.retryAfterSeconds ?? 60)} and try again.` });
       } else if (err instanceof ApiError && err.isServerBusy) {
@@ -500,10 +494,10 @@ export function BatchSeparation({ kind, files, resumeBatchId, onExit }: BatchSep
         ? creditsNeeded === 0
           ? toCharge > 0 && toCharge <= freeRemaining
             ? "Covered by your free run"
-            : `${toCharge} credits, you have ${balance}`
+            : `${toCharge} ${toCharge === 1 ? "credit" : "credits"}, you have ${balance}`
           : shortfall > 0
-            ? `Needs ${creditsNeeded} credits, you have ${balance}. ${shortfall} more to run all ${toCharge}.`
-            : `${creditsNeeded} credits from your ${balance}${freeRemaining > 0 ? ", first track on your free run" : ""}`
+            ? `Needs ${creditsNeeded} ${creditsNeeded === 1 ? "credit" : "credits"}, you have ${balance}. ${shortfall} more to run all ${toCharge}.`
+            : `${creditsNeeded} ${creditsNeeded === 1 ? "credit" : "credits"} from your ${balance}${freeRemaining > 0 ? ", first track on your free run" : ""}`
         : "Studio Quality, 1 credit per track"
       : phase === "running"
         ? `${done.length} of ${rows.length} done${eta && eta > 5 ? `, about ${formatWait(eta)} left` : ""}`
