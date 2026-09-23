@@ -40,6 +40,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { path: "/contact", priority: 0.4, changeFrequency: "yearly" as const },
     { path: "/privacy", priority: 0.3, changeFrequency: "yearly" as const },
     { path: "/terms", priority: 0.3, changeFrequency: "yearly" as const },
+    { path: "/refunds", priority: 0.3, changeFrequency: "yearly" as const },
     { path: "/dmca", priority: 0.3, changeFrequency: "yearly" as const },
   ];
 

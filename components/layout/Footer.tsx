@@ -132,6 +132,7 @@ const LANGUAGE_LINKS = [
 const LEGAL_LINKS = [
   { href: "/privacy", label: "Privacy Policy" },
   { href: "/terms", label: "Terms of Service" },
+  { href: "/refunds", label: "Refund Policy" },
   { href: "/dmca", label: "DMCA" },
 ];
 

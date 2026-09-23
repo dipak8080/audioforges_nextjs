@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { Check, Loader2, Mail } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { ApiError } from "@/lib/api/railway";
@@ -285,6 +286,13 @@ export function PayPalCheckout({ pack, onComplete, onUnavailable, className }: P
           Confirming your payment
         </p>
       )}
+
+      <p className="text-xs leading-relaxed text-neutral-500">
+        Credits are delivered instantly and all sales are final. By paying you agree to the{" "}
+        <Link href="/terms" className="underline hover:text-neutral-300">Terms</Link> and{" "}
+        <Link href="/refunds" className="underline hover:text-neutral-300">Refund Policy</Link>.
+        Credits from a failed run are returned automatically.
+      </p>
     </div>
   );
 }

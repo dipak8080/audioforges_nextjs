@@ -76,6 +76,10 @@ export default function ContactPage() {
             <Mail className="h-4 w-4" aria-hidden="true" />
           </EmailLink>
           <p className="mt-3 text-sm text-text-subtle">
+            Or write directly to{" "}
+            <a href="mailto:contact@audioforges.com" className="underline">contact@audioforges.com</a>.
+          </p>
+          <p className="mt-3 text-sm text-text-subtle">
             Replies usually take a day or two. Purchase problems get looked at first.
           </p>
         </div>

@@ -11,7 +11,7 @@ const PAGE_DESCRIPTION =
 
 /** Update whenever the terms text changes, it's a claim about the text below
  *  it, so a stale date is worse than no date. */
-const LAST_UPDATED = "2026-09-10";
+const LAST_UPDATED = "2026-09-23";
 
 const OG_IMAGE = ogImage(
   "Terms of Service",
@@ -112,8 +112,9 @@ export default function TermsPage() {
           for everyone. These limits may change without notice.
         </p>
         <p>
-          Because AudioForges is a free service, features may be modified,
-          suspended, or discontinued at any time without prior notice.
+          Free tools may be modified, suspended, or discontinued at any time
+          without prior notice. A change to the service never removes credits
+          you have already bought.
         </p>
 
         <h2 id="credits">5. Credits</h2>
@@ -124,11 +125,20 @@ export default function TermsPage() {
           them and can be attached to other browsers by the email sign-in
           described there; they cannot be transferred to another person or
           exchanged for cash. If a credited job fails, the credits for that job
-          are returned automatically. Beyond that, purchases are not refundable
-          except where the law requires it. We may change pack sizes and
-          prices; a change never affects credits already bought. Credits may be
-          used on any tool that takes credits, including tools added after the
-          purchase.
+          are returned automatically. Credits are a digital product delivered
+          instantly, and all purchases are final: there are no refunds for
+          unused credits, change of mind, or results you did not like, except
+          where the law requires it. The full{" "}
+          <Link href="/refunds">Refund Policy</Link> is part of these terms.
+          We may change pack sizes and prices; a change never affects credits
+          already bought. Credits may be used on any tool that takes credits,
+          including tools added after the purchase.
+        </p>
+        <p>
+          Payments are processed by PayPal. By completing a purchase you agree
+          to these terms and to the Refund Policy. You must provide a working
+          email address at checkout; it is used to match your payment to your
+          browser and to send your receipt.
         </p>
 
         <h2 id="no-warranty">6. No warranty</h2>
@@ -146,16 +156,26 @@ export default function TermsPage() {
           resulting from content you chose to process.
         </p>
 
-        <h2 id="changes">8. Changes to these terms</h2>
+        <h2 id="operator">8. Who operates AudioForges</h2>
+        <p>
+          AudioForges is operated by Dipak Sah, an individual based in
+          Kathmandu, Nepal, trading as AudioForges. There is no company behind
+          the service. These terms are governed by the laws of Nepal, without
+          affecting any consumer rights that the law of your own country gives
+          you and that cannot be excluded.
+        </p>
+
+        <h2 id="changes">9. Changes to these terms</h2>
         <p>
           We may update these terms periodically. Continued use of the site after
           changes constitutes acceptance of the updated terms.
         </p>
 
-        <h2 id="contact">9. Contact</h2>
+        <h2 id="contact">10. Contact</h2>
         <p>
-          Questions about these terms? Reach out via our{" "}
-          <Link href="/contact">Contact page</Link>.
+          Questions about these terms? Email{" "}
+          <a href="mailto:contact@audioforges.com">contact@audioforges.com</a>{" "}
+          or use the <Link href="/contact">Contact page</Link>.
         </p>
       </Prose>
     </main>
