@@ -750,6 +750,9 @@ export async function submitSeparation(
 
   const isMetered = quality === "hq";
   const endpoint = isMetered ? "separate-hq" : "separate";
+  // credentials on BOTH tiers since the backend started resolving identity
+  // on the standard routes too - without the cookie every free run mints a
+  // fresh anonymous subject.
   const res = await fetchWithTimeout(
     `${RAILWAY_API_BASE}/${endpoint}`,
     {
@@ -757,7 +760,7 @@ export async function submitSeparation(
       body: fd,
       signal: opts.signal,
       ...(idempotencyKey ? { headers: { "Idempotency-Key": idempotencyKey } } : {}),
-      ...(isMetered ? { credentials: "include" as RequestCredentials } : {}),
+      credentials: "include" as RequestCredentials,
     },
     30_000
   );
@@ -1048,7 +1051,7 @@ export async function submitStems(
   fd.append("file", file);
   const isMetered = quality === "hq";
   const endpoint = isMetered ? "stems-hq" : "stems";
-  return submitJob(endpoint, fd, 30_000, opts, isMetered, idempotencyKey);
+  return submitJob(endpoint, fd, 30_000, opts, true, idempotencyKey);
 }
 
 export function getStemsStatus(
@@ -1178,7 +1181,7 @@ export function submitYoutubeSeparate(
     url,
     30_000,
     opts,
-    isMetered,
+    true,
     idempotencyKey
   );
 }
@@ -1218,7 +1221,7 @@ export function submitYoutubeStems(
     url,
     30_000,
     opts,
-    isMetered,
+    true,
     idempotencyKey
   );
 }
