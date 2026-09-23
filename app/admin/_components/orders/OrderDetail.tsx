@@ -12,7 +12,10 @@ export function OrderDetail({ o, onOpenCustomer }: { o: OrderRow; onOpenCustomer
 
   const facts: { k: string; v: React.ReactNode; tone?: "bad" | "good" }[] = [
     { k: "Paid", v: whenLocal(o.created_at) },
-    { k: "Ko-fi order", v: <span className="font-mono text-[12px]">{o.provider_order_id}</span> },
+    {
+      k: o.provider === "paypal" ? "PayPal order" : o.provider === "kofi" ? "Ko-fi order" : "Order id",
+      v: <span className="font-mono text-[12px]">{o.provider_order_id}</span>,
+    },
     {
       k: "Browser linked at purchase",
       v: o.subject_id ? "Yes, claim matched" : "No, claim missed",
@@ -80,7 +83,7 @@ export function OrderDetail({ o, onOpenCustomer }: { o: OrderRow; onOpenCustomer
           </Note>
         ) : o.access === "not_yet" ? (
           <Note tone="quiet">
-            The receipt carried a sign-in link. If they bought straight from Ko-fi, that email is their only route.
+            The receipt carried a sign-in link. If the claim missed, that email is their only route in.
             Look them up in Customer and grant by hand if they write in.
           </Note>
         ) : null}

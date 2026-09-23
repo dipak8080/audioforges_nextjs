@@ -44,6 +44,12 @@ export type CreditsEvent =
   | "credits_checkout_popup_blocked"
   /** Landed back on /checkout/success. */
   | "credits_checkout_returned"
+  /** Buyer approved in the PayPal popup, capture is starting. */
+  | "credits_paypal_approved"
+  /** A PayPal step failed. Params: stage ("sdk" or "capture"), kind. */
+  | "credits_paypal_failed"
+  /** PayPal could not render at all, checkout fell back to Ko-fi. */
+  | "credits_paypal_unavailable"
   /** Balance observed to increase after returning — the actual conversion. */
   | "credits_purchase_confirmed"
   /** Polling on /checkout/success hit its ceiling without a balance change. */

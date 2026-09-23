@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Check, Loader2, Mail } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { ApiError } from "@/lib/api/railway";
+import { trackCredits } from "@/lib/analytics";
 import {
   capturePayPalOrder,
   createPayPalOrder,
@@ -76,14 +77,24 @@ export function PayPalCheckout({ pack, onComplete, onUnavailable, className }: P
     async (orderId: string) => {
       setPhase("paying");
       setError(null);
+      trackCredits("credits_paypal_approved", { pack: pack.key });
       try {
         const result = await capturePayPalOrder(orderId);
         setGranted(result.credits);
         applyBalance(result.balance);
         setPhase("done");
         onComplete?.(result.balance);
+        trackCredits("credits_purchase_confirmed", {
+          provider: "paypal",
+          pack: pack.key,
+          balance: result.balance,
+        });
         void refresh();
       } catch (err) {
+        trackCredits("credits_paypal_failed", {
+          stage: "capture",
+          kind: err instanceof ApiError ? err.kind ?? String(err.status) : "network",
+        });
         // The buyer has already approved the payment in the PayPal popup.
         // Unless the backend SAID nothing was charged, do not put the pay
         // buttons back - that is how one purchase becomes two. The webhook
@@ -112,13 +123,14 @@ export function PayPalCheckout({ pack, onComplete, onUnavailable, className }: P
         setError(null);
       }
     },
-    [applyBalance, onComplete, refresh]
+    [applyBalance, onComplete, refresh, pack.key]
   );
 
   useEffect(() => {
     let cancelled = false;
 
     const unavailable = () => {
+      trackCredits("credits_paypal_unavailable", { pack: pack.key });
       setPhase("unavailable");
       onUnavailableRef.current?.();
     };
@@ -165,6 +177,7 @@ export function PayPalCheckout({ pack, onComplete, onUnavailable, className }: P
           } catch {
             /* private mode */
           }
+          trackCredits("credits_checkout_started", { provider: "paypal", pack: pack.key });
           return actions.resolve();
         },
         createOrder: async () => createPayPalOrder(pack.key, emailRef.current.trim()),
@@ -172,8 +185,10 @@ export function PayPalCheckout({ pack, onComplete, onUnavailable, className }: P
           await handleApproved(data.orderID);
         },
         onCancel: () => setError(null),
-        onError: () =>
-          setError("PayPal could not complete that. Nothing was charged. Please try again."),
+        onError: () => {
+          trackCredits("credits_paypal_failed", { stage: "sdk", pack: pack.key });
+          setError("PayPal could not complete that. Nothing was charged. Please try again.");
+        },
       })
         .render(containerRef.current)
         .then(() => {

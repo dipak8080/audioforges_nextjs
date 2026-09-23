@@ -201,7 +201,7 @@ export function LookupPanel({
               <Empty
                 icon={Users}
                 title="Search an account to begin"
-                body="Enter the email from the Ko-fi order. You can grant credits on the right without searching first. An unknown email creates the account."
+                body="Enter the email from the order. You can grant credits on the right without searching first. An unknown email creates the account."
               />
             )}
           </div>
@@ -369,7 +369,7 @@ export function AdjustForm({
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-1.5">
-        <span className="text-[12px] text-text-subtle">Ko-fi packs</span>
+        <span className="text-[12px] text-text-subtle">Credit packs</span>
         {KOFI_PACKS.map((p) => (
           <button
             key={p}
@@ -401,7 +401,7 @@ export function AdjustForm({
           value={note}
           onChange={(e) => setNote(e.target.value)}
           maxLength={200}
-          placeholder="Note, e.g. Ko-fi order #1234"
+          placeholder="Note, e.g. order id or reason"
           aria-label="Adjustment note"
           className={cn(inputClass, "h-10 px-3")}
         />

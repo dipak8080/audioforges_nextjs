@@ -193,7 +193,7 @@ export const SHARED_ALLOWANCES: SharedAllowanceSpec[] = [
     scope: "per_ip",
     windows: [
       { maxRequests: 10, windowSeconds: 3600 },
-      { maxRequests: 30, windowSeconds: 86400 },
+      { maxRequests: 15, windowSeconds: 86400 },
     ],
   },
 ].map((a) => ({

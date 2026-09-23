@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth/requireAdmin";
 
 // Proxies GET /admin/endpoints on the backend - the real, introspected
@@ -10,7 +10,7 @@ import { requireAdmin } from "@/lib/auth/requireAdmin";
 const BACKEND_BASE = process.env.NEXT_PUBLIC_RAILWAY_API_BASE;
 const ADMIN_KEY = process.env.BACKEND_ADMIN_KEY;
 
-export async function GET(_request: NextRequest) {
+export async function GET() {
   // Endpoint-level auth. The admin PAGES checked the session client-side;
   // these handlers did not, so they were reachable with a bare curl.
   const denied = await requireAdmin();

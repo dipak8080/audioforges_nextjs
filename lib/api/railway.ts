@@ -231,7 +231,7 @@ export async function fetchWithTimeout(
   // Distinguishes "we gave up waiting" from "the user pressed Cancel".
   // Both surface as AbortError, and they need opposite handling.
   let timedOut = false;
-  const id = setTimeout(() => {
+  let id = setTimeout(() => {
     timedOut = true;
     controller.abort();
   }, timeoutMs);
@@ -247,20 +247,40 @@ export async function fetchWithTimeout(
     // replay is safe.
     const body = await res.clone().json().catch(() => null);
     if (body?.detail?.error !== "turnstile_required") return res;
+    // The human solves at human speed and the replay re-uploads the whole
+    // body, so neither may run on the leftovers of the original clock.
+    // Stop it while the modal is up, give the verify its own short window,
+    // and give the replay a fresh full budget.
+    clearTimeout(id);
     try {
       const token = await requestTurnstile();
-      const verify = await fetch(`${RAILWAY_API_BASE}/credits/turnstile/verify`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ token }),
-        signal: controller.signal,
-      });
-      if (!verify.ok) return res;
+      const verifyCtl = new AbortController();
+      const onAbort = () => verifyCtl.abort();
+      controller.signal.addEventListener("abort", onAbort, { once: true });
+      const verifyId = setTimeout(() => verifyCtl.abort(), 15_000);
+      try {
+        const verify = await fetch(`${RAILWAY_API_BASE}/credits/turnstile/verify`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ token }),
+          signal: verifyCtl.signal,
+        });
+        if (!verify.ok) return res;
+      } finally {
+        clearTimeout(verifyId);
+        controller.signal.removeEventListener("abort", onAbort);
+      }
     } catch (e) {
-      if ((e as Error)?.name === "AbortError") throw e;
+      // Only a user Cancel propagates. A cancelled or unavailable modal
+      // and a dead verify all fall through to the mapped 428 message.
+      if ((e as Error)?.name === "AbortError" && controller.signal.aborted && !timedOut) throw e;
       return res;
     }
+    id = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, timeoutMs);
     return await fetch(input, { ...init, signal: controller.signal });
   } catch (err) {
     if ((err as Error)?.name === "AbortError") {
@@ -426,6 +446,15 @@ async function toApiError(res: Response, context: ErrorContext): Promise<ApiErro
       );
     case 413:
       return new ApiError(detail || "That file is too large.", 413);
+    case 428:
+      // The Turnstile challenge did not complete: the modal was cancelled,
+      // could not load, or the token verify failed. The pass may still have
+      // registered server-side, so a plain retry is the right advice.
+      return new ApiError(
+        detail ||
+          "This free run needs a quick human check. Please try again and complete the check when it appears.",
+        428
+      );
     case 429: {
       // Parsed from rawDetail, not `detail`: looksLikeRawError blanks the
       // latter, and a message it rejected still carries usable numbers.

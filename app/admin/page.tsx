@@ -146,7 +146,7 @@ export default function AdminDashboardPage() {
             <AlertTriangle className="h-4 w-4 shrink-0 text-red-400" aria-hidden />
             <span className="min-w-0 flex-1">
               {unmatched > 0 &&
-                `${unmatched} Ko-fi payment${unmatched === 1 ? "" : "s"} did not reach an account. `}
+                `${unmatched} payment${unmatched === 1 ? "" : "s"} did not reach an account. `}
               {holds > 0 && `${holds} job${holds === 1 ? " is" : "s are"} still holding a credit.`}
             </span>
             <span className="shrink-0 text-red-300">Open credits</span>

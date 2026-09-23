@@ -47,11 +47,6 @@ const WINDOWS = [
   { key: 90, label: "90d" },
 ] as const;
 
-const EVENT_LABEL: Record<string, string> = {
-  preview_blocked: "Gate seen",
-  submit_402: "Blocked on submit",
-};
-
 function num(value: number | null | undefined, dp = 0) {
   if (value === null || value === undefined || Number.isNaN(value)) return "—";
   return value.toLocaleString(undefined, { minimumFractionDigits: dp, maximumFractionDigits: dp });

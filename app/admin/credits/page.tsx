@@ -130,7 +130,7 @@ function AdminCreditsPage() {
             />
             <Pill
               label="Unmatched payments"
-              title="Ko-fi payments that did not reach an account"
+              title="Payments that did not reach an account"
               value={num(overview?.webhooks_unprocessed)}
               tone={overview?.webhooks_unprocessed ? "alarm" : "plain"}
             />

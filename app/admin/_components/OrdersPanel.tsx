@@ -137,7 +137,7 @@ export function OrdersPanel({ tick, onOpenCustomer }: { tick: number; onOpenCust
         <SignalCard
           title="Started checkout, never paid"
           count={data?.signals.abandoned_checkouts}
-          blurb="Typed an email at the gate and went to Ko-fi. The payment never came."
+          blurb="Typed an email and started checkout. The payment never came."
           rows={data?.signals.abandoned_recent ?? []}
           keyOf={(r) => `${r.email}-${r.created_at}`}
           loading={loading}

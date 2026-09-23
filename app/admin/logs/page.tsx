@@ -338,7 +338,9 @@ function useIsMobile(): boolean {
 
 function useEscape(active: boolean, onEscape: () => void) {
   const handler = useRef(onEscape);
-  handler.current = onEscape;
+  useEffect(() => {
+    handler.current = onEscape;
+  });
   useEffect(() => {
     if (!active) return;
     function onKey(e: KeyboardEvent) {
@@ -540,16 +542,20 @@ export default function AdminLogsPage() {
     dateFilter: "all" as DateFilter, hideNoise: true,
     toolFilter: "", tierFilter: "" as Tier, erroredOnly: false,
   });
-  filterRef.current = {
-    endpointFilter, methodFilter, debouncedPath, statusClassFilter,
-    dateFilter, hideNoise, toolFilter, tierFilter, erroredOnly,
-  };
+  useEffect(() => {
+    filterRef.current = {
+      endpointFilter, methodFilter, debouncedPath, statusClassFilter,
+      dateFilter, hideNoise, toolFilter, tierFilter, erroredOnly,
+    };
+  });
 
   const sysFilterRef = useRef({
     levelFilter: "", debouncedSystemSearch: "",
     sysToolFilter: "", sysTierFilter: "" as Tier,
   });
-  sysFilterRef.current = { levelFilter, debouncedSystemSearch, sysToolFilter, sysTierFilter };
+  useEffect(() => {
+    sysFilterRef.current = { levelFilter, debouncedSystemSearch, sysToolFilter, sysTierFilter };
+  });
 
   const filterParams = useCallback(() => {
     const f = filterRef.current;
@@ -2282,6 +2288,7 @@ function Select<T extends string>({
             setOpen(false);
           }
         }}
+        role="combobox"
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={open ? listId : undefined}
