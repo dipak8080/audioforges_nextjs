@@ -22,7 +22,7 @@ const UPDATED = "2026-09-19";
 
 const PAGE_TITLE = "Audio to MIDI Converter – Free MP3 & WAV to MIDI Online";
 const PAGE_DESCRIPTION =
-  "Free audio to MIDI converter with a built-in piano roll editor. Convert MP3, WAV & FLAC, hear the result, fix wrong notes, then download a standard .mid. No sign-up.";
+  "Free audio to MIDI converter with a piano roll editor. Convert MP3, WAV and FLAC, hear the result, fix wrong notes, download a standard .mid. No sign-up.";
 
 const OG_IMAGE = ogForTool("audio-to-midi", "Audio to MIDI Converter");
 

@@ -24,7 +24,7 @@ const UPDATED = "2026-09-21";
 
 const PAGE_TITLE = "AudioForges: AI Vocal Remover and Stem Splitter for Producers and DJs";
 const PAGE_DESCRIPTION =
-  "Separate any track into clean stems with named models, htdemucs and MelBand RoFormer. Full length WAV, an in browser stem mixer, and a Studio Quality tier for the cleanest result.";
+  "Separate any track into clean stems with named models, htdemucs and MelBand RoFormer. Full length WAV, an in browser stem mixer and a Studio Quality tier.";
 
 const OG_IMAGE = ogImage(
   "Separate any track into clean stems",

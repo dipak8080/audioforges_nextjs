@@ -323,7 +323,7 @@ export const esDict: VocalRemoverDict = {
   updated: "2026-09-21",
   pageTitle: "Quitar la Voz de una Canción Gratis: Separador de Voz con IA",
   pageDescription:
-    "Quita la voz de cualquier canción gratis con IA. Descarga el instrumental y el acapella en WAV completo. Sin registro, sin marca de agua, directo en el navegador.",
+    "Quita la voz de cualquier canción gratis con IA. Descarga el instrumental y el acapella en WAV. Sin registro, sin marca de agua, directo en el navegador.",
   ogTitle: "Quitar la Voz de una Canción Gratis",
   appName: "Separador de Voz IA",
   appAlternateNames: [

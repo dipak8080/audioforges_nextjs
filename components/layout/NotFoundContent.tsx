@@ -1,14 +1,7 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 import { SearchX } from "lucide-react";
 import { buttonStyles } from "@/components/ui/Button";
 import { getLiveTools, type Tool } from "@/lib/data/tools";
-
-export const metadata: Metadata = {
-  title: "Page not found",
-  description: "That page does not exist. Browse the free audio tools and guides instead.",
-  robots: { index: false, follow: true },
-};
 
 const SUGGESTED_SLUGS = [
   "youtube-to-wav",
@@ -18,7 +11,7 @@ const SUGGESTED_SLUGS = [
   "convert",
 ];
 
-export default function NotFound() {
+export function NotFoundContent() {
   const live = getLiveTools();
   const picked = SUGGESTED_SLUGS.map((slug) => live.find((t) => t.slug === slug)).filter(
     (t): t is Tool => Boolean(t)

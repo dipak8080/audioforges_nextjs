@@ -6,7 +6,6 @@ import { ConsentBanner } from "@/components/consent/ConsentBanner";
 import { SITE_URL } from "@/lib/constants";
 import { getFeatureFlags } from "@/lib/api/railway";
 import { ogImage } from "@/lib/og";
-import "./globals.css";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -36,11 +35,11 @@ const SITE_DESCRIPTION =
  */
 const OG_IMAGE = ogImage("AudioForges", "Free audio tools for producers, DJs and musicians.");
 
-export const viewport: Viewport = {
+export const rootViewport: Viewport = {
   themeColor: "#151515",
 };
 
-export const metadata: Metadata = {
+export const rootMetadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
     default: SITE_TAGLINE,
@@ -100,7 +99,15 @@ const CONSENT_REGIONS = [
   "SI", "ES", "SE", "IS", "LI", "NO", "GB", "CH",
 ];
 
-export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+/**
+ * Shared document shell. Each route group ((en), (pt), (es), (id)) has its own
+ * root layout so <html lang> matches the page's self-hreflang without making
+ * anything dynamic.
+ */
+export async function RootDocument({
+  lang,
+  children,
+}: Readonly<{ lang: string; children: React.ReactNode }>) {
   // Resolved HERE, once, server-side — so CreditProvider makes ZERO client
   // requests on the ~90 pages of this site while the paywall is off.
   //
@@ -113,7 +120,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
 
   return (
     <html
-      lang="en"
+      lang={lang}
       className={`${geistSans.variable} ${geistMono.variable} ${instrumentSerif.variable} h-full antialiased`}
       suppressHydrationWarning
     >
@@ -121,6 +128,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         {/* Consent defaults MUST execute before gtag.js, which is why this is
             beforeInteractive. Denied in the EEA/UK/CH until the visitor
             chooses; granted everywhere else. */}
+        {/* eslint-disable-next-line @next/next/no-before-interactive-script-outside-document */}
         <Script id="consent-mode-default" strategy="beforeInteractive">
           {`
     window.dataLayer = window.dataLayer || [];

@@ -354,7 +354,7 @@ export const guides: Guide[] = [
     slug: "best-free-vocal-remover",
     title: "Best Free Vocal Remover 2026: 8 Tools Tested on the Same Song",
     description:
-      "We ran one 41-second clip through LALAL.AI, Moises, VocalRemover.org, StemSplit, Fadr, Gaudio and more, and kept every result. Listen to all of them side by side.",
+      "One 41-second clip run through LALAL.AI, Moises, VocalRemover.org, StemSplit, Fadr, Gaudio and more, every result kept. Listen to them side by side.",
     publishedDate: "2026-09-21",
     updatedDate: "2026-09-21",
     category: "production",
@@ -372,7 +372,7 @@ export const guides: Guide[] = [
     slug: "lalal-ai-alternative",
     title: "LALAL.AI Alternative Without a Subscription",
     description:
-      "LALAL.AI minutes reset monthly and the smallest top-up is $50. Here is how AudioForges compares: free Standard, Studio Quality per song, credits that never expire.",
+      "LALAL.AI minutes reset monthly and the smallest top-up is $50. How AudioForges compares: free Standard, Studio Quality per song, credits that never expire.",
     publishedDate: "2026-09-20",
     updatedDate: "2026-09-20",
     category: "production",

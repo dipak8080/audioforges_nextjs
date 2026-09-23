@@ -15,7 +15,7 @@ const guide = getGuideBySlug("best-free-vocal-remover")!;
 const OG_IMAGE = ogForGuide(guide);
 
 export const metadata: Metadata = {
-  title: guide.title,
+  title: { absolute: "Best Free Vocal Remover 2026: 8 Tools Tested on One Song" },
   description: guide.description,
   alternates: { canonical: `${SITE_URL}/guides/${guide.slug}` },
   openGraph: {

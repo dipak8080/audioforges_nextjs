@@ -27,6 +27,10 @@ const BASELINE_HEADERS = [
 ];
 
 const nextConfig: NextConfig = {
+  // Route groups give each locale its own root layout, so the 404 page needs
+  // its own document to render inside the site chrome.
+  experimental: { globalNotFound: true },
+
   async headers() {
     return [
       {
