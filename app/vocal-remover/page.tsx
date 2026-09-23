@@ -151,6 +151,11 @@ export default async function VocalRemoverPage() {
             answer:
               "A second tier that runs MelBand RoFormer instead of htdemucs. It is a different architecture, not the same model run harder, and the difference is audible: less vocal bleed in the instrumental and fewer watery artifacts on cymbals and breaths. It takes 1 to 2 minutes instead of 20 seconds to 1 minute and costs one credit per run after the free monthly allowance.",
           },
+          {
+            question: "Can I remove vocals from many songs at once?",
+            answer:
+              "Yes. Drop up to 20 tracks on the tool and it runs them as a Studio Quality batch, one credit per track, same price as a single run. Each track opens in Forge Mixer when it finishes, and the whole set downloads as one ZIP in WAV or MP3. A track that fails is refunded on its own.",
+          },
         ]
       : []),
     {
@@ -350,6 +355,13 @@ export default async function VocalRemoverPage() {
                   cells: [
                     { text: "Free, always" },
                     { text: "Free monthly allowance, then 1 credit per run", sub: "allowance shared across Studio Quality tools" },
+                  ],
+                },
+                {
+                  label: "Batch",
+                  cells: [
+                    { state: "no", text: "One track at a time" },
+                    { state: "yes", text: "Up to 20 tracks, one ZIP", sub: "same 1 credit per track" },
                   ],
                 },
               ]}

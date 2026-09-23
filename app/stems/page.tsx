@@ -140,6 +140,11 @@ export default async function StemsPage() {
             answer:
               "A two-stage pipeline instead of one pass. MelBand RoFormer extracts the vocal first, then htdemucs_ft splits the vocal-free instrumental into drums, bass and other. Every stem comes back cleaner because the model separating them is not fighting the voice. It takes 1 to 2 minutes instead of 20 seconds to 1 minute and costs one credit per run after the free monthly allowance.",
           },
+          {
+            question: "Can I split a whole folder of songs at once?",
+            answer:
+              "Yes. Drop up to 20 tracks and they run as a Studio Quality batch at one credit per track, the same as a single run. Every finished track opens in Forge Mixer, and all the stems download together as one ZIP in WAV or MP3, numbered in the order you added them. A track that fails is refunded on its own.",
+          },
         ]
       : []),
     {
@@ -354,6 +359,13 @@ export default async function StemsPage() {
                       text: "Free monthly allowance, then 1 credit per run",
                       sub: "allowance shared across Studio Quality tools",
                     },
+                  ],
+                },
+                {
+                  label: "Batch",
+                  cells: [
+                    { state: "no", text: "One track at a time" },
+                    { state: "yes", text: "Up to 20 tracks, one ZIP", sub: "same 1 credit per track" },
                   ],
                 },
               ]}

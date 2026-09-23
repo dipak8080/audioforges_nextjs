@@ -205,6 +205,11 @@ export default async function PricingPage() {
           No subscription and no account. Credits never expire, so a quiet month
           costs nothing.
         </p>
+        <p className="measure mt-3 text-base leading-relaxed text-text-muted">
+          Batch costs the same. Drop up to 20 tracks on the vocal remover or the
+          stem splitter and pay 1 credit per track, so a 100-credit pack is 100
+          Studio Quality tracks at 20 cents each.
+        </p>
       </header>
 
       <div className="mt-8">
