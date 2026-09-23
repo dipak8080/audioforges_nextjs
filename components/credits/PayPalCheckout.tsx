@@ -75,7 +75,7 @@ export function PayPalCheckout({ pack, onComplete, onUnavailable, className }: P
   const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
 
   const handleApproved = useCallback(
-    async (orderId: string) => {
+    async (orderId: string): Promise<"restart" | void> => {
       setPhase("paying");
       setError(null);
       trackCredits("credits_paypal_approved", { pack: pack.key });
@@ -102,6 +102,13 @@ export function PayPalCheckout({ pack, onComplete, onUnavailable, className }: P
         // is the backstop and grants the same capture id exactly once.
         const api = err instanceof ApiError ? err : null;
 
+        if (api?.kind === "instrument_declined") {
+          setPhase("ready");
+          setError(
+            "Your card or bank declined that payment. Nothing was charged. Choose another card or funding source in the PayPal window."
+          );
+          return "restart";
+        }
         if (api?.kind === "not_completed") {
           setPhase("ready");
           setError("The payment was not completed. Nothing was charged.");
@@ -182,8 +189,9 @@ export function PayPalCheckout({ pack, onComplete, onUnavailable, className }: P
           return actions.resolve();
         },
         createOrder: async () => createPayPalOrder(pack.key, emailRef.current.trim()),
-        onApprove: async (data: { orderID: string }) => {
-          await handleApproved(data.orderID);
+        onApprove: async (data: { orderID: string }, actions: { restart?: () => Promise<void> }) => {
+          const next = await handleApproved(data.orderID);
+          if (next === "restart" && actions?.restart) return actions.restart();
         },
         onCancel: () => setError(null),
         onError: () => {
