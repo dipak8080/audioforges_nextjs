@@ -50,6 +50,10 @@ export type CreditsEvent =
   | "credits_paypal_failed"
   /** PayPal could not render at all, checkout fell back to Ko-fi. */
   | "credits_paypal_unavailable"
+  /** A Paddle step failed. Params: stage ("open", "checkout" or "confirm"), kind. */
+  | "credits_paddle_failed"
+  /** Paddle could not load (config off or script blocked). Params: stage. */
+  | "credits_paddle_unavailable"
   /** Balance observed to increase after returning — the actual conversion. */
   | "credits_purchase_confirmed"
   /** Polling on /checkout/success hit its ceiling without a balance change. */

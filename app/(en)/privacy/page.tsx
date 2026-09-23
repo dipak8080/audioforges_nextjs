@@ -11,7 +11,7 @@ const PAGE_DESCRIPTION =
 
 /** Update whenever the policy text changes, it's a claim about the text
  *  below it, so a stale date is worse than no date. */
-const LAST_UPDATED = "2026-09-13";
+const LAST_UPDATED = "2026-09-24";
 
 const OG_IMAGE = ogImage(
   "Privacy Policy",
@@ -136,10 +136,11 @@ export default function PrivacyPage() {
           by the processor.
         </p>
         <p>
-          Payments are processed by PayPal, or by Ko-fi for donations. Paying
-          on either is subject to that processor&apos;s own privacy policy and
-          terms. The processor tells us that a payment for a given item was
-          made and the email used; it does not give us your card details.
+          Credit purchases are processed by Paddle.com, our reseller and
+          Merchant of Record, and donations by Ko-fi. Paying on either is
+          subject to that processor&apos;s own privacy policy and terms. The
+          processor tells us that a payment for a given item was made and the
+          email used; it does not give us your card details.
         </p>
 
         <h2 id="advertising">4. Advertising</h2>
@@ -156,7 +157,7 @@ export default function PrivacyPage() {
           and the following providers to run the site and tools: Vercel for the
           website, VPS Dime for general backend processing, RunPod for the
           GPU-accelerated compute used by separation and
-          high-accuracy MIDI, PayPal to process credit purchases, and Ko-fi for donations. When you use one of those separation tools, the
+          high-accuracy MIDI, Paddle.com to process credit purchases, and Ko-fi for donations. When you use one of those separation tools, the
           audio file or fetched YouTube audio is processed on RunPod&apos;s
           infrastructure for the time needed to complete that job, under the same
           no-permanent-storage handling described in Section 2. Each of these

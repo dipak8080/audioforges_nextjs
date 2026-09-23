@@ -9,7 +9,7 @@ const PAGE_TITLE = "Refund Policy";
 const PAGE_DESCRIPTION =
   "AudioForges credits are a digital product delivered instantly. All sales are final. Credits from a failed job are returned automatically.";
 
-const LAST_UPDATED = "2026-09-23";
+const LAST_UPDATED = "2026-09-24";
 
 const OG_IMAGE = ogImage("Refund Policy", "Digital credits, delivered instantly. All sales are final.", "Legal");
 
@@ -98,6 +98,13 @@ export default function RefundsPage() {
           <a href="mailto:contact@audioforges.com">contact@audioforges.com</a> with the email
           address you paid with and roughly when you paid. Purchase problems are looked at before
           anything else, and the credits are attached to you by hand.
+        </p>
+
+        <h2 id="paddle">Who processes your payment</h2>
+        <p>
+          Purchases are processed by Paddle.com, our reseller and Merchant of Record. Your receipt
+          comes from Paddle, and your card statement shows <strong>PADDLE.NET* AUDIOFORGE</strong>.
+          Paddle may also review a refund request under its own buyer terms, shown at checkout.
         </p>
 
         <h2 id="law">Your legal rights</h2>

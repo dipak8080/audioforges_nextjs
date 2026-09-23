@@ -9,7 +9,7 @@ import { CheckoutStep } from "./CheckoutStep";
 import { PackRail, defaultPackKey } from "./PackRail";
 import { PackCoverage } from "./PackCoverage";
 import { requestMagicLink } from "@/lib/api/credits";
-import { preloadPayPal } from "@/lib/api/paypal";
+import { preloadPaddle } from "@/lib/api/paddle";
 import { trackCredits } from "@/lib/analytics";
 import { ApiError } from "@/lib/api/railway";
 import type { CreditPack, InsufficientCreditsPayload } from "@/lib/types/credits";
@@ -169,11 +169,10 @@ export function CreditGateModal({
     }
   }
 
-  // Warm PayPal while the buyer is still reading the packs, so the
-  // checkout step renders its buttons instantly.
+  // Warm Paddle.js while the buyer is still reading the packs.
   useEffect(() => {
     if (!open) return;
-    preloadPayPal();
+    preloadPaddle();
     markTrigger(window.location.pathname === "/pricing" ? "pricing" : payload.tool);
   }, [open, payload.tool]);
 

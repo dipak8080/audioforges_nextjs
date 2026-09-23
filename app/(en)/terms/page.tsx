@@ -11,7 +11,7 @@ const PAGE_DESCRIPTION =
 
 /** Update whenever the terms text changes, it's a claim about the text below
  *  it, so a stale date is worse than no date. */
-const LAST_UPDATED = "2026-09-23";
+const LAST_UPDATED = "2026-09-24";
 
 const OG_IMAGE = ogImage(
   "Terms of Service",
@@ -135,10 +135,13 @@ export default function TermsPage() {
           including tools added after the purchase.
         </p>
         <p>
-          Payments are processed by PayPal. By completing a purchase you agree
-          to these terms and to the Refund Policy. You must provide a working
-          email address at checkout; it is used to match your payment to your
-          browser and to send your receipt.
+          Our order process is conducted by our online reseller Paddle.com.
+          Paddle.com is the Merchant of Record for all our orders and handles
+          payment, billing, sales tax, receipts and payment disputes. By
+          completing a purchase you agree to these terms, to the Refund Policy,
+          and to the Paddle buyer terms shown at checkout. You must provide a
+          working email address at checkout; it is used to match your payment to
+          your browser and to send your receipt.
         </p>
 
         <h2 id="no-warranty">6. No warranty</h2>
