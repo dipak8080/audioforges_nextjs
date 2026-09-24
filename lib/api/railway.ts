@@ -563,6 +563,8 @@ export interface FeatureFlags {
   /** Kill switch for /audio-to-sheet. FALSE = route returns 503, so the tool
    *  must not be offered. Same shape as midiHqEnabled: visibility, not price. */
   sheetMusicEnabled: boolean;
+  /** Studio Quality on YouTube links. Off = paid runs are upload-only. */
+  youtubeHqEnabled: boolean;
   paywallEnabled: boolean;
   paywallTools: Partial<Record<MeteredToolKey, boolean>>;
 }
@@ -571,6 +573,7 @@ const FLAGS_OFF: FeatureFlags = {
   separationHqEnabled: false,
   midiHqEnabled: false,
   sheetMusicEnabled: false,
+  youtubeHqEnabled: false,
   paywallEnabled: false,
   paywallTools: {},
 };
@@ -593,6 +596,7 @@ export async function getFeatureFlags(): Promise<FeatureFlags> {
       separationHqEnabled: Boolean(data?.features?.separation_hq_enabled),
       midiHqEnabled: Boolean(data?.features?.midi_hq_enabled),
       sheetMusicEnabled: Boolean(data?.features?.sheet_music_enabled),
+      youtubeHqEnabled: Boolean(data?.features?.youtube_hq_enabled),
       paywallEnabled: Boolean(data?.features?.paywall_enabled),
       paywallTools:
         tools && typeof tools === "object"

@@ -250,8 +250,8 @@ export default async function PricingPage() {
                 proofs={[
                   {
                     label: "Source",
-                    value: "An audio file, or a YouTube link",
-                    note: "Same inputs as the free tier.",
+                    value: "An audio file you upload",
+                    note: "Studio Quality runs on files from your own device.",
                   },
                   {
                     label: "Files back",

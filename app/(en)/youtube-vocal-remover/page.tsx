@@ -102,8 +102,11 @@ const hqDurationDiffers = hqDurationLabel !== standardDurationLabel;
 
 export default async function YouTubeVocalRemoverPage() {
   const relatedTools = getRelatedTools("youtube-vocal-remover", 5);
-  const { separationHqEnabled, paywallEnabled, paywallTools } = await getFeatureFlags();
-  const hqMetered = paywallEnabled && Boolean(paywallTools["youtube/separate-hq"]);
+  const { separationHqEnabled: hqRunning, youtubeHqEnabled, paywallEnabled, paywallTools } =
+    await getFeatureFlags();
+  const separationHqEnabled = hqRunning && youtubeHqEnabled;
+  const hqMetered =
+    separationHqEnabled && paywallEnabled && Boolean(paywallTools["youtube/separate-hq"]);
   const limits = await getLimits();
 
   const standardAllowance = sharedAllowanceFor(limits, "youtube/separate");
