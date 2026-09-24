@@ -17,6 +17,34 @@
 // each entry names the variable to check, so the mapping is at least
 // discoverable rather than folklore.
 //
+// ---------------------------------------------------------------
+// WHEN A TOOL HAS TWO STACKED CAPS, LIST THE BINDING ONE.
+//
+// Added 2026-08-22 after an audit found three pages advertising a
+// limit their users could never actually reach. Every /youtube/* tool
+// runs a DOWNLOAD and then a PROCESSING step, each with its own
+// ceiling, and they are not the same number:
+//
+//   MAX_VIDEO_DURATION_SECONDS        2400 (40 min)  — the download
+//   MAX_SEPARATION_DURATION_SECONDS    600 (10 min)  — separation
+//   MAX_SEPARATION_DURATION_SECONDS_HQ 600 (10 min)  — separation, HQ
+//                                    RAISED from 360 on 2026-08-28;
+//                                    HQ now matches the standard tier,
+//                                    so the two no longer differ here.
+//
+// The SMALLER of the pair is what a user hits, and it is the only one
+// worth showing them. Advertising 40 minutes on a separation page
+// invites a 14-minute video that downloads through the paid proxy and
+// then fails at the separation step — the user waits, pays nothing,
+// and we pay for bandwidth on a job that was refusable at submit.
+//
+// So each /youtube/* entry below carries the PROCESSING cap, not the
+// download cap, and names both env vars so the pairing stays visible.
+// The one exception is youtube/analyze, where the download cap really
+// is the binding one — analysis trims to ANALYSIS_MAX_SECONDS rather
+// than rejecting, so nothing downstream refuses on length.
+// ---------------------------------------------------------------
+//
 // Verified against config.py on 2026-08-22.
 // Re-verified 2026-08-30 for the pitch/tempo override wiring (see the
 // "PITCH / TEMPO" block below) and the ringtone cap (30s, matching
@@ -156,6 +184,41 @@ export const TOOL_LIMITS: Record<string, ToolLimits> = {
     envVars: ["MAX_UPLOAD_BYTES", "MAX_SEPARATION_DURATION_SECONDS_HQ"],
   },
 
+  // ---- YOUTUBE CHAINED TOOLS ----
+  //
+  // No maxFileBytes on any of these: there is no upload. The input is a
+  // link, and what bounds it is the video's LENGTH, not its size.
+  //
+  // The duration shown is the SEPARATION cap, not the 40-minute
+  // download cap — see the note at the top of this file. Identical
+  // numbers to their upload-based siblings above, which is the point:
+  // the separation work is the same, only the input method differs.
+  "youtube/separate": {
+    maxTotalDurationSeconds: 600,
+    envVars: ["MAX_SEPARATION_DURATION_SECONDS", "MAX_VIDEO_DURATION_SECONDS"],
+  },
+  "youtube/separate-hq": {
+    maxTotalDurationSeconds: 600,
+    envVars: ["MAX_SEPARATION_DURATION_SECONDS_HQ", "MAX_VIDEO_DURATION_SECONDS"],
+  },
+  "youtube/stems": {
+    maxTotalDurationSeconds: 600,
+    envVars: ["MAX_SEPARATION_DURATION_SECONDS", "MAX_VIDEO_DURATION_SECONDS"],
+  },
+  "youtube/stems-hq": {
+    maxTotalDurationSeconds: 600,
+    envVars: ["MAX_SEPARATION_DURATION_SECONDS_HQ", "MAX_VIDEO_DURATION_SECONDS"],
+  },
+
+  // The ONE tool where the download cap genuinely is the binding one.
+  // Key/BPM analysis trims to ANALYSIS_MAX_SECONDS (180s) rather than
+  // rejecting a long file, so nothing after the download refuses on
+  // length — 40 minutes really is the ceiling here.
+  "youtube/analyze": {
+    maxTotalDurationSeconds: 2400,
+    envVars: ["MAX_VIDEO_DURATION_SECONDS"],
+  },
+
   // ---- MIDI ----
   "audio-to-midi": {
     maxFileBytes: 80 * MB,
@@ -179,6 +242,23 @@ export const TOOL_LIMITS: Record<string, ToolLimits> = {
     maxFileBytes: 90 * MB,
     maxTotalDurationSeconds: 3600,
     envVars: ["MAX_VIDEO_UPLOAD_BYTES", "VIDEO_EXTRACT_MAX_DURATION_SECONDS"],
+  },
+
+  // ---- YOUTUBE / TIKTOK DOWNLOAD ----
+  //
+  // Published by /limits since 2026-08-30 as
+  // durations.youtube_download_max_seconds, so pages read it from there and
+  // this entry is the offline fallback only. It was previously stated from
+  // the frontend's TRANSCRIPTION_LIMITS, which is a different subsystem
+  // entirely — the backend's new key deliberately avoids "transcribe" in its
+  // name so it can't drift back.
+  download: {
+    maxTotalDurationSeconds: 2400,
+    envVars: ["MAX_VIDEO_DURATION_SECONDS"],
+  },
+  "tiktok-to-mp3": {
+    maxTotalDurationSeconds: 600,
+    envVars: ["MAX_TIKTOK_DURATION_SECONDS"],
   },
 
   // ---- GENERIC AUDIO TOOLS (trim/volume/reverse/convert/etc) ----

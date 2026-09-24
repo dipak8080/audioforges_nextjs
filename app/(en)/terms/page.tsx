@@ -68,10 +68,11 @@ export default function TermsPage() {
 
         <h2 id="use-of-service">2. Use of the service</h2>
         <p>
-          AudioForges provides tools to convert, separate and analyze audio
-          files you upload. You are solely responsible for ensuring you have
-          the legal right to convert or process any content you submit,
-          including that it is your own content, is royalty-free, Creative Commons licensed, public domain,
+          AudioForges provides tools to convert and analyze audio, including
+          extracting audio from user-submitted video URLs. You are solely
+          responsible for ensuring you have the legal right to download,
+          convert, or process any content you submit, including that it is your
+          own content, is royalty-free, Creative Commons licensed, public domain,
           or that you have explicit permission from the rights holder.
         </p>
         <p>

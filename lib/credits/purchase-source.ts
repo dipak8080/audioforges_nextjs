@@ -1,5 +1,5 @@
 // Session-scoped purchase attribution. Two fields: the first touch that
-// brought the visitor (a ?src= link) and the last
+// brought the visitor (a ?src= link or the YouTube funnel) and the last
 // thing that opened checkout (a tool gate or the pricing page). Both ride
 // along on checkout creation so admin can group sales by origin.
 

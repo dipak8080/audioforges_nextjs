@@ -57,6 +57,8 @@ const STEMS_HQ: ToolCopy = {
 const TOOL_COPY: Record<string, ToolCopy> = {
   "separate-hq": SEPARATE_HQ,
   "stems-hq": STEMS_HQ,
+  "youtube/separate-hq": SEPARATE_HQ,
+  "youtube/stems-hq": STEMS_HQ,
   "audio-to-midi-hq": {
     title: "High-accuracy MIDI",
     unit: ["MIDI file", "MIDI files"],
@@ -107,6 +109,9 @@ const FALLBACK_COPY: ToolCopy = {
 const TOOL_LABELS: Record<string, string> = {
   "separate-hq": "Vocal Remover",
   "stems-hq": "Stem Splitter",
+  "youtube/separate-hq": "Vocal Remover",
+  "youtube/stems-hq": "Stem Splitter",
+  transcribe: "your transcript",
   "audio-to-midi-hq": "High-accuracy MIDI",
   "audio-to-midi-hq-mix": "High-accuracy MIDI",
   "audio-to-sheet": "your sheet music",

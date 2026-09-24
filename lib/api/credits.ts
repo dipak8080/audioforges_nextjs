@@ -7,9 +7,10 @@
  * the two files apart makes that boundary visible rather than a per-call
  * flag someone forgets.
  *
- * The metered SUBMIT routes (separate-hq, stems-hq) live in railway.ts
- * because they share the existing job plumbing; they get credentials via the
- * `withCredentials` flag on submitSeparation / submitStems.
+ * The metered SUBMIT routes (separate-hq, stems-hq, youtube/*-hq) live in
+ * railway.ts because they share the existing job plumbing — those get
+ * credentials via the `withCredentials` flag added to submitSeparation /
+ * submitStems / submitUrlJob. See PR1_PATCHES.md.
  */
 
 import {
@@ -178,8 +179,15 @@ export async function getCreditsMe(opts: RequestOptions = {}): Promise<CreditsMe
 /**
  * "Will this cost a credit?" — for UX only, never for enforcement.
  *
- * `input_seconds` is optional: send it only for a tool that declares a
- * nonzero `free_under_seconds`.
+ * `input_seconds` is OPTIONAL and, for all four HQ tools, IRRELEVANT:
+ * they all have `free_under_seconds: 0`, so duration does not affect the
+ * credit decision. That is why this signature makes it optional and why
+ * there is no client-side audio decoding anywhere in this PR — and it's
+ * what makes the YouTube routes (where duration is unknowable before
+ * submit) work identically to the upload routes.
+ *
+ * Send a duration only if a future tool declares a nonzero
+ * `free_under_seconds`.
  */
 export async function previewCost(
   tool: MeteredToolKey,

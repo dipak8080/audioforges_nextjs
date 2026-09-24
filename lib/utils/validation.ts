@@ -1,5 +1,6 @@
 // lib/utils/validation.ts
-import type { RateLimitResult, FileValidationResult } from "@/lib/types/converter";
+import { z } from "zod";
+import type { YouTubeValidationResult, RateLimitResult, FileValidationResult } from "@/lib/types/converter";
 
 // ============ AUDIO FILE VALIDATION ============
 
@@ -112,6 +113,82 @@ function validateAudioFileWithExtensions(
   }
 
   return { isValid: true, warnings: warnings.length > 0 ? warnings : undefined };
+}
+
+// ============ YOUTUBE URL VALIDATION ============
+
+export const youtubeUrlSchema = z
+  .string()
+  .min(1, "Please enter a YouTube URL")
+  .max(500, "URL is too long")
+  .refine((url) => {
+    const trimmed = url.trim();
+    try {
+      new URL(trimmed.startsWith("http") ? trimmed : `https://${trimmed}`);
+    } catch {
+      return false;
+    }
+    return true;
+  }, "Please enter a valid URL")
+  .refine((url) => {
+    const trimmed = url.trim();
+    const patterns = [
+      /^(https?:\/\/)?(www\.)?youtube\.com\/watch\?v=[\w-]{11}/,
+      /^(https?:\/\/)?(www\.)?youtube\.com\/watch\?.*v=[\w-]{11}/,
+      /^(https?:\/\/)?(www\.)?youtu\.be\/[\w-]{11}/,
+      /^(https?:\/\/)?(www\.)?youtube\.com\/shorts\/[\w-]{11}/,
+      /^(https?:\/\/)?(www\.)?youtube\.com\/embed\/[\w-]{11}/,
+      /^(https?:\/\/)?(m\.)?youtube\.com\/watch\?v=[\w-]{11}/,
+    ];
+    return patterns.some((pattern) => pattern.test(trimmed));
+  }, "Invalid YouTube URL. Please use a valid youtube.com or youtu.be link");
+
+export function extractYouTubeVideoId(url: string): string | null {
+  const patterns = [
+    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/,
+    /(?:youtube\.com\/watch\?.*v=)([a-zA-Z0-9_-]{11})/,
+  ];
+  for (const pattern of patterns) {
+    const match = url.match(pattern);
+    if (match) return match[1];
+  }
+  return null;
+}
+
+export function validateYouTubeUrl(url: string): YouTubeValidationResult {
+  const trimmed = url.trim();
+
+  if (!trimmed) {
+    return { isValid: false, error: "Please enter a YouTube URL" };
+  }
+  if (trimmed.length > 500) {
+    return { isValid: false, error: "URL is too long" };
+  }
+  if (trimmed.includes("playlist")) {
+    return { isValid: false, error: "Playlists are not supported. Please use a single video URL" };
+  }
+  if (trimmed.includes("channel") || trimmed.includes("@")) {
+    return { isValid: false, error: "Channel URLs are not supported. Please use a video URL" };
+  }
+
+  const result = youtubeUrlSchema.safeParse(trimmed);
+  if (!result.success) {
+    return { isValid: false, error: result.error.issues[0]?.message || "Invalid URL" };
+  }
+
+  const videoId = extractYouTubeVideoId(trimmed);
+  if (!videoId) {
+    return { isValid: false, error: "Could not extract video ID from URL" };
+  }
+  if (!/^[a-zA-Z0-9_-]{11}$/.test(videoId)) {
+    return { isValid: false, error: "Invalid video ID format" };
+  }
+
+  return {
+    isValid: true,
+    videoId,
+    normalizedUrl: `https://www.youtube.com/watch?v=${videoId}`,
+  };
 }
 
 // ============ SANITIZATION ============

@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, ArrowUpRight, Coins, Database, ScrollText } from "lucide-react";
+import { AlertTriangle, ArrowUpRight, Coins, Cookie, Database, ScrollText } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { RefreshControl } from "./_components/RefreshControl";
 import { StickyHeader, onScrollToggle } from "./_components/StickyHeader";
 import { SpendBoard, Toggle } from "./_components/SpendCharts";
+import { TikTokSwitch } from "./_components/TikTokSwitch";
 import { buildSpendModel, rangeDates, rangePhrase, usd, type CostRow, type RangeKey } from "./_components/spend";
 
 interface CreditsOverview {
@@ -25,6 +26,13 @@ interface CacheStats {
   percent_full: number;
 }
 
+interface CookieSlot {
+  exists: boolean;
+  path: string;
+  size_bytes?: number;
+  last_modified?: number;
+}
+
 type DashRange = Extract<RangeKey, "7d" | "30d" | "90d">;
 
 const json = async <T,>(url: string): Promise<T | null> => {
@@ -39,6 +47,7 @@ const json = async <T,>(url: string): Promise<T | null> => {
 export default function AdminDashboardPage() {
   const [range, setRange] = useState<DashRange>("30d");
   const [cache, setCache] = useState<CacheStats | null>(null);
+  const [cookies, setCookies] = useState<Record<string, CookieSlot> | null>(null);
   const [credits, setCredits] = useState<CreditsOverview | null>(null);
   const [rows, setRows] = useState<CostRow[] | null>(null);
   const [costsFailed, setCostsFailed] = useState(false);
@@ -62,11 +71,13 @@ export default function AdminDashboardPage() {
     const { from, to } = rangeDates(range);
     Promise.all([
       json<CacheStats>("/api/admin/cache"),
+      json<Record<string, CookieSlot>>("/api/admin/cookies"),
       json<CreditsOverview>("/api/admin/credits?view=overview"),
       json<{ daily?: CostRow[] }>(`/api/admin/credits?view=costs&date_from=${from}&date_to=${to}`),
-    ]).then(([c, cr, costs]) => {
+    ]).then(([c, k, cr, costs]) => {
       if (!live) return;
       setCache(c);
+      setCookies(k);
       setCredits(cr);
       setRows(costs?.daily ?? null);
       setCostsFailed(costs === null);
@@ -95,6 +106,9 @@ export default function AdminDashboardPage() {
     return buildSpendModel(rows, from, to);
   }, [rows, range]);
 
+  const cookieSlots = cookies ? Object.values(cookies) : [];
+  const cookiesPresent = cookieSlots.filter((s) => s.exists).length;
+  const cookieTotal = cookieSlots.length || 3;
   const unmatched = credits?.webhooks_unprocessed ?? 0;
   const holds = credits?.holds_open ?? 0;
 
@@ -172,7 +186,7 @@ export default function AdminDashboardPage() {
 
         <section className="mt-6">
           <h2 className="text-sm font-semibold text-text-primary">Backend</h2>
-          <div className="mt-3 grid grid-cols-1 gap-px overflow-hidden rounded-2xl border border-graphite-800 bg-graphite-800 sm:grid-cols-3">
+          <div className="mt-3 grid grid-cols-1 gap-px overflow-hidden rounded-2xl border border-graphite-800 bg-graphite-800 sm:grid-cols-2 lg:grid-cols-4">
             <HealthTile
               href="/admin/credits"
               icon={Coins}
@@ -191,6 +205,20 @@ export default function AdminDashboardPage() {
               tone={!cache ? "bad" : cache.percent_full >= 90 ? "warn" : "ok"}
             />
             <HealthTile
+              href="/admin/cookies"
+              icon={Cookie}
+              title="YouTube cookies"
+              value={cookies ? `${cookiesPresent} of ${cookieTotal} slots` : "–"}
+              detail={
+                !cookies
+                  ? "Stats did not load"
+                  : cookiesPresent === cookieTotal
+                    ? "All slots filled"
+                    : `${cookieTotal - cookiesPresent} empty`
+              }
+              tone={!cookies ? "bad" : cookiesPresent === 0 ? "bad" : cookiesPresent < cookieTotal ? "warn" : "ok"}
+            />
+            <HealthTile
               href="/admin/logs"
               icon={ScrollText}
               title="Logs"
@@ -198,6 +226,7 @@ export default function AdminDashboardPage() {
               detail="HTTP and system logs"
             />
           </div>
+          <TikTokSwitch />
         </section>
       </div>
     </div>

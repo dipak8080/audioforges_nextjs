@@ -30,7 +30,7 @@ export interface SharedAllowanceSpec {
 }
 
 export const RATE_LIMITS: Record<string, RateLimitSpec> = {
-  // The two standard separation routes share ONE allowance — see
+  // The four standard separation routes share ONE allowance — see
   // SHARED_ALLOWANCES. The per-route number here is the hourly window only and
   // cannot express the daily cap.
   separate: {
@@ -40,6 +40,14 @@ export const RATE_LIMITS: Record<string, RateLimitSpec> = {
   stems: {
     limit: 10, windowSeconds: 3600, label: "10 per hour",
     envVar: "STEMS_RATE_LIMIT_MAX_REQUESTS",
+  },
+  "youtube/separate": {
+    limit: 10, windowSeconds: 3600, label: "10 per hour",
+    envVar: "YOUTUBE_SEPARATE_RATE_LIMIT_MAX_REQUESTS",
+  },
+  "youtube/stems": {
+    limit: 10, windowSeconds: 3600, label: "10 per hour",
+    envVar: "YOUTUBE_STEMS_RATE_LIMIT_MAX_REQUESTS",
   },
 
   // FREE-TIER numbers. The HQ routes are tiered: credits raise them to 30/hour
@@ -53,6 +61,17 @@ export const RATE_LIMITS: Record<string, RateLimitSpec> = {
     limit: 2, windowSeconds: 3600, label: "2 per hour",
     envVar: "STEMS_HQ_RATE_LIMIT_MAX_REQUESTS",
   },
+  "youtube/separate-hq": {
+    limit: 2, windowSeconds: 3600, label: "2 per hour",
+    envVar: "YOUTUBE_SEPARATE_HQ_RATE_LIMIT_MAX_REQUESTS",
+  },
+  "youtube/stems-hq": {
+    limit: 2, windowSeconds: 3600, label: "2 per hour",
+    envVar: "YOUTUBE_STEMS_HQ_RATE_LIMIT_MAX_REQUESTS",
+  },
+
+  // The three transcription routes draw from one pool keyed on the rule, not
+  // the path. Any copy implying three separate allowances is wrong.
 
   "audio-to-midi": {
     limit: 5, windowSeconds: 300, label: "5 per 5 minutes",
@@ -69,6 +88,14 @@ export const RATE_LIMITS: Record<string, RateLimitSpec> = {
     envVar: "SHEET_MUSIC_RATE_LIMIT_MAX_REQUESTS",
   },
 
+  download: {
+    limit: 30, windowSeconds: 3600, label: "30 per hour",
+    envVar: "DOWNLOAD_RATE_LIMIT_MAX_REQUESTS",
+  },
+  "tiktok-to-mp3": {
+    limit: 30, windowSeconds: 3600, label: "30 per hour",
+    envVar: "TIKTOK_RATE_LIMIT_MAX_REQUESTS",
+  },
 
   convert: {
     limit: 5, windowSeconds: 60, label: "5 per minute",
@@ -143,19 +170,26 @@ export const RATE_LIMITS: Record<string, RateLimitSpec> = {
     limit: 5, windowSeconds: 300, label: "5 per 5 minutes",
     envVar: "VIDEO_TO_AUDIO_RATE_LIMIT_MAX_REQUESTS",
   },
+
+  // Never touches the separation slot, which is why it stays this loose.
+  "youtube/analyze": {
+    limit: 15, windowSeconds: 3600, label: "15 per hour",
+    envVar: "YOUTUBE_ANALYZE_RATE_LIMIT_MAX_REQUESTS",
+  },
 };
 
 /**
  * Pools where several routes spend from one allowance. Fallback for
  * `rate_limits.shared`.
  *
- * The standard separation routes are one bucket per IP across two windows:
- * four splits on /stems spend four of the same ten that /separate draws from.
+ * The four standard separation routes are one bucket per IP across two
+ * windows: four splits on /stems spend four of the same ten that
+ * /youtube/separate draws from.
  */
 export const SHARED_ALLOWANCES: SharedAllowanceSpec[] = [
   {
     key: "separation-standard",
-    routes: ["/separate", "/stems"],
+    routes: ["/separate", "/stems", "/youtube/separate", "/youtube/stems"],
     scope: "per_ip",
     windows: [
       { maxRequests: 10, windowSeconds: 3600 },
@@ -170,7 +204,7 @@ export const SHARED_ALLOWANCES: SharedAllowanceSpec[] = [
   windows: [...a.windows].sort((x, y) => x.windowSeconds - y.windowSeconds),
 }));
 
-/** "/separate-hq", "separate-hq" and "separate_hq" style keys all match. */
+/** "/youtube/separate", "youtube/separate" and "youtube_separate" all match. */
 export function normalizeRouteKey(route: string): string {
   return "/" + route.trim().replace(/^\/+/, "").replace(/_/g, "/").toLowerCase();
 }

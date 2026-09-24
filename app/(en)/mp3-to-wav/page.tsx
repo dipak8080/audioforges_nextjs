@@ -155,7 +155,6 @@ export default async function Mp3ToWavPage() {
 
         <ToolSection id="chain" title="What the WAV actually contains" bleed>
           <BitrateChainDiagram
-            source={{ label: "The MP3 you start with", note: "320 kbps at best", width: 150 }}
             outputLabel="WAV, 1,411 kbps"
             outputWidth={620}
             ceilingNote="what the MP3 kept is what the WAV holds"

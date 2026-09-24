@@ -183,7 +183,7 @@ export default function PrivacyPage() {
 
         <h2 id="how-we-use-it">7. How we use your information</h2>
         <p>
-          Any file you submit is used solely to provide the tool
+          Any file or URL you submit is used solely to provide the tool
           functionality you requested, converting, analyzing, or otherwise
           processing that specific submission. We do not use submitted content
           for any other purpose. Microphone-based tools do not send audio to us

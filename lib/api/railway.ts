@@ -1,10 +1,17 @@
 // lib/api/railway.ts
 //
-// API client for every tool.
+// API client for every tool EXCEPT transcription. The three transcription
+// endpoints (/speech-to-text, /youtube/transcribe, /video-to-text) live in
+// lib/api/transcription.ts — they take options on submit, return a richer
+// status and result shape, and need their own error mapper, none of which
+// fits the shared job helpers below. They still reuse fetchWithTimeout and
+// readRetryAfter from here, which is why those two are exported.
 
 import { requestTurnstile } from "@/lib/security/turnstile";
 import type {
+  DownloadResponse,
   AnalyzeResponse,
+  OutputFormat,
   SeparateResponse,
   SeparateStatusResponse,
   StemType,
@@ -21,6 +28,26 @@ import { trimWavForAnalysis } from "@/lib/audio/wav-trim";
 
 export const RAILWAY_API_BASE =
   process.env.NEXT_PUBLIC_RAILWAY_API_BASE || "https://api.audioforges.com";
+
+/* ------------------------------------------------------------------ */
+/* Timeout budget                                                      */
+/* ------------------------------------------------------------------ */
+
+// Cloudflare's proxy gives the origin 100 seconds to send response
+// HEADERS before it gives up and returns a 524 of its own. Since the
+// origin firewall only accepts Cloudflare IP ranges, every request in
+// this file passes through that ceiling — there is no path around it.
+//
+// Any client timeout above 100s is therefore unreachable: Cloudflare
+// always fires first, and we get a 524 with an HTML body instead of our
+// own controlled "this is taking too long" ApiError. So the longest
+// synchronous request we allow sits just under the ceiling, and WE
+// decide what the user sees.
+//
+// Raise this ONLY if the zone's proxy read timeout is actually raised
+// (Enterprise-only) or the route stops being proxied.
+const CF_PROXY_CEILING_MS = 100_000;
+const LONG_SYNC_TIMEOUT_MS = CF_PROXY_CEILING_MS - 5_000;
 
 /* ------------------------------------------------------------------ */
 /* Errors                                                              */
@@ -298,7 +325,14 @@ export function readRetryAfter(res: Response): number | undefined {
   return undefined;
 }
 
-type ErrorContext = "analyze" | "separate" | "job";
+// "youtube-job" is its own context (rather than reusing "download" or
+// "job") because these routes genuinely blend both failure surfaces: a
+// 400/404/503 here can mean either "bad/unavailable video" (same as
+// /download) or "processing failed" (same as any job endpoint). The
+// wording below leans toward the video-fetch side since that's the step
+// most likely to produce these specific codes, while still being
+// accurate if the failure was actually on the processing side.
+type ErrorContext = "download" | "analyze" | "separate" | "job" | "youtube-job";
 
 async function toApiError(res: Response, context: ErrorContext): Promise<ApiError> {
   if (res.status === 402 || res.status === 429 || res.status === 400) {
@@ -377,20 +411,31 @@ async function toApiError(res: Response, context: ErrorContext): Promise<ApiErro
 
   const rawDetail = await parseDetail(res);
 
-  // Raw exception strings never reach the error card; each case falls back
-  // to its own written copy.
+  // Gate EVERY branch, not just the default one. Previously 400/404/413/
+  // 429/503 passed `detail` straight through, so a yt-dlp exception
+  // string that reached a FastAPI detail rendered verbatim in the error
+  // card. Blanking it here means each case falls back to its own written
+  // copy, which is always safe.
   const detail = looksLikeRawError(rawDetail) ? "" : rawDetail;
   const retryAfter = readRetryAfter(res);
+
+  const isVideoContext = context === "download" || context === "youtube-job";
 
   switch (res.status) {
     case 400:
       return new ApiError(
-        detail || "That request wasn't valid. Please check your input and try again.",
+        detail ||
+          (isVideoContext
+            ? "That link doesn't look right, or the video is too long. Please check it and try again."
+            : "That request wasn't valid. Please check your input and try again."),
         400
       );
     case 404:
       return new ApiError(
-        detail || "That job wasn't found. It may have expired.",
+        detail ||
+          (isVideoContext
+            ? "That video isn't available — it may be deleted, private, or copyright-blocked."
+            : "That job wasn't found — it may have expired."),
         404
       );
     case 409:
@@ -433,15 +478,22 @@ async function toApiError(res: Response, context: ErrorContext): Promise<ApiErro
         }
       );
     }
+    case 451:
+      return new ApiError("This video isn't available from our server's region.", 451);
     case 503:
       return new ApiError(
-        detail || "Our servers are busy right now. Please try again in a moment.",
+        detail ||
+          (isVideoContext
+            ? "YouTube is temporarily blocking our server, or the server is busy. Please try again in a few minutes."
+            : "Our servers are busy right now. Please try again in a moment."),
         503,
         { isServerBusy: true, retryAfterSeconds: retryAfter }
       );
     case 500:
       return new ApiError(
-        context === "analyze"
+        context === "download"
+          ? "Something went wrong while preparing your download. Please try again."
+          : context === "analyze"
           ? "Something went wrong while analyzing your file. Please try again."
           : "Something went wrong. Please try again.",
         500
@@ -455,6 +507,9 @@ async function toApiError(res: Response, context: ErrorContext): Promise<ApiErro
       );
 
     // ---- Cloudflare-generated. The origin never sent these. ----
+    // Without these cases they land in `default` and render as "The
+    // request failed" — the least useful message we have, on the failure
+    // mode most likely to hit long videos.
     case 524:
       // The edge gave up waiting. The VPS is very likely STILL working on
       // this job right now, holding a download slot until its own
@@ -508,6 +563,8 @@ export interface FeatureFlags {
   /** Kill switch for /audio-to-sheet. FALSE = route returns 503, so the tool
    *  must not be offered. Same shape as midiHqEnabled: visibility, not price. */
   sheetMusicEnabled: boolean;
+  /** Studio Quality on YouTube links. Off = paid runs are upload-only. */
+  youtubeHqEnabled: boolean;
   paywallEnabled: boolean;
   paywallTools: Partial<Record<MeteredToolKey, boolean>>;
 }
@@ -516,6 +573,7 @@ const FLAGS_OFF: FeatureFlags = {
   separationHqEnabled: false,
   midiHqEnabled: false,
   sheetMusicEnabled: false,
+  youtubeHqEnabled: false,
   paywallEnabled: false,
   paywallTools: {},
 };
@@ -538,6 +596,7 @@ export async function getFeatureFlags(): Promise<FeatureFlags> {
       separationHqEnabled: Boolean(data?.features?.separation_hq_enabled),
       midiHqEnabled: Boolean(data?.features?.midi_hq_enabled),
       sheetMusicEnabled: Boolean(data?.features?.sheet_music_enabled),
+      youtubeHqEnabled: Boolean(data?.features?.youtube_hq_enabled),
       paywallEnabled: Boolean(data?.features?.paywall_enabled),
       paywallTools:
         tools && typeof tools === "object"
@@ -550,6 +609,113 @@ export async function getFeatureFlags(): Promise<FeatureFlags> {
     return FLAGS_OFF;
   }
 }
+
+// ============ YOUTUBE DOWNLOAD (synchronous) ============
+
+/**
+ * WHY `response` IS A PARAMETER AND NOT JUST SWITCHED TO "url"
+ *
+ * The backend still defaults to base64 and will keep the branch until we
+ * confirm url mode is stable in production. Leaving the default here as
+ * "base64" means every existing caller behaves exactly as it did, and the one
+ * page we're migrating opts in explicitly — so a revert is deleting one
+ * argument, not restoring a deleted code path.
+ *
+ * WHAT url MODE CHANGES, for whoever reads this next: the response carries a
+ * RELATIVE `url`, an `expires_at` (Unix seconds, one hour out) and usually a
+ * `size_bytes`, instead of the audio itself. The file is served with
+ * FileResponse, so it streams and supports Range — the browser writes straight
+ * to disk and nothing is held in memory on either end. At 40 minutes of WAV,
+ * base64 mode peaked around a gigabyte in the tab, which is an out-of-memory
+ * kill on most phones.
+ */
+export type DownloadResponseMode = "base64" | "url";
+
+export async function downloadYouTubeAudio(
+  url: string,
+  format: OutputFormat,
+  opts: RequestOptions & { response?: DownloadResponseMode; source?: "opus" | "aac" } = {}
+): Promise<DownloadResponse> {
+  const body = new URLSearchParams();
+  body.set("url", url);
+  body.set("format", format);
+  // Only sent when asked for. An absent field is the backend's own default,
+  // so this cannot change behaviour for a caller that doesn't pass it.
+  if (opts.response) body.set("response", opts.response);
+  // WAV + url mode only: the server may answer with the compressed original
+  // (format "webm"/"m4a") for the browser to turn into a WAV.
+  if (opts.source) body.set("source", opts.source);
+
+  const res = await fetchWithTimeout(
+    `${RAILWAY_API_BASE}/download`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body,
+      signal: opts.signal,
+    },
+    LONG_SYNC_TIMEOUT_MS
+  );
+
+  if (!res.ok) throw await toApiError(res, "download");
+  return readJson<DownloadResponse>(res);
+}
+
+export function extractBase64Audio(payload: DownloadResponse): string | null {
+  return payload.audio_base64 || payload.audio || payload.base64 || payload.data || null;
+}
+
+/**
+ * Absolute URL for a url-mode download.
+ *
+ * The backend returns a RELATIVE path, and handing that straight to an <a> or
+ * an <audio> would resolve it against audioforges.com rather than
+ * api.audioforges.com — a 404 on our own site, which looks like the tool
+ * broke rather than like a wiring mistake.
+ *
+ * Returns null when the payload isn't url mode, so a caller can fall back
+ * without a type assertion.
+ */
+export function resolveDownloadUrl(payload: DownloadResponse): string | null {
+  const path = typeof payload.url === "string" ? payload.url : null;
+  if (!path) return null;
+  return path.startsWith("http") ? path : `${RAILWAY_API_BASE}${path}`;
+}
+
+/**
+ * The same signed link, asking to be PLAYED rather than saved.
+ *
+ * `FileResponse(filename=...)` sets `Content-Disposition: attachment`, and the
+ * download button NEEDS that header: `<a download>` is ignored on a
+ * cross-origin URL, and api.audioforges.com is cross-origin from
+ * audioforges.com — so that header is the only thing making a click save
+ * instead of navigate away. An attachment isn't playable, though, so the
+ * preview player asks for the inline variant of the same token.
+ *
+ * Range support, expiry and access are identical; only the header differs.
+ * `disposition` is deliberately OUTSIDE the signature — it changes
+ * presentation, not access, so flipping it gains nobody anything they didn't
+ * already have with a valid token. That's why the player needs no second
+ * signed link.
+ *
+ * Built through URL rather than string concatenation so the existing `?token=`
+ * can't be turned into a second `?`. The catch covers a relative or malformed
+ * href, which shouldn't happen after resolveDownloadUrl but shouldn't throw
+ * inside a render either.
+ */
+export function inlineDownloadUrl(href: string): string {
+  try {
+    const u = new URL(href);
+    u.searchParams.set("disposition", "inline");
+    return u.toString();
+  } catch {
+    return href.includes("?") ? `${href}&disposition=inline` : `${href}?disposition=inline`;
+  }
+}
+
+/* The freshness check lives in the FORM, not here: it operates on the
+   ConversionResult the form stores, not on the raw payload, and a second
+   version taking DownloadResponse would be one more thing to keep in step. */
 
 // ============ KEY/BPM ANALYSIS (synchronous) ============
 
@@ -621,6 +787,10 @@ export async function getSeparationStatus(
   return readJson<SeparateStatusResponse>(res);
 }
 
+// `endpoint` defaults to "separate" so every EXISTING call site
+// (getSeparationPreviewUrl(jobId, stem)) keeps working unchanged. Passing
+// "youtube/separate" lets the /youtube/separate chained tool reuse this
+// exact function instead of a near-duplicate.
 export function getSeparationPreviewUrl(
   jobId: string,
   stem: StemType,
@@ -643,6 +813,19 @@ export function getSeparationDownloadUrl(
   format: StemDownloadFormat = "wav"
 ): string {
   return withStemFormat(`${RAILWAY_API_BASE}/${endpoint}/download/${jobId}?stem=${stem}`, format);
+}
+
+export function base64ToBlob(base64: string, mimeType: string): Blob {
+  let clean = base64.includes(",") ? base64.split(",")[1] : base64;
+  clean = clean.replace(/\s+/g, "");
+  const pad = clean.length % 4;
+  if (pad === 2) clean += "==";
+  else if (pad === 3) clean += "=";
+  const binary = atob(clean);
+  const len = binary.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) bytes[i] = binary.charCodeAt(i);
+  return new Blob([bytes], { type: mimeType });
 }
 
 // ============ GENERIC JOB-BASED TOOLS ============
@@ -668,7 +851,7 @@ export type JobStatus = "processing" | "complete" | "failed";
 export interface JobSubmitResponse {
   job_id: string;
   status: JobStatus;
-  /** Metered routes only (separate-hq, stems-hq). See SubmitBilling. */
+  /** Metered routes only (stems-hq, youtube/*-hq). See SubmitBilling. */
   billing?: SubmitBilling;
 }
 
@@ -782,7 +965,7 @@ export function getJobDownloadUrl(endpoint: string, jobId: string): string {
 // ============ MULTI-OUTPUT JOB-BASED TOOLS ============
 // Shared by every tool whose output is a variable-length, NAMED set of
 // files rather than one fixed file: /stems + /stems-hq (4+ stems),
-// /silence-split (N segments). Each backend
+// /silence-split (N segments), /youtube/stems (4+ stems). Each backend
 // status route returns a different array key ("stems" vs "segments") and
 // each preview/download route expects a different query param name
 // ("stem" vs "segment") — getMultiOutputStatus() below reads WHICHEVER
@@ -912,6 +1095,158 @@ export function getSilenceSplitPreviewUrl(jobId: string, segmentName: string): s
 
 export function getSilenceSplitDownloadUrl(jobId: string, segmentName: string): string {
   return getMultiOutputDownloadUrl("silence-split", jobId, segmentName, "segment");
+}
+
+// ============ YOUTUBE CHAINED TOOLS ============
+// /youtube/analyze, /youtube/separate, /youtube/stems — paste a URL,
+// skip the manual download-then-reupload step. All three are async job
+// flows like every tool above, but submitted with a URL (as
+// x-www-form-urlencoded, matching FastAPI's Form(...) parameter) instead
+// of a file upload.
+//
+// /youtube/transcribe is NOT one of these despite the name: it takes
+// multipart/form-data, not urlencoded. It lives in transcription.ts.
+
+export async function submitUrlJob(
+  endpoint: string,
+  url: string,
+  timeoutMs = 30_000,
+  opts: RequestOptions = {},
+  withCredentials = false,
+  idempotencyKey?: string
+): Promise<JobSubmitResponse> {
+  const body = new URLSearchParams();
+  body.set("url", url);
+
+  const res = await fetchWithTimeout(
+    `${RAILWAY_API_BASE}/${endpoint}`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
+      },
+      body,
+      signal: opts.signal,
+      ...(withCredentials ? { credentials: "include" as RequestCredentials } : {}),
+    },
+    timeoutMs
+  );
+  if (!res.ok) throw await toApiError(res, "youtube-job");
+  return readJson<JobSubmitResponse>(res);
+}
+
+// ---- /youtube/analyze ----
+// Result shape is identical to the synchronous /analyze route
+// (AnalyzeResponse) — same result-card component can render either.
+
+export function submitYoutubeAnalyze(
+  url: string,
+  opts: RequestOptions = {},
+  idempotencyKey?: string
+): Promise<JobSubmitResponse> {
+  return submitUrlJob("youtube/analyze", url, 30_000, opts, false, idempotencyKey);
+}
+
+export function getYoutubeAnalyzeStatus(
+  jobId: string,
+  opts: RequestOptions = {}
+): Promise<JobStatusResult> {
+  return getJobStatus("youtube/analyze", jobId, opts);
+}
+
+export async function getYoutubeAnalyzeResult(
+  jobId: string,
+  opts: RequestOptions = {}
+): Promise<AnalyzeResponse> {
+  const res = await fetchWithTimeout(
+    `${RAILWAY_API_BASE}/youtube/analyze/result/${jobId}`,
+    { method: "GET", signal: opts.signal },
+    15_000
+  );
+  if (!res.ok) throw await toApiError(res, "youtube-job");
+  return readJson<AnalyzeResponse>(res);
+}
+
+// ---- /youtube/separate ----
+// Same vocals/instrumental job shape as /separate — reuses
+// getSeparationPreviewUrl/DownloadUrl via the `endpoint` param rather
+// than duplicating them.
+
+export function submitYoutubeSeparate(
+  url: string,
+  quality: SeparationQuality = "standard",
+  opts: RequestOptions = {},
+  idempotencyKey?: string
+): Promise<JobSubmitResponse> {
+  const isMetered = quality === "hq";
+  return submitUrlJob(
+    isMetered ? "youtube/separate-hq" : "youtube/separate",
+    url,
+    30_000,
+    opts,
+    true,
+    idempotencyKey
+  );
+}
+
+export function getYoutubeSeparateStatus(
+  jobId: string,
+  opts: RequestOptions = {}
+): Promise<JobStatusResult> {
+  return getJobStatus("youtube/separate", jobId, opts);
+}
+
+export function getYoutubeSeparatePreviewUrl(jobId: string, stem: StemType): string {
+  return getSeparationPreviewUrl(jobId, stem, "youtube/separate");
+}
+
+export function getYoutubeSeparateDownloadUrl(
+  jobId: string,
+  stem: StemType,
+  format: StemDownloadFormat = "wav"
+): string {
+  return getSeparationDownloadUrl(jobId, stem, "youtube/separate", format);
+}
+
+// ---- /youtube/stems ----
+// Same multi-output shape as /stems — reuses the generic multi-output
+// functions via the `endpoint` param.
+
+export function submitYoutubeStems(
+  url: string,
+  quality: SeparationQuality = "standard",
+  opts: RequestOptions = {},
+  idempotencyKey?: string
+): Promise<JobSubmitResponse> {
+  const isMetered = quality === "hq";
+  return submitUrlJob(
+    isMetered ? "youtube/stems-hq" : "youtube/stems",
+    url,
+    30_000,
+    opts,
+    true,
+    idempotencyKey
+  );
+}
+
+export function getYoutubeStemsStatus(
+  jobId: string,
+  opts: RequestOptions = {}
+): Promise<MultiOutputStatusResult> {
+  return getMultiOutputStatus("youtube/stems", jobId, opts);
+}
+
+export function getYoutubeStemsPreviewUrl(jobId: string, stemName: string): string {
+  return getMultiOutputPreviewUrl("youtube/stems", jobId, stemName, "stem");
+}
+
+export function getYoutubeStemsDownloadUrl(
+  jobId: string,
+  stemName: string,
+  format: StemDownloadFormat = "wav"
+): string {
+  return withStemFormat(getMultiOutputDownloadUrl("youtube/stems", jobId, stemName, "stem"), format);
 }
 
 // ============ AUDIO TO MIDI ============
@@ -1101,4 +1436,100 @@ export type SheetFormat = "pdf" | "svg" | "musicxml" | "midi";
 
 export function getSheetDownloadUrl(jobId: string, format: SheetFormat): string {
   return `${RAILWAY_API_BASE}/audio-to-sheet/download/${jobId}?format=${format}`;
+}
+
+// ============ TIKTOK TO MP3 (synchronous) ============
+// Unlike every other endpoint here, this one returns a structured error
+// object — { message, kind, retryable } — rather than a plain string
+// detail. toApiError() would flatten that to a message and lose the two
+// fields the UI actually needs, so this route gets its own error mapper.
+//
+// The rule from the API spec: the backend decides what's retryable and
+// what the user is told. The frontend branches on `kind` and shows
+// `message` verbatim. It does NOT keep its own list of statuses, its own
+// copy, or its own opinion about retrying.
+
+export interface TikTokToMp3Response {
+  title: string;
+  /** Base64 MP3. ~1.1 MB for a 52-second clip. */
+  audio: string;
+  format: string;
+  /** NULL on a cache hit — the cache stores audio and title only. */
+  duration: number | null;
+  id: string | null;
+}
+
+async function toTikTokError(res: Response): Promise<ApiError> {
+  // Cloudflare's own 5xx bodies are HTML, never the structured detail
+  // object this route otherwise returns — so hand them to the shared
+  // mapper, which has real copy for each of them.
+  if (res.status >= 520 && res.status <= 526) {
+    return toApiError(res, "download");
+  }
+
+  let detail: unknown = null;
+  try {
+    detail = (await res.json())?.detail;
+  } catch {
+    /* not JSON — a Cloudflare block page or similar */
+  }
+
+  // The 429 comes from shared middleware and is a plain string, not the
+  // object shape. Both have to be handled.
+  if (typeof detail === "string") {
+    return new ApiError(detail, res.status, {
+      isRateLimit: res.status === 429,
+      isServerBusy: res.status === 503,
+      retryAfterSeconds: readRetryAfter(res),
+      kind: res.status === 429 ? "rate_limited" : "unknown",
+      retryable: false,
+    });
+  }
+
+  const obj = detail as { message?: string; kind?: string; retryable?: boolean } | null;
+
+  return new ApiError(
+    obj?.message || "Something went wrong. Please try again.",
+    res.status,
+    {
+      kind: obj?.kind ?? "unknown",
+      // Defaults to false: showing a retry button on a permanent failure
+      // (photo post, deleted video) is worse than omitting one on a
+      // transient failure.
+      retryable: obj?.retryable ?? false,
+      isRateLimit: res.status === 429,
+      isServerBusy: res.status === 503,
+      retryAfterSeconds: readRetryAfter(res),
+    }
+  );
+}
+
+export async function convertTikTokToMp3(
+  url: string,
+  opts: RequestOptions = {}
+): Promise<TikTokToMp3Response> {
+  const body = new URLSearchParams();
+  body.set("url", url.trim());
+
+  // No explicit Content-Type: the browser sets the correct header for a
+  // URLSearchParams body, and the endpoint rejects application/json.
+  //
+  // This used to be 190s, reasoning from the backend's own 180s
+  // wall-clock timeout. But the request never survives that long: the
+  // Cloudflare proxy in front of the origin cuts it at 100s with a 524,
+  // so the 190s deadline was unreachable and every slow conversion
+  // produced an unmapped edge error instead of our timeout copy.
+  //
+  // Sitting just under the ceiling means WE time out first, with a
+  // message we wrote. Jobs that genuinely need more than ~95s can't be
+  // served synchronously at all and belong on the job-queue pattern that
+  // every other tool already uses.
+  const res = await fetchWithTimeout(
+    `${RAILWAY_API_BASE}/tiktok-to-mp3`,
+    { method: "POST", body, signal: opts.signal },
+    LONG_SYNC_TIMEOUT_MS
+  );
+
+  if (!res.ok) throw await toTikTokError(res);
+  return readJson<TikTokToMp3Response>(res);
 }

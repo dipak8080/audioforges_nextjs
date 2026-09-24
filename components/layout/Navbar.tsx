@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, X, ChevronDown, ArrowRight, Layers, Piano, FileMusic, type LucideIcon } from "lucide-react";
+import { Menu, X, ChevronDown, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { buttonStyles } from "@/components/ui/Button";
 import { TOOLS } from "@/lib/data/tools";
@@ -13,24 +13,43 @@ import { CreditAccountPanel } from "@/components/credits/CreditAccountPanel";
 import { DEMO_PEAKS_STUDIO } from "@/lib/data/demo-peaks";
 import { useCredits } from "@/components/credits/CreditProvider";
 
-type Product = { href: string; name: string; desc: string; player: string; icon: LucideIcon };
+type MenuLink = { href: string; name: string; desc: string };
 
-const FLAGSHIP = {
+// The hero of the premium repositioning: a card of its own, not row one of a list.
+const FEATURED: MenuLink = {
   href: "/vocal-remover",
   name: "Vocal Remover",
-  desc: "Vocals and instrumental as WAV or MP3. Free, or Studio Quality for the cleanest split.",
+  desc: "Vocals and instrumental as WAV. Free, with a Studio Quality tier.",
 };
 
-const PRODUCTS: Product[] = [
-  { href: "/stems", name: "Stem Splitter", desc: "Vocals, drums, bass and other", player: "Forge Mixer", icon: Layers },
-  { href: "/audio-to-midi", name: "Audio to MIDI", desc: "Edit the notes before you download", player: "Forge Roll", icon: Piano },
-  { href: "/audio-to-sheet-music", name: "Audio to Sheet Music", desc: "A printable score that plays along", player: "Forge Score", icon: FileMusic },
+const PRODUCT_GROUPS: { label: string; links: MenuLink[] }[] = [
+  {
+    label: "Separation",
+    links: [
+      { href: "/stems", name: "Stem Splitter", desc: "Vocals, drums, bass, other" },
+    ],
+  },
+  {
+    label: "Notation",
+    links: [
+      { href: "/audio-to-midi", name: "Audio to MIDI", desc: "Edit the notes in Forge Roll" },
+      { href: "/audio-to-sheet-music", name: "Audio to Sheet Music", desc: "Engraved score, synced playback" },
+    ],
+  },
+  {
+    label: "Analysis",
+    links: [
+      { href: "/key-finder", name: "Key & BPM Finder", desc: "Key, tempo, Camelot code" },
+    ],
+  },
 ];
 
-const PRODUCT_HREFS = new Set([FLAGSHIP.href, ...PRODUCTS.map((p) => p.href)]);
+// Mobile has no featured card, so its Separation list stays complete.
+const MOBILE_GROUPS = PRODUCT_GROUPS.map((g, i) =>
+  i === 0 ? { ...g, links: [FEATURED, ...g.links] } : g
+);
 
-const PEAK_MAX = Math.max(...DEMO_PEAKS_STUDIO);
-const FLAGSHIP_PEAKS = DEMO_PEAKS_STUDIO.filter((_, i) => i % 3 === 0).map((p) => p / PEAK_MAX);
+const PRODUCT_HREFS = new Set([FEATURED, ...PRODUCT_GROUPS.flatMap((g) => g.links)].map((l) => l.href));
 
 export function Navbar({ paywallEnabled = false }: { paywallEnabled?: boolean }) {
   const pathname = usePathname();
@@ -261,87 +280,84 @@ export function Navbar({ paywallEnabled = false }: { paywallEnabled?: boolean })
               role="navigation"
               aria-label="Product"
               className={cn(
-                "surface grain w-[46rem] overflow-hidden rounded-xl border border-graphite-800 shadow-2xl shadow-black/50",
+                "surface grain w-[42rem] overflow-hidden rounded-xl border border-graphite-800 shadow-2xl shadow-black/50",
                 isProductOpen ? "pointer-events-auto" : "pointer-events-none"
               )}
             >
-              <div className="grid grid-cols-[1.05fr_1fr]">
-                <Link
-                  href={FLAGSHIP.href}
-                  prefetch={false}
-                  aria-current={pathname === FLAGSHIP.href ? "page" : undefined}
-                  className={cn(
-                    "group flex flex-col border-r border-graphite-800 p-6 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-amber-400/70",
-                    pathname === FLAGSHIP.href ? "bg-amber-500/[0.06]" : "hover:bg-graphite-850/60"
-                  )}
-                >
-                  <span className="inline-flex w-fit items-center rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-400">
-                    Studio Quality
+              <Link
+                href={FEATURED.href}
+                prefetch={false}
+                aria-current={pathname === FEATURED.href ? "page" : undefined}
+                className={cn(
+                  "flex items-center gap-5 border-b border-graphite-800 px-5 py-4 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-amber-400/70",
+                  pathname === FEATURED.href ? "bg-amber-500/10" : "hover:bg-graphite-850"
+                )}
+              >
+                <div className="min-w-0">
+                  <span className="flex items-center gap-2">
+                    <span
+                      className={cn(
+                        "text-[13px] font-medium",
+                        pathname === FEATURED.href ? "text-amber-400" : "text-text-primary"
+                      )}
+                    >
+                      {FEATURED.name}
+                    </span>
+                    <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-500">
+                      Flagship
+                    </span>
                   </span>
-                  <span className="display mt-4 text-[28px] leading-none text-text-primary">{FLAGSHIP.name}</span>
-                  <span className="mt-2.5 text-[13px] leading-relaxed text-text-muted">{FLAGSHIP.desc}</span>
-                  <span className="mt-6 flex h-12 items-center gap-px" aria-hidden>
-                    {FLAGSHIP_PEAKS.map((peak, i) => (
-                      <span
-                        key={i}
-                        className="flex-1 rounded-full bg-graphite-600 transition-colors duration-300 group-hover:bg-amber-500/70"
-                        style={{ height: `${Math.max(6, peak * 100)}%`, transitionDelay: `${i * 4}ms` }}
-                      />
-                    ))}
-                  </span>
-                  <span className="mt-4 flex items-center justify-between text-[12px] text-text-subtle">
-                    Opens in Forge Mixer
-                    <ArrowRight className="h-3.5 w-3.5 text-text-muted transition-transform group-hover:translate-x-0.5 group-hover:text-text-primary" />
-                  </span>
-                </Link>
-
-                <div className="flex flex-col divide-y divide-graphite-800">
-                  {PRODUCTS.map((p) => {
-                    const active = pathname === p.href;
-                    const Icon = p.icon;
-                    return (
-                      <Link
-                        key={p.href}
-                        href={p.href}
-                        prefetch={false}
-                        aria-current={active ? "page" : undefined}
-                        className={cn(
-                          "group flex flex-1 items-center gap-3.5 px-5 py-4 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-amber-400/70",
-                          active ? "bg-amber-500/[0.06]" : "hover:bg-graphite-850/60"
-                        )}
-                      >
-                        <span
-                          className={cn(
-                            "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border bg-graphite-900 transition-colors",
-                            active
-                              ? "border-amber-500/40 text-amber-400"
-                              : "border-graphite-800 text-text-muted group-hover:border-graphite-700 group-hover:text-text-primary"
-                          )}
-                        >
-                          <Icon className="h-4 w-4" aria-hidden />
-                        </span>
-                        <span className="min-w-0 flex-1">
-                          <span className={cn("block text-[13.5px] font-medium", active ? "text-amber-400" : "text-text-primary")}>
-                            {p.name}
-                          </span>
-                          <span className="mt-0.5 block text-xs text-text-subtle">{p.desc}</span>
-                        </span>
-                        <span className="shrink-0 text-[11px] text-text-subtle transition-colors group-hover:text-text-muted">
-                          {p.player}
-                        </span>
-                      </Link>
-                    );
-                  })}
+                  <span className="mt-0.5 block text-xs text-text-subtle">{FEATURED.desc}</span>
                 </div>
+                {/* Real peaks from the H4RRIS demo clip, not a synthetic shape. */}
+                <div className="ml-auto flex h-8 w-40 shrink-0 items-end gap-px" aria-hidden>
+                  {DEMO_PEAKS_STUDIO.filter((_, i) => i % 5 === 0).map((peak, i) => (
+                    <span
+                      key={i}
+                      className="flex-1 rounded-full bg-graphite-600"
+                      style={{ height: `${Math.max(8, peak * 100)}%` }}
+                    />
+                  ))}
+                </div>
+              </Link>
+              <div className="grid grid-cols-2 gap-x-6 gap-y-5 p-5">
+                {PRODUCT_GROUPS.map((g) => (
+                  <div key={g.label}>
+                    <p className="px-2 font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-500">
+                      {g.label}
+                    </p>
+                    <div className="mt-2 space-y-0.5">
+                      {g.links.map((l) => {
+                        const active = pathname === l.href;
+                        return (
+                          <Link
+                            key={l.href}
+                            href={l.href}
+                            prefetch={false}
+                            aria-current={active ? "page" : undefined}
+                            className={cn(
+                              "block rounded-md px-2 py-2 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-amber-400/70",
+                              active ? "bg-amber-500/10" : "hover:bg-graphite-850"
+                            )}
+                          >
+                            <span className={cn("block text-[13px] font-medium", active ? "text-amber-400" : "text-text-primary")}>
+                              {l.name}
+                            </span>
+                            <span className="block text-xs text-text-subtle">{l.desc}</span>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
               </div>
-
-              <div className="flex items-center justify-between border-t border-graphite-800 bg-graphite-950/40 px-6 py-3 text-[13px]">
+              <div className="flex items-center justify-between border-t border-graphite-800 bg-graphite-950/40 px-5 py-3 text-[13px]">
                 <Link href="/forge" prefetch={false} className="text-text-muted transition-colors hover:text-text-primary">
-                  How the Forge players work
+                  The Forge players
                 </Link>
                 <Link
                   href="/tools"
-                  className="group flex items-center gap-1 font-medium text-text-secondary outline-none transition-colors hover:text-text-primary focus-visible:ring-2 focus-visible:ring-amber-400/70"
+                  className="group flex items-center gap-1 font-medium text-amber-400 outline-none transition-colors hover:text-amber-300 focus-visible:ring-2 focus-visible:ring-amber-400/70"
                 >
                   All {toolCount} tools
                   <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
@@ -364,30 +380,33 @@ export function Navbar({ paywallEnabled = false }: { paywallEnabled?: boolean })
         <div className="space-y-6 px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
           <CreditAccountPanel variant="mobile" onNavigate={() => setIsMobileOpen(false)} />
 
-          <div>
-            <p className="px-3 text-[12px] text-text-subtle">Studio tools</p>
-            <div className="mt-1.5 space-y-0.5">
-              {[{ ...FLAGSHIP, player: "Forge Mixer" }, ...PRODUCTS].map((l) => {
-                const active = pathname === l.href;
-                return (
-                  <Link
-                    key={l.href}
-                    href={l.href}
-                    prefetch={false}
-                    aria-current={active ? "page" : undefined}
-                    onClick={() => setIsMobileOpen(false)}
-                    className={cn(
-                      "flex items-center justify-between rounded-lg px-3 py-2.5 text-[15px] font-medium outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70",
-                      active ? "bg-amber-500/10 text-amber-400" : "text-text-primary hover:bg-graphite-900"
-                    )}
-                  >
-                    {l.name}
-                    <span className="text-[12px] font-normal text-text-subtle">{l.player}</span>
-                  </Link>
-                );
-              })}
+          {MOBILE_GROUPS.map((g) => (
+            <div key={g.label}>
+              <p className="px-3 font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-500">
+                {g.label}
+              </p>
+              <div className="mt-1.5 space-y-0.5">
+                {g.links.map((l) => {
+                  const active = pathname === l.href;
+                  return (
+                    <Link
+                      key={l.href}
+                      href={l.href}
+                      prefetch={false}
+                      aria-current={active ? "page" : undefined}
+                      onClick={() => setIsMobileOpen(false)}
+                      className={cn(
+                        "flex items-center justify-between rounded-lg px-3 py-2.5 text-[15px] font-medium outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70",
+                        active ? "bg-amber-500/10 text-amber-400" : "text-text-primary hover:bg-graphite-900"
+                      )}
+                    >
+                      {l.name}
+                    </Link>
+                  );
+                })}
+              </div>
             </div>
-          </div>
+          ))}
 
           <div className="space-y-0.5 border-t border-graphite-800 pt-4">
             {[

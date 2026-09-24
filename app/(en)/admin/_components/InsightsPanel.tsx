@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Flame, ShieldCheck, Users, Wallet } from "lucide-react";
+import { AlertTriangle, Flame, ShieldCheck, TrendingUp, Users, Wallet } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { api, isAbort, msg } from "./credits/credits-net";
 import { money, num, relTime } from "./credits/credits-format";
@@ -134,6 +134,10 @@ export function InsightsPanel({ tick }: { tick: number }) {
     [sources]
   );
   const orders = useMemo(() => (sources?.paid ?? []).reduce((n, r) => n + r.orders, 0), [sources]);
+  const funnelOrders = useMemo(
+    () => (sources?.paid ?? []).filter((r) => r.source === "youtube-funnel").reduce((n, r) => n + r.orders, 0),
+    [sources]
+  );
 
   const budget = abuse?.budget;
   const budgetPct =
@@ -168,8 +172,15 @@ export function InsightsPanel({ tick }: { tick: number }) {
         </div>
       </div>
 
-      <div className="grid shrink-0 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="grid shrink-0 gap-3 sm:grid-cols-2 xl:grid-cols-6">
         <Stat label="Revenue" value={money(revenue, 2)} sub={`${num(orders)} paid orders in ${days}d`} tone="accent" icon={Wallet} />
+        <Stat
+          label="From the funnel"
+          value={num(funnelOrders)}
+          sub={orders ? `${Math.round((funnelOrders / orders) * 100)}% of orders came through Remove vocals` : "No orders yet"}
+          tone={funnelOrders ? "good" : "plain"}
+          icon={TrendingUp}
+        />
         <Stat
           label="GPU today"
           value={money(budget?.today.projected_usd ?? 0, 2)}
