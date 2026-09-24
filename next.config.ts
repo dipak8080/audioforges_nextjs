@@ -55,6 +55,51 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [
       {
+        source: "/youtube-to-wav",
+        destination: "/mp4-to-wav",
+        permanent: true,
+      },
+      {
+        source: "/youtube-to-mp3",
+        destination: "/video-to-audio",
+        permanent: true,
+      },
+      {
+        source: "/tiktok-to-mp3",
+        destination: "/video-to-audio",
+        permanent: true,
+      },
+      {
+        source: "/youtube-vocal-remover",
+        destination: "/vocal-remover",
+        permanent: true,
+      },
+      {
+        source: "/youtube-stem-splitter",
+        destination: "/stems",
+        permanent: true,
+      },
+      {
+        source: "/youtube-key-finder",
+        destination: "/key-finder",
+        permanent: true,
+      },
+      {
+        source: "/guides/how-youtube-tools-fetch-then-process",
+        destination: "/guides",
+        permanent: true,
+      },
+      {
+        source: "/guides/tiktok-audio-quality-explained",
+        destination: "/guides/lossless-vs-lossy-audio-formats",
+        permanent: true,
+      },
+      {
+        source: "/guides/tiktok-sound-to-ringtone",
+        destination: "/ringtone-maker",
+        permanent: true,
+      },
+      {
         source: "/speech-to-text",
         destination: "/tools",
         permanent: true,

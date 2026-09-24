@@ -148,20 +148,6 @@ export default async function StemsPage() {
         ]
       : []),
     {
-      question: "Can I split a YouTube video into stems directly?",
-      answer:
-        "Yes. Paste the link into the YouTube Stem Splitter instead of downloading the audio first, as long as you have the right to process that content.",
-      answerNode: (
-        <>
-          Yes. Paste the link into the{" "}
-          <Link href="/youtube-stem-splitter" prefetch={false} className="text-amber-400 hover:underline">
-            YouTube Stem Splitter
-          </Link>{" "}
-          instead of downloading the audio first, as long as you have the right to process that content.
-        </>
-      ),
-    },
-    {
       question: "Can I get guitar or piano on their own?",
       answer:
         "Not as separate stems. Guitars, keys, synths, pads and strings all land together in the other stem. If you only need the voice and the backing, the Vocal Remover returns two stems instead of four.",

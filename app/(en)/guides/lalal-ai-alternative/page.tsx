@@ -156,7 +156,7 @@ export default function LalalAlternativeGuidePage() {
           <dl>
             <dt>Standard quality is free, no account</dt>
             <dd>
-              Paste a YouTube link or drop a file, get vocals and instrumental
+              Drop in a file, get vocals and instrumental
               back, mix them in the browser, download the WAVs. No sign-up, no
               email, no trial clock.
             </dd>
@@ -214,7 +214,7 @@ export default function LalalAlternativeGuidePage() {
 
           <h2 id="how-to-switch">How to try it in two minutes</h2>
           <ol>
-            <li>Open the vocal remover and drop a file, or paste a YouTube link.</li>
+            <li>Open the vocal remover and drop in a file.</li>
             <li>Run it free at Standard and check the result in the mixer.</li>
             <li>
               Press Run at Studio Quality. The first one each month is free, so
@@ -226,13 +226,6 @@ export default function LalalAlternativeGuidePage() {
         <div className="mt-10 flex flex-wrap gap-3 border-t border-graphite-800 pt-8">
           <Link href="/vocal-remover" className={buttonStyles({ size: "lg" })}>
             Vocal Remover
-            <ArrowRight className="h-4 w-4" />
-          </Link>
-          <Link
-            href="/youtube-vocal-remover"
-            className={buttonStyles({ size: "lg", variant: "outline" })}
-          >
-            YouTube Vocal Remover
             <ArrowRight className="h-4 w-4" />
           </Link>
           <Link href="/pricing" className={buttonStyles({ size: "lg", variant: "outline" })}>

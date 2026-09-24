@@ -147,10 +147,7 @@ export default function TempoMatchingGuidePage() {
             file before you touch the speed control. Our{" "}
             <Link href="/key-finder">Key and BPM Finder</Link> returns tempo, musical key and
             the Camelot code in one pass, which is the set you need for a harmonic blend
-            rather than just a beat match. If the track you are matching against is a
-            reference you found online, the{" "}
-            <Link href="/youtube-key-finder">YouTube Key and BPM Finder</Link> takes the link
-            directly, so there is no download step in between. When there is no file at all,
+            rather than just a beat match. When there is no file at all,
             only something playing in the room, tap it out on the{" "}
             <Link href="/bpm-tapper">BPM Tapper</Link>. Once you have both tracks&apos;
             Camelot codes, the guide on{" "}

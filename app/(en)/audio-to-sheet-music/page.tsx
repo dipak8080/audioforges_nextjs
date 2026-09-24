@@ -118,20 +118,6 @@ export default async function AudioToSheetMusicPage() {
         "Yes. A single sung melody is one of the easier cases. Record yourself, upload the file, and the melody comes back as notation you can print or edit.",
     },
     {
-      question: "Can I convert a YouTube video to sheet music?",
-      answer:
-        "In two steps. Grab the audio with the YouTube to WAV converter, then upload that file here.",
-      answerNode: (
-        <>
-          In two steps. Grab the audio with the{" "}
-          <Link href="/youtube-to-wav" prefetch={false} className="text-amber-400 hover:underline">
-            YouTube to WAV converter
-          </Link>
-          , then upload that file here.
-        </>
-      ),
-    },
-    {
       question: "Can I get a score for a song that was never published?",
       answer:
         "That is exactly what this is for. If a piece was never printed there is nowhere to buy it; this transcribes it straight from the recording so you have something to read, play and edit.",

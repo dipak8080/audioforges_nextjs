@@ -260,11 +260,6 @@ export const idDict: VocalRemoverDict = {
         "Tier kedua yang memakai MelBand RoFormer, bukan htdemucs. Arsitekturnya berbeda, bukan model yang sama dipaksa lebih keras, dan bedanya terdengar: sisa vokal di instrumental jauh berkurang dan artefak berair pada cymbal dan napas lebih sedikit. Prosesnya 1 sampai 2 menit, dan biayanya satu kredit per proses setelah jatah gratis bulanan.",
     },
     {
-      question: "Bisa hapus vokal langsung dari video YouTube?",
-      answer:
-        "Bisa. Tempel tautannya di alat YouTube Vocal Remover kami, tanpa perlu mengunduh audionya dulu, selama Anda punya hak atas konten tersebut.",
-    },
-    {
       question: "Apakah berfungsi untuk rekaman live?",
       answer:
         "Berfungsi, tapi hasilnya tidak sebersih mix studio. Suara penonton dan bocoran panggung lebih sulit dibedakan dari vokal oleh modelnya.",
@@ -497,11 +492,6 @@ export const esDict: VocalRemoverDict = {
         "Un segundo nivel que usa MelBand RoFormer en lugar de htdemucs. Es otra arquitectura, no el mismo modelo forzado, y la diferencia se oye: muchos menos restos de voz en el instrumental y menos artefactos acuosos en platillos y respiraciones. Tarda 1 a 2 minutos y cuesta un crédito por proceso después del cupo gratis mensual.",
     },
     {
-      question: "¿Puedo quitar la voz de un video de YouTube directamente?",
-      answer:
-        "Sí. Pega el enlace en nuestra herramienta YouTube Vocal Remover, sin descargar el audio primero, siempre que tengas derecho a procesar ese contenido.",
-    },
-    {
       question: "¿Funciona con grabaciones en vivo?",
       answer:
         "Funciona, pero el resultado no queda tan limpio como con una mezcla de estudio. El ruido del público y las filtraciones del escenario son más difíciles de distinguir de la voz para el modelo.",
@@ -732,11 +722,6 @@ export const ptDict: VocalRemoverDict = {
       question: "O que é Studio Quality?",
       answer:
         "Um segundo nível que usa MelBand RoFormer no lugar do htdemucs. É outra arquitetura, não o mesmo modelo forçado, e a diferença dá para ouvir: muito menos resto de vocal no instrumental e menos artefatos aquosos em pratos e respirações. Leva 1 a 2 minutos e custa um crédito por processo depois da cota grátis mensal.",
-    },
-    {
-      question: "Dá para remover o vocal de um vídeo do YouTube direto?",
-      answer:
-        "Dá. Cole o link na nossa ferramenta YouTube Vocal Remover, sem baixar o áudio antes, desde que você tenha o direito de processar esse conteúdo.",
     },
     {
       question: "Funciona com gravações ao vivo?",

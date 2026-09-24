@@ -123,30 +123,15 @@ export default async function RingtoneMakerPage() {
       answer: `Apple's own limit. Its instructions for creating a ringtone in GarageBand say ringtones can be up to 30 seconds, and at the export step anything longer prompts GarageBand to shorten it automatically, so an over-length clip isn't rejected, it's quietly trimmed for you. Capping the selection here at ${MAX_RINGTONE_SECONDS} seconds means the section you pick is the section you keep.`,
     },
     {
-      question: "Can I make a ringtone from a TikTok or YouTube sound?",
-      answer: `Yes, in two steps: pull the audio out first with the TikTok to MP3 converter or the YouTube to WAV converter, then upload that file here and pick your ${MAX_RINGTONE_SECONDS} seconds.`,
+      question: "Can I make a ringtone from a video?",
+      answer: `Yes, in two steps: pull the audio out of your video file with Video to Audio, then upload that file here and pick your ${MAX_RINGTONE_SECONDS} seconds.`,
       answerNode: (
         <>
-          Yes, in two steps: pull the audio out first with the{" "}
-          <Link href="/tiktok-to-mp3" className="text-amber-400 hover:underline">
-            TikTok to MP3 converter
-          </Link>{" "}
-          , the{" "}
-          <Link href="/youtube-to-mp3" className="text-amber-400 hover:underline">
-            YouTube to MP3 converter
-          </Link>{" "}
-          or the{" "}
-          <Link href="/youtube-to-wav" className="text-amber-400 hover:underline">
-            YouTube to WAV converter
+          Yes, in two steps: pull the audio out of your video file with{" "}
+          <Link href="/video-to-audio" className="text-amber-400 hover:underline">
+            Video to Audio
           </Link>
-          , then upload that file here and pick your section.{" "}
-          <Link
-            href="/guides/tiktok-sound-to-ringtone"
-            className="text-amber-400 hover:underline"
-          >
-            Read How to Make a Ringtone from a TikTok Sound
-          </Link>{" "}
-          for the full walkthrough.
+          , then upload that file here and pick your section.
         </>
       ),
     },
@@ -236,10 +221,8 @@ export default async function RingtoneMakerPage() {
           />
           <Prose className="mt-5">
             <p>
-              Sound is on TikTok or YouTube? <Link href="/tiktok-to-mp3">TikTok to MP3</Link> or{" "}
-              <Link href="/youtube-to-mp3">YouTube to MP3</Link> first, then upload the file here.{" "}
-              <Link href="/guides/tiktok-sound-to-ringtone">The TikTok to ringtone guide</Link> walks the whole
-              path. For Android, <Link href="/trim">Trim</Link> then <Link href="/convert">convert to MP3</Link>.
+              Sound is in a video file? Pull it out with <Link href="/video-to-audio">Video to Audio</Link>{" "}
+              first, then upload the file here. For Android, <Link href="/trim">Trim</Link> then <Link href="/convert">convert to MP3</Link>.
             </p>
           </Prose>
         </ToolSection>

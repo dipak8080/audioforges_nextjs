@@ -4,8 +4,8 @@ import { buttonStyles } from "@/components/ui/Button";
 import { getLiveTools, type Tool } from "@/lib/data/tools";
 
 const SUGGESTED_SLUGS = [
-  "youtube-to-wav",
   "vocal-remover",
+  "stems",
   "key-finder",
   "audio-to-midi",
   "convert",

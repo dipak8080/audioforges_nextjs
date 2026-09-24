@@ -106,8 +106,8 @@ export default async function AboutPage() {
             reference track, check its key before sampling it, or get a clean
             instrumental to practice over, I ended up on some ad-plastered downloader
             site, or paying for a tool that did one thing I needed buried inside ten I
-            didn&apos;t. So I built the pieces I actually use, a YouTube-to-audio
-            converter first, then a key and BPM detector, then a vocal remover, and
+            didn&apos;t. So I built the pieces I actually use, a key and BPM
+            detector, then a vocal remover, and
             put them somewhere free for anyone else running into the same problem. The
             site has since grown into a full set of{" "}
             <Link href="/tools">free audio tools</Link> covering conversion, editing,
@@ -117,11 +117,6 @@ export default async function AboutPage() {
           </p>
 
           <h2 id="how-the-tools-work">How the tools work</h2>
-          <p>
-            <strong>YouTube to WAV/MP3</strong> extracts the audio track from a video
-            URL server-side and hands you back a WAV (lossless, 44.1kHz) or MP3
-            (320kbps) file.
-          </p>
           <p>
             <strong>Key &amp; BPM Finder</strong> runs uploaded audio through
             key-detection and beat-tracking models to identify musical key, tempo, and
