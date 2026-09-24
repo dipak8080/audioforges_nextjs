@@ -100,11 +100,11 @@ export default function RefundsPage() {
           anything else, and the credits are attached to you by hand.
         </p>
 
-        <h2 id="paddle">Who processes your payment</h2>
+        <h2 id="processor">Who processes your payment</h2>
         <p>
-          Purchases are processed by Paddle.com, our reseller and Merchant of Record. Your receipt
-          comes from Paddle, and your card statement shows <strong>PADDLE.NET* AUDIOFORGE</strong>.
-          Paddle may also review a refund request under its own buyer terms, shown at checkout.
+          Purchases are processed by Dodo Payments, our reseller and Merchant of Record. Your
+          receipt comes from Dodo Payments, which may also review a refund request under its own
+          terms, shown at checkout.
         </p>
 
         <h2 id="law">Your legal rights</h2>

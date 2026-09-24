@@ -136,7 +136,7 @@ export default function PrivacyPage() {
           by the processor.
         </p>
         <p>
-          Credit purchases are processed by Paddle.com, our reseller and
+          Credit purchases are processed by Dodo Payments, our reseller and
           Merchant of Record, and donations by Ko-fi. Paying on either is
           subject to that processor&apos;s own privacy policy and terms. The
           processor tells us that a payment for a given item was made and the
@@ -157,7 +157,7 @@ export default function PrivacyPage() {
           and the following providers to run the site and tools: Vercel for the
           website, VPS Dime for general backend processing, RunPod for the
           GPU-accelerated compute used by separation and
-          high-accuracy MIDI, Paddle.com to process credit purchases, and Ko-fi for donations. When you use one of those separation tools, the
+          high-accuracy MIDI, Dodo Payments to process credit purchases, and Ko-fi for donations. When you use one of those separation tools, the
           audio file or fetched YouTube audio is processed on RunPod&apos;s
           infrastructure for the time needed to complete that job, under the same
           no-permanent-storage handling described in Section 2. Each of these

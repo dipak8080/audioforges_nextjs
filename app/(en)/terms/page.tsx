@@ -135,11 +135,11 @@ export default function TermsPage() {
           including tools added after the purchase.
         </p>
         <p>
-          Our order process is conducted by our online reseller Paddle.com.
-          Paddle.com is the Merchant of Record for all our orders and handles
+          Our order process is conducted by our online reseller Dodo Payments.
+          Dodo Payments is the Merchant of Record for all our orders and handles
           payment, billing, sales tax, receipts and payment disputes. By
           completing a purchase you agree to these terms, to the Refund Policy,
-          and to the Paddle buyer terms shown at checkout. You must provide a
+          and to the Dodo Payments terms shown at checkout. You must provide a
           working email address at checkout; it is used to match your payment to
           your browser and to send your receipt.
         </p>
