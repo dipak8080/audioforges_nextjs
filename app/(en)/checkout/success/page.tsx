@@ -251,6 +251,8 @@ export default function CheckoutSuccessPage() {
     if (preview) return;
 
     const paymentId = new URLSearchParams(window.location.search).get("payment_id");
+    // Dodo appends the buyer's email to the return URL. Keep it out of analytics.
+    if (window.location.search) window.history.replaceState(null, "", window.location.pathname);
     if (paymentId && /^pay_[A-Za-z0-9]+$/.test(paymentId)) {
       void confirmDodoPayment(paymentId)
         .catch(() => null)

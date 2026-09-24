@@ -160,7 +160,9 @@ export async function RootDocument({
     window.dataLayer = window.dataLayer || [];
     function gtag(){dataLayer.push(arguments);}
     gtag('js', new Date());
-    gtag('config', 'G-4MW6XTR9XM');
+    var afLoc = location.href;
+    try { var afUrl = new URL(afLoc); afUrl.searchParams.delete('email'); afLoc = afUrl.toString(); } catch (e) {}
+    gtag('config', 'G-4MW6XTR9XM', { page_location: afLoc });
   `}
         </Script>
 
