@@ -46,6 +46,17 @@
 // tools happened to sit earliest in this array, and it never reached
 // anything declared near the bottom of the file.
 //
+// The concrete failure it caused: `tiktok-to-mp3` sat last in the array
+// under a "DOWNLOAD (cont.)" header and appeared in ZERO other entry's
+// `related` list. youtube-to-wav — by a wide margin the site's strongest
+// page in search — listed two slugs and had its other three slots filled
+// by the download-category fallback, which walked the array in order,
+// found youtube-key-finder / youtube-vocal-remover / youtube-stem-splitter,
+// hit the count, and stopped before ever reaching tiktok-to-mp3. On a
+// site whose external link profile is close to nonexistent, internal
+// links are the main authority signal we actually control, and the
+// newest page was receiving none of it.
+//
 // Two invariants worth preserving when editing this file:
 //   1. Every entry lists five slugs. If a tool genuinely has fewer than
 //      five useful neighbours, that is a signal the tool is isolated,
@@ -54,6 +65,27 @@
 //      arrays. Grep before you delete a slug from a list — a tool that
 //      falls to zero inbound cross-links becomes an orphan reachable
 //      only from the navbar and /tools hub.
+//
+// NOTE ON /youtube-to-mp3 (2026-08-23): added as a second URL against the
+// same converter endpoint as youtube-to-wav. This is knowingly against the
+// "one URL per underlying tool concept" rule at the top of this file, and
+// the exception is narrow: the two queries have different audiences (WAV =
+// producers importing to a DAW, MP3 = listeners loading a phone or a car),
+// different follow-up tools, and Bing's related-searches panel treats them
+// as adjacent rather than identical. The pages share no body copy and each
+// leads its `related` list with the other.
+//
+// The condition for keeping the split: if a future edit makes the two
+// pages' copy converge, merge them rather than maintaining two thin pages
+// competing for one intent. Two near-duplicate pages on a domain with one
+// referring domain is worse than one good page.
+//
+// NOTE ON ORDERING (2026-08-23): `tiktok-to-mp3` moved up into the
+// DOWNLOAD block where it belongs. The old "DOWNLOAD (cont.)" section at
+// the bottom was an append-and-forget artifact. Declaration order is not
+// cosmetic here — the category fallback iterates this array in order, so
+// anything parked at the bottom is structurally last in line for every
+// fallback decision on the site.
 //
 // NOTE ON /m4a-to-mp3 REMOVAL (2026-09-04): a dedicated /m4a-to-mp3 page
 // was drafted but never shipped, and the folder is deleted. It was never
@@ -67,6 +99,7 @@
 // `m4a-to-mp3` slug here unless that route is actually created.
 
 export type ToolCategory =
+  | "download"
   | "convert"
   | "pitch-tempo"
   | "cleanup"
@@ -96,6 +129,7 @@ export interface Tool {
 }
 
 export const CATEGORY_LABELS: Record<ToolCategory, string> = {
+  download: "Download",
   convert: "Convert & Edit",
   "pitch-tempo": "Pitch & Tempo",
   cleanup: "Cleanup & Enhance",
@@ -105,6 +139,7 @@ export const CATEGORY_LABELS: Record<ToolCategory, string> = {
 };
 
 export const CATEGORY_ORDER: ToolCategory[] = [
+  "download",
   "vocals",
   "convert",
   "pitch-tempo",
@@ -114,6 +149,78 @@ export const CATEGORY_ORDER: ToolCategory[] = [
 ];
 
 export const TOOLS: Tool[] = [
+  // ---------- DOWNLOAD ----------
+  {
+    slug: "youtube-to-wav",
+    name: "YouTube to WAV",
+    shortDescription: "Convert YouTube videos to lossless WAV audio for sampling and DJ sets.",
+    category: "download",
+    status: "live",
+    // The site's strongest search page, so its five outbound links carry
+    // more weight than any other entry here — which is why the sibling MP3
+    // page takes the first slot. video-to-audio was dropped from this list
+    // to make room; it keeps inbound links from convert, youtube-to-text
+    // and video-to-text, so it stays well connected.
+    related: ["youtube-to-mp3", "key-finder", "vocal-remover", "tiktok-to-mp3", "audio-to-sheet-music"],
+  },
+  {
+    slug: "youtube-to-mp3",
+    name: "YouTube to MP3",
+    shortDescription: "Convert YouTube videos to a 320kbps MP3 for phones, cars, and offline listening.",
+    category: "download",
+    status: "live",
+    // ADDED 2026-08-23. Deliberate exception to this file's "one URL per
+    // tool concept" rule, documented in full at the top of the page file.
+    // Short version: same endpoint, genuinely different search intent —
+    // WAV is producers (DAW, sampling, DJ decks), MP3 is listeners (phone,
+    // car, storage). Bing's own related-searches panel on "youtube to wav"
+    // surfaces "YouTube to mp3" as its first suggestion, which is the
+    // engine stating it treats them as adjacent rather than identical.
+    //
+    // youtube-to-wav leads the list, and youtube-to-mp3 leads that page's
+    // list in return. The reciprocal first-slot pairing is what makes the
+    // two read as siblings rather than as one page duplicated.
+    related: ["youtube-to-wav", "trim", "audio-to-sheet-music", "tiktok-to-mp3", "convert"],
+  },
+  {
+    slug: "youtube-key-finder",
+    name: "YouTube Key & BPM Finder",
+    shortDescription: "Paste a YouTube link and get its key, BPM, and Camelot code directly.",
+    category: "download",
+    status: "live",
+    related: ["key-finder", "youtube-to-wav", "youtube-vocal-remover", "bpm-tapper", "tempo"],
+  },
+  {
+    slug: "youtube-vocal-remover",
+    name: "YouTube Vocal Remover",
+    shortDescription: "Paste a YouTube link and get vocal and instrumental stems directly.",
+    category: "download",
+    status: "live",
+    related: ["vocal-remover", "youtube-to-wav", "youtube-stem-splitter", "youtube-key-finder", "stems"],
+  },
+  {
+    slug: "youtube-stem-splitter",
+    name: "YouTube Stem Splitter",
+    shortDescription: "Paste a YouTube link and get vocals, drums, bass, and other stems directly.",
+    category: "download",
+    status: "live",
+    // audio-to-midi in the fifth slot is a real workflow, not filler:
+    // isolate a stem, then transcribe that stem to MIDI.
+    related: ["stems", "youtube-vocal-remover", "youtube-to-wav", "key-finder", "audio-to-midi"],
+  },
+  {
+    slug: "tiktok-to-mp3",
+    name: "TikTok to MP3",
+    shortDescription: "Convert a TikTok video link into a downloadable MP3.",
+    category: "download",
+    status: "live",
+    // Matches what the page copy actually tells people to do next: trim the
+    // clip, fade the cut so it doesn't click, or send it to the ringtone
+    // maker for the 30s cap and M4R container. youtube-to-mp3 sits third
+    // as the nearest same-intent tool — "paste a link, get an MP3" — and
+    // this is one of its three inbound links.
+    related: ["trim", "ringtone-maker", "youtube-to-mp3", "fade", "youtube-to-wav"],
+  },
 
   // ---------- VOCALS & KEY ----------
   {
@@ -122,7 +229,7 @@ export const TOOLS: Tool[] = [
     shortDescription: "Detect musical key, tempo, and Camelot notation.",
     category: "vocals",
     status: "live",
-    related: ["bpm-tapper", "vocal-remover", "audio-to-sheet-music", "audio-to-midi", "stems"],
+    related: ["bpm-tapper", "youtube-key-finder", "vocal-remover", "audio-to-sheet-music", "audio-to-midi"],
   },
   {
     slug: "vocal-remover",
@@ -130,7 +237,7 @@ export const TOOLS: Tool[] = [
     shortDescription: "Split a track into vocal and instrumental stems.",
     category: "vocals",
     status: "live",
-    related: ["stems", "key-finder", "audio-to-midi", "mp4-to-wav", "audio-to-sheet-music"],
+    related: ["stems", "key-finder", "youtube-vocal-remover", "audio-to-midi", "youtube-to-wav"],
   },
   {
     slug: "stems",
@@ -138,7 +245,7 @@ export const TOOLS: Tool[] = [
     shortDescription: "Split a track into vocals, drums, bass, and other stems.",
     category: "vocals",
     status: "live",
-    related: ["vocal-remover", "key-finder", "audio-to-midi", "tempo", "audio-to-sheet-music"],
+    related: ["vocal-remover", "key-finder", "youtube-stem-splitter", "audio-to-midi", "tempo"],
   },
 
   // ---------- CONVERT & EDIT ----------
@@ -180,7 +287,7 @@ export const TOOLS: Tool[] = [
     shortDescription: "Extract audio from MP4, MOV, and other video files.",
     category: "convert",
     status: "live",
-    related: ["mp4-to-wav", "convert", "trim", "vocal-remover", "stems"],
+    related: ["mp4-to-wav", "convert", "youtube-to-mp3", "youtube-to-wav", "trim"],
   },
   {
     slug: "mp4-to-wav",
@@ -263,7 +370,10 @@ export const TOOLS: Tool[] = [
     shortDescription: "Trim a track into an iPhone-ready ringtone (M4R).",
     category: "convert",
     status: "live",
-    related: ["trim", "video-to-audio", "fade", "mp4-to-wav", "convert"],
+    // tiktok-to-mp3 second: making a ringtone out of a TikTok sound is a
+    // real and common path, and /guides/tiktok-sound-to-ringtone already
+    // documents it, so the connection is topical rather than manufactured.
+    related: ["trim", "tiktok-to-mp3", "fade", "youtube-to-wav", "convert"],
   },
 
   // ---------- PITCH & TEMPO ----------
@@ -371,7 +481,7 @@ export const TOOLS: Tool[] = [
     shortDescription: "Transcribe audio to MIDI and preview it in an interactive piano roll before downloading.",
     category: "transcription",
     status: "live",
-    related: ["key-finder", "vocal-remover", "stems", "audio-to-sheet-music", "mp4-to-wav"],
+    related: ["key-finder", "vocal-remover", "stems", "audio-to-sheet-music", "youtube-to-wav"],
   },
 
   // ---------- BROWSER TOOLS ----------
@@ -399,7 +509,7 @@ export const TOOLS: Tool[] = [
     shortDescription: "Tap along to a beat and find its tempo instantly.",
     category: "browser",
     status: "live",
-    related: ["metronome", "key-finder", "tempo", "tuner", "vocal-remover"],
+    related: ["metronome", "key-finder", "tempo", "tuner", "youtube-key-finder"],
   },
   {
     slug: "tuner",
@@ -415,7 +525,7 @@ export const TOOLS: Tool[] = [
     shortDescription: "Turn a recording into playable sheet music with synced playback: PDF, MusicXML & MIDI.",
     category: "transcription",
     status: "live",
-    related: ["audio-to-midi", "key-finder", "vocal-remover", "stems", "mp4-to-wav"],
+    related: ["audio-to-midi", "key-finder", "vocal-remover", "stems", "youtube-to-wav"],
   },
 ];
 

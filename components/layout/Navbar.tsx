@@ -27,6 +27,8 @@ const PRODUCT_GROUPS: { label: string; links: MenuLink[] }[] = [
     label: "Separation",
     links: [
       { href: "/stems", name: "Stem Splitter", desc: "Vocals, drums, bass, other" },
+      { href: "/youtube-vocal-remover", name: "YouTube Vocal Remover", desc: "Paste a link, get two stems" },
+      { href: "/youtube-stem-splitter", name: "YouTube Stem Splitter", desc: "Paste a link, get four stems" },
     ],
   },
   {
@@ -40,6 +42,7 @@ const PRODUCT_GROUPS: { label: string; links: MenuLink[] }[] = [
     label: "Analysis",
     links: [
       { href: "/key-finder", name: "Key & BPM Finder", desc: "Key, tempo, Camelot code" },
+      { href: "/youtube-key-finder", name: "YouTube Key & BPM Finder", desc: "Paste a link, get key and BPM" },
     ],
   },
 ];

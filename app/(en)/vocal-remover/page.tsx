@@ -159,6 +159,20 @@ export default async function VocalRemoverPage() {
         ]
       : []),
     {
+      question: "Can I remove vocals from a YouTube video directly?",
+      answer:
+        "Yes. Paste the link into the YouTube Vocal Remover instead of downloading the audio first, as long as you have the right to process that content.",
+      answerNode: (
+        <>
+          Yes. Paste the link into the{" "}
+          <Link href="/youtube-vocal-remover" prefetch={false} className="text-amber-400 hover:underline">
+            YouTube Vocal Remover
+          </Link>{" "}
+          instead of downloading the audio first, as long as you have the right to process that content.
+        </>
+      ),
+    },
+    {
       question: "Can I separate drums or bass instead of vocals?",
       answer:
         "Not here. This tool returns exactly two stems, vocals and instrumental. The Stem Splitter separates vocals, drums, bass, and other individually.",

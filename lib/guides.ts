@@ -261,6 +261,15 @@ export const guides: Guide[] = [
     category: "dj-mixing",
   },
   {
+    slug: "how-youtube-tools-fetch-then-process",
+    title: "How AudioForges' YouTube Tools Work",
+    description:
+      "Why pasting a YouTube link takes longer than uploading a file, why private or restricted videos can't be processed, and what determines wait time.",
+    publishedDate: "2026-08-01",
+    updatedDate: "2026-08-01",
+    category: "production",
+  },
+  {
     slug: "why-your-browser-can-record-without-uploading",
     title: "Why Your Browser Records Without Uploading",
     description:
@@ -321,6 +330,24 @@ export const guides: Guide[] = [
       "How audio-to-MIDI transcription detects pitch and timing, why single melodies convert cleaner than chords, and what onset and frame thresholds control.",
     publishedDate: "2026-08-13",
     updatedDate: "2026-08-13",
+    category: "production",
+  },
+  {
+    slug: "tiktok-audio-quality-explained",
+    title: "TikTok Audio Quality: Why 320 kbps Is a Myth",
+    description:
+      "TikTok's source audio measures around 64 kbps AAC. Here's why converting it to a 320 kbps MP3 can't add quality back — and what actually does matter.",
+    publishedDate: "2026-08-18",
+    updatedDate: "2026-08-18",
+    category: "production",
+  },
+  {
+    slug: "tiktok-sound-to-ringtone",
+    title: "How to Make a Ringtone from a TikTok Sound",
+    description:
+      "Turn a TikTok sound into a ringtone: where to cut the hook, how long to make it, why it needs a fade, and how to install it on iPhone or Android.",
+    publishedDate: "2026-08-18",
+    updatedDate: "2026-08-18",
     category: "production",
   },
   {

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { StemsForm } from "@/components/converter/StemsForm";
+import { YouTubeStemForm } from "@/components/converter/YouTubeStemForm";
 import { FAQSection, type FAQItem } from "@/components/faq/FAQSection";
 import { ToolPageShell } from "@/components/layout/ToolPageShell";
 import { Breadcrumb } from "@/components/layout/Breadcrumb";
@@ -16,12 +16,12 @@ import { PageByline } from "@/components/tools/PageByline";
 import { ToolVideo } from "@/components/media/ToolVideo";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getRelatedTools } from "@/lib/data/tools";
+import { getDurationLabel } from "@/lib/data/tool-limits";
 import { getFeatureFlags } from "@/lib/api/railway";
 import {
   getLimits,
   windowFor,
   rateLimitLabel,
-  durationLabel,
   sharedAllowanceFor,
   sharedAllowanceLabel,
   sharedAllowanceProse,
@@ -29,26 +29,25 @@ import {
 } from "@/lib/api/limits";
 import { ogForTool } from "@/lib/og";
 
-// Shared with /pricing and /vocal-remover: same 41 s clip through both tiers.
 const STEM_DEMO_STANDARD = "/audio/stems/stems-drums-standard.mp3";
 const STEM_DEMO_STUDIO = "/audio/stems/stems-drums-studio.mp3";
 
 const UPDATED = "2026-09-10";
 
-const PAGE_TITLE = "Free AI Stem Splitter – Split Songs Into Stems";
+const PAGE_TITLE = "YouTube Stem Splitter – Split Songs Into Stems";
 const PAGE_DESCRIPTION =
-  "Free AI stem splitter and LALAL.AI alternative. Split a song into vocals, drums, bass and other stems. MP3, WAV, FLAC, M4A, AAC. No sign-up, no watermark.";
+  "Split YouTube songs into stems free — vocals, drums, bass, and other with AI. Free, no sign-up, no download required.";
 
-const OG_IMAGE = ogForTool("stems", "Free AI Stem Splitter");
+const OG_IMAGE = ogForTool("youtube-stem-splitter", "Free YouTube Stem Splitter");
 
 export const metadata: Metadata = {
-  title: PAGE_TITLE,
+  title: { absolute: PAGE_TITLE },
   description: PAGE_DESCRIPTION,
-  alternates: { canonical: `${SITE_URL}/stems` },
+  alternates: { canonical: `${SITE_URL}/youtube-stem-splitter` },
   openGraph: {
     title: PAGE_TITLE,
     description: PAGE_DESCRIPTION,
-    url: `${SITE_URL}/stems`,
+    url: `${SITE_URL}/youtube-stem-splitter`,
     siteName: SITE_NAME,
     type: "website",
     images: [OG_IMAGE],
@@ -64,132 +63,130 @@ export const metadata: Metadata = {
 const webAppJsonLd = {
   "@context": "https://schema.org",
   "@type": "WebApplication",
-  name: "AI Stem Splitter",
+  name: "YouTube Stem Splitter",
   alternateName: [
-    "Stem Splitter",
-    "AI Stem Separator",
-    "Song Splitter",
-    "Multitrack Extractor",
-    "Drum Stem Extractor",
-    "Bassline Isolator",
+    "YouTube Stem Splitter",
+    "YouTube Stem Separator",
+    "YouTube Song Splitter",
+    "YouTube Drum Stem Extractor",
   ],
-  url: `${SITE_URL}/stems`,
+  url: `${SITE_URL}/youtube-stem-splitter`,
   dateModified: UPDATED,
   applicationCategory: "MultimediaApplication",
   operatingSystem: "Any",
   browserRequirements: "Requires JavaScript.",
   offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
   featureList: [
-    "GPU-accelerated AI 4-stem separation: vocals, drums, bass, other",
+    "GPU-accelerated AI 4-stem separation from a YouTube link",
     "Forge Mixer: multi-track stem player with per-stem mute, solo, volume and pan",
     "Mix presets, A–B loop, and in-browser WAV export of your custom balance",
-    "No sign-up required",
-    "No download or software install required",
+    "No manual download step",
     "Individually downloadable stems",
+    "No sign-up required",
   ],
 };
 
-export default async function StemsPage() {
-  const relatedTools = getRelatedTools("stems", 5);
-  const { separationHqEnabled, paywallEnabled, paywallTools } = await getFeatureFlags();
-  const hqMetered = paywallEnabled && Boolean(paywallTools["stems-hq"]);
+// Rate limits are resolved per request from /limits inside the component, not
+// from the build-time table: every limit is a settings row the operator can
+// change without a deploy. Duration caps below still come from tool-limits.ts.
+
+const FALLBACK_STANDARD_DURATION = "10 minutes";
+const FALLBACK_HQ_DURATION = "6 minutes";
+const standardDurationLabel = getDurationLabel("youtube/stems") ?? FALLBACK_STANDARD_DURATION;
+const hqDurationLabel = getDurationLabel("youtube/stems-hq") ?? FALLBACK_HQ_DURATION;
+// Stated separately only when they differ, so a row reading "10 minutes /
+// 10 minutes" never ships.
+const hqDurationDiffers = hqDurationLabel !== standardDurationLabel;
+
+export default async function YouTubeStemSplitterPage() {
+  const relatedTools = getRelatedTools("youtube-stem-splitter", 5);
+  const { separationHqEnabled: hqRunning, youtubeHqEnabled, paywallEnabled, paywallTools } =
+    await getFeatureFlags();
+  const separationHqEnabled = hqRunning && youtubeHqEnabled;
+  const hqMetered =
+    separationHqEnabled && paywallEnabled && Boolean(paywallTools["youtube/stems-hq"]);
   const limits = await getLimits();
 
-  // "stems_hq" is this tool's own key. The standard tier has no key of its own
-  // any more: it draws from a pool shared with the three other separation
-  // routes, so the flat `stems` number is the hourly window and nothing else.
-  const standardAllowance = sharedAllowanceFor(limits, "stems");
+  const standardAllowance = sharedAllowanceFor(limits, "youtube/stems");
   const standardLimitLabel = standardAllowance
     ? sharedAllowanceLabel(standardAllowance)
-    : rateLimitLabel(limits.rateLimits.stems, windowFor(limits, "stems"));
+    : rateLimitLabel(limits.rateLimits.youtube_stems, windowFor(limits, "youtube_stems"));
   const standardLimitProse = standardAllowance
     ? sharedAllowanceProse(standardAllowance)
     : standardLimitLabel;
-  const standardPoolNote = sharedPoolNote(limits, "stems");
-  const hqLimitLabel = rateLimitLabel(limits.rateLimits.stems_hq, windowFor(limits, "stems_hq"));
-  const maxUploadLabel = `${limits.maxUploadMb}MB`;
-
-  // Number derives from /limits; the retention sentence stays hand-written and
-  // matches /vocal-remover word for word, since it describes one backend rule.
-  const separationRetention = limits.retention.separation;
-  const retentionWindow = durationLabel(
-    separationRetention.inputSeconds ?? separationRetention.outputSeconds
+  const standardPoolNote = sharedPoolNote(limits, "youtube/stems");
+  const hqLimitLabel = rateLimitLabel(
+    limits.rateLimits.youtube_stems_hq,
+    windowFor(limits, "youtube_stems_hq")
   );
-
-  const formats = limits.allowedAudioFormats.map((f) => f.toUpperCase());
-  const formatList = formats.join(", ").replace(/, ([^,]*)$/, ", or $1");
 
   const faqs: FAQItem[] = [
     {
-      question: "Is there a free alternative to LALAL.AI's stem splitter?",
+      question: "How long can the video be?",
+      answer: `Up to ${standardDurationLabel}${hqDurationDiffers ? `, and ${hqDurationLabel} on Studio Quality` : " on both tiers"}. The cap is on separation, not the fetch, so a longer video is refused rather than downloaded first and rejected afterwards. Usage is limited to ${standardLimitProse} per IP address so the tool stays free.${standardPoolNote ? ` ${standardPoolNote}` : ""}`,
+    },
+    {
+      question: "Do I need to download the video first?",
       answer:
-        "Yes. AudioForges splits full-length tracks into vocals, drums, bass and other free, with no account. LALAL.AI's free Starter plan previews a result but does not let you download the full one, and its paid tiers are monthly subscriptions. Studio Quality here upgrades the split for one credit per job, with no subscription and credits that never expire.",
+        "No. Paste the link, the audio is fetched server-side and goes straight into separation. Nothing lands on your device until you download a stem.",
     },
     {
-      question: "Are my uploaded tracks kept?",
-      answer: `For ${retentionWindow}, then everything is deleted automatically, your upload and the separated stems together, by the same expiry. That window is what lets the one-click Studio Quality re-run work without a second upload, so it applies to standard runs too. Separation is the only tool on the site that holds an upload at all; every other one deletes it the moment processing finishes. There are no accounts, so nothing is linked to you, published, or shared.`,
+      question: "What are the four stems?",
+      answer:
+        "Vocals, drums as one full-kit stem, bass, and other. Other holds guitars, keys, synths, pads and strings together rather than splitting them further, so a guitar or a piano does not come back on its own.",
     },
     {
-      question: "What formats can I upload, and is there a size limit?",
-      answer: `${formatList}, up to ${maxUploadLabel} per upload. Standard quality is limited to ${standardLimitProse} per IP address so it stays free for everyone.${standardPoolNote ? ` ${standardPoolNote}` : ""}`,
+      question: "Can I download each stem individually?",
+      answer:
+        "Yes. Each stem previews and downloads on its own, there is a download-all button, and Forge Mixer can export a custom balance of the four as a single WAV.",
     },
     ...(separationHqEnabled
       ? [
           {
             question: "What is Studio Quality?",
             answer:
-              "A two-stage pipeline instead of one pass. MelBand RoFormer extracts the vocal first, then htdemucs_ft splits the vocal-free instrumental into drums, bass and other. Every stem comes back cleaner because the model separating them is not fighting the voice. It takes 1 to 2 minutes instead of 20 seconds to 1 minute and costs one credit per run after the free monthly allowance.",
-          },
-          {
-            question: "Can I split a whole folder of songs at once?",
-            answer:
-              "Yes. Drop up to 20 tracks and they run as a Studio Quality batch at one credit per track, the same as a single run. Every finished track opens in Forge Mixer, and all the stems download together as one ZIP in WAV or MP3, numbered in the order you added them. A track that fails is refunded on its own.",
+              "A two-stage pipeline instead of one pass. MelBand RoFormer extracts the vocal first, then htdemucs_ft splits the vocal-free instrumental into drums, bass and other. Every stem comes back cleaner because the model separating them is not fighting the voice. It takes longer and costs one credit per run after the free monthly allowance.",
           },
         ]
       : []),
     {
-      question: "Can I split a YouTube video into stems directly?",
+      question: "Why does a link take longer than uploading a file?",
       answer:
-        "Yes. Paste the link into the YouTube Stem Splitter instead of downloading the audio first, as long as you have the right to process that content.",
+        "There are two stages instead of one. The audio has to be fetched from YouTube before separation can start, and the fetch is the part that varies. Separation itself takes the same time either way.",
       answerNode: (
         <>
-          Yes. Paste the link into the{" "}
-          <Link href="/youtube-stem-splitter" prefetch={false} className="text-amber-400 hover:underline">
-            YouTube Stem Splitter
-          </Link>{" "}
-          instead of downloading the audio first, as long as you have the right to process that content.
+          There are two stages instead of one. The audio has to be fetched from YouTube before separation can start,
+          and the fetch is the part that varies. Separation itself takes the same time either way.{" "}
+          <Link href="/guides/how-youtube-tools-fetch-then-process" className="text-amber-400 hover:underline">
+            How the fetch stage works
+          </Link>
+          .
         </>
       ),
     },
     {
-      question: "Can I get guitar or piano on their own?",
+      question: "Some links fail. Why?",
       answer:
-        "Not as separate stems. Guitars, keys, synths, pads and strings all land together in the other stem. If you only need the voice and the backing, the Vocal Remover returns two stems instead of four.",
+        "Age-restricted, private, members-only and region-blocked videos cannot be fetched, and live streams have no finished file to pull. Very long videos are refused by the duration cap above. If a link fails, downloading the audio yourself and using the file tool usually works.",
+    },
+    {
+      question: "I only want the vocals and the backing. Is there a simpler tool?",
+      answer:
+        "Yes. The YouTube Vocal Remover returns two stems instead of four, which is what you want for karaoke or an acapella.",
       answerNode: (
         <>
-          Not as separate stems. Guitars, keys, synths, pads and strings all land together in the other stem. If you
-          only need the voice and the backing, the{" "}
-          <Link href="/vocal-remover" prefetch={false} className="text-amber-400 hover:underline">
-            Vocal Remover
+          Yes. The{" "}
+          <Link href="/youtube-vocal-remover" prefetch={false} className="text-amber-400 hover:underline">
+            YouTube Vocal Remover
           </Link>{" "}
-          returns two stems instead of four.
+          returns two stems instead of four, which is what you want for karaoke or an acapella.
         </>
       ),
-    },
-    {
-      question: "Does it work on any genre?",
-      answer:
-        "It works across genres, but the mix matters more than the genre. Dense, heavily layered arrangements are harder to untangle than sparse ones with clearly distinct instruments, and instruments sharing a frequency range, like bass and a low guitar, can bleed into each other.",
-    },
-    {
-      question: "Can I download each stem individually?",
-      answer:
-        "Yes. Each of the four stems previews and downloads on its own, so you only take the ones you want. There is also a download-all button, and Forge Mixer can export a custom balance of the four as a single WAV.",
     },
     {
       question: "Does separation improve the audio quality?",
       answer:
-        "No. It isolates what is already in the mix. It does not remaster or add fidelity the original recording never had, and every stem comes back as 16-bit 44.1 kHz stereo WAV regardless of what you upload.",
+        "No. It isolates what is already in the mix. YouTube audio is compressed before you ever get to it, so a stem cannot be cleaner than the source, and every stem comes back as 16-bit 44.1 kHz stereo WAV.",
     },
   ];
 
@@ -198,13 +195,15 @@ export default async function StemsPage() {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(webAppJsonLd) }} />
 
       <ToolPageShell
-        breadcrumb={<Breadcrumb items={[{ name: "Tools", href: "/tools" }, { name: "Stem Splitter" }]} />}
-        meta={["No account", "No watermark", "Four full-length stems"]}
-        title="Free AI Stem Splitter"
-        lede="Split a song into vocals, drums, bass and other. Four separate WAV files, no sign-up, nothing to install."
         wide
+        breadcrumb={
+          <Breadcrumb items={[{ name: "Tools", href: "/tools" }, { name: "YouTube Stem Splitter" }]} />
+        }
+        meta={["No account", "No download step", "Four full-length stems"]}
+        title="Free YouTube Stem Splitter"
+        lede="Paste a link and split the song into vocals, drums, bass and other. Four separate WAV files, no download step, no sign-up."
         tool={
-          <StemsForm
+          <YouTubeStemForm
             hqAvailable={separationHqEnabled}
             standardLimit={standardAllowance}
             hqLimitText={hqLimitLabel}
@@ -216,22 +215,53 @@ export default async function StemsPage() {
         <ProofStrip
           proofs={[
             {
+              label: "One step",
+              value: "Link in, four stems out",
+              note: "The audio is fetched server-side. Nothing touches your device until you download a stem.",
+            },
+            {
               label: "Models",
               value: "htdemucs, RoFormer and htdemucs_ft",
               note: "Named so you can check them. Studio Quality runs two stages, not the same model run harder.",
             },
             {
-              label: "Output",
-              value: "Four 16-bit, 44.1 kHz WAVs",
-              note: "Lossless, stereo, each one downloadable on its own. Spec published below.",
-            },
-            {
-              label: "Price",
-              value: "Full tracks free, no watermark",
-              note: "No account, no preview-only tier. Rate-limited per IP so it stays free.",
+              label: "Length",
+              value: `Up to ${standardDurationLabel}`,
+              note: `${hqDurationDiffers ? `${hqDurationLabel} on Studio Quality. ` : ""}Checked before the fetch, so nothing is downloaded that cannot be processed.`,
             },
           ]}
         />
+
+        <ToolSection id="two-stages" title="What happens after you paste the link" bleed>
+          <ol className="grid gap-3 sm:grid-cols-2">
+            {[
+              [
+                "Fetch",
+                "The audio track is pulled from YouTube server-side. This stage varies with video length and how the video is served, and it is where a link fails if the video is private, age-restricted or a live stream.",
+              ],
+              [
+                "Separate",
+                "The same GPU pipeline the file tool uses, splitting the track four ways. All four stems then open together in Forge Mixer.",
+              ],
+            ].map(([t, d], i) => (
+              <li key={t} className="rounded-xl border border-graphite-800 bg-graphite-900 p-5">
+                <p className="font-mono text-[11px] text-amber-400">Stage {i + 1}</p>
+                <p className="mt-1.5 font-medium text-text-primary">{t}</p>
+                <p className="mt-1.5 text-sm leading-relaxed text-text-muted">{d}</p>
+              </li>
+            ))}
+          </ol>
+          <Prose className="mt-5">
+            <p>
+              Two stages is why a link takes longer than an upload, and why the length cap is checked first: a video
+              that cannot be separated is never fetched.{" "}
+              <Link href="/guides/how-youtube-tools-fetch-then-process">
+                The longer explanation of the fetch stage
+              </Link>{" "}
+              covers what happens when a video cannot be pulled at all.
+            </p>
+          </Prose>
+        </ToolSection>
 
         <ToolSection id="forge-mixer" title="Mix four stems before you download" bleed>
           <Prose className="mb-5">
@@ -267,34 +297,27 @@ export default async function StemsPage() {
               { name: "Other", desc: "Guitars, keys, synths, pads and strings, kept together rather than split further." },
             ]}
             jobs={[
-              { name: "Sampling", uses: "drums, bass", desc: "Pull a clean loop or bassline to build a track around." },
+              { name: "Sampling", uses: "drums, bass", desc: "Pull a clean loop or bassline out of a video." },
               {
                 name: "Remixing",
                 uses: "any stem",
-                desc: "Rework one element instead of starting from a full instrumental.",
-                href: "/key-finder",
+                desc: "Rework one element instead of a full instrumental.",
+                href: "/youtube-key-finder",
                 linkLabel: "Check the key first.",
               },
               { name: "Learning a part", uses: "bass, drums", desc: "Isolate the part and loop it until it sticks." },
-              { name: "Mashups", uses: "vocals", desc: "A vocal from one track over drums and bass from another." },
+              { name: "Mashups", uses: "vocals", desc: "A vocal from one video over drums and bass from another." },
             ]}
           />
         </ToolSection>
 
-        <ToolSection id="how-it-works" title="How it works, and where it fails" bleed>
+        <ToolSection id="how-it-works" title="How the split works, and where it fails" bleed>
           <StemPipelineDiagram />
-          <Prose className="mt-6">
-            <p>
-              The output is fixed by the pipeline, not by your file. Every stem comes back as 16-bit, 44.1 kHz,
-              stereo WAV, about 1,411 kbps. A 48 kHz upload comes back at 44.1. A mono upload comes back as two
-              channels. This is true of every tool built on Demucs, including the ones that do not mention it.
-            </p>
-          </Prose>
           <ul className="mt-6 grid gap-3 sm:grid-cols-3">
             {[
-              ["Dense, layered mixes", "More sources overlapping means more bleed between stems."],
+              ["Compressed source", "YouTube audio is lossy before you get to it. A stem cannot be cleaner than the video."],
               ["Bass against low guitar", "Instruments sharing a frequency range are the hardest pair to split."],
-              ["Live recordings", "Crowd and stage bleed leave more behind than a studio mix."],
+              ["Links that cannot be fetched", "Private, age-restricted, members-only, region-blocked or live videos have nothing to pull."],
             ].map(([t, d]) => (
               <li key={t} className="rounded-xl border border-graphite-800 bg-graphite-900 p-4">
                 <p className="font-medium text-text-primary">{t}</p>
@@ -304,8 +327,9 @@ export default async function StemsPage() {
           </ul>
           <Prose className="mt-5">
             <p>
-              None of these break separation. Standard runs take 20 seconds to 1 minute on GPU hardware; Studio
-              Quality takes 1 to 2. Uploads accepted: {formatList}, up to {maxUploadLabel}.
+              Every stem comes back as 16-bit, 44.1 kHz, stereo WAV regardless of the source. If a link fails,
+              downloading the audio with the <Link href="/youtube-to-wav">YouTube to WAV converter</Link> and running
+              it through the <Link href="/stems">file Stem Splitter</Link> usually works.
             </p>
           </Prose>
         </ToolSection>
@@ -337,7 +361,17 @@ export default async function StemsPage() {
                     { state: "yes", text: "Tighter, separated with the voice already out" },
                   ],
                 },
-                { label: "Time", cells: [{ text: "20 sec to 1 min", mono: true }, { text: "1 to 2 min", mono: true }] },
+                ...(hqDurationDiffers
+                  ? [
+                      {
+                        label: "Max video length",
+                        cells: [
+                          { text: standardDurationLabel, mono: true },
+                          { text: hqDurationLabel, mono: true },
+                        ],
+                      },
+                    ]
+                  : []),
                 {
                   label: "Limit",
                   cells: [
@@ -361,13 +395,6 @@ export default async function StemsPage() {
                     },
                   ],
                 },
-                {
-                  label: "Batch",
-                  cells: [
-                    { state: "no", text: "One track at a time" },
-                    { state: "yes", text: "Up to 20 tracks, one ZIP", sub: "same 1 credit per track" },
-                  ],
-                },
               ]}
             />
           <p className="text-sm leading-relaxed text-text-muted">
@@ -384,44 +411,6 @@ export default async function StemsPage() {
           </ToolSection>
         )}
 
-        <ToolSection id="vs-vocal-remover" title="Four stems or two?" bleed>
-          <CompareTable
-            columns={["Stem Splitter", "Vocal Remover"]}
-            highlight={0}
-            rows={[
-              {
-                label: "Vocals on their own",
-                cells: [
-                  { state: "yes", text: "Yes" },
-                  { state: "yes", text: "Yes" },
-                ],
-              },
-              {
-                label: "Drums and bass separately",
-                cells: [
-                  { state: "yes", text: "Yes" },
-                  { state: "no", text: "Combined into the instrumental" },
-                ],
-              },
-              { label: "Files returned", cells: [{ text: "Four" }, { text: "Two" }] },
-              {
-                label: "Best for",
-                cells: [
-                  { text: "Sampling, remixing, learning a part" },
-                  { text: "Karaoke, acapellas, a quick instrumental" },
-                ],
-              },
-            ]}
-            footnote="Same models underneath. Standard runs the full four-way split either way and sums three stems for the Vocal Remover, so a two-stem job is no faster."
-          />
-          <Prose className="mt-4">
-            <p>
-              Only need the voice and the backing?{" "}
-              <Link href="/vocal-remover">Use the Vocal Remover</Link> instead.
-            </p>
-          </Prose>
-        </ToolSection>
-
         <ToolSection id="free-alternative" title="Compared with the paid tools" bleed>
           <Prose className="mb-5">
             <p>
@@ -433,6 +422,14 @@ export default async function StemsPage() {
             columns={["AudioForges", "LALAL.AI", "Vocalremover.org Splitter"]}
             highlight={0}
             rows={[
+              {
+                label: "Takes a YouTube link directly",
+                cells: [
+                  { state: "yes", text: "Yes" },
+                  { state: "no", text: "Upload a file or video" },
+                  { state: "no", text: "Upload a file" },
+                ],
+              },
               {
                 label: "Full-length stems without paying",
                 cells: [
@@ -493,7 +490,7 @@ export default async function StemsPage() {
           </div>
         </ToolSection>
 
-        <ToolVideo slug="stems" />
+        <ToolVideo slug="youtube-stem-splitter" />
 
         <FAQSection faqs={faqs} />
 
@@ -502,7 +499,7 @@ export default async function StemsPage() {
         <PageByline
           updated={UPDATED}
           note="Studio Quality now runs a RoFormer and htdemucs_ft pipeline"
-          legal="You are responsible for having the right to process any track you upload. AudioForges does not host or distribute the tracks processed here."
+          legal="You are responsible for having the right to process any video you paste. AudioForges does not host or distribute the audio processed here."
         />
       </ToolPageShell>
     </>

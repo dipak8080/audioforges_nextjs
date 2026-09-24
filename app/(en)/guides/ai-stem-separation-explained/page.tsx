@@ -132,7 +132,9 @@ export default function AiStemSeparationGuidePage() {
           <p>
             If all you need is vocals removed, a full 4-stem split is more than
             the job requires: a <Link href="/vocal-remover">Vocal Remover</Link>{" "}
-            does the same underlying separation
+            (or the{" "}
+            <Link href="/youtube-vocal-remover">YouTube Vocal Remover</Link> if
+            you&apos;re starting from a link) does the same underlying separation
             and hands back one instrumental instead of three additional stems to
             sort through. Reach for stem separation specifically when you need to
             isolate or rebuild around drums, bass, or another instrument on its
@@ -143,7 +145,11 @@ export default function AiStemSeparationGuidePage() {
           <p>
             Our <Link href="/stems">AI Stem Splitter</Link> runs this exact
             process: upload a track and get back all four stems individually, no
-            account or software install needed.
+            account or software install needed. Working from a YouTube link
+            instead of a file already saved on your device? The{" "}
+            <Link href="/youtube-stem-splitter">YouTube Stem Splitter</Link> runs
+            the identical separation, just starting from a pasted link instead of
+            an upload.
           </p>
         </Prose>
 
@@ -151,6 +157,12 @@ export default function AiStemSeparationGuidePage() {
           <Link href="/stems" className={buttonStyles({ size: "lg" })}>
             Try the AI Stem Splitter
             <ArrowRight className="h-4 w-4" />
+          </Link>
+          <Link
+            href="/youtube-stem-splitter"
+            className="inline-flex items-center gap-2 rounded-lg border border-graphite-700 px-6 py-3 font-medium text-text-primary transition-colors hover:border-amber-500/40"
+          >
+            Try the YouTube Stem Splitter
           </Link>
         </div>
       </main>

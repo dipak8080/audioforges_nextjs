@@ -3,10 +3,12 @@ import { SITE_URL } from "@/lib/constants";
 import { guides } from "@/lib/guides";
 import { getLiveTools, type ToolCategory } from "@/lib/data/tools";
 
-// Priority tiers by category. Flagship tools (vocals) rank slightly above newer/narrower ones (cleanup, transcription),
+// Priority tiers by category — flagship/high-search-volume tools (download,
+// vocals) rank slightly above newer/narrower ones (cleanup, transcription),
 // but every live tool is included automatically. Add a tool to the registry
 // and it shows up here with no sitemap edit required.
 const CATEGORY_PRIORITY: Record<ToolCategory, number> = {
+  download: 0.9,
   vocals: 0.9,
   convert: 0.8,
   "pitch-tempo": 0.8,

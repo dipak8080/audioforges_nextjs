@@ -136,8 +136,8 @@ export default function VocalRemoverNoSignUpPage() {
           <p>
             You can remove the vocals from a song right now with no account, no
             email, and no watermark on the result. Upload the file to the{" "}
-            <Link href="/vocal-remover">AudioForges vocal remover</Link>, wait
-            about twenty seconds, download the instrumental
+            <Link href="/vocal-remover">AudioForges vocal remover</Link> or paste
+            a YouTube link, wait about twenty seconds, download the instrumental
             as a WAV. Nothing to sign, nothing to verify, nothing stamped on
             your audio.
           </p>
@@ -204,7 +204,8 @@ export default function VocalRemoverNoSignUpPage() {
           <ol>
             <li>
               Open the <Link href="/vocal-remover">vocal remover</Link>. Drop in
-              an MP3, WAV, FLAC or M4A.
+              an MP3, WAV, FLAC or M4A, or paste a YouTube link if the song is
+              not on your device.
             </li>
             <li>
               Wait for the separation. On our 41-second test clip, Standard

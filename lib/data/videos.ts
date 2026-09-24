@@ -48,25 +48,49 @@ export const TOOL_VIDEOS: Record<string, ToolVideo> = {
     videoId: "Z8xAleqoVH0",
     title: "Find the Key & BPM of Any Song or YouTube Video — Free, No Signup",
     description:
-      "Upload a track and get the key, BPM, Camelot code and confidence in seconds. Runs Essentia's TempoCNN model; 85% exact-tempo accuracy on GiantSteps. No signup.",
+      "Upload a track or paste a YouTube link and get the key, BPM, Camelot code and confidence in seconds. Runs Essentia's TempoCNN model; 85% exact-tempo accuracy on GiantSteps. No signup.",
     uploadDate: "2026-09-06",
-    heading: "Watch: key and BPM from a file",
+    heading: "Watch: key and BPM from a file or a YouTube link",
+  },
+  "youtube-key-finder": {
+    videoId: "Z8xAleqoVH0",
+    title: "Find the Key & BPM of Any Song or YouTube Video — Free, No Signup",
+    description:
+      "Paste a YouTube link and get the key, BPM and Camelot code in seconds, or upload a file. Runs Essentia's TempoCNN model. No signup, no install.",
+    uploadDate: "2026-09-06",
+    heading: "Watch: key and BPM straight from a YouTube link",
   },
   "vocal-remover": {
     videoId: "ci0cLOFwwb8",
     title: "Free Vocal Remover — Remove Vocals from Any Song or YouTube Video",
     description:
-      "Remove vocals from any song, or keep just the vocal, free in the browser. Upload a file. Runs htdemucs, so vocals are separated by AI rather than EQ'd out. No signup.",
+      "Remove vocals from any song, or keep just the vocal, free in the browser. Upload a file or paste a YouTube link. Runs htdemucs, so vocals are separated by AI rather than EQ'd out. No signup.",
     uploadDate: "2026-09-06",
-    heading: "Watch: vocals out of a file",
+    heading: "Watch: vocals out of a file or a YouTube link",
+  },
+  "youtube-vocal-remover": {
+    videoId: "ci0cLOFwwb8",
+    title: "Free Vocal Remover — Remove Vocals from Any Song or YouTube Video",
+    description:
+      "Paste a YouTube link and get the instrumental and acapella in about a minute, or upload a file. AI separation via htdemucs. No signup, no install.",
+    uploadDate: "2026-09-06",
+    heading: "Watch: vocals removed straight from a YouTube link",
   },
   stems: {
     videoId: "JO9xCQhdZwo",
     title: "Free Stem Splitter — Split Any Song or YouTube Video into Stems",
     description:
-      "Split any song into vocals, drums, bass and other, free in the browser. Upload a file. 2 or 4 stems via htdemucs. No signup.",
+      "Split any song into vocals, drums, bass and other, free in the browser. Upload a file or paste a YouTube link. 2 or 4 stems via htdemucs. No signup.",
     uploadDate: "2026-09-06",
-    heading: "Watch: stems from a file",
+    heading: "Watch: stems from a file or a YouTube link",
+  },
+  "youtube-stem-splitter": {
+    videoId: "JO9xCQhdZwo",
+    title: "Free Stem Splitter — Split Any Song or YouTube Video into Stems",
+    description:
+      "Paste a YouTube link and get separate vocal, drum, bass and instrument stems in a minute, or upload a file. AI separation via htdemucs. No signup, no install.",
+    uploadDate: "2026-09-06",
+    heading: "Watch: stems straight from a YouTube link",
   },
   "audio-to-sheet-music": {
     videoId: "cj97mCNmCyI",

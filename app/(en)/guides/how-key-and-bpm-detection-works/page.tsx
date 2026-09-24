@@ -136,16 +136,17 @@ export default function KeyBpmDetectionGuidePage() {
             confirm a transition sounds right before committing to it in a set.
           </p>
           <p>
-            Our <Link href="/key-finder">Key &amp; BPM Finder</Link> runs this
-            same analysis: upload a file and get
+            Our <Link href="/key-finder">Key &amp; BPM Finder</Link> and{" "}
+            <Link href="/youtube-key-finder">YouTube Key &amp; BPM Finder</Link>{" "}
+            both run this same analysis: upload a file or paste a link, and get
             back the detected key, BPM, and Camelot code, no account or software
             install needed.
           </p>
         </Prose>
 
         <div className="mt-10 border-t border-graphite-800 pt-8">
-          <Link href="/key-finder" className={buttonStyles({ size: "lg" })}>
-            Try the Key &amp; BPM Finder
+          <Link href="/youtube-key-finder" className={buttonStyles({ size: "lg" })}>
+            Try the YouTube Key &amp; BPM Finder
             <ArrowRight className="h-4 w-4" />
           </Link>
         </div>

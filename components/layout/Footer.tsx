@@ -25,14 +25,19 @@ import { openConsentSettings } from "@/lib/consent";
  * this file guessed at slugs and three of six missed, which is why the
  * column rendered half-empty - a hardcoded list should never be able to
  * leave a hole in the layout.
+ *
+ * Kept at six through the transcription split. /youtube-to-text and
+ * /video-to-text are new and could use the signal, but a sitewide link is
+ * the most diluting kind there is - they're seeded from the homepage
+ * workflow and from cross-links on related tool pages instead.
  */
 const FOOTER_TOOL_SLUGS = [
   "vocal-remover",
   "stems",
+  "youtube-vocal-remover",
   "audio-to-midi",
   "audio-to-sheet-music",
   "key-finder",
-  "convert",
 ];
 
 const FOOTER_TOOL_COUNT = 6;

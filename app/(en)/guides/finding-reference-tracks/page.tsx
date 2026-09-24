@@ -105,9 +105,12 @@ export default function FindingReferenceTracksGuidePage() {
             A reference track you can only stream isn&apos;t much use in a session:
             you want it sitting in your DAW next to your project, switchable
             with one click for A/B comparison. That means having a local WAV or
-            high-bitrate MP3, not a browser tab. Buy the track from a store that
-            sells lossless files, or use your own bounces and royalty-free
-            material, so you have a clean local copy you are allowed to use.
+            high-bitrate MP3, not a browser tab. For anything you have the rights
+            to pull locally (your own uploads, Creative Commons tracks,
+            royalty-free material) our{" "}
+            <Link href="/youtube-to-wav">YouTube to WAV converter</Link> gets you
+            a usable local file in seconds instead of digging through an ad-heavy
+            downloader site.
           </p>
 
           <h2 id="key-and-tempo">Know its key and tempo before you build around it</h2>
@@ -131,9 +134,15 @@ export default function FindingReferenceTracksGuidePage() {
         </Prose>
 
         <div className="mt-10 flex flex-wrap gap-3 border-t border-graphite-800 pt-8">
-          <Link href="/key-finder" className={buttonStyles({ size: "lg" })}>
-            Try the Key &amp; BPM Finder
+          <Link href="/youtube-to-wav" className={buttonStyles({ size: "lg" })}>
+            Try the YouTube to WAV Converter
             <ArrowRight className="h-4 w-4" />
+          </Link>
+          <Link
+            href="/key-finder"
+            className="inline-flex items-center gap-2 rounded-lg border border-graphite-700 px-6 py-3 font-medium text-text-primary transition-colors hover:border-amber-500/40"
+          >
+            Try the Key &amp; BPM Finder
           </Link>
         </div>
       </main>

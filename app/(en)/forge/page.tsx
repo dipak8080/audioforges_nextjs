@@ -51,6 +51,8 @@ const PLAYERS = [
     tools: [
       { href: "/vocal-remover", label: "Vocal Remover" },
       { href: "/stems", label: "Stem Splitter" },
+      { href: "/youtube-vocal-remover", label: "YouTube Vocal Remover" },
+      { href: "/youtube-stem-splitter", label: "YouTube Stem Splitter" },
     ],
   },
   {

@@ -160,15 +160,15 @@ export default function WavVsMp3GuidePage() {
         </Prose>
 
         <div className="mt-10 flex flex-wrap gap-3 border-t border-graphite-800 pt-8">
-          <Link href="/mp3-to-wav" className={buttonStyles({ size: "lg" })}>
-            MP3 to WAV Converter
+          <Link href="/youtube-to-wav" className={buttonStyles({ size: "lg" })}>
+            YouTube to WAV Converter
             <ArrowRight className="h-4 w-4" />
           </Link>
           <Link
-            href="/wav-to-mp3"
+            href="/youtube-to-mp3"
             className={buttonStyles({ size: "lg", variant: "outline" })}
           >
-            WAV to MP3 Converter
+            YouTube to MP3 Converter
             <ArrowRight className="h-4 w-4" />
           </Link>
         </div>

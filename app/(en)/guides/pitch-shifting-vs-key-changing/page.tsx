@@ -141,7 +141,9 @@ export default function PitchShiftingGuidePage() {
             the distance between where the track is and where you want it. Our{" "}
             <Link href="/key-finder">Key and BPM Finder</Link> reads the key, the scale and
             the Camelot code straight from the file, so the semitone count becomes
-            arithmetic rather than guesswork. If you want to know what the
+            arithmetic rather than guesswork. For a reference track you only have a link
+            to, the <Link href="/youtube-key-finder">YouTube Key and BPM Finder</Link>{" "}
+            analyses it without a download step first. If you want to know what the
             detection is actually doing before you trust it,{" "}
             <Link href="/guides/how-key-and-bpm-detection-works">
               how key and BPM detection works

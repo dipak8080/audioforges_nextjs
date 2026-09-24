@@ -63,25 +63,25 @@ export default function PrivacyPage() {
         <h2 id="overview">1. Overview</h2>
         <p>
           AudioForges (&quot;we&quot;, &quot;us&quot;) provides free audio tools
-          including AI vocal removal, stem separation and audio analysis. This policy
+          including YouTube-to-audio conversion and audio analysis. This policy
           explains what data we collect when you use our site and tools, and how
           it&apos;s used.
         </p>
 
         <h2 id="what-we-collect">2. Information we collect</h2>
         <dl>
-          <dt>Files you submit</dt>
+          <dt>URLs and files you submit</dt>
           <dd>
-            When you use one of our tools, the audio file you submit is sent to
-            our backend server solely to process your
+            When you use our converter or analyzer, the YouTube URL or audio file
+            you submit is sent to our backend server solely to process your
             request. Tools that use AI source separation (vocal removal and stem
-            splitting) route that
+            splitting, including the YouTube-linked versions) route that
             processing to a third-party GPU compute provider, described in
-            Section 4. Uploaded files are processed only for
+            Section 4. Uploaded files and submitted URLs are processed only for
             the time needed to complete that request. Temporary processing files
             are automatically deleted after processing finishes, or after a short
             retention period if required for system reliability. We do not
-            permanently store or distribute the audio files you submit.
+            permanently store or distribute the audio files or URLs you submit.
           </dd>
 
           <dt>Microphone input</dt>
@@ -157,7 +157,7 @@ export default function PrivacyPage() {
           website, VPS Dime for general backend processing, RunPod for the
           GPU-accelerated compute used by separation and
           high-accuracy MIDI, and Dodo Payments to process credit purchases. When you use one of those separation tools, the
-          audio file is processed on RunPod&apos;s
+          audio file or fetched YouTube audio is processed on RunPod&apos;s
           infrastructure for the time needed to complete that job, under the same
           no-permanent-storage handling described in Section 2. Each of these
           providers has its own privacy policy governing how they handle data.
