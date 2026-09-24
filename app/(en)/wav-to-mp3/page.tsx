@@ -172,8 +172,7 @@ export default async function WavToMp3Page() {
           <BitrateChainDiagram
             outputLabel="320 kbps MP3"
             outputWidth={310}
-            ceilingNote="the master is the source here, so the ceiling is the full bar"
-            caption="Unlike a copy grabbed from a stream, the source here is the real thing: your WAV is the master. 320 kbps keeps everything an ear can pick out of it and discards what it cannot. The one thing you give up is the lossless property itself, which only matters if this file is going to be edited, pitched or re-exported later. For listening and sharing, it is the right trade every time."
+            caption="Your WAV is the master, so nothing was lost before this step. 320 kbps keeps everything an ear can pick out of it and discards what it cannot. The one thing you give up is the lossless property itself, which only matters if this file is going to be edited, pitched or re-exported later. For listening and sharing, it is the right trade every time."
           />
         </ToolSection>
 

@@ -79,7 +79,6 @@ export interface Durations {
    *  the server would accept. */
   exemptTools: string[];
   videoExtractMaxSeconds: number;
-  youtubeDownloadMaxSeconds: number;
   /** TOTAL across every file in one /join request. */
   joinMaxTotalSeconds: number;
   midiMinSeconds: number;
@@ -148,7 +147,6 @@ function fallback(): Limits {
       audioToolsPerToolSeconds: { pitch: 900, tempo: 900 },
       exemptTools: ["convert"],
       videoExtractMaxSeconds: 3600,
-      youtubeDownloadMaxSeconds: 2400,
       joinMaxTotalSeconds: 5400,
       midiMinSeconds: 1,
       midiHqMinSeconds: 1,
@@ -163,12 +161,8 @@ function fallback(): Limits {
     rateLimits: {
       separate: RATE_LIMITS.separate?.limit ?? 10,
       stems: RATE_LIMITS.stems?.limit ?? 10,
-      youtube_separate: RATE_LIMITS["youtube/separate"]?.limit ?? 10,
-      youtube_stems: RATE_LIMITS["youtube/stems"]?.limit ?? 10,
       separate_hq: RATE_LIMITS["separate-hq"]?.limit ?? 2,
       stems_hq: RATE_LIMITS["stems-hq"]?.limit ?? 2,
-      youtube_separate_hq: RATE_LIMITS["youtube/separate-hq"]?.limit ?? 2,
-      youtube_stems_hq: RATE_LIMITS["youtube/stems-hq"]?.limit ?? 2,
       audio_to_midi: RATE_LIMITS["audio-to-midi"]?.limit ?? 5,
       audio_to_midi_hq: RATE_LIMITS["audio-to-midi-hq"]?.limit ?? 2,
     },
@@ -285,10 +279,6 @@ function readDurations(raw: unknown, base: Durations): Durations {
       : base.audioToolsPerToolSeconds,
     exemptTools: asStringList(d.exempt_tools, base.exemptTools),
     videoExtractMaxSeconds: asNumber(d.video_extract_max_seconds, base.videoExtractMaxSeconds),
-    youtubeDownloadMaxSeconds: asNumber(
-      d.youtube_download_max_seconds,
-      base.youtubeDownloadMaxSeconds
-    ),
     joinMaxTotalSeconds: asNumber(d.join_max_total_seconds, base.joinMaxTotalSeconds),
     midiMinSeconds: asNumber(d.midi_min_seconds, base.midiMinSeconds),
     midiHqMinSeconds: asNumber(d.midi_hq_min_seconds, base.midiHqMinSeconds),
@@ -425,8 +415,8 @@ export function sharedAllowanceFor(
  * rather than reading `rateLimits` directly — the flat keys hold one number and
  * quietly omit a second window.
  *
- * `route` is the backend path ("youtube/separate"), `flatKey` the flat
- * rate_limits key ("youtube_separate"); the two naming schemes do not overlap.
+ * `route` is the backend path ("separate-hq"), `flatKey` the flat
+ * rate_limits key ("separate_hq"); the two naming schemes do not overlap.
  */
 export function limitLabelFor(limits: Limits, route: string, flatKey: string): string {
   const shared = sharedAllowanceFor(limits, route);
@@ -436,8 +426,7 @@ export function limitLabelFor(limits: Limits, route: string, flatKey: string): s
 }
 
 /**
- * "shared across the vocal remover, stem splitter and both YouTube tools" —
- * the sentence that stops a user reading a pool as a per-tool budget.
+ * "shared across both separation tools": the sentence that stops a user reading a pool as a per-tool budget.
  *
  * Returns null for a route with its own bucket, so a caller can drop the clause
  * entirely rather than printing something empty.
@@ -445,7 +434,8 @@ export function limitLabelFor(limits: Limits, route: string, flatKey: string): s
 export function sharedPoolNote(limits: Limits, route: string): string | null {
   const shared = sharedAllowanceFor(limits, route);
   if (!shared || shared.routes.length < 2) return null;
-  return `That allowance is shared across all ${countWord(shared.routes.length)} separation tools, so a run on any one of them draws from the same total.`;
+  const across = shared.routes.length === 2 ? "both" : `all ${countWord(shared.routes.length)}`;
+  return `That allowance is shared across ${across} separation tools, so a run on any one of them draws from the same total.`;
 }
 
 /**

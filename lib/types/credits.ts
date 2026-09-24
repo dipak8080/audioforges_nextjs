@@ -17,16 +17,12 @@
 /**
  * Every rule key the paywall can meter.
  *
- * `transcribe` is declared but currently OFF — transcription is free, and the
- * three transcription routes share this one key when it is on.
  * `audio-to-midi-hq` is a SEPARATE TOOL, not a tier of `audio-to-midi`: a
  * different model (YourMT3 vs basic-pitch) with a different parameter set.
  */
 export type MeteredToolKey =
   | "separate-hq"
   | "stems-hq"
-  | "youtube/separate-hq"
-  | "youtube/stems-hq"
   | "audio-to-midi-hq"
   | "audio-to-midi-hq-mix"
   | "audio-to-sheet";

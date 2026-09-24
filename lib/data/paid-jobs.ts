@@ -15,7 +15,7 @@ const GROUPS: Array<Omit<PaidJob, "credits">> = [
     short: "Studio separation",
     label: "Studio Quality separation",
     detail: "Vocal remover or stem splitter, on a file you upload",
-    keys: ["separate-hq", "stems-hq", "youtube/separate-hq", "youtube/stems-hq"],
+    keys: ["separate-hq", "stems-hq"],
   },
   {
     id: "midi",

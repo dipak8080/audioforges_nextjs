@@ -7,7 +7,6 @@ import {
   LayoutDashboard,
   ScrollText,
   Database,
-  Cookie,
   Coins,
   LogOut,
   Menu,
@@ -20,7 +19,6 @@ const NAV_ITEMS = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/logs", label: "Logs", icon: ScrollText },
   { href: "/admin/cache", label: "Cache", icon: Database },
-  { href: "/admin/cookies", label: "Cookies", icon: Cookie },
   { href: "/admin/credits", label: "Credits", icon: Coins },
 ];
 
