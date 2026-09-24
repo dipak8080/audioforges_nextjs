@@ -2,7 +2,7 @@
 
 import { ArrowLeft, PauseCircle } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { PaddleCheckout } from "./PaddleCheckout";
+import { DodoCheckout } from "./DodoCheckout";
 import {
   PAYMENTS_PAUSED,
   PAYMENTS_PAUSED_BODY,
@@ -45,7 +45,7 @@ export function CheckoutStep({ pack, onBack, onPurchased }: Props) {
         Pay here and your credits appear straight away. No account, no password.
       </p>
 
-      <PaddleCheckout pack={pack} onComplete={() => onPurchased?.()} />
+      <DodoCheckout pack={pack} onComplete={() => onPurchased?.()} />
 
       <Button variant="ghost" size="sm" onClick={onBack} className="mt-4">
         <ArrowLeft className="mr-1.5 h-4 w-4" aria-hidden />

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Check, Loader2, Mail, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { getCreditsMe, requestMagicLink } from "@/lib/api/credits";
+import { confirmDodoPayment } from "@/lib/api/dodo";
 import { DeviceLinkQr } from "@/components/credits/DeviceLinkQr";
 import { useCredits } from "@/components/credits/CreditProvider";
 import { trackCredits } from "@/lib/analytics";
@@ -252,7 +253,15 @@ export default function CheckoutSuccessPage() {
     }
 
     if (preview) return;
-    void tick();
+
+    const paymentId = new URLSearchParams(window.location.search).get("payment_id");
+    if (paymentId && /^pay_[A-Za-z0-9]+$/.test(paymentId)) {
+      void confirmDodoPayment(paymentId)
+        .catch(() => null)
+        .finally(() => void tick());
+    } else {
+      void tick();
+    }
 
     return () => {
       stopped.current = true;
@@ -310,8 +319,8 @@ function CheckingState({ slow }: { slow: boolean }) {
       </p>
       {slow && (
         <p className="text-sm leading-relaxed text-text-subtle">
-          Still going. Ko-fi is occasionally slow to notify us; your payment
-          isn&apos;t affected and nothing needs doing yet.
+          Still going. The payment provider is occasionally slow to confirm;
+          your payment isn&apos;t affected and nothing needs doing yet.
         </p>
       )}
     </div>
@@ -520,9 +529,8 @@ function TimeoutState({
           Get your credits on this browser
         </h2>
         <p className="mt-1.5 text-sm leading-relaxed text-text-muted">
-          Enter the email you paid with and we&apos;ll send a sign-in link. If
-          you paid through PayPal, that may be a different address from the one
-          you typed here.
+          Enter the email you paid with and we&apos;ll send a sign-in link.
+          Use the address you entered at checkout.
         </p>
 
         {sent ? (

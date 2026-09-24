@@ -54,6 +54,10 @@ export type CreditsEvent =
   | "credits_paddle_failed"
   /** Paddle could not load (config off or script blocked). Params: stage. */
   | "credits_paddle_unavailable"
+  /** A Dodo step failed. Params: stage ("open"), kind. */
+  | "credits_dodo_failed"
+  /** Dodo checkout is off (config disabled). Params: stage. */
+  | "credits_dodo_unavailable"
   /** Balance observed to increase after returning — the actual conversion. */
   | "credits_purchase_confirmed"
   /** Polling on /checkout/success hit its ceiling without a balance change. */
