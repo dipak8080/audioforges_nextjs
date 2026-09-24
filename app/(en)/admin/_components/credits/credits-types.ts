@@ -50,13 +50,13 @@ export const VIEWS: { id: View; label: string; hint: string; icon: typeof Coins 
   { id: "costs", label: "Spend", hint: "What the GPU costs and which tools drive it", icon: Zap },
   { id: "jobs", label: "Jobs", hint: "Every GPU job with its cost and charge", icon: Clock },
   { id: "gate", label: "Gate", hint: "Who hit the paywall and what they did next", icon: Lock },
-  { id: "webhooks", label: "Payments", hint: "PayPal and Ko-fi payment deliveries", icon: Inbox },
+  { id: "webhooks", label: "Payments", hint: "Dodo payment webhook deliveries", icon: Inbox },
   { id: "insights", label: "Insights", hint: "Where sales come from, who eats the free tier, monthly net", icon: TrendingUp },
   { id: "settings", label: "Config", hint: "Runtime limits and flags, no redeploy", icon: SlidersHorizontal },
 ];
 
 export const PAGE_SIZE = 50;
 export const AUTO_MS = 30_000;
-export const KOFI_PACKS = [10, 30, 100];
+export const PACK_CREDITS = [10, 30, 100];
 
 export type JobsPreset = { status?: string; chargeType?: string; range?: string; email?: string };

@@ -21,7 +21,6 @@ import { Waveform } from "@/components/ui/Waveform";
 import { AudioPlayer } from "@/components/ui/AudioPlayer";
 import { StemMixer } from "@/components/converter/StemMixer";
 import { triggerDownload, triggerDownloadsStaggered } from "@/lib/utils/download";
-import { SupportBlock } from "@/components/ui/SupportBlock";
 import { useCreditGate } from "@/components/credits/useCreditGate";
 import { useCredits } from "@/components/credits/CreditProvider";
 import { UpgradeToHqCard } from "@/components/credits/UpgradeToHqCard";
@@ -877,10 +876,6 @@ export function MultiOutputToolForm({
 
           <CreditReceipt billing={billing} />
 
-          {/* Asking for a tip right after charging someone a credit is a bad
-              look. A free-tier run is still free, so it keeps the block. */}
-          {!stage && !chargedRun && <SupportBlock />}
-
           {!stage && (
             <Button variant="outline" size="md" className="w-full" onClick={handleReset}>
               <RotateCcw />
@@ -906,17 +901,6 @@ export function MultiOutputToolForm({
               </Link>
             )}
           </ErrorPanel>
-          {/*
-            NO TIP JAR ON A BROKEN RUN.
-            These forms carry two failure states and they are not the same thing.
-            `error` means the SUBMIT was rejected — a file too large, an
-            unsupported format, a rate limit — which is the form doing its job,
-            and asking for support after one is fine. `failed` means the job ran
-            and broke, or polling gave up on it. Following "This is taking
-            unusually long" with "Enjoying AudioForges? Buy us a coffee" is the
-            worst timing on the site.
-          */}
-          {!stage && status === "error" && <SupportBlock mood="sheepish" />}
       </>
     ) : null;
 
@@ -970,7 +954,6 @@ export function MultiOutputToolForm({
           result={resultBody ?? undefined}
           doneTitle={resultTitle || `${outputs.length} outputs ready`}
           doneMeta={formatElapsed(elapsedSeconds)}
-          doneFooter={chargedRun ? undefined : <SupportBlock variant="line" />}
           resetLabel="Process another file"
           note={
             validationError || failedBody ? (

@@ -32,7 +32,6 @@ import {
   ApiError,
 } from "@/lib/api/railway";
 import { FORMAT_OPTIONS, type OutputFormat, type ProcessingState } from "@/lib/types/converter";
-import { SupportBlock } from "@/components/ui/SupportBlock";
 import { YouTubeVocalFunnel } from "@/components/converter/YouTubeVocalFunnel";
 import { markOpusUnsupported, pickSourceCodec, sourceToWav, type SourceCodec } from "@/lib/audio/browser-wav";
 
@@ -990,8 +989,6 @@ export function YouTubeConverterForm({ defaultFormat = "wav", stage = false }: Y
             title={preview?.title ?? null}
             onWide={setFunnelWide}
           />
-
-          <SupportBlock />
         </div>
       ) : undefined;
 
@@ -1047,7 +1044,6 @@ export function YouTubeConverterForm({ defaultFormat = "wav", stage = false }: Y
           isFailed && error ? (
             <div className="space-y-4">
               <ErrorPanel error={error} />
-              <SupportBlock mood="sheepish" />
             </div>
           ) : undefined
         }
@@ -1281,8 +1277,6 @@ export function YouTubeConverterForm({ defaultFormat = "wav", stage = false }: Y
               title={preview?.title ?? null}
               onWide={setFunnelWide}
             />
-
-            <SupportBlock />
           </div>
         </Section>
       )}
@@ -1292,7 +1286,6 @@ export function YouTubeConverterForm({ defaultFormat = "wav", stage = false }: Y
         <Section>
           <div className="space-y-4">
             <ErrorPanel error={error} />
-            <SupportBlock mood="sheepish" />
           </div>
         </Section>
       )}

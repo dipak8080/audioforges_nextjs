@@ -15,7 +15,6 @@ import {
 } from "@/components/tools/JobFormKit";
 import { StudioStage, type StageTier } from "@/components/tools/StudioStage";
 import { AudioPlayer } from "@/components/ui/AudioPlayer";
-import { SupportBlock } from "@/components/ui/SupportBlock";
 import { cn } from "@/lib/utils/cn";
 import { sanitizeUserInput } from "@/lib/utils/validation";
 import { getRetryAfterFallback, getRateLimitLabel } from "@/lib/data/rate-limits";
@@ -400,7 +399,6 @@ export function TikTokToMp3Form() {
       {isFailed && formError && (
         <div className="mt-4 space-y-4 first:mt-0">
           <ErrorPanel error={formError} />
-          <SupportBlock mood="sheepish" />
         </div>
       )}
     </>
@@ -465,7 +463,6 @@ export function TikTokToMp3Form() {
             }`
           : undefined
       }
-      doneFooter={<SupportBlock variant="line" />}
       resetLabel="Convert another"
       labels={{ working: "Converting" }}
       note={note}

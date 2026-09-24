@@ -40,7 +40,6 @@ import {
 import { useSharedLimit } from "@/lib/hooks/useSharedLimit";
 import type { SeparationUiState, StemType, SubmitBilling } from "@/lib/types/converter";
 import type { MeteredToolKey } from "@/lib/types/credits";
-import { SupportBlock } from "@/components/ui/SupportBlock";
 import Link from "next/link";
 import { cn } from "@/lib/utils/cn";
 import { trackCredits } from "@/lib/analytics";
@@ -73,9 +72,7 @@ import { readStoredBatch } from "@/lib/api/batch";
  * KEPT, because the reasoning is right: notify flags read through refs (this
  * feature never fired for anyone before that fix); `jobQuality` as its own
  * state so the header, stages and upgrade card describe the RUNNING job rather
- * than the toggle; `completedCharged` derived from the server's billing block
- * rather than from a control the user can still change; no tip jar on a broken
- * run or after a charge; the poll ceilings sized to the BACKEND's timeouts.
+ * than the toggle; the poll ceilings sized to the BACKEND's timeouts.
  */
 
 /** Interface text for the localized pages. Plain strings so a server page can pass it. */
@@ -352,13 +349,6 @@ export function VocalRemoverForm({
 
   const isHq = hqAvailable && quality === "hq";
   const canSubmit = Boolean(file) && !isBusy && !isComplete && cooldownSeconds === 0;
-
-  /**
-   * Metered is what the SERVER said, not what the toggle says. The billing
-   * block only exists on metered routes, so its presence is direct evidence
-   * rather than an inference from a control the user can still change.
-   */
-  const completedCharged = billing?.charged === "credit";
 
   // Shortest window only. The picker slot fits one figure; the page FAQ carries
   // both, and the 429 names whichever actually fired.
@@ -867,7 +857,6 @@ export function VocalRemoverForm({
         result={result}
         doneTitle={resultTitle || c.doneFallback}
         doneMeta={formatElapsed(elapsedSeconds)}
-        doneFooter={completedCharged ? undefined : <SupportBlock variant="line" />}
         note={note}
       />
 

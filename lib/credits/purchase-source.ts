@@ -1,7 +1,7 @@
 // Session-scoped purchase attribution. Two fields: the first touch that
 // brought the visitor (a ?src= link or the YouTube funnel) and the last
 // thing that opened checkout (a tool gate or the pricing page). Both ride
-// along on PayPal order creation so admin can group sales by origin.
+// along on checkout creation so admin can group sales by origin.
 
 const ORIGIN_KEY = "af_src_origin";
 const TRIGGER_KEY = "af_src_trigger";

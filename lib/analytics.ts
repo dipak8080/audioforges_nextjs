@@ -30,30 +30,12 @@ export type CreditsEvent =
   | "credits_gate_shown"
   /** A pack was clicked in the gate or on /pricing. */
   | "credits_pack_selected"
-  /** Email submitted, claim recorded, about to redirect to Ko-fi. */
-  | "credits_claim_submitted"
-  /** Redirect to Ko-fi actually fired. */
+  /** Dodo checkout tab opened. */
   | "credits_checkout_started"
-  /**
-   * The browser blocked the Ko-fi tab, so the buyer had to press a second
-   * link to get there. Worth a row of its own: it fires for in-app browsers
-   * (Instagram, TikTok, Facebook), which is most social traffic, and it sits
-   * between checkout_started and checkout_returned — so a gap between those
-   * two is explained by this rather than by people changing their minds.
-   */
+  /** The browser blocked the checkout tab, so the buyer had to press a second link. */
   | "credits_checkout_popup_blocked"
   /** Landed back on /checkout/success. */
   | "credits_checkout_returned"
-  /** Buyer approved in the PayPal popup, capture is starting. */
-  | "credits_paypal_approved"
-  /** A PayPal step failed. Params: stage ("sdk" or "capture"), kind. */
-  | "credits_paypal_failed"
-  /** PayPal could not render at all, checkout fell back to Ko-fi. */
-  | "credits_paypal_unavailable"
-  /** A Paddle step failed. Params: stage ("open", "checkout" or "confirm"), kind. */
-  | "credits_paddle_failed"
-  /** Paddle could not load (config off or script blocked). Params: stage. */
-  | "credits_paddle_unavailable"
   /** A Dodo step failed. Params: stage ("open"), kind. */
   | "credits_dodo_failed"
   /** Dodo checkout is off (config disabled). Params: stage. */

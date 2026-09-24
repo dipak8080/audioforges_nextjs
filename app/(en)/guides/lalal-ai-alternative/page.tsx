@@ -176,7 +176,7 @@ export default function LalalAlternativeGuidePage() {
 
             <dt>Payment without an account</dt>
             <dd>
-              Pay by card or PayPal inside the page. Credits land in the
+              Pay by card on a secure checkout page. Credits land in the
               browser that bought them, with a sign-in link by email if you want
               them on another device.
             </dd>

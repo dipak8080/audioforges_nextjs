@@ -21,11 +21,9 @@ import {
   type RequestOptions,
 } from "./railway";
 import type {
-  ClaimResponse,
   CreditsMe,
   CreditsPreview,
   MeteredToolKey,
-  PackKey,
   UpgradeInfo,
   UpgradeResponse,
 } from "@/lib/types/credits";
@@ -212,41 +210,6 @@ export async function previewCost(
     // this only decorates.
     return null;
   }
-}
-
-/* ------------------------------------------------------------------ */
-/* POST /credits/claim                                                 */
-/* ------------------------------------------------------------------ */
-
-/**
- * Records the email→browser link in `pending_claims` and returns the Ko-fi
- * URL to send the buyer to. This MUST happen before the redirect: Ko-fi's
- * webhook carries no custom data field, so the buyer's email is the only
- * thing tying a payment back to this browser. Skip this and the credits
- * are only reachable via a magic link.
- *
- * `pending_claims` is PRIMARY KEY(email) with ON CONFLICT DO UPDATE, so
- * changing pack mid-flow replaces rather than duplicates. Claims expire
- * after `claim_expires_minutes` (120).
- *
- * Unlike most of this file, this throws on failure — the caller is a form
- * with a submit button and needs to show the user what went wrong.
- */
-export async function claimPack(
-  email: string,
-  pack: PackKey,
-  opts: RequestOptions = {}
-): Promise<ClaimResponse> {
-  return creditsFetch<ClaimResponse>(
-    "/credits/claim",
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, pack }),
-    },
-    15_000,
-    opts
-  );
 }
 
 /* ------------------------------------------------------------------ */

@@ -35,7 +35,6 @@ import {
 import { ControlField, Hint, OptionCards, type CardOption } from "@/components/converter/ToolControls";
 import { Waveform } from "@/components/ui/Waveform";
 import { AudioPlayer } from "@/components/ui/AudioPlayer";
-import { SupportBlock } from "@/components/ui/SupportBlock";
 import { cn } from "@/lib/utils/cn";
 import { validateAudioFile } from "@/lib/utils/validation";
 import { getRateLimitLabel, getRetryAfterFallback } from "@/lib/data/rate-limits";
@@ -867,8 +866,6 @@ export function JoinForm() {
               Download
             </a>
 
-            <SupportBlock />
-
             <Button variant="outline" size="md" className="w-full" onClick={handleReset}>
               <RotateCcw />
               Join more files
@@ -881,7 +878,6 @@ export function JoinForm() {
         <Section>
           <div className="space-y-4">
             <ErrorPanel error={error} />
-            <SupportBlock mood="sheepish" />
           </div>
         </Section>
       )}

@@ -47,9 +47,8 @@ import type { CreditsMe } from "@/lib/types/credits";
  *      ~1.5s while the webhook is plausibly in flight, then 3s, then 5s —
  *      about 15 requests, with a faster first check than before.
  *
- * WHY IT USUALLY RESOLVES INSTANTLY: the Ko-fi webhook is confirmed at <10ms
- * and fires before the browser finishes redirecting here, so the FIRST fetch
- * normally already shows the purchase. Polling is for the rare case.
+ * WHY IT USUALLY RESOLVES INSTANTLY: Dodo returns here with ?payment_id=,
+ * which is confirmed straight away. Polling covers the webhook backstop.
  */
 
 const POLL_CEILING_MS = 60_000;
@@ -63,10 +62,9 @@ const TOOL_TAB_KEY = "af_tool_tab_open";
 const TOOL_TAB_WINDOW_MS = 30 * 60_000;
 
 /**
- * Since 2026-08-21 checkout opens in a NEW tab, so this page usually renders
- * in the Ko-fi tab while the tool tab is still alive with the user's track
- * loaded. window.opener is severed on purpose before the Ko-fi redirect, so
- * the gate leaves a timestamp in localStorage instead.
+ * Checkout opens in a NEW tab, so this page usually renders in the checkout
+ * tab while the tool tab is still alive with the user's track loaded. The
+ * gate leaves a timestamp in localStorage so this page can say so.
  */
 function cameFromToolTab(): boolean {
   if (typeof window === "undefined") return false;
@@ -91,9 +89,7 @@ type ReturnTarget = { path: string; label: string | null };
 
 /**
  * Where the user was when they opened the gate. Written by CreditGateModal
- * before the same-tab redirect to Ko-fi, because that redirect tears down the
- * tool page and this one would otherwise send everybody to /vocal-remover —
- * wrong the moment they were splitting stems from a YouTube link.
+ * so this page doesn't send everybody to /vocal-remover.
  *
  * Lazy initializer, not an effect: no blank-then-filled flicker, and no
  * setState inside an effect.
@@ -346,9 +342,6 @@ function ConfirmedState({
           <h1 className="text-2xl font-bold tracking-tight text-text-primary">
             Credits added
           </h1>
-          {/* Not "thanks for supporting AudioForges" — that's Ko-fi's donation
-              register leaking in, and it reframes a purchase as charity right
-              after someone paid for a product. */}
           <p className="text-sm text-text-muted">
             They&apos;re on this browser and ready now.
           </p>

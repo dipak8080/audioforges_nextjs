@@ -305,7 +305,7 @@ export function CreditChipMobile({ onOpenSheet }: { onOpenSheet: () => void }) {
 
     Desktop answers this case with a quiet "Credits" link (see CreditMenu
     above). Mobile answered it with nothing at all, so an anonymous visitor who
-    had spent their allowance got a header with Donate and no route to
+    had spent their allowance got a header with no route to
     /pricing — on the one device where this chip is the entire credit UI. The
     old reasoning ("nothing to spend gets nothing") reads as restraint, but a
     first-time visitor has free runs and does get a chip: the only people it

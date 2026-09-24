@@ -156,7 +156,6 @@ export function AudioToSheetForm() {
       // real list; this only filters the picker dialog.
       fileAccept="audio/*,.mp3,.wav,.m4a,.aac,.ogg,.flac,.aiff,.opus,.webm"
       hidePreview
-      hideSupport
       renderResult={(jobId, file) => <SheetResultPanel key={jobId} jobId={jobId} sourceFile={file} />}
       buildExtraFields={() => ({
         instrument,

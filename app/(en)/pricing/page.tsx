@@ -19,9 +19,7 @@ import EmailLink from "@/components/EmailLink";
 /**
  * WHY THIS PAGE 404s WHILE THE PAYWALL IS OFF
  *
- * The Ko-fi shop is a public URL that exists whether or not this site links to
- * it. An env var can't take it down. So while PAYWALL_ENABLED is false, the
- * frontend's job is to make sure there is NO reachable path from
+ * While PAYWALL_ENABLED is false there must be NO reachable path from
  * audioforges.com to a buy button, otherwise someone can pay for credits that
  * have nothing to spend on.
  *

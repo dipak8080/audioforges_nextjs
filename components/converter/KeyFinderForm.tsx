@@ -16,7 +16,6 @@ import {
   type ProcessingStage,
 } from "@/components/tools/JobFormKit";
 import { StudioStage, type StageTier } from "@/components/tools/StudioStage";
-import { SupportBlock } from "@/components/ui/SupportBlock";
 import { AnalysisResultCard, toAnalysisResult } from "@/components/converter/AnalysisResultCard";
 import { validateAudioFile } from "@/lib/utils/validation";
 import { getRetryAfterFallback } from "@/lib/data/rate-limits";
@@ -256,10 +255,7 @@ export function KeyFinderForm() {
       <div className="space-y-4">
         {validationError && <ValidationNote message={validationError} />}
         {isFailed && error && (
-          <>
-            <ErrorPanel error={error} />
-            <SupportBlock mood="sheepish" />
-          </>
+          <ErrorPanel error={error} />
         )}
       </div>
     ) : undefined;
@@ -301,7 +297,6 @@ export function KeyFinderForm() {
       result={resultNode}
       doneTitle={file?.name}
       doneMeta={formatElapsed(elapsedSeconds)}
-      doneFooter={<SupportBlock variant="line" />}
       resetLabel="Analyze another track"
       labels={{ dropHint: `Up to ${MAX_BATCH_FILES} at once, anywhere on this panel, or`, working: "Analyzing" }}
       note={note}

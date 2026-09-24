@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Clock, Coins, Search, ShieldCheck, Users, X, Zap } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
-import { KOFI_PACKS } from "./credits-types";
+import { PACK_CREDITS } from "./credits-types";
 import type { Rec } from "./credits-types";
 import { api, msg } from "./credits-net";
 import type { Toast } from "./CreditsUi";
@@ -370,7 +370,7 @@ export function AdjustForm({
 
       <div className="mt-3 flex flex-wrap items-center gap-1.5">
         <span className="text-[12px] text-text-subtle">Credit packs</span>
-        {KOFI_PACKS.map((p) => (
+        {PACK_CREDITS.map((p) => (
           <button
             key={p}
             type="button"

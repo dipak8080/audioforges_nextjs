@@ -31,7 +31,7 @@ export type MeteredToolKey =
   | "audio-to-midi-hq-mix"
   | "audio-to-sheet";
 
-/** Pack keys as configured in Ko-fi. */
+/** Pack keys, matching the backend packs and Dodo products. */
 export type PackKey = "starter" | "regular" | "bulk";
 
 export interface CreditPack {
@@ -39,8 +39,6 @@ export interface CreditPack {
   credits: number;
   price_usd: number;
   label: string;
-  /** Ko-fi shop item URL. NEVER hardcode this — prices change server-side. */
-  buy_url: string;
 }
 
 export interface PaywallToolRule {
@@ -160,16 +158,6 @@ export interface CreditsPreview {
   balance: number;
   free_remaining: number;
   can_run: boolean;
-}
-
-/** POST /credits/claim */
-export interface ClaimResponse {
-  ok: boolean;
-  buy_url: string;
-  pack: PackKey;
-  credits: number;
-  price_usd: number;
-  claim_expires_minutes: number;
 }
 
 /** The 402 body's `detail`. Identical at all six metered entry points. */

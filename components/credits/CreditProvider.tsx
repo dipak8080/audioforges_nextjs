@@ -151,7 +151,7 @@ export function useCredits(): CreditContextValue {
 
 /**
  * Refocus revalidation is throttled rather than fired on every focus event.
- * Tab-switching is constant during a purchase flow (site → Ko-fi → site), and
+ * Tab-switching is constant during a purchase flow (site → checkout → site), and
  * an unthrottled refetch would hammer /credits/me at exactly the moment the
  * user is most likely to be watching it change. 20s is short enough that a
  * balance change is noticed almost immediately, long enough that alt-tabbing
@@ -287,9 +287,7 @@ export function CreditProvider({
   }, [enabled, refresh]);
 
   // Revalidate when the user comes back to the tab. This is what makes credits
-  // appear "automatically" after a Ko-fi purchase completes — by the time
-  // they're looking at the page again, the pending_claims match has usually
-  // landed.
+  // appear "automatically" after a purchase completes in the checkout tab.
   useEffect(() => {
     if (!enabled) return;
 

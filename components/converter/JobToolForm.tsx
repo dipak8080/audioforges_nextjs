@@ -6,7 +6,6 @@ import { Button, buttonStyles } from "@/components/ui/Button";
 import { FileDropZone } from "@/components/ui/FileDropZone";
 import { Waveform } from "@/components/ui/Waveform";
 import { AudioPlayer } from "@/components/ui/AudioPlayer";
-import { SupportBlock } from "@/components/ui/SupportBlock";
 import { useCreditGate } from "@/components/credits/useCreditGate";
 import { useCredits } from "@/components/credits/CreditProvider";
 import { CreditReceipt } from "@/components/credits/CreditReceipt";
@@ -339,13 +338,6 @@ interface JobToolFormProps {
    * nothing to show for itself otherwise.
    */
   renderResult?: (jobId: string, file: File | null) => ReactNode;
-  /**
-   * Suppresses the Ko-fi support block. Set on the /embed widgets: they render
-   * inside someone else's article, where a donation ask for a third party is
-   * the fastest way to get the embed pulled. The widget's own attribution link
-   * is the only AudioForges pitch that belongs there.
-   */
-  hideSupport?: boolean;
   /** Renders the StudioStage skin instead of the form shell. Same engine. */
   stage?: {
     tiers: StageTier<string>[];
@@ -394,7 +386,6 @@ export function JobToolForm({
   metered = false,
   meteredToolKey,
   renderResult,
-  hideSupport = false,
   stage,
 }: JobToolFormProps) {
   const [file, setFile] = useState<File | null>(null);
@@ -853,16 +844,11 @@ export function JobToolForm({
           resetLabel={stage.resetLabel ?? "Process another file"}
           stickyDone={!stage.hideDownload}
           note={
-            validationError || (isFailed && error) || (status === "complete" && !chargedRun && !hideSupport) ? (
+            validationError || (isFailed && error) ? (
               <div className="space-y-4">
                 {validationError && <ValidationNote message={validationError} />}
                 {isFailed && error && <ErrorPanel error={error} />}
                 {isFailed && upsell}
-                {status === "complete" && !chargedRun && !hideSupport && (
-                  <div className="flex justify-end px-1">
-                    <SupportBlock variant="line" />
-                  </div>
-                )}
               </div>
             ) : undefined
           }
@@ -989,10 +975,6 @@ export function JobToolForm({
 
             <CreditReceipt billing={billing} />
 
-            {/* Asking for a tip right after charging someone a credit is a bad
-                look. A free run is still free, so it keeps the block. */}
-            {!chargedRun && !hideSupport && <SupportBlock />}
-
             <Button variant="outline" size="md" className="w-full" onClick={handleReset}>
               <RotateCcw />
               Process another file
@@ -1024,18 +1006,6 @@ export function JobToolForm({
               </div>
             )}
 
-            {/*
-              NO TIP JAR ON A BROKEN RUN.
-              These forms carry two failure states and they are not the same
-              thing. `error` means the SUBMIT was rejected — a file too large, an
-              unsupported format, a rate limit — which is the form doing its job,
-              and asking for support after one is fine. `failed` means the job ran
-              and broke, or polling gave up on it. Following "This is taking
-              unusually long" with "Enjoying AudioForges? Buy us a coffee" is the
-              worst timing on the site. And a coffee ask directly under a
-              buy-credits upsell is two money asks stacked — suppress it there.
-            */}
-            {status === "error" && !showRateLimitUpsell && !hideSupport && <SupportBlock mood="sheepish" />}
           </Section>
         )}
       </FormShell>

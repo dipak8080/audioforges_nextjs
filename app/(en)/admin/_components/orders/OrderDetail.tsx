@@ -13,12 +13,12 @@ export function OrderDetail({ o, onOpenCustomer }: { o: OrderRow; onOpenCustomer
   const facts: { k: string; v: React.ReactNode; tone?: "bad" | "good" }[] = [
     { k: "Paid", v: whenLocal(o.created_at) },
     {
-      k: o.provider === "paypal" ? "PayPal order" : o.provider === "kofi" ? "Ko-fi order" : "Order id",
+      k: o.provider === "dodo" ? "Dodo payment" : "Order id",
       v: <span className="font-mono text-[12px]">{o.provider_order_id}</span>,
     },
     {
       k: "Browser linked at purchase",
-      v: o.subject_id ? "Yes, claim matched" : "No, claim missed",
+      v: o.subject_id ? "Yes" : "No",
       tone: o.subject_id ? "good" : undefined,
     },
     {

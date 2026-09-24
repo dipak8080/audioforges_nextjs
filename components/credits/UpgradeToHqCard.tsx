@@ -48,8 +48,8 @@ import type { SubmitBilling } from "@/lib/types/converter";
  *    `already_upgraded` is a 200 with no billing block, and `res.billing ??
  *    null` turned that absence into an explicit null. The parent's guard is
  *    `if (billing !== undefined)`, so null passed it and overwrote the billing
- *    from the FIRST click: CreditReceipt went blank and SupportBlock came back
- *    on a run someone had just paid a credit for. `undefined` is the sentinel
+ *    from the FIRST click: CreditReceipt went blank on a run someone had just
+ *    paid a credit for. `undefined` is the sentinel
  *    the guard was written for.
  *
  * 2. `submitting` WAS NEVER CLEARED ON SUCCESS. Every failure path resets it;
@@ -223,8 +223,7 @@ export function UpgradeToHqCard({
         job, so a double-click returns the first call's child rather than
         charging again. The parent's guard is `if (billing !== undefined)`, so
         null would pass it and erase the receipt from the click that DID spend a
-        credit — blanking CreditReceipt and bringing the tip jar back on a paid
-        run. undefined means "nothing to report, keep what you have".
+        credit, blanking CreditReceipt on a paid run. undefined means "nothing to report, keep what you have".
       */
       onUpgraded(res.job_id, res.billing ?? undefined);
       // Callers currently unmount this card by switching to "processing", so

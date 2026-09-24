@@ -5,7 +5,6 @@ import { AlertTriangle, CheckCircle2, ClipboardPaste, Link2, RotateCcw, X } from
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
 import { Waveform } from "@/components/ui/Waveform";
-import { SupportBlock } from "@/components/ui/SupportBlock";
 import { useCreditGate } from "@/components/credits/useCreditGate";
 import { useCredits } from "@/components/credits/CreditProvider";
 import { UpgradeToHqCard } from "@/components/credits/UpgradeToHqCard";
@@ -743,7 +742,6 @@ export function YouTubeUrlForm({
           }
           doneTitle={resultTitle || preview?.title || stage.doneFallback || "Separation complete"}
           doneMeta={formatElapsed(elapsedSeconds)}
-          doneFooter={chargedRun ? undefined : <SupportBlock variant="line" />}
           resetLabel={stage.resetLabel ?? "Process another link"}
           note={
             isFailed && error ? (
@@ -945,8 +943,6 @@ export function YouTubeUrlForm({
 
             <CreditReceipt billing={billing} />
 
-            {!chargedRun && <SupportBlock />}
-
             <Button variant="outline" size="md" className="w-full" onClick={handleReset}>
               <RotateCcw />
               Process another link
@@ -967,7 +963,6 @@ export function YouTubeUrlForm({
                 </Link>
               )}
             </ErrorPanel>
-            {status === "error" && <SupportBlock mood="sheepish" />}
           </Section>
         )}
       </FormShell>

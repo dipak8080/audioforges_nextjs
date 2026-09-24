@@ -1,6 +1,4 @@
 import Link from "next/link";
-import { Coffee } from "lucide-react";
-import { PAYMENTS_PAUSED } from "@/lib/credits/payments-status";
 import { BrandMark } from "@/components/brand/BrandMark";
 import { getLiveTools, type Tool } from "@/lib/data/tools";
 import { openConsentSettings } from "@/lib/consent";
@@ -191,18 +189,6 @@ export function Footer({ paywallEnabled = false }: { paywallEnabled?: boolean })
 
             <div className="mt-5">
               <div className="flex items-center gap-2">
-                {!PAYMENTS_PAUSED && (
-                  <a
-                    href="https://ko-fi.com/audioforges"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 rounded-lg border border-graphite-800 px-4 py-2.5 text-sm font-medium text-text-muted transition-colors hover:border-graphite-600 hover:text-text-primary focus:outline-none focus-visible:ring-1 focus-visible:ring-amber-500/60"
-                  >
-                    <Coffee className="h-4 w-4" />
-                    Donate
-                  </a>
-                )}
-
                 {SOCIAL_LINKS.map(({ href, label, Icon }) => (
                   <a
                     key={href}

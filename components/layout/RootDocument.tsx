@@ -86,7 +86,6 @@ const organizationJsonLd = {
     "https://www.youtube.com/@audioforges",
     "https://www.instagram.com/audioforges/",
     "https://www.producthunt.com/products/audioforges",
-    "https://ko-fi.com/audioforges",
     "https://www.saashub.com/audioforges",
   ],
 };
