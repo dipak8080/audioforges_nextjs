@@ -234,7 +234,7 @@ export default function VocalRemoverNoSignUpPage() {
           </div>
           <p>
             Every visitor gets one Studio Quality run a month free. After that
-            it is one credit a song, from $3 for ten credits, and credits never
+            it is one credit a song, from $4.99 for 15 credits, and credits never
             expire.
           </p>
 

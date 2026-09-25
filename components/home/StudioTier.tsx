@@ -7,7 +7,7 @@ const SPECS = [
   ["Model", "MelBand RoFormer"],
   ["Output", "WAV 16-bit 44.1 kHz, full length"],
   ["Vocal bleed", "Gone on almost all material"],
-  ["Price", "1 credit per track, packs from $3, never expire"],
+  ["Price", "1 credit per track, packs from $4.99, never expire"],
 ];
 
 export function StudioTier({

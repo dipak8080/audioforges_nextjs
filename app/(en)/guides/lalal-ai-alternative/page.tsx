@@ -56,7 +56,7 @@ const faqJsonLd = {
       name: "Is there a LALAL.AI alternative that does not need a subscription?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Yes. AudioForges runs vocal removal free at Standard quality with no account, and Studio Quality costs one credit per song. Credits are bought once, start at $3 for 10, and never expire.",
+        text: "Yes. AudioForges runs vocal removal free at Standard quality with no account, and Studio Quality costs one credit per song. Credits are bought once, start at $4.99 for 15, and never expire.",
       },
     },
     {
@@ -163,8 +163,8 @@ export default function LalalAlternativeGuidePage() {
 
             <dt>Studio Quality is one credit per song</dt>
             <dd>
-              Credits start at 10 for $3, which works out to about 30 cents a
-              song. Buy once, use whenever. They never expire, and a failed run
+              Credits start at 15 for $4.99, about 33 cents a song, and drop to
+              25 cents on the 100 pack. Buy once, use whenever. They never expire, and a failed run
               is refunded automatically.
             </dd>
 
@@ -204,8 +204,8 @@ export default function LalalAlternativeGuidePage() {
 
           <h2 id="cost">What it costs in practice</h2>
           <p>
-            Ten songs a month at Studio Quality on AudioForges is $3, and the
-            credits carry over if you skip a month. The same ten songs on a
+            Ten songs a month at Studio Quality on AudioForges costs about
+            $3.30, and the credits carry over if you skip a month. The same ten songs on a
             monthly plan cost the plan price whether you use it or not. If you
             separate more than about thirty songs every single month, the
             subscription math starts to catch up. Below that, per-song pricing

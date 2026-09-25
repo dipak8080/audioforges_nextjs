@@ -270,7 +270,7 @@ export default function BestFreeVocalRemoverPage() {
             shows. Studio Quality runs a RoFormer-class
             model and removed that trace completely, with silence where the
             singer stops. Every visitor gets one Studio run a month free, then it
-            is one credit a song, from $3 for ten, and the credits do not expire.
+            is one credit a song, from $4.99 for 15, and the credits do not expire.
           </p>
 
           <h2 id="pick">Which one to use</h2>
@@ -283,8 +283,8 @@ export default function BestFreeVocalRemoverPage() {
             <dt>You want the cleanest possible instrumental</dt>
             <dd>
               LALAL.AI and AudioForges Studio Quality sounded the same to us.
-              One costs $9.99 a month, the other 30 cents a song with the first
-              one free.
+              One costs $9.99 a month, the other 25 to 33 cents a song with the
+              first one free.
             </dd>
             <dt>You separate stems every day for work</dt>
             <dd>
