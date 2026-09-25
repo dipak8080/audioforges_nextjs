@@ -12,6 +12,27 @@ import { CreditReceipt } from "@/components/credits/CreditReceipt";
 import { CreditGateModal } from "@/components/credits/CreditGateModal";
 import type { SubmitBilling } from "@/lib/types/converter";
 import type { CreditsMe, InsufficientCreditsPayload, MeteredToolKey } from "@/lib/types/credits";
+import { AdsterraBanner } from "@/components/ads/AdsterraBanner";
+
+// Free utility tools only. Paid tools (audio-to-midi, audio-to-sheet) never show ads.
+const AD_ENDPOINTS = new Set([
+  "channels",
+  "convert",
+  "echo-remove",
+  "fade",
+  "loudnorm",
+  "noise-remove",
+  "pitch",
+  "resample",
+  "reverse",
+  "ringtone",
+  "silence-remove",
+  "tempo",
+  "trim",
+  "video-to-audio",
+  "voice-clean",
+  "volume",
+]);
 import { validateAudioFile } from "@/lib/utils/validation";
 import { getRetryAfterFallback } from "@/lib/data/rate-limits";
 import type { FileValidationResult } from "@/lib/types/converter";
@@ -401,6 +422,7 @@ export function JobToolForm({
   const chargedRun = billing?.charged === "credit";
 
   const isBusy = status === "uploading" || status === "processing";
+  const showAds = AD_ENDPOINTS.has(endpoint);
   const [elapsedSeconds, setElapsedSeconds] = useElapsedSeconds(isBusy);
   const [cooldownSeconds, setCooldownSeconds] = useCooldownSeconds();
   /**
@@ -817,13 +839,21 @@ export function JobToolForm({
           actionIcon={<Icon />}
           actionDisabled={!canSubmit}
           onAction={handleSubmit}
-          belowAction={<CooldownBar seconds={cooldownSeconds} ceiling={cooldownCeiling} />}
+          belowAction={
+            <>
+              <CooldownBar seconds={cooldownSeconds} ceiling={cooldownCeiling} />
+              {showAds && isBusy && (
+                <AdsterraBanner className="border-t border-graphite-800 px-4 py-5 sm:px-7" />
+              )}
+            </>
+          }
           result={
             status === "complete" && jobId ? (
               <>
                 {!hidePreview && <AudioPlayer src={getJobPreviewUrl(endpoint, jobId)} />}
                 {renderResult?.(jobId, file)}
                 <CreditReceipt billing={billing} />
+                {showAds && <AdsterraBanner key={`ad-${jobId}`} className="pt-2" />}
               </>
             ) : undefined
           }
@@ -939,6 +969,7 @@ export function JobToolForm({
               onCancel={handleCancel}
               waveform={<Waveform />}
             />
+            {showAds && <AdsterraBanner className="pt-5" />}
           </Section>
         )}
 
@@ -979,6 +1010,8 @@ export function JobToolForm({
               <RotateCcw />
               Process another file
             </Button>
+
+            {showAds && <AdsterraBanner key={`ad-${jobId}`} className="pt-2" />}
           </Section>
         )}
 

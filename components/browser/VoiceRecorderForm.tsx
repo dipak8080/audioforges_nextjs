@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { encodeWav } from "@/lib/audio/mix-export";
+import { AdsterraBanner } from "@/components/ads/AdsterraBanner";
 import { Mic, Square, Play, Pause, Download, RotateCcw, AlertTriangle } from "lucide-react";
 import { Button, buttonStyles } from "@/components/ui/Button";
 import { cn } from "@/lib/utils/cn";
@@ -407,6 +408,8 @@ export function VoiceRecorderForm() {
                 WAV conversion failed in this browser. The other download still works.
               </p>
             )}
+
+            <AdsterraBanner key={`ad-${audioUrl}`} className="pt-2" />
           </div>
 
           <div className="flex flex-col gap-3 border-t border-graphite-800 bg-graphite-950/40 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-7">
