@@ -212,7 +212,7 @@ export default async function YouTubeToWavPage() {
         meta={["No account", "No watermark", "Lossless WAV"]}
         title="Free YouTube to WAV Converter"
         lede="Paste a link and download lossless WAV audio in seconds. No sign-up, no watermark, no app to install."
-        tool={<YouTubeConverterForm stage />}
+        tool={<YouTubeConverterForm stage ads />}
       >
         <ProofStrip
           proofs={[

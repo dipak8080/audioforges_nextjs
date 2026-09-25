@@ -33,6 +33,7 @@ import {
 } from "@/lib/api/railway";
 import { FORMAT_OPTIONS, type OutputFormat, type ProcessingState } from "@/lib/types/converter";
 import { YouTubeVocalFunnel } from "@/components/converter/YouTubeVocalFunnel";
+import { AdsterraBanner } from "@/components/ads/AdsterraBanner";
 import { markOpusUnsupported, pickSourceCodec, sourceToWav, type SourceCodec } from "@/lib/audio/browser-wav";
 
 /**
@@ -315,9 +316,15 @@ interface YouTubeConverterFormProps {
   defaultFormat?: OutputFormat;
   /** Renders the StudioStage skin instead of the form shell. Same engine. */
   stage?: boolean;
+  /** One 300x250 banner while converting and under the result. Stage skin only. */
+  ads?: boolean;
 }
 
-export function YouTubeConverterForm({ defaultFormat = "wav", stage = false }: YouTubeConverterFormProps = {}) {
+export function YouTubeConverterForm({
+  defaultFormat = "wav",
+  stage = false,
+  ads = false,
+}: YouTubeConverterFormProps = {}) {
   const [url, setUrl] = useState("");
   const [format, setFormat] = useState<OutputFormat>(defaultFormat);
   const [status, setStatus] = useState<ProcessingState>("idle");
@@ -989,6 +996,8 @@ export function YouTubeConverterForm({ defaultFormat = "wav", stage = false }: Y
             title={preview?.title ?? null}
             onWide={setFunnelWide}
           />
+
+          {ads && <AdsterraBanner key={`ad-${result.href}`} className="pt-2" />}
         </div>
       ) : undefined;
 
@@ -1034,7 +1043,14 @@ export function YouTubeConverterForm({ defaultFormat = "wav", stage = false }: Y
         actionIcon={<Download />}
         actionDisabled={!canConvert || isProcessing}
         onAction={() => void handleConvert()}
-        belowAction={<CooldownBar seconds={cooldownSeconds} ceiling={cooldownCeiling} />}
+        belowAction={
+          <>
+            <CooldownBar seconds={cooldownSeconds} ceiling={cooldownCeiling} />
+            {ads && isProcessing && (
+              <AdsterraBanner className="border-t border-graphite-800 px-4 py-5 sm:px-7" />
+            )}
+          </>
+        }
         result={resultNode}
         doneTitle={preview?.title ?? result?.filename ?? "Your file is ready"}
         doneMeta={result ? formatOption(result.format).spec : undefined}
