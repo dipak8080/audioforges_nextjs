@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { useCredits } from "@/components/credits/CreditProvider";
 import { cn } from "@/lib/utils/cn";
 
 const KEY = "d7dcd6f0f39891584d1480b952d2daa0";
 
-export function AdsterraBanner({ className }: { className?: string }) {
+function AdSlot() {
   const slotRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -27,15 +28,25 @@ export function AdsterraBanner({ className }: { className?: string }) {
   }, []);
 
   return (
+    <div
+      ref={slotRef}
+      aria-label="Advertisement"
+      className="flex h-[250px] w-[300px] max-w-full items-center justify-center overflow-hidden rounded-md"
+    />
+  );
+}
+
+// Anyone holding credits never sees an ad.
+export function AdsterraBanner({ className }: { className?: string }) {
+  const { loading, balance, isCredited } = useCredits();
+  if (loading || balance > 0 || isCredited) return null;
+
+  return (
     <div className={cn("flex flex-col items-center gap-1.5", className)}>
       <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-text-subtle">
         Advertisement
       </span>
-      <div
-        ref={slotRef}
-        aria-label="Advertisement"
-        className="flex h-[250px] w-[300px] max-w-full items-center justify-center overflow-hidden rounded-md"
-      />
+      <AdSlot />
     </div>
   );
 }

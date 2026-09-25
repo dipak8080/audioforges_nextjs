@@ -5,6 +5,7 @@ import { YouTubeUrlForm } from "@/components/converter/YouTubeUrlForm";
 import { AnalysisResultCard, toAnalysisResult } from "@/components/converter/AnalysisResultCard";
 import { Hint } from "@/components/converter/ToolControls";
 import type { StageTier } from "@/components/tools/StudioStage";
+import { AdsterraBanner } from "@/components/ads/AdsterraBanner";
 import { submitYoutubeAnalyze, getYoutubeAnalyzeResult, ApiError } from "@/lib/api/railway";
 import { getRateLimitLabel } from "@/lib/data/rate-limits";
 import { getDurationLabel } from "@/lib/data/tool-limits";
@@ -114,7 +115,12 @@ export function YouTubeAnalyzeForm() {
         doneFallback: "Analysis complete",
         resetLabel: "Analyze another link",
       }}
-      renderComplete={(jobId) => <AnalyzeResult jobId={jobId} />}
+      renderComplete={(jobId) => (
+        <>
+          <AnalyzeResult jobId={jobId} />
+          <AdsterraBanner key={`ad-${jobId}`} className="pt-2" />
+        </>
+      )}
     />
   );
 }

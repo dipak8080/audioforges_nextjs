@@ -14,6 +14,7 @@ import {
   type FormError,
 } from "@/components/tools/JobFormKit";
 import { StudioStage, type StageTier } from "@/components/tools/StudioStage";
+import { AdsterraBanner } from "@/components/ads/AdsterraBanner";
 import { AudioPlayer } from "@/components/ui/AudioPlayer";
 import { cn } from "@/lib/utils/cn";
 import { sanitizeUserInput } from "@/lib/utils/validation";
@@ -416,6 +417,7 @@ export function TikTokToMp3Form() {
           <Download />
           Download MP3
         </a>
+        <AdsterraBanner key={`ad-${result.objectUrl}`} className="pt-2" />
       </div>
     ) : undefined;
 
@@ -453,7 +455,12 @@ export function TikTokToMp3Form() {
       actionIcon={<Music2 />}
       actionDisabled={isDeadEnd ? false : !canConvert}
       onAction={isDeadEnd ? handleReset : handleConvert}
-      belowAction={<CooldownBar seconds={cooldownSeconds} ceiling={cooldownCeiling} />}
+      belowAction={
+        <>
+          <CooldownBar seconds={cooldownSeconds} ceiling={cooldownCeiling} />
+          {isWorking && <AdsterraBanner className="border-t border-graphite-800 px-4 py-5 sm:px-7" />}
+        </>
+      }
       result={resultNode}
       doneTitle={result?.title}
       doneMeta={

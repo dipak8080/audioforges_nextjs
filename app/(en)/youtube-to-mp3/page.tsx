@@ -229,7 +229,7 @@ export default function YouTubeToMp3Page() {
         /* defaultFormat="mp3" — without it the form loads with WAV preselected
            and the page promises something the tool doesn't offer on arrival.
            See YouTubeConverterForm's prop. */
-        tool={<YouTubeConverterForm defaultFormat="mp3" stage />}
+        tool={<YouTubeConverterForm defaultFormat="mp3" stage ads />}
       >
         <ProofStrip
           proofs={[
