@@ -1,3 +1,5 @@
+import { StudioGate } from "@/components/studio/StudioGate";
+import { StudioPanel } from "@/components/studio/StudioPanel";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { VocalRemoverForm } from "@/components/converter/VocalRemoverForm";
@@ -211,12 +213,17 @@ export default async function VocalRemoverPage() {
         lede="Upload a song, get the vocals and the instrumental back as two separate WAV files. No sign-up, nothing to install."
         meta={["No account", "No watermark", "Full-length WAV"]}
         tool={
-          <VocalRemoverForm
-            hqAvailable={separationHqEnabled}
-            standardLimit={standardAllowance}
-            hqLimitText={hqLimitLabel}
-            demoStandardSrc={DEMO_STANDARD}
-            demoStudioSrc={DEMO_STUDIO}
+          <StudioGate
+            studio={<StudioPanel preset="vocal-remover" />}
+            fallback={
+              <VocalRemoverForm
+                hqAvailable={separationHqEnabled}
+                standardLimit={standardAllowance}
+                hqLimitText={hqLimitLabel}
+                demoStandardSrc={DEMO_STANDARD}
+                demoStudioSrc={DEMO_STUDIO}
+              />
+            }
           />
         }
       >

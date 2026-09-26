@@ -1,3 +1,5 @@
+import { StudioGate } from "@/components/studio/StudioGate";
+import { StudioPanel } from "@/components/studio/StudioPanel";
 import Link from "next/link";
 import { VocalRemoverForm } from "@/components/converter/VocalRemoverForm";
 import { FAQSection, type FAQItem } from "@/components/faq/FAQSection";
@@ -83,13 +85,18 @@ export async function LocalizedVocalRemoverPage({ dict }: { dict: VocalRemoverDi
         lede={dict.heroLede}
         meta={dict.heroMeta}
         tool={
-          <VocalRemoverForm
-            hqAvailable={separationHqEnabled}
-            standardLimit={standardAllowance}
-            hqLimitText={hqLimitLabelEn}
-            demoStandardSrc={DEMO_STANDARD}
-            demoStudioSrc={DEMO_STUDIO}
-            copy={{ ...dict.form, locale: dict.locale }}
+          <StudioGate
+            studio={<StudioPanel preset="vocal-remover" />}
+            fallback={
+              <VocalRemoverForm
+                hqAvailable={separationHqEnabled}
+                standardLimit={standardAllowance}
+                hqLimitText={hqLimitLabelEn}
+                demoStandardSrc={DEMO_STANDARD}
+                demoStudioSrc={DEMO_STUDIO}
+                copy={{ ...dict.form, locale: dict.locale }}
+              />
+            }
           />
         }
       >

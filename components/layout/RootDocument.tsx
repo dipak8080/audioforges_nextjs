@@ -6,6 +6,8 @@ import { ConsentBanner } from "@/components/consent/ConsentBanner";
 import { SITE_URL } from "@/lib/constants";
 import { getFeatureFlags } from "@/lib/api/railway";
 import { ogImage } from "@/lib/og";
+import { toLocale } from "@/lib/i18n/locales";
+import { getStudioStrings } from "@/lib/i18n/studio";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -116,6 +118,7 @@ export async function RootDocument({
   // normally with the paywall reading as off rather than hanging the
   // render.
   const { paywallEnabled, paywallTools } = await getFeatureFlags();
+  const locale = toLocale(lang);
 
   return (
     <html
@@ -177,7 +180,9 @@ export async function RootDocument({
           dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }}
         />
 
-        <SiteChrome flags={{ paywallEnabled, paywallTools }}>{children}</SiteChrome>
+        <SiteChrome flags={{ paywallEnabled, paywallTools }} locale={locale} strings={getStudioStrings(locale)}>
+          {children}
+        </SiteChrome>
         <ConsentBanner />
       </body>
     </html>

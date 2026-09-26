@@ -4,13 +4,21 @@ import { usePathname } from "next/navigation";
 import { Navbar } from "./Navbar";
 import { Footer } from "./Footer";
 import { CreditProvider } from "@/components/credits/CreditProvider";
+import { I18nProvider } from "@/components/i18n/I18nProvider";
+import { StudioPreviewBadge } from "@/components/studio/StudioPreviewBadge";
 import type { PaywallFlags } from "@/lib/types/credits";
+import type { Locale } from "@/lib/i18n/locales";
+import type { StudioStrings } from "@/lib/i18n/studio/en";
 
 export function SiteChrome({
   flags,
+  locale,
+  strings,
   children,
 }: {
   flags: PaywallFlags;
+  locale: Locale;
+  strings: StudioStrings;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -21,14 +29,21 @@ export function SiteChrome({
   // redundant chrome on an internal tool nobody but the site owner
   // ever sees.
   if (isAdminRoute) {
-    return <CreditProvider flags={flags}>{children}</CreditProvider>;
+    return (
+      <I18nProvider locale={locale} strings={strings}>
+        <CreditProvider flags={flags}>{children}</CreditProvider>
+      </I18nProvider>
+    );
   }
 
   return (
-    <CreditProvider flags={flags}>
-      <Navbar paywallEnabled={flags.paywallEnabled} />
-      <div className="flex-1">{children}</div>
-      <Footer paywallEnabled={flags.paywallEnabled} />
-    </CreditProvider>
+    <I18nProvider locale={locale} strings={strings}>
+      <CreditProvider flags={flags}>
+        <Navbar paywallEnabled={flags.paywallEnabled} />
+        <div className="flex-1">{children}</div>
+        <Footer paywallEnabled={flags.paywallEnabled} />
+        <StudioPreviewBadge />
+      </CreditProvider>
+    </I18nProvider>
   );
 }

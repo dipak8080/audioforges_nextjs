@@ -1,3 +1,5 @@
+import { StudioGate } from "@/components/studio/StudioGate";
+import { StudioPanel } from "@/components/studio/StudioPanel";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { StemsForm } from "@/components/converter/StemsForm";
@@ -204,12 +206,17 @@ export default async function StemsPage() {
         lede="Split a song into vocals, drums, bass and other. Four separate WAV files, no sign-up, nothing to install."
         wide
         tool={
-          <StemsForm
-            hqAvailable={separationHqEnabled}
-            standardLimit={standardAllowance}
-            hqLimitText={hqLimitLabel}
-            demoStandardSrc={STEM_DEMO_STANDARD}
-            demoStudioSrc={STEM_DEMO_STUDIO}
+          <StudioGate
+            studio={<StudioPanel preset="stems" />}
+            fallback={
+              <StemsForm
+                hqAvailable={separationHqEnabled}
+                standardLimit={standardAllowance}
+                hqLimitText={hqLimitLabel}
+                demoStandardSrc={STEM_DEMO_STANDARD}
+                demoStudioSrc={STEM_DEMO_STUDIO}
+              />
+            }
           />
         }
       >
