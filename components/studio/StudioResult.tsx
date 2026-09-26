@@ -19,18 +19,26 @@ import {
 } from "@/lib/studio/run";
 import type { RunAnalysis } from "@/lib/studio/use-studio-run";
 import { setStemHandoff } from "@/lib/studio/handoff";
+import type { StudioSelection } from "@/lib/studio/presets";
+import { StudioUpsell } from "./StudioUpsell";
 import { triggerDownload, triggerDownloadsStaggered } from "@/lib/utils/download";
 
 export function StudioResult({
   run,
   status,
   early,
+  selection,
   onNewSong,
+  onUnlock,
+  unlocking = false,
 }: {
   run: StartedRun;
   status: RunStatus;
   early: RunAnalysis | null;
+  selection: StudioSelection;
   onNewSong: () => void;
+  onUnlock: () => void;
+  unlocking?: boolean;
 }) {
   const { t, plural } = useI18n();
   const r = t.result;
@@ -91,6 +99,10 @@ export function StudioResult({
         </div>
       </div>
 
+      {!studio && (
+        <StudioUpsell run={run} freeStems={stems} selection={selection} onUnlock={onUnlock} busy={unlocking} />
+      )}
+
       <StemMixer
         key={run.jobId}
         stems={stems.map((name) => ({
@@ -147,16 +159,6 @@ export function StudioResult({
         />
       </div>
 
-      <div className="flex justify-end">
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={() => triggerDownloadsStaggered(stems.map((n) => stemDownloadUrl(run, n)))}
-        >
-          <Download />
-          {r.downloadAll}
-        </Button>
-      </div>
     </section>
   );
 }

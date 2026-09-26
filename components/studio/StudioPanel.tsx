@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { AlertTriangle, RotateCcw } from "lucide-react";
 import { Button, buttonStyles } from "@/components/ui/Button";
@@ -14,13 +14,14 @@ import { readLocalAudio, type LocalAudio } from "@/lib/studio/local-audio";
 import { useStudioRun } from "@/lib/studio/use-studio-run";
 import type { StudioPresetKey } from "@/lib/studio/presets";
 import { cn } from "@/lib/utils/cn";
+import { trackStudio } from "@/lib/studio/track";
 
 export function StudioPanel({ preset }: { preset: StudioPresetKey }) {
   const { t, fill } = useI18n();
   const r = t.run;
   const { refresh } = useCredits();
   const onSettled = useCallback(() => void refresh(), [refresh]);
-  const { state, start, cancel, reset } = useStudioRun({ readyTitle: r.readyTitle, onSettled });
+  const { state, start, upgrade, cancel, reset } = useStudioRun({ readyTitle: r.readyTitle, onSettled });
   const [request, setRequest] = useState<StudioStartRequest | null>(null);
   const [local, setLocal] = useState<LocalAudio | null>(null);
   const [batch, setBatch] = useState<{ files: File[]; kind: "separate" | "stems" } | null>(null);
@@ -39,10 +40,24 @@ export function StudioPanel({ preset }: { preset: StudioPresetKey }) {
       if (source.kind === "file") {
         void readLocalAudio(source.file).then(setLocal);
       }
+      trackStudio("studio_upload", { engine: req.engine, output: req.selection.output, source: req.source.kind });
       start({ engine: req.engine, source, selection: req.selection });
     },
     [start]
   );
+
+  const unlock = useCallback(() => {
+    if (!state.run || !state.input || !request) return;
+    trackStudio("studio_unlock_clicked", { family: state.run.family });
+    setRequest({ ...request, engine: "studio" });
+    upgrade(state.run, state.input, request.selection, state.analysis);
+  }, [request, state.analysis, state.input, state.run, upgrade]);
+
+  const doneJob = state.phase === "done" ? state.run?.jobId : undefined;
+  const doneEngine = state.run?.engine;
+  useEffect(() => {
+    if (doneJob) trackStudio(doneEngine === "studio" ? "studio_run_done" : "studio_free_done");
+  }, [doneJob, doneEngine]);
 
   const newSong = useCallback(() => {
     reset();
@@ -124,7 +139,14 @@ export function StudioPanel({ preset }: { preset: StudioPresetKey }) {
       )}
 
       {state.phase === "done" && state.run && state.status && (
-        <StudioResult run={state.run} status={state.status} early={state.analysis} onNewSong={newSong} />
+        <StudioResult
+          run={state.run}
+          status={state.status}
+          early={state.analysis}
+          selection={request?.selection ?? { output: 2, dereverb: false, leadBack: false }}
+          onNewSong={newSong}
+          onUnlock={unlock}
+        />
       )}
     </div>
   );

@@ -16,6 +16,7 @@ export interface RunStatus {
   error: string | null;
   title: string | null;
   elapsed: number;
+  clip: { start: number; seconds: number } | null;
 }
 
 export interface SubmitInput {
@@ -51,7 +52,7 @@ export async function submitRun(input: SubmitInput, signal: AbortSignal, idempot
 export async function getRunStatus(run: StartedRun, signal?: AbortSignal): Promise<RunStatus> {
   const res = await fetchWithTimeout(`${RAILWAY_API_BASE}/${run.family}/status/${run.jobId}`, { method: "GET", signal }, 15_000);
   if (res.status === 404) {
-    return { status: "failed", stems: [], error: null, title: null, elapsed: 0 };
+    return { status: "failed", stems: [], error: null, title: null, elapsed: 0, clip: null };
   }
   if (!res.ok) throw new ApiError("Status check failed", res.status, { isServerBusy: res.status >= 500 });
   const d = await res.json();
@@ -65,6 +66,10 @@ export async function getRunStatus(run: StartedRun, signal?: AbortSignal): Promi
     error: typeof d?.error === "string" ? d.error : null,
     title: typeof d?.title === "string" ? d.title : null,
     elapsed: typeof d?.elapsed_seconds === "number" ? d.elapsed_seconds : 0,
+    clip:
+      typeof d?.clip?.start === "number" && typeof d?.clip?.seconds === "number"
+        ? { start: d.clip.start, seconds: d.clip.seconds }
+        : null,
   };
 }
 
@@ -142,4 +147,50 @@ export async function fetchTrackAnalysis(run: StartedRun, signal?: AbortSignal):
 
 export function djExportUrl(run: StartedRun, format: "wav" | "mp3"): string {
   return `${RAILWAY_API_BASE}/separate/export/${run.jobId}?format=${format}`;
+}
+function optionQuery(selection: StudioSelection, family: RunFamily): string {
+  const q = new URLSearchParams();
+  if (selection.dereverb) q.set("dereverb", "true");
+  if (selection.leadBack) q.set("lead_back", "true");
+  if (family.endsWith("stems")) q.set("stem_count", String(selection.output === 6 ? 6 : 4));
+  const s = q.toString();
+  return s ? `?${s}` : "";
+}
+
+async function readError(res: Response): Promise<ApiError> {
+  let detail: Record<string, unknown> | null = null;
+  try {
+    const body = await res.json();
+    detail = body?.detail && typeof body.detail === "object" ? body.detail : null;
+  } catch {}
+  const message = typeof detail?.message === "string" ? detail.message : "";
+  const kind = typeof detail?.reason === "string" ? detail.reason : typeof detail?.error === "string" ? detail.error : undefined;
+  return new ApiError(message, res.status, { kind, isRateLimit: res.status === 429 });
+}
+
+export async function upgradeRun(from: StartedRun, selection: StudioSelection, signal: AbortSignal): Promise<StartedRun> {
+  const upFamily = from.family.endsWith("stems") ? "stems" : "separate";
+  const res = await fetchWithTimeout(
+    `${RAILWAY_API_BASE}/${upFamily}/upgrade/${from.jobId}${optionQuery(selection, from.family)}`,
+    { method: "POST", credentials: "include", signal },
+    30_000
+  );
+  if (!res.ok) throw await readError(res);
+  const d = await res.json();
+  return { jobId: String(d.job_id), family: from.family, engine: "studio" };
+}
+
+export async function requestStudioPreview(
+  from: StartedRun,
+  selection: StudioSelection,
+  signal?: AbortSignal
+): Promise<StartedRun> {
+  const res = await fetchWithTimeout(
+    `${RAILWAY_API_BASE}/studio/preview/${from.jobId}${optionQuery(selection, from.family)}`,
+    { method: "POST", credentials: "include", signal },
+    30_000
+  );
+  if (!res.ok) throw await readError(res);
+  const d = await res.json();
+  return { jobId: String(d.job_id), family: from.family, engine: "studio" };
 }

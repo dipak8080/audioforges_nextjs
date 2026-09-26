@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, analyzeAudioFile, cancelJob, isAbortError } from "@/lib/api/railway";
-import { getRunStatus, submitRun, type RunStatus, type StartedRun, type SubmitInput } from "./run";
+import { getRunStatus, submitRun, upgradeRun, type RunStatus, type StartedRun, type SubmitInput } from "./run";
+import type { StudioSelection } from "./presets";
 
 export type RunPhase = "idle" | "submitting" | "running" | "done" | "failed";
 
@@ -93,16 +94,16 @@ export function useStudioRun({ readyTitle, onSettled }: { readyTitle: string; on
     restoreTitle();
   }, [stop, restoreTitle]);
 
-  const start = useCallback(
-    (input: SubmitInput) => {
+  const launch = useCallback(
+    (input: SubmitInput, submit: (signal: AbortSignal) => Promise<StartedRun>, keep: RunAnalysis | null) => {
       stop();
       restoreTitle();
       const ctrl = new AbortController();
       ctrlRef.current = ctrl;
       const startedAt = Date.now();
-      setState({ ...IDLE, phase: "submitting", input, startedAt });
+      setState({ ...IDLE, phase: "submitting", input, startedAt, analysis: keep });
 
-      if (input.source.kind === "file") {
+      if (!keep && input.source.kind === "file") {
         analyzeAudioFile(input.source.file, { signal: ctrl.signal })
           .then((a) => {
             if (ctrl.signal.aborted) return;
@@ -129,12 +130,7 @@ export function useStudioRun({ readyTitle, onSettled }: { readyTitle: string; on
             return;
           }
           if (status.status === "failed") {
-            setState((s) => ({
-              ...s,
-              phase: "failed",
-              status,
-              failure: plainFailure(status.error ?? ""),
-            }));
+            setState((s) => ({ ...s, phase: "failed", status, failure: plainFailure(status.error ?? "") }));
             settledRef.current?.();
             return;
           }
@@ -150,7 +146,7 @@ export function useStudioRun({ readyTitle, onSettled }: { readyTitle: string; on
         timerRef.current = window.setTimeout(() => void poll(run, next), delay);
       };
 
-      submitRun(input, ctrl.signal, crypto.randomUUID())
+      submit(ctrl.signal)
         .then((run) => {
           if (ctrl.signal.aborted) return;
           setState((s) => ({ ...s, phase: "running", run }));
@@ -162,6 +158,17 @@ export function useStudioRun({ readyTitle, onSettled }: { readyTitle: string; on
         });
     },
     [readyTitle, restoreTitle, stop]
+  );
+
+  const start = useCallback(
+    (input: SubmitInput) => launch(input, (signal) => submitRun(input, signal, crypto.randomUUID()), null),
+    [launch]
+  );
+
+  const upgrade = useCallback(
+    (from: StartedRun, input: SubmitInput, selection: StudioSelection, keep: RunAnalysis | null) =>
+      launch({ ...input, engine: "studio", selection }, (signal) => upgradeRun(from, selection, signal), keep),
+    [launch]
   );
 
   const cancel = useCallback(() => {
@@ -178,5 +185,5 @@ export function useStudioRun({ readyTitle, onSettled }: { readyTitle: string; on
     setState(IDLE);
   }, [restoreTitle, stop]);
 
-  return { state, start, cancel, reset };
+  return { state, start, upgrade, cancel, reset };
 }
