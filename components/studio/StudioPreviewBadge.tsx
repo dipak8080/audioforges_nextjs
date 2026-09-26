@@ -64,7 +64,7 @@ export function StudioPreviewBadge() {
   if (!enabled) return null;
 
   return (
-    <div className="fixed bottom-4 right-4 z-[60] print:hidden">
+    <div className="fixed bottom-4 left-20 z-[60] print:hidden">
       {open ? (
         <div className="surface w-72 rounded-lg border border-graphite-700 bg-graphite-900/95 p-3 shadow-xl backdrop-blur">
           <div className="mb-2 flex items-center justify-between">

@@ -182,7 +182,7 @@ export default function PrivacyPage() {
           high-accuracy MIDI, Dodo Payments to process purchases and the
           Studio Pass, Cloudflare for network protection and for Library
           storage (R2), Google for optional sign-in, Resend to send email, and
-          Adsterra for ads on some free pages. When you use one of those separation tools, the
+          Adsterra for ads on some free pages, and tawk.to for live chat, which only loads after you choose to open the chat. When you use one of those separation tools, the
           audio file or fetched YouTube audio is processed on RunPod&apos;s
           infrastructure for the time needed to complete that job, under the same
           no-permanent-storage handling described in Section 2. Each of these

@@ -359,6 +359,11 @@ const pt: StudioStrings = {
     working: "Preparando faixas {done} de {total}",
     note: "O andamento mantém o tom. O tom mantém o andamento. Exporte sua mix para ficar com a versão alterada.",
   },
+  chat: {
+    button: "Fale com o Dipak",
+    reply: "Costuma responder em poucas horas",
+    opening: "Abrindo o chat",
+  },
   songs: {
     count: { one: "{n} música", other: "{n} músicas" },
     neverExpire: "Nunca expiram",

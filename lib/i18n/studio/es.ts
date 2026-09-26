@@ -359,6 +359,11 @@ const es: StudioStrings = {
     working: "Preparando pistas {done} de {total}",
     note: "El tempo mantiene el tono. El tono mantiene el tempo. Exporta tu mezcla para quedarte con la versión cambiada.",
   },
+  chat: {
+    button: "Habla con Dipak",
+    reply: "Suele responder en unas horas",
+    opening: "Abriendo el chat",
+  },
   songs: {
     count: { one: "{n} canción", other: "{n} canciones" },
     neverExpire: "No caducan",

@@ -359,6 +359,11 @@ const id: StudioStrings = {
     working: "Menyiapkan stem {done} dari {total}",
     note: "Tempo menjaga nada. Kunci menjaga tempo. Ekspor mix kamu untuk menyimpan versi yang diubah.",
   },
+  chat: {
+    button: "Chat dengan Dipak",
+    reply: "Biasanya membalas dalam beberapa jam",
+    opening: "Membuka chat",
+  },
   songs: {
     count: { one: "{n} lagu", other: "{n} lagu" },
     neverExpire: "Tidak pernah kedaluwarsa",

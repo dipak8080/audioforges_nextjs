@@ -357,6 +357,11 @@ const en = {
     working: "Preparing stems {done} of {total}",
     note: "Tempo keeps the pitch. Key keeps the tempo. Export your mix to keep the changed version.",
   },
+  chat: {
+    button: "Chat with Dipak",
+    reply: "Usually replies within a few hours",
+    opening: "Opening chat",
+  },
   songs: {
     count: { one: "{n} song", other: "{n} songs" },
     neverExpire: "Never expire",

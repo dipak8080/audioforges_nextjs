@@ -10,6 +10,7 @@ import { ReferralCapture } from "@/components/studio/ReferralCapture";
 import { StudioGate } from "@/components/studio/StudioGate";
 import { StudioNav } from "@/components/studio/StudioNav";
 import { StudioFooter } from "@/components/studio/StudioFooter";
+import { ChatWithDipak } from "@/components/studio/ChatWithDipak";
 import type { PaywallFlags } from "@/lib/types/credits";
 import type { Locale } from "@/lib/i18n/locales";
 import type { StudioStrings } from "@/lib/i18n/studio/en";
@@ -46,6 +47,7 @@ export function SiteChrome({
         <StudioGate studio={<StudioNav />} fallback={<Navbar paywallEnabled={flags.paywallEnabled} />} />
         <div className="flex-1">{children}</div>
         <StudioGate studio={<StudioFooter />} fallback={<Footer paywallEnabled={flags.paywallEnabled} />} />
+        <StudioGate studio={<ChatWithDipak />} />
         <StudioPreviewBadge />
         <ReferralCapture />
       </CreditProvider>
