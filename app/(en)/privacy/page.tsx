@@ -11,7 +11,7 @@ const PAGE_DESCRIPTION =
 
 /** Update whenever the policy text changes, it's a claim about the text
  *  below it, so a stale date is worse than no date. */
-const LAST_UPDATED = "2026-09-24";
+const LAST_UPDATED = "2026-09-26";
 
 const OG_IMAGE = ogImage(
   "Privacy Policy",
@@ -62,8 +62,9 @@ export default function PrivacyPage() {
       <Prose className="mt-10">
         <h2 id="overview">1. Overview</h2>
         <p>
-          AudioForges (&quot;we&quot;, &quot;us&quot;) provides free audio tools
-          including YouTube-to-audio conversion and audio analysis. This policy
+          AudioForges (&quot;we&quot;, &quot;us&quot;) provides AI stem
+          separation with a free tier and a paid Studio tier, plus free audio
+          tools including YouTube-to-audio conversion and audio analysis. This policy
           explains what data we collect when you use our site and tools, and how
           it&apos;s used.
         </p>
@@ -81,7 +82,18 @@ export default function PrivacyPage() {
             the time needed to complete that request. Temporary processing files
             are automatically deleted after processing finishes, or after a short
             retention period if required for system reliability. We do not
-            permanently store or distribute the audio files or URLs you submit.
+            permanently store or distribute the audio files or URLs you submit,
+            with one exception: the Library, described below.
+          </dd>
+
+          <dt>Library</dt>
+          <dd>
+            If you have an account and the Library is on, the stems from your
+            Studio runs are saved to your Library so you can reopen or download
+            them later. They are stored as audio files on Cloudflare R2 for 30
+            days, with the track title and its key and tempo, and then deleted
+            automatically. You can delete any item sooner from your account page.
+            Only you can open your Library items.
           </dd>
 
           <dt>Microphone input</dt>
@@ -121,7 +133,16 @@ export default function PrivacyPage() {
           </dd>
         </dl>
 
-        <h2 id="credits">3. Credits and payments</h2>
+        <h2 id="credits">3. Accounts, songs and payments</h2>
+        <p>
+          An account is optional. You can sign in with Google or with a one-time
+          email link. With Google sign-in, Google shares your basic profile with
+          us, and we keep only your verified email address. We use your email to sign you in,
+          send receipts and account notices such as a low balance or a Studio
+          Pass renewal, and, only if you opt in, occasional product updates. You
+          can change both kinds of email on your account page, and every email
+          has an unsubscribe link.
+        </p>
         <p>
           Some GPU-backed jobs take credits, described on the{" "}
           <Link href="/pricing">pricing page</Link>. Credits are attached to
@@ -144,9 +165,11 @@ export default function PrivacyPage() {
 
         <h2 id="advertising">4. Advertising</h2>
         <p>
-          We do not currently display third-party advertisements. If advertising
-          is introduced in the future, this Privacy Policy will be updated to
-          describe it before those services are enabled.
+          Some free converter and utility pages show ads from Adsterra. Ads are
+          not shown on the Studio product pages, the pricing page or your
+          account, and they are never shown to anyone who holds songs. Adsterra
+          may use cookies or similar technology to show and measure ads,
+          according to its own privacy policy.
         </p>
 
         <h2 id="third-parties">5. Third-party services</h2>
@@ -156,7 +179,10 @@ export default function PrivacyPage() {
           and the following providers to run the site and tools: Vercel for the
           website, VPS Dime for general backend processing, RunPod for the
           GPU-accelerated compute used by separation and
-          high-accuracy MIDI, and Dodo Payments to process credit purchases. When you use one of those separation tools, the
+          high-accuracy MIDI, Dodo Payments to process purchases and the
+          Studio Pass, Cloudflare for network protection and for Library
+          storage (R2), Google for optional sign-in, Resend to send email, and
+          Adsterra for ads on some free pages. When you use one of those separation tools, the
           audio file or fetched YouTube audio is processed on RunPod&apos;s
           infrastructure for the time needed to complete that job, under the same
           no-permanent-storage handling described in Section 2. Each of these

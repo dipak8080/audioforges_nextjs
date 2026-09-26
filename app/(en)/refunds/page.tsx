@@ -9,7 +9,7 @@ const PAGE_TITLE = "Refund Policy";
 const PAGE_DESCRIPTION =
   "AudioForges credits are a digital product delivered instantly. All sales are final. Credits from a failed job are returned automatically.";
 
-const LAST_UPDATED = "2026-09-24";
+const LAST_UPDATED = "2026-09-26";
 
 const OG_IMAGE = ogImage("Refund Policy", "Digital credits, delivered instantly. All sales are final.", "Legal");
 
@@ -56,7 +56,7 @@ export default function RefundsPage() {
 
       <Prose className="mt-10">
         <p>
-          <strong>All credit purchases are final.</strong> Credits are a digital product. They are
+          <strong>All song and credit purchases are final.</strong> Songs (credits) are a digital product. They are
           delivered to your browser the moment your payment is confirmed, and they can be used
           straight away. Because of this, we do not offer refunds, returns, or exchanges once a
           purchase is complete.
@@ -82,6 +82,18 @@ export default function RefundsPage() {
           <li>Opening a payment dispute for a purchase that was delivered may result in the credits
             from that purchase being removed.</li>
         </ul>
+
+        <h2 id="studio-pass">Studio Pass</h2>
+        <p>
+          The Studio Pass renews every month until you cancel. You can cancel anytime from your{" "}
+          <Link href="/account">account page</Link>, and cancelling stops the next renewal. The
+          period you already paid for is not refunded: the Pass stays active until it ends and you
+          keep the songs it added.
+        </p>
+        <p>
+          If a Pass payment is refunded or disputed, the Pass is cancelled and the songs from that
+          payment are removed from your balance.
+        </p>
 
         <h2 id="failed-jobs">The one automatic exception: failed jobs</h2>
         <p>

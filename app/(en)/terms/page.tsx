@@ -11,7 +11,7 @@ const PAGE_DESCRIPTION =
 
 /** Update whenever the terms text changes, it's a claim about the text below
  *  it, so a stale date is worse than no date. */
-const LAST_UPDATED = "2026-09-24";
+const LAST_UPDATED = "2026-09-26";
 
 const OG_IMAGE = ogImage(
   "Terms of Service",
@@ -76,15 +76,23 @@ export default function TermsPage() {
           or that you have explicit permission from the rights holder.
         </p>
         <p>
-          AudioForges does not host, store, or distribute copyrighted material.
+          You may only upload, link or process audio that you own or that the
+          rights holder has allowed you to use. AudioForges separates and
+          analyzes audio. It does not grant you any rights to the audio itself.
+        </p>
+        <p>
+          AudioForges does not publish or distribute the audio you process.
           We act only as a processing tool at the user&apos;s request.
         </p>
         <p>
-          AudioForges currently does not require user accounts for most features.
-          Uploaded files are processed only for the requested operation and are
-          not retained longer than necessary to complete processing, you are
-          responsible for keeping your own copies of any files you upload or
-          results you generate. Some processing, including AI vocal separation
+          Most features work without an account. You can create an optional
+          account with Google sign-in or an email link to keep your songs,
+          Library and Studio Pass in one place. Uploaded files are processed
+          only for the requested operation and are not retained longer than
+          necessary, except Studio results saved to your Library, which are
+          kept for 30 days unless you delete them sooner. You are responsible
+          for keeping your own copies of any files you upload or results you
+          generate. Some processing, including AI vocal separation
           and stem splitting, runs on third-party compute infrastructure under
           the same no-permanent-storage handling; see our{" "}
           <Link href="/privacy">Privacy Policy</Link> for the specific providers
@@ -117,11 +125,13 @@ export default function TermsPage() {
           you have already bought.
         </p>
 
-        <h2 id="credits">5. Credits</h2>
+        <h2 id="credits">5. Songs and credits</h2>
         <p>
-          Some jobs take credits, sold in packs at the prices shown on the{" "}
+          Some jobs take credits, shown on the site as songs (one Studio run of
+          one track uses one song). They are sold in packs at the prices shown on the{" "}
           <Link href="/pricing">pricing page</Link> at the time of purchase.
-          Credits do not expire. They are attached to the browser that bought
+          Songs from packs do not expire. Songs from a Studio Pass follow
+          section 6. Credits are attached to the browser that bought
           them and can be attached to other browsers by the email sign-in
           described there; they cannot be transferred to another person or
           exchanged for cash. If a credited job fails, the credits for that job
@@ -144,7 +154,36 @@ export default function TermsPage() {
           your browser and to send your receipt.
         </p>
 
-        <h2 id="no-warranty">6. No warranty</h2>
+        <h2 id="studio-pass">6. Studio Pass subscription</h2>
+        <p>
+          The Studio Pass is an optional monthly subscription, available when
+          it is offered on the pricing page. It needs an account. Each paid
+          billing period adds the number of songs shown at purchase, and
+          includes Forge Clean and Forge Split at no extra songs.
+        </p>
+        <p>
+          <strong>
+            The Pass renews every month at the price shown at checkout until
+            you cancel.
+          </strong>{" "}
+          You can cancel anytime from your{" "}
+          <Link href="/account">account page</Link> or the billing page linked
+          there. Cancelling stops the next renewal. The Pass stays active until
+          the end of the period you already paid for, and you keep the songs
+          you already have.
+        </p>
+        <p>
+          Unused Pass songs roll over for two months after the period they were
+          added in, then expire. Songs bought in packs never expire. If a
+          renewal payment fails, the Pass pauses until the payment is fixed. If
+          a Pass payment is refunded or disputed, the Pass is cancelled and the
+          songs from that payment are removed. We will email you before any
+          price change takes effect, and you can cancel before it applies.
+          Payments are handled by Dodo Payments as described in section 5, and
+          refunds follow the <Link href="/refunds">Refund Policy</Link>.
+        </p>
+
+        <h2 id="no-warranty">7. No warranty</h2>
         <p>
           The service is provided &quot;as is&quot; without warranties of any
           kind. We do not guarantee uninterrupted availability, accuracy of
@@ -152,14 +191,14 @@ export default function TermsPage() {
           purpose.
         </p>
 
-        <h2 id="liability">7. Limitation of liability</h2>
+        <h2 id="liability">8. Limitation of liability</h2>
         <p>
           AudioForges and its operators are not liable for any damages arising
           from use of the service, including but not limited to copyright claims
           resulting from content you chose to process.
         </p>
 
-        <h2 id="operator">8. Who operates AudioForges</h2>
+        <h2 id="operator">9. Who operates AudioForges</h2>
         <p>
           AudioForges is operated by Dipak Sah, an individual based in
           Kathmandu, Nepal, trading as AudioForges. There is no company behind
@@ -168,13 +207,13 @@ export default function TermsPage() {
           you and that cannot be excluded.
         </p>
 
-        <h2 id="changes">9. Changes to these terms</h2>
+        <h2 id="changes">10. Changes to these terms</h2>
         <p>
           We may update these terms periodically. Continued use of the site after
           changes constitutes acceptance of the updated terms.
         </p>
 
-        <h2 id="contact">10. Contact</h2>
+        <h2 id="contact">11. Contact</h2>
         <p>
           Questions about these terms? Email{" "}
           <a href="mailto:contact@audioforges.com">contact@audioforges.com</a>{" "}
