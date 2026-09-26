@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { Loader2, MessageCircle } from "lucide-react";
@@ -32,6 +32,7 @@ const PAID_PATHS = [
 type TawkApi = {
   onLoad?: () => void;
   onChatMinimized?: () => void;
+  onChatMaximized?: () => void;
   hideWidget?: () => void;
   showWidget?: () => void;
   maximize?: () => void;
@@ -45,6 +46,16 @@ declare global {
 }
 
 let loading: Promise<void> | null = null;
+let chatOpen = false;
+const listeners = new Set<() => void>();
+const setChatOpen = (v: boolean) => {
+  chatOpen = v;
+  listeners.forEach((l) => l());
+};
+const subscribe = (l: () => void) => {
+  listeners.add(l);
+  return () => listeners.delete(l);
+};
 
 function loadTawk(): Promise<void> {
   if (loading) return loading;
@@ -53,7 +64,11 @@ function loadTawk(): Promise<void> {
     window.Tawk_API = api;
     window.Tawk_LoadStart = new Date();
     api.onLoad = () => resolve();
-    api.onChatMinimized = () => window.Tawk_API?.hideWidget?.();
+    api.onChatMaximized = () => setChatOpen(true);
+    api.onChatMinimized = () => {
+      window.Tawk_API?.hideWidget?.();
+      setChatOpen(false);
+    };
     const s = document.createElement("script");
     s.async = true;
     s.src = TAWK_SRC;
@@ -70,14 +85,16 @@ export function ChatWithDipak() {
   const pathname = usePathname() ?? "/";
   const [busy, setBusy] = useState(false);
   const [photoOk, setPhotoOk] = useState(true);
+  const open_ = useSyncExternalStore(subscribe, () => chatOpen, () => false);
   const path = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
 
-  if (!PAID_PATHS.includes(path)) return null;
+  if (!PAID_PATHS.includes(path) || open_) return null;
 
   async function open() {
     setBusy(true);
     await loadTawk();
     setBusy(false);
+    setChatOpen(true);
     window.Tawk_API?.showWidget?.();
     window.Tawk_API?.maximize?.();
   }
