@@ -1,23 +1,22 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useState } from "react";
 import Link from "next/link";
 import { AlertTriangle, RotateCcw } from "lucide-react";
 import { Button, buttonStyles } from "@/components/ui/Button";
-import { StemMixer } from "@/components/converter/StemMixer";
 import { BatchSeparation } from "@/components/converter/BatchSeparation";
 import { useCredits } from "@/components/credits/CreditProvider";
 import { useI18n } from "@/components/i18n/I18nProvider";
 import { StudioInput, type StudioStartRequest } from "./StudioInput";
 import { StudioProcessing } from "./StudioProcessing";
+import { StudioResult } from "./StudioResult";
 import { readLocalAudio, type LocalAudio } from "@/lib/studio/local-audio";
-import { sortStems, stemDownloadUrl, stemPreviewUrl } from "@/lib/studio/run";
 import { useStudioRun } from "@/lib/studio/use-studio-run";
 import type { StudioPresetKey } from "@/lib/studio/presets";
-import { triggerDownload, triggerDownloadsStaggered } from "@/lib/utils/download";
+import { cn } from "@/lib/utils/cn";
 
 export function StudioPanel({ preset }: { preset: StudioPresetKey }) {
-  const { t } = useI18n();
+  const { t, fill } = useI18n();
   const r = t.run;
   const { refresh } = useCredits();
   const onSettled = useCallback(() => void refresh(), [refresh]);
@@ -53,8 +52,9 @@ export function StudioPanel({ preset }: { preset: StudioPresetKey }) {
     setInputKey((k) => k + 1);
   }, [reset]);
 
-  const stems = useMemo(() => sortStems(state.status?.stems ?? []), [state.status?.stems]);
   const running = state.phase === "submitting" || state.phase === "running";
+  const blocked = !!state.failure && (state.failure.needsSongs || state.failure.rateLimited);
+  const waitText = `${Math.max(1, Math.ceil((state.failure?.retryAfterSeconds ?? 3600) / 60))} min`;
   const title =
     state.status?.title ||
     (request?.source.kind === "file" ? request.source.files[0]?.name : request?.source.kind === "link" ? request.source.url : "") ||
@@ -82,22 +82,32 @@ export function StudioPanel({ preset }: { preset: StudioPresetKey }) {
         />
       )}
 
-      {state.phase === "failed" && (
-        <div className="flex flex-col gap-3 rounded-xl border border-red-500/30 bg-red-500/[0.05] p-4 sm:flex-row sm:items-center sm:justify-between">
+      {state.phase === "failed" && state.failure && (
+        <div
+          className={cn(
+            "flex flex-col gap-3 rounded-xl border p-4 sm:flex-row sm:items-center sm:justify-between",
+            blocked ? "border-amber-500/30 bg-amber-500/[0.04]" : "border-red-500/30 bg-red-500/[0.05]"
+          )}
+        >
           <div className="flex items-start gap-3">
-            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-400" />
+            <AlertTriangle className={cn("mt-0.5 h-4 w-4 shrink-0", blocked ? "text-amber-400" : "text-red-400")} />
             <div className="text-sm">
-              <p className="text-text-primary">{state.failure?.needsSongs ? r.notEnough : r.failed}</p>
-              {state.failure?.message && !state.failure.needsSongs && (
-                <p className="mt-0.5 text-text-muted">{state.failure.message}</p>
+              <p className="text-text-primary">
+                {state.failure.needsSongs ? r.notEnough : state.failure.rateLimited ? r.rateLimited : r.failed}
+              </p>
+              {state.failure.rateLimited ? (
+                <p className="mt-0.5 text-text-muted">{fill(r.rateRetry, { time: waitText })}</p>
+              ) : (
+                !state.failure.needsSongs &&
+                state.failure.message && <p className="mt-0.5 text-text-muted">{state.failure.message}</p>
               )}
-              {request?.engine === "studio" && !state.failure?.needsSongs && (
+              {request?.engine === "studio" && !blocked && (
                 <p className="mt-0.5 font-mono text-[11px] text-text-subtle">{r.refundNote}</p>
               )}
             </div>
           </div>
           <div className="flex gap-2">
-            {state.failure?.needsSongs ? (
+            {blocked ? (
               <Link href="/pricing" prefetch={false} className={buttonStyles({ variant: "accent", size: "sm" })}>
                 {r.getSongs}
               </Link>
@@ -113,39 +123,8 @@ export function StudioPanel({ preset }: { preset: StudioPresetKey }) {
         </div>
       )}
 
-      {state.phase === "done" && state.run && (
-        <section className="space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <span className="font-mono text-[11px] uppercase tracking-[0.18em] text-text-muted">
-                {state.run.engine === "studio" ? t.panel.engine : t.panel.freeEngine}
-              </span>
-              {(state.analysis?.camelot || state.analysis?.bpm) && (
-                <span className="rounded-full border border-amber-500/40 px-3 py-1 font-mono text-xs text-amber-400">
-                  {[state.analysis?.camelot, state.analysis?.bpm ? `${state.analysis.bpm} BPM` : null].filter(Boolean).join(" · ")}
-                </span>
-              )}
-            </div>
-            <Button variant="outline" size="sm" onClick={newSong}>
-              {r.newSong}
-            </Button>
-          </div>
-          <StemMixer
-            key={state.run.jobId}
-            stems={stems.map((name) => ({
-              name: r.stems[name as keyof typeof r.stems] ?? name,
-              url: stemPreviewUrl(state.run!, name),
-              downloadName: `${name}.wav`,
-            }))}
-            mp3
-            sourceTitle={state.status?.title ?? null}
-            onDownload={(display, format) => {
-              const raw = stems.find((n) => (r.stems[n as keyof typeof r.stems] ?? n) === display) ?? display;
-              triggerDownload(stemDownloadUrl(state.run!, raw, format));
-            }}
-            onDownloadAll={() => triggerDownloadsStaggered(stems.map((n) => stemDownloadUrl(state.run!, n)))}
-          />
-        </section>
+      {state.phase === "done" && state.run && state.status && (
+        <StudioResult run={state.run} status={state.status} early={state.analysis} onNewSong={newSong} />
       )}
     </div>
   );

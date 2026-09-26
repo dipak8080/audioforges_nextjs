@@ -11,6 +11,7 @@ import { useCredits } from "@/components/credits/CreditProvider";
 import { CreditReceipt } from "@/components/credits/CreditReceipt";
 import { CreditGateModal } from "@/components/credits/CreditGateModal";
 import type { SubmitBilling } from "@/lib/types/converter";
+import { takeStemHandoff } from "@/lib/studio/handoff";
 import type { CreditsMe, InsufficientCreditsPayload, MeteredToolKey } from "@/lib/types/credits";
 import { AdsterraBanner, AdsterraTopBanner } from "@/components/ads/AdsterraBanner";
 import { useDownloadAd } from "@/components/ads/DownloadAdGate";
@@ -602,6 +603,21 @@ export function JobToolForm({
     // survive into it.
     setBilling(null);
   };
+
+  const handleFileSelectRef = useRef(handleFileSelect);
+  useEffect(() => {
+    handleFileSelectRef.current = handleFileSelect;
+  });
+
+  useEffect(() => {
+    let alive = true;
+    void takeStemHandoff(window.location.pathname).then((f) => {
+      if (alive && f) handleFileSelectRef.current(f);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   /** Everything about the current run, gone. Reset and cancel differ only in
    *  whether the file survives. */

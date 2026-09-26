@@ -15,8 +15,18 @@ export interface RunAnalysis {
 export interface RunFailure {
   message: string;
   needsSongs: boolean;
+  rateLimited: boolean;
+  retryAfterSeconds: number | null;
   status: number;
 }
+
+const plainFailure = (message = ""): RunFailure => ({
+  message,
+  needsSongs: false,
+  rateLimited: false,
+  retryAfterSeconds: null,
+  status: 0,
+});
 
 export interface StudioRunState {
   phase: RunPhase;
@@ -42,9 +52,15 @@ const MAX_RUN_MS = 30 * 60 * 1000;
 
 function toFailure(err: unknown): RunFailure {
   if (err instanceof ApiError) {
-    return { message: err.message, needsSongs: err.status === 402, status: err.status };
+    return {
+      message: err.message,
+      needsSongs: err.status === 402,
+      rateLimited: err.status === 429,
+      retryAfterSeconds: err.retryAfterSeconds ?? null,
+      status: err.status,
+    };
   }
-  return { message: "Something went wrong. Please try again.", needsSongs: false, status: 0 };
+  return plainFailure("Something went wrong. Please try again.");
 }
 
 export function useStudioRun({ readyTitle, onSettled }: { readyTitle: string; onSettled?: () => void }) {
@@ -117,7 +133,7 @@ export function useStudioRun({ readyTitle, onSettled }: { readyTitle: string; on
               ...s,
               phase: "failed",
               status,
-              failure: { message: status.error ?? "", needsSongs: false, status: 0 },
+              failure: plainFailure(status.error ?? ""),
             }));
             settledRef.current?.();
             return;
@@ -127,7 +143,7 @@ export function useStudioRun({ readyTitle, onSettled }: { readyTitle: string; on
           if (isAbortError(err) || ctrl.signal.aborted) return;
         }
         if (Date.now() - startedAt > MAX_RUN_MS) {
-          setState((s) => ({ ...s, phase: "failed", failure: { message: "", needsSongs: false, status: 0 } }));
+          setState((s) => ({ ...s, phase: "failed", failure: plainFailure() }));
           return;
         }
         const next = Date.now() - startedAt > 90_000 ? 4000 : 2000;

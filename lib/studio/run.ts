@@ -120,3 +120,26 @@ export function estimateSeconds(engine: StudioEngine, selection: StudioSelection
   if (engine === "one") return Math.round(12 + dur * 0.3 + (selection.output > 2 ? 8 : 0));
   return Math.round(25 + dur * 0.9 + options * (10 + dur * 0.15) + (selection.output > 2 ? 10 : 0));
 }
+export interface TrackAnalysis {
+  key: string | null;
+  camelot: string | null;
+  bpm: number | null;
+}
+
+export async function fetchTrackAnalysis(run: StartedRun, signal?: AbortSignal): Promise<TrackAnalysis | null> {
+  try {
+    const res = await fetchWithTimeout(`${RAILWAY_API_BASE}/separate/analysis/${run.jobId}`, { method: "GET", signal }, 60_000);
+    if (!res.ok) return null;
+    const d = await res.json();
+    const camelot = typeof d?.camelot === "string" && d.camelot !== "Unknown" ? d.camelot : null;
+    const bpm = typeof d?.bpm === "number" ? Math.round(d.bpm) : null;
+    const key = typeof d?.key === "string" ? d.key : null;
+    return camelot || bpm || key ? { key, camelot, bpm } : null;
+  } catch {
+    return null;
+  }
+}
+
+export function djExportUrl(run: StartedRun, format: "wav" | "mp3"): string {
+  return `${RAILWAY_API_BASE}/separate/export/${run.jobId}?format=${format}`;
+}
