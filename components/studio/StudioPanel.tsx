@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { AlertTriangle, RotateCcw } from "lucide-react";
 import { Button, buttonStyles } from "@/components/ui/Button";
@@ -10,9 +11,12 @@ import { useI18n } from "@/components/i18n/I18nProvider";
 import { StudioInput, type StudioStartRequest } from "./StudioInput";
 import { StudioProcessing } from "./StudioProcessing";
 import { StudioResult } from "./StudioResult";
+import { UnlockSheet } from "./UnlockSheet";
 import { readLocalAudio, type LocalAudio } from "@/lib/studio/local-audio";
 import { useStudioRun } from "@/lib/studio/use-studio-run";
-import type { StudioPresetKey } from "@/lib/studio/presets";
+import { stemCountOf, studioTool, vocalOptionsOf, type StudioPresetKey } from "@/lib/studio/presets";
+import { useStudioPrice } from "@/lib/studio/price";
+import { takeResume } from "@/lib/studio/resume";
 import { cn } from "@/lib/utils/cn";
 import { trackStudio } from "@/lib/studio/track";
 
@@ -21,8 +25,15 @@ export function StudioPanel({ preset }: { preset: StudioPresetKey }) {
   const r = t.run;
   const { refresh } = useCredits();
   const onSettled = useCallback(() => void refresh(), [refresh]);
-  const { state, start, upgrade, cancel, reset } = useStudioRun({ readyTitle: r.readyTitle, onSettled });
   const [request, setRequest] = useState<StudioStartRequest | null>(null);
+  const [sheet, setSheet] = useState(false);
+  const [openAfterRestore, setOpenAfterRestore] = useState(false);
+  const onNeedSongs = useCallback(() => {
+    setRequest((cur) => (cur ? { ...cur, engine: "one" } : cur));
+    setSheet(true);
+  }, []);
+  const { state, start, upgrade, restore, cancel, reset } = useStudioRun({ readyTitle: r.readyTitle, onSettled, onNeedSongs });
+  const pathname = usePathname() ?? "/";
   const [local, setLocal] = useState<LocalAudio | null>(null);
   const [batch, setBatch] = useState<{ files: File[]; kind: "separate" | "stems" } | null>(null);
   const [inputKey, setInputKey] = useState(0);
@@ -46,12 +57,53 @@ export function StudioPanel({ preset }: { preset: StudioPresetKey }) {
     [start]
   );
 
-  const unlock = useCallback(() => {
+  const freeDone = state.phase === "done" && state.run?.engine === "one";
+  const sel = request?.selection ?? { output: 2 as const, dereverb: false, leadBack: false };
+  const unlockPrice = useStudioPrice(
+    {
+      tool: studioTool(sel.output, state.run?.family.startsWith("youtube") ? "link" : "file"),
+      vocalOptions: vocalOptionsOf(sel),
+      stemCount: stemCountOf(sel),
+    },
+    freeDone
+  );
+
+  const runUpgrade = useCallback(() => {
     if (!state.run || !state.input || !request) return;
-    trackStudio("studio_unlock_clicked", { family: state.run.family });
     setRequest({ ...request, engine: "studio" });
     upgrade(state.run, state.input, request.selection, state.analysis);
   }, [request, state.analysis, state.input, state.run, upgrade]);
+
+  const unlock = useCallback(() => {
+    if (!state.run) return;
+    trackStudio("studio_unlock_clicked", { family: state.run.family });
+    if (unlockPrice && !unlockPrice.canRun) {
+      setSheet(true);
+      return;
+    }
+    runUpgrade();
+  }, [runUpgrade, state.run, unlockPrice]);
+
+  useEffect(() => {
+    const saved = takeResume(pathname);
+    if (!saved) return;
+    void Promise.resolve().then(() => {
+      const input = { engine: "one" as const, source: { kind: "link" as const, url: saved.title }, selection: saved.selection };
+      setRequest({ ...input, seconds: null });
+      setOpenAfterRestore(true);
+      restore(saved.run, input);
+    });
+  }, [pathname, restore]);
+
+  const sheetOpen = freeDone && (sheet || openAfterRestore);
+  const closeSheet = useCallback(() => {
+    setSheet(false);
+    setOpenAfterRestore(false);
+  }, []);
+  const paid = useCallback(() => {
+    closeSheet();
+    runUpgrade();
+  }, [closeSheet, runUpgrade]);
 
   const doneJob = state.phase === "done" ? state.run?.jobId : undefined;
   const doneEngine = state.run?.engine;
@@ -146,6 +198,18 @@ export function StudioPanel({ preset }: { preset: StudioPresetKey }) {
           selection={request?.selection ?? { output: 2, dereverb: false, leadBack: false }}
           onNewSong={newSong}
           onUnlock={unlock}
+        />
+      )}
+
+      {state.phase === "done" && state.run && request && (
+        <UnlockSheet
+          open={sheetOpen}
+          songsNeeded={unlockPrice?.billable ? unlockPrice.songs : 1}
+          title={title}
+          run={state.run}
+          selection={request.selection}
+          onClose={closeSheet}
+          onPaid={paid}
         />
       )}
     </div>

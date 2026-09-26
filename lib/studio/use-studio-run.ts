@@ -64,8 +64,18 @@ function toFailure(err: unknown): RunFailure {
   return plainFailure("Something went wrong. Please try again.");
 }
 
-export function useStudioRun({ readyTitle, onSettled }: { readyTitle: string; onSettled?: () => void }) {
+export function useStudioRun({
+  readyTitle,
+  onSettled,
+  onNeedSongs,
+}: {
+  readyTitle: string;
+  onSettled?: () => void;
+  onNeedSongs?: () => void;
+}) {
   const [state, setState] = useState<StudioRunState>(IDLE);
+  const stateRef = useRef(state);
+  const needSongsRef = useRef(onNeedSongs);
   const ctrlRef = useRef<AbortController | null>(null);
   const timerRef = useRef<number | null>(null);
   const titleRef = useRef<string | null>(null);
@@ -73,7 +83,9 @@ export function useStudioRun({ readyTitle, onSettled }: { readyTitle: string; on
 
   useEffect(() => {
     settledRef.current = onSettled;
-  }, [onSettled]);
+    needSongsRef.current = onNeedSongs;
+    stateRef.current = state;
+  });
 
   const restoreTitle = useCallback(() => {
     if (titleRef.current !== null) {
@@ -95,7 +107,13 @@ export function useStudioRun({ readyTitle, onSettled }: { readyTitle: string; on
   }, [stop, restoreTitle]);
 
   const launch = useCallback(
-    (input: SubmitInput, submit: (signal: AbortSignal) => Promise<StartedRun>, keep: RunAnalysis | null) => {
+    (
+      input: SubmitInput,
+      submit: (signal: AbortSignal) => Promise<StartedRun>,
+      keep: RunAnalysis | null,
+      revertOnNoSongs = false
+    ) => {
+      const previous = stateRef.current;
       stop();
       restoreTitle();
       const ctrl = new AbortController();
@@ -154,7 +172,13 @@ export function useStudioRun({ readyTitle, onSettled }: { readyTitle: string; on
         })
         .catch((err) => {
           if (isAbortError(err) || ctrl.signal.aborted) return;
-          setState((s) => ({ ...s, phase: "failed", failure: toFailure(err) }));
+          const failure = toFailure(err);
+          if (revertOnNoSongs && failure.needsSongs && previous.phase === "done") {
+            setState(previous);
+            needSongsRef.current?.();
+            return;
+          }
+          setState((s) => ({ ...s, phase: "failed", failure }));
         });
     },
     [readyTitle, restoreTitle, stop]
@@ -167,7 +191,12 @@ export function useStudioRun({ readyTitle, onSettled }: { readyTitle: string; on
 
   const upgrade = useCallback(
     (from: StartedRun, input: SubmitInput, selection: StudioSelection, keep: RunAnalysis | null) =>
-      launch({ ...input, engine: "studio", selection }, (signal) => upgradeRun(from, selection, signal), keep),
+      launch({ ...input, engine: "studio", selection }, (signal) => upgradeRun(from, selection, signal), keep, true),
+    [launch]
+  );
+
+  const restore = useCallback(
+    (run: StartedRun, input: SubmitInput) => launch(input, async () => run, null),
     [launch]
   );
 
@@ -185,5 +214,5 @@ export function useStudioRun({ readyTitle, onSettled }: { readyTitle: string; on
     setState(IDLE);
   }, [restoreTitle, stop]);
 
-  return { state, start, upgrade, cancel, reset };
+  return { state, start, upgrade, restore, cancel, reset };
 }
