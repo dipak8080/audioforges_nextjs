@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Disc3, Download, FileMusic, Piano } from "lucide-react";
+import { Disc3, Download, FileMusic, Piano, Share2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { StemMixer } from "@/components/converter/StemMixer";
 import { useI18n } from "@/components/i18n/I18nProvider";
@@ -19,14 +19,17 @@ import {
 } from "@/lib/studio/run";
 import type { RunAnalysis } from "@/lib/studio/use-studio-run";
 import { setStemHandoff } from "@/lib/studio/handoff";
+import { renderShareCard, shareOrDownload } from "@/lib/studio/share-card";
 import type { StudioSelection } from "@/lib/studio/presets";
 import { StudioUpsell } from "./StudioUpsell";
+import { PracticeBar, usePractice } from "./PracticeBar";
 import { triggerDownload, triggerDownloadsStaggered } from "@/lib/utils/download";
 
 export function StudioResult({
   run,
   status,
   early,
+  peaks = null,
   selection,
   onNewSong,
   onUnlock,
@@ -35,6 +38,7 @@ export function StudioResult({
   run: StartedRun;
   status: RunStatus;
   early: RunAnalysis | null;
+  peaks?: number[] | null;
   selection: StudioSelection;
   onNewSong: () => void;
   onUnlock: () => void;
@@ -66,6 +70,27 @@ export function StudioResult({
     router.push(target);
   }
 
+  const [sharing, setSharing] = useState(false);
+  const mixerStems = stems.map((name) => ({
+    name: label(name),
+    url: stemPreviewUrl(run, name),
+    downloadName: `${name}.wav`,
+  }));
+  const practice = usePractice(mixerStems);
+
+  async function share() {
+    setSharing(true);
+    const blob = await renderShareCard({
+      title: (status.title || t.run.readyTitle).replace(/\.[a-z0-9]+$/i, ""),
+      engine: studio ? t.panel.engine : t.panel.freeEngine,
+      tag: [analysis?.camelot, analysis?.bpm ? `${analysis.bpm} BPM` : null].filter(Boolean).join(" · "),
+      stems: stems.map(label),
+      peaks,
+    });
+    setSharing(false);
+    if (blob) await shareOrDownload(blob, "audioforges-card.png");
+  }
+
   const tag = [analysis?.camelot, analysis?.bpm ? `${analysis.bpm} BPM` : null].filter(Boolean).join(" · ");
 
   return (
@@ -93,6 +118,10 @@ export function StudioResult({
               {tag}
             </span>
           )}
+          <Button variant="ghost" size="sm" onClick={() => void share()} loading={sharing}>
+            <Share2 />
+            {r.shareCard}
+          </Button>
           <Button variant="outline" size="sm" onClick={onNewSong}>
             {t.run.newSong}
           </Button>
@@ -103,13 +132,11 @@ export function StudioResult({
         <StudioUpsell run={run} freeStems={stems} selection={selection} onUnlock={onUnlock} busy={unlocking} />
       )}
 
+      <PracticeBar practice={practice} />
+
       <StemMixer
-        key={run.jobId}
-        stems={stems.map((name) => ({
-          name: label(name),
-          url: stemPreviewUrl(run, name),
-          downloadName: `${name}.wav`,
-        }))}
+        key={`${run.jobId}|${practice.mixerKey}`}
+        stems={practice.stems}
         mp3
         sourceTitle={status.title}
         onDownload={(display, format) => {
@@ -201,4 +228,4 @@ function HandoffCard({
       </div>
     </div>
   );
-} 
+}

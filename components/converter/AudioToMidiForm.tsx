@@ -709,7 +709,7 @@ export function AudioToMidiForm({ hqAvailable = false }: { hqAvailable?: boolean
     {
       value: "free",
       name: "Standard",
-      model: "basic-pitch, one track",
+      model: "Standard, one track",
       time: "seconds to 2 min",
       footnote: getRateLimitLabel("audio-to-midi") ?? undefined,
     },

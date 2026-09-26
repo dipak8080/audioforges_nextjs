@@ -137,6 +137,7 @@ export function StudioFooter() {
               <FLink href="/forge">{f.forgePlayers}</FLink>
               <FLink href="/camelot-wheel">{f.camelot}</FLink>
               <FLink href="/vocal-remover-comparison">{f.comparison}</FLink>
+              <FLink href="/changelog">{t.palette.changelog}</FLink>
               <FLink href="/about">{f.about}</FLink>
               <FLink href="/contact">{f.contact}</FLink>
             </Column>

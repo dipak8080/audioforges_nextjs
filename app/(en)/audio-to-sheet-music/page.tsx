@@ -69,7 +69,7 @@ const webAppJsonLd = {
     "Transpose ±12 semitones — re-engraves the notation and shifts playback together",
     "Print, save as PDF, or download a 2× PNG of the engraved score",
     "Loop, metronome, zoom, and a 50–150% tempo slider anchored to the detected BPM",
-    "Piano transcription powered by a solo-piano specialist AI (Transkun)",
+    "Piano transcription by a solo-piano specialist engine",
     "Two-hand grand-staff notation for piano",
     "Download as PDF, MusicXML, MIDI, and SVG",
     "Free 30-second preview — see the score before you pay",
@@ -81,7 +81,7 @@ const SUPPORTED_FORMATS = ["MP3", "WAV", "FLAC", "M4A", "AAC", "OGG", "AIFF", "O
 
 // Mirrors the backend pipeline: transcribe → analyze → notate → engrave.
 const PIPELINE = [
-  { icon: AudioWaveform, title: "Transcribe", desc: "A model detects every note, pitch and timing. Piano goes to Transkun, trained on solo piano only." },
+  { icon: AudioWaveform, title: "Transcribe", desc: "A model detects every note, pitch and timing. Piano goes to an engine trained on solo piano only." },
   { icon: Music2, title: "Analyze", desc: "Tempo and key are detected so notes can land on a real beat grid instead of floating in time." },
   { icon: ScrollText, title: "Notate", desc: "Notes snap to the grid, key and time signature go in, piano is split across two hands." },
   { icon: FileText, title: "Engrave", desc: "Typeset into a readable score you can play in the browser, cursor following along." },
@@ -100,7 +100,7 @@ export default async function AudioToSheetMusicPage() {
     {
       question: "How accurate is it?",
       answer:
-        "Piano is the best case: it goes to Transkun, a model trained only on solo piano, and comes back as a two-hand grand staff. Like every automatic transcription it is an accurate first draft rather than a hand-engraved final. Quiet, overlapping or heavily pedalled notes are the ones that get missed or misjudged, and the MusicXML export exists so you can fix them in a free editor.",
+        "Piano is the best case: it goes to an engine trained only on solo piano, and comes back as a two-hand grand staff. Like every automatic transcription it is an accurate first draft rather than a hand-engraved final. Quiet, overlapping or heavily pedalled notes are the ones that get missed or misjudged, and the MusicXML export exists so you can fix them in a free editor.",
     },
     {
       question: "Can I hear the score before downloading it?",
@@ -171,9 +171,9 @@ export default async function AudioToSheetMusicPage() {
         <ProofStrip
           proofs={[
             {
-              label: "Piano model",
-              value: "Transkun, open-source",
-              note: "Trained on solo piano only. Named so you can check it. Two-hand grand staff, the way piano is written.",
+              label: "Piano engine",
+              value: "Solo piano specialist",
+              note: "Trained on solo piano only. Two-hand grand staff, the way piano is written.",
             },
             {
               label: "Before you pay",
@@ -204,7 +204,7 @@ export default async function AudioToSheetMusicPage() {
             <Dot />
             <Stat value="108" label="BPM" />
             <Dot />
-            <span className="uppercase tracking-wide text-text-subtle">Transkun</span>
+            <span className="uppercase tracking-wide text-text-subtle">Forge Score</span>
             <span className="ml-auto text-[11px] text-text-subtle">Solo piano recording, transcribed and engraved</span>
           </div>
         </section>
@@ -326,14 +326,6 @@ export default async function AudioToSheetMusicPage() {
                   { text: "3 credits per song, never expire", sub: "plus free runs each month" },
                   { text: "Subscription, monthly song quota", sub: "or a one-time desktop app you install" },
                   { text: "Subscription, monthly tickets" },
-                ],
-              },
-              {
-                label: "Piano model named",
-                cells: [
-                  { state: "yes", text: "Transkun, open-source" },
-                  { state: "unknown", text: "Not stated" },
-                  { state: "unknown", text: "Not stated" },
                 ],
               },
               {

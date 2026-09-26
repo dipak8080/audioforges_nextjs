@@ -55,6 +55,11 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [
       {
+        source: "/guides/bpm-detection-tempocnn",
+        destination: "/guides/how-key-and-bpm-detection-works",
+        permanent: true,
+      },
+      {
         source: "/speech-to-text",
         destination: "/tools",
         permanent: true,

@@ -60,11 +60,11 @@ export function SpecSheet() {
         <p className="mt-auto pt-3 text-sm leading-relaxed text-text-muted">
           Scored on the full public 662-track GiantSteps set, flattering or not.{" "}
           <Link
-            href="/guides/bpm-detection-tempocnn"
+            href="/guides/how-key-and-bpm-detection-works"
             prefetch={false}
             className="group inline-flex items-center gap-1 text-amber-400 transition-colors hover:text-amber-300"
           >
-            Read the write-up
+            How it works
             <ArrowRight className="h-3 w-3 -translate-x-1 opacity-0 transition-all duration-150 group-hover:translate-x-0 group-hover:opacity-100" />
           </Link>
         </p>

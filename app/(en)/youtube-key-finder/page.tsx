@@ -233,8 +233,8 @@ export default function YouTubeKeyFinderPage() {
               {
                 label: "Detector",
                 cells: [
-                  { text: "TempoCNN, pretrained", mono: true },
-                  { text: "Essentia bgate profile", mono: true },
+                  { text: "Forge Detect, tempo", mono: true },
+                  { text: "Forge Detect, key", mono: true },
                 ],
               },
               {
@@ -263,7 +263,7 @@ export default function YouTubeKeyFinderPage() {
             </p>
             <p>
               The write-up of the detectors and how the numbers were measured is in{" "}
-              <Link href="/guides/bpm-detection-tempocnn">
+              <Link href="/guides/how-key-and-bpm-detection-works">
                 BPM Detection: From 42% to 85% Accuracy With a Pretrained Model
               </Link>
               . For why a reading comes back half or double, see{" "}

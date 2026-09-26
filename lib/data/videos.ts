@@ -14,7 +14,7 @@ export const TOOL_VIDEOS: Record<string, ToolVideo> = {
     videoId: "AATpOov3LFI",
     title: "Audio to MIDI Converter — Free, Online, No Install",
     description:
-      "Upload a vocal, piano or any melody and get a MIDI file in seconds. Runs Spotify's Basic Pitch in the browser, with an optional higher-quality multi-instrument model. No signup, no install.",
+      "Upload a vocal, piano or any melody and get a MIDI file in seconds. With an optional high-accuracy multi-instrument mode. No signup, no install.",
     uploadDate: "2026-09-05",
     heading: "Watch: audio to MIDI in under two minutes",
   },
@@ -48,7 +48,7 @@ export const TOOL_VIDEOS: Record<string, ToolVideo> = {
     videoId: "Z8xAleqoVH0",
     title: "Find the Key & BPM of Any Song or YouTube Video — Free, No Signup",
     description:
-      "Upload a track or paste a YouTube link and get the key, BPM, Camelot code and confidence in seconds. Runs Essentia's TempoCNN model; 85% exact-tempo accuracy on GiantSteps. No signup.",
+      "Upload a track or paste a YouTube link and get the key, BPM, Camelot code and confidence in seconds. Runs the Forge Detect engine. No signup.",
     uploadDate: "2026-09-06",
     heading: "Watch: key and BPM from a file or a YouTube link",
   },
@@ -56,7 +56,7 @@ export const TOOL_VIDEOS: Record<string, ToolVideo> = {
     videoId: "Z8xAleqoVH0",
     title: "Find the Key & BPM of Any Song or YouTube Video — Free, No Signup",
     description:
-      "Paste a YouTube link and get the key, BPM and Camelot code in seconds, or upload a file. Runs Essentia's TempoCNN model. No signup, no install.",
+      "Paste a YouTube link and get the key, BPM and Camelot code in seconds, or upload a file. Runs the Forge Detect engine. No signup, no install.",
     uploadDate: "2026-09-06",
     heading: "Watch: key and BPM straight from a YouTube link",
   },

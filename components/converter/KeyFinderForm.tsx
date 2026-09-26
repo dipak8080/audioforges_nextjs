@@ -37,7 +37,7 @@ const TIERS: StageTier<"free">[] = [
   {
     value: "free",
     name: "Free",
-    model: "TempoCNN · Essentia",
+    model: "Forge Detect",
     time: "about 10 seconds",
     footnote: `Batch up to ${MAX_BATCH_FILES} files`,
   },

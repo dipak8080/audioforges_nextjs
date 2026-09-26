@@ -18,7 +18,7 @@ const TIERS: StageTier<"free">[] = [
   {
     value: "free",
     name: "Free",
-    model: "TempoCNN · Essentia",
+    model: "Forge Detect",
     time: "20–60 seconds",
     footnote: RATE_LIMIT_LABEL ?? undefined,
   },

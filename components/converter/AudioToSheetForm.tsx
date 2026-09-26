@@ -60,7 +60,7 @@ const INSTRUMENTS: {
   {
     value: "piano",
     title: "Piano",
-    detail: "Solo piano specialist (Transkun AI). The most accurate option.",
+    detail: "Solo piano specialist engine. The most accurate option.",
     icon: <Piano className="h-4 w-4" aria-hidden />,
   },
   {
@@ -169,7 +169,7 @@ export function AudioToSheetForm() {
             value: "sheet",
             name: "Engraved score",
             premium: true,
-            model: isPiano ? "Transkun piano model" : "AI transcription",
+            model: isPiano ? "Piano specialist engine" : "AI transcription",
             time: "1 to 2 min",
             footnote: `30 sec clips free, then ${cost} ${cost === 1 ? "credit" : "credits"} per song`,
             badge: <FreeTierBadge tool="audio-to-sheet" />,
@@ -296,7 +296,7 @@ function SheetResultPanel({ jobId, sourceFile }: { jobId: string; sourceFile: Fi
             <Stat value={`${Math.round(result.tempo_bpm)}`} label="BPM" />
             <Dot />
             <span className="font-mono uppercase tracking-wide text-text-subtle">
-              {result.engine === "transkun" ? "Transkun AI" : "AI transcription"}
+              {result.engine === "transkun" ? "Piano specialist engine" : "AI transcription"}
             </span>
           </>
         ) : error ? (

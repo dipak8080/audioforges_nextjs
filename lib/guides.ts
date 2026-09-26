@@ -306,15 +306,6 @@ export const guides: Guide[] = [
     category: "production",
   },
   {
-    slug: "bpm-detection-tempocnn",
-    title: "BPM Detection: 42% to 85% With TempoCNN",
-    description:
-      "Tempo detection from one DSP detector to consensus voting to a pretrained TempoCNN — measured on GiantSteps, with what failed and what's still broken.",
-    publishedDate: "2026-09-04",
-    updatedDate: "2026-09-04",
-    category: "dj-mixing",
-  },
-  {
     slug: "why-m4a-extraction-is-instant",
     title: "Why M4A Extraction Is Instant (WAV Isn't)",
     description:

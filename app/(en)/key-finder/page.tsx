@@ -286,8 +286,8 @@ export default async function KeyFinderPage() {
               {
                 label: "Detector",
                 cells: [
-                  { text: "TempoCNN, pretrained", mono: true },
-                  { text: "Essentia bgate profile", mono: true },
+                  { text: "Forge Detect, tempo", mono: true },
+                  { text: "Forge Detect, key", mono: true },
                 ],
               },
               {
@@ -305,7 +305,7 @@ export default async function KeyFinderPage() {
                 ],
               },
             ]}
-            footnote="Measured on the public GiantSteps set, not estimated. The method is in the write-up below."
+            footnote="Measured on the public GiantSteps set, not estimated."
           />
           <Prose className="mt-6">
             <p>
@@ -326,12 +326,7 @@ export default async function KeyFinderPage() {
               the recording has significant background noise, the{" "}
               <Link href="/noise-remove" prefetch={false}>Noise Remover</Link> first can improve detection.
             </p>
-            <p>
-              The full write-up of what the detectors are, what failed and how the numbers were measured is in{" "}
-              <Link href="/guides/bpm-detection-tempocnn">
-                BPM Detection: From 42% to 85% Accuracy With a Pretrained Model
-              </Link>
-              . For the plain-language version of why a reading comes back half or double, see{" "}
+            <p> For the plain-language version of why a reading comes back half or double, see{" "}
               <Link href="/guides/how-key-and-bpm-detection-works">how key and BPM detection works</Link>.
             </p>
           </Prose>
@@ -343,7 +338,7 @@ export default async function KeyFinderPage() {
 
         <RelatedToolsGrid tools={relatedTools} />
 
-        <PageByline updated={UPDATED} note="BPM detection moved to a pretrained TempoCNN model" />
+        <PageByline updated={UPDATED} note="BPM detection moved to the Forge Detect engine" />
       </ToolPageShell>
     </>
   );

@@ -41,11 +41,13 @@ type Picked = { files: File[]; audio: LocalAudio | null; decoding: boolean; erro
 export function StudioInput({
   preset,
   onStart,
+  onDemo,
   busy = false,
   hidden = false,
 }: {
   preset: StudioPresetKey;
   hidden?: boolean;
+  onDemo?: () => void;
   onStart: (req: StudioStartRequest) => void;
   busy?: boolean;
 }) {
@@ -211,6 +213,15 @@ export function StudioInput({
                       {AUDIO_EXTS.slice(0, 5).join(" · ")} · MP4 · MOV
                     </span>
                   </div>
+                  {onDemo && (
+                    <button
+                      type="button"
+                      onClick={onDemo}
+                      className="mt-3 w-fit text-left text-sm text-amber-400 underline-offset-4 hover:underline"
+                    >
+                      {p.tryDemo}
+                    </button>
+                  )}
                 </>
               ) : batch ? (
                 <>

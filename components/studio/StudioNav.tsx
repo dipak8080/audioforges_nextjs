@@ -11,6 +11,7 @@ import {
   Menu,
   Mic2,
   Piano,
+  Search,
   SplitSquareVertical,
   Waves,
   X,
@@ -22,6 +23,7 @@ import { Button, buttonStyles } from "@/components/ui/Button";
 import { useCredits } from "@/components/credits/CreditProvider";
 import { useI18n } from "@/components/i18n/I18nProvider";
 import { LanguageSwitcher } from "@/components/i18n/LanguageSwitcher";
+import { CommandPalette } from "./CommandPalette";
 import { cn } from "@/lib/utils/cn";
 import { readPass, signOut } from "@/lib/studio/account";
 import { STUDIO_MENU, type NavIcon, type NavItem } from "@/lib/studio/nav";
@@ -236,11 +238,23 @@ export function StudioNav() {
   const signedIn = !!me?.authenticated;
   const [menu, setMenu] = useState(false);
   const [mobile, setMobile] = useState(false);
+  const [palette, setPalette] = useState(false);
   const menuRef = useClickAway(menu, () => setMenu(false));
   const close = () => {
     setMenu(false);
     setMobile(false);
   };
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setPalette((v) => !v);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   return (
     <header className="sticky top-0 z-50 border-b border-graphite-800 bg-graphite-950/85 backdrop-blur-md">
@@ -266,6 +280,10 @@ export function StudioNav() {
         </div>
 
         <div className="hidden items-center gap-2 md:flex">
+          <Button variant="ghost" size="sm" onClick={() => setPalette(true)} aria-label={t.palette.open} className="gap-1.5">
+            <Search />
+            <kbd className="font-mono text-[10px] text-text-subtle">Ctrl K</kbd>
+          </Button>
           <LanguageSwitcher />
           {(signedIn || balance > 0) && <SongsChip />}
           {!signedIn && balance === 0 && freeRemaining > 0 && (
@@ -333,6 +351,7 @@ export function StudioNav() {
           </div>
         </div>
       )}
+      <CommandPalette open={palette} onClose={() => setPalette(false)} />
     </header>
   );
 }

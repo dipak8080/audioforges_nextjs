@@ -12,6 +12,7 @@ import { StudioInput, type StudioStartRequest } from "./StudioInput";
 import { StudioProcessing } from "./StudioProcessing";
 import { StudioResult } from "./StudioResult";
 import { UnlockSheet } from "./UnlockSheet";
+import { DemoResult } from "./DemoResult";
 import { readLocalAudio, type LocalAudio } from "@/lib/studio/local-audio";
 import { useStudioRun } from "@/lib/studio/use-studio-run";
 import { stemCountOf, studioTool, vocalOptionsOf, type StudioPresetKey } from "@/lib/studio/presets";
@@ -37,6 +38,7 @@ export function StudioPanel({ preset }: { preset: StudioPresetKey }) {
   const [local, setLocal] = useState<LocalAudio | null>(null);
   const [batch, setBatch] = useState<{ files: File[]; kind: "separate" | "stems" } | null>(null);
   const [inputKey, setInputKey] = useState(0);
+  const [demo, setDemo] = useState(false);
 
   const begin = useCallback(
     (req: StudioStartRequest) => {
@@ -116,6 +118,7 @@ export function StudioPanel({ preset }: { preset: StudioPresetKey }) {
     setRequest(null);
     setLocal(null);
     setBatch(null);
+    setDemo(false);
     setInputKey((k) => k + 1);
   }, [reset]);
 
@@ -133,7 +136,19 @@ export function StudioPanel({ preset }: { preset: StudioPresetKey }) {
 
   return (
     <div className="space-y-4">
-      <StudioInput key={inputKey} preset={preset} onStart={begin} busy={running} hidden={state.phase !== "idle" && state.phase !== "failed"} />
+      <StudioInput
+        key={inputKey}
+        preset={preset}
+        onStart={begin}
+        onDemo={() => {
+          trackStudio("studio_upload", { engine: "demo" });
+          setDemo(true);
+        }}
+        busy={running}
+        hidden={demo || (state.phase !== "idle" && state.phase !== "failed")}
+      />
+
+      {demo && state.phase === "idle" && <DemoResult onDone={newSong} />}
 
       {running && request && (
         <StudioProcessing
@@ -195,6 +210,7 @@ export function StudioPanel({ preset }: { preset: StudioPresetKey }) {
           run={state.run}
           status={state.status}
           early={state.analysis}
+          peaks={local?.peaks ?? null}
           selection={request?.selection ?? { output: 2, dereverb: false, leadBack: false }}
           onNewSong={newSong}
           onUnlock={unlock}
