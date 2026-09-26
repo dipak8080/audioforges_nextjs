@@ -6,6 +6,7 @@ import { Footer } from "./Footer";
 import { CreditProvider } from "@/components/credits/CreditProvider";
 import { I18nProvider } from "@/components/i18n/I18nProvider";
 import { StudioPreviewBadge } from "@/components/studio/StudioPreviewBadge";
+import { ReferralCapture } from "@/components/studio/ReferralCapture";
 import type { PaywallFlags } from "@/lib/types/credits";
 import type { Locale } from "@/lib/i18n/locales";
 import type { StudioStrings } from "@/lib/i18n/studio/en";
@@ -43,6 +44,7 @@ export function SiteChrome({
         <div className="flex-1">{children}</div>
         <Footer paywallEnabled={flags.paywallEnabled} />
         <StudioPreviewBadge />
+        <ReferralCapture />
       </CreditProvider>
     </I18nProvider>
   );

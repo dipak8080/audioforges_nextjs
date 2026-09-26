@@ -242,10 +242,16 @@ export function UnlockSheet({
             ) : (
               <div className="space-y-3">
                 {config.googleSignin && (
-                  <Button variant="secondary" size="lg" className="w-full" onClick={google}>
-                    <GoogleMark />
-                    {u.google}
-                  </Button>
+                  <>
+                    <Button variant="secondary" size="lg" className="w-full" onClick={google}>
+                      <GoogleMark />
+                      {u.google}
+                    </Button>
+                    <label className="flex items-center gap-2 text-sm text-text-muted">
+                      <input type="checkbox" checked={updates} onChange={(e) => setUpdates(e.target.checked)} className="h-4 w-4 accent-amber-500" />
+                      {u.updates}
+                    </label>
+                  </>
                 )}
                 <p className="text-center font-mono text-[10px] uppercase tracking-[0.16em] text-text-subtle">{u.or}</p>
                 <label className="block">
@@ -259,10 +265,6 @@ export function UnlockSheet({
                     onChange={(e) => setEmail(e.target.value)}
                     className="w-full rounded-lg border border-graphite-700 bg-graphite-950 px-3.5 py-2.5 text-sm text-text-primary outline-none placeholder:text-text-subtle focus-visible:border-amber-500/60"
                   />
-                </label>
-                <label className="flex items-center gap-2 text-sm text-text-muted">
-                  <input type="checkbox" checked={updates} onChange={(e) => setUpdates(e.target.checked)} className="h-4 w-4 accent-amber-500" />
-                  {u.updates}
                 </label>
               </div>
             )}
