@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import {
   ChevronDown,
@@ -306,7 +307,8 @@ export function StudioNav() {
         </Button>
       </nav>
 
-      {mobile && (
+      {mobile &&
+        createPortal(
         <div className="fixed inset-0 z-[60] flex flex-col bg-graphite-950 md:hidden" role="dialog" aria-modal="true" aria-label={t.nav.menu}>
           <div className="flex h-14 items-center justify-between border-b border-graphite-800 px-4">
             <Wordmark />
@@ -349,8 +351,9 @@ export function StudioNav() {
               {t.nav.getStudio}
             </Link>
           </div>
-        </div>
-      )}
+        </div>,
+          document.body
+        )}
       <CommandPalette open={palette} onClose={() => setPalette(false)} />
     </header>
   );

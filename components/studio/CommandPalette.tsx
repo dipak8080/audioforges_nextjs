@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { Search } from "lucide-react";
 import { useI18n } from "@/components/i18n/I18nProvider";
@@ -61,7 +62,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
 
   if (!open) return null;
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[80] flex items-start justify-center px-4 pt-[12vh]" role="dialog" aria-modal="true" aria-label={t.palette.open}>
       <button type="button" aria-label={t.unlock.close} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
       <div className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-graphite-700 bg-graphite-900 shadow-2xl">
@@ -112,6 +113,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
           ))}
         </ul>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
