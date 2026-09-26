@@ -107,7 +107,7 @@ export const idDict: VocalRemoverDict = {
   proofs: [
     {
       label: "Model",
-      value: "htdemucs dan MelBand RoFormer",
+      value: "Forge 1 dan Forge 2",
       note: "Nama modelnya kami tulis supaya bisa Anda cek sendiri. Pemisahan sumber sungguhan, bukan trik center-channel.",
     },
     {
@@ -208,7 +208,7 @@ export const idDict: VocalRemoverDict = {
       {
         label: "Nama model disebutkan",
         cells: [
-          { state: "yes", text: "htdemucs, MelBand RoFormer", sub: "open source, bisa diverifikasi" },
+          { state: "yes", text: "Forge 1, Forge 2", sub: "diuji buta" },
           { state: "partial", text: "Mesin Andromeda, tertutup" },
           { state: "unknown", text: "Tidak disebutkan" },
         ],
@@ -247,7 +247,7 @@ export const idDict: VocalRemoverDict = {
     {
       question: "Apakah ada penghilang vokal gratis tanpa daftar?",
       answer:
-        "Ada, halaman ini. AudioForges memisahkan lagu utuh secara gratis tanpa akun dan hasilnya bisa diunduh sebagai WAV penuh. Untuk hasil paling bersih, Studio Quality memakai model MelBand RoFormer dengan biaya satu kredit per lagu, tanpa langganan, dan kredit tidak pernah hangus.",
+        "Ada, halaman ini. AudioForges memisahkan lagu utuh secara gratis tanpa akun dan hasilnya bisa diunduh sebagai WAV penuh. Untuk hasil paling bersih, Studio memakai mesin Forge 2 dengan biaya satu kredit per lagu, tanpa langganan, dan kredit tidak pernah hangus.",
     },
     {
       question: "Apakah file saya disimpan?",
@@ -257,7 +257,7 @@ export const idDict: VocalRemoverDict = {
     {
       question: "Apa itu Studio Quality?",
       answer:
-        "Tier kedua yang memakai MelBand RoFormer, bukan htdemucs. Arsitekturnya berbeda, bukan model yang sama dipaksa lebih keras, dan bedanya terdengar: sisa vokal di instrumental jauh berkurang dan artefak berair pada cymbal dan napas lebih sedikit. Prosesnya 1 sampai 2 menit, dan biayanya satu kredit per proses setelah jatah gratis bulanan.",
+        "Tier kedua yang memakai Forge 2, mesin kami yang lebih baru, dan bedanya terdengar: sisa vokal di instrumental jauh berkurang dan artefak berair pada cymbal dan napas lebih sedikit. Prosesnya 1 sampai 2 menit, dan biayanya satu kredit per proses setelah jatah gratis bulanan.",
     },
     {
       question: "Bisa hapus vokal langsung dari video YouTube?",
@@ -344,7 +344,7 @@ export const esDict: VocalRemoverDict = {
   proofs: [
     {
       label: "Modelos",
-      value: "htdemucs y MelBand RoFormer",
+      value: "Forge 1 y Forge 2",
       note: "Nombramos los modelos para que puedas verificarlos tú mismo. Separación de fuentes real, no un truco de canal central.",
     },
     {
@@ -445,7 +445,7 @@ export const esDict: VocalRemoverDict = {
       {
         label: "Modelos nombrados",
         cells: [
-          { state: "yes", text: "htdemucs, MelBand RoFormer", sub: "código abierto, verificable" },
+          { state: "yes", text: "Forge 1, Forge 2", sub: "prueba a ciegas" },
           { state: "partial", text: "Motor Andromeda, cerrado" },
           { state: "unknown", text: "No lo dicen" },
         ],
@@ -484,7 +484,7 @@ export const esDict: VocalRemoverDict = {
     {
       question: "¿Hay una forma de quitar la voz de una canción gratis y sin registro?",
       answer:
-        "Sí, esta página. AudioForges separa canciones completas gratis, sin cuenta, y el resultado se descarga como WAV completo. Para el resultado más limpio, Studio Quality usa el modelo MelBand RoFormer por un crédito por canción, sin suscripción, y los créditos nunca caducan.",
+        "Sí, esta página. AudioForges separa canciones completas gratis, sin cuenta, y el resultado se descarga como WAV completo. Para el resultado más limpio, Studio usa el motor Forge 2 por un crédito por canción, sin suscripción, y los créditos nunca caducan.",
     },
     {
       question: "¿Guardan mis archivos?",
@@ -494,7 +494,7 @@ export const esDict: VocalRemoverDict = {
     {
       question: "¿Qué es Studio Quality?",
       answer:
-        "Un segundo nivel que usa MelBand RoFormer en lugar de htdemucs. Es otra arquitectura, no el mismo modelo forzado, y la diferencia se oye: muchos menos restos de voz en el instrumental y menos artefactos acuosos en platillos y respiraciones. Tarda 1 a 2 minutos y cuesta un crédito por proceso después del cupo gratis mensual.",
+        "Un segundo nivel que usa Forge 2, nuestro motor más nuevo, y la diferencia se oye: muchos menos restos de voz en el instrumental y menos artefactos acuosos en platillos y respiraciones. Tarda 1 a 2 minutos y cuesta un crédito por proceso después del cupo gratis mensual.",
     },
     {
       question: "¿Puedo quitar la voz de un video de YouTube directamente?",
@@ -581,7 +581,7 @@ export const ptDict: VocalRemoverDict = {
   proofs: [
     {
       label: "Modelos",
-      value: "htdemucs e MelBand RoFormer",
+      value: "Forge 1 e Forge 2",
       note: "Dizemos o nome dos modelos para você poder conferir. Separação de fontes de verdade, não um truque de canal central.",
     },
     {
@@ -682,7 +682,7 @@ export const ptDict: VocalRemoverDict = {
       {
         label: "Modelos com nome divulgado",
         cells: [
-          { state: "yes", text: "htdemucs, MelBand RoFormer", sub: "código aberto, verificável" },
+          { state: "yes", text: "Forge 1, Forge 2", sub: "teste às cegas" },
           { state: "partial", text: "Motor Andromeda, fechado" },
           { state: "unknown", text: "Não informam" },
         ],
@@ -721,7 +721,7 @@ export const ptDict: VocalRemoverDict = {
     {
       question: "Existe um removedor de vocal grátis e sem cadastro?",
       answer:
-        "Existe, esta página. O AudioForges separa músicas completas grátis, sem conta, e o resultado sai como WAV completo para download. Para o resultado mais limpo, o Studio Quality usa o modelo MelBand RoFormer por um crédito por música, sem assinatura, e os créditos nunca expiram.",
+        "Existe, esta página. O AudioForges separa músicas completas grátis, sem conta, e o resultado sai como WAV completo para download. Para o resultado mais limpo, o Studio usa o motor Forge 2 por um crédito por música, sem assinatura, e os créditos nunca expiram.",
     },
     {
       question: "Meus arquivos ficam guardados?",
@@ -731,7 +731,7 @@ export const ptDict: VocalRemoverDict = {
     {
       question: "O que é Studio Quality?",
       answer:
-        "Um segundo nível que usa MelBand RoFormer no lugar do htdemucs. É outra arquitetura, não o mesmo modelo forçado, e a diferença dá para ouvir: muito menos resto de vocal no instrumental e menos artefatos aquosos em pratos e respirações. Leva 1 a 2 minutos e custa um crédito por processo depois da cota grátis mensal.",
+        "Um segundo nível que usa o Forge 2, nosso motor mais novo, e a diferença dá para ouvir: muito menos resto de vocal no instrumental e menos artefatos aquosos em pratos e respirações. Leva 1 a 2 minutos e custa um crédito por processo depois da cota grátis mensal.",
     },
     {
       question: "Dá para remover o vocal de um vídeo do YouTube direto?",

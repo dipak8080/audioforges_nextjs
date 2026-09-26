@@ -36,7 +36,7 @@ export const MAX_BATCH_TRACKS = 20;
 const POLL_MS = 5_000;
 const ACCEPT = "audio/*,.mp3,.wav,.m4a,.aac,.ogg,.flac";
 const WAVE_BUCKETS = 96;
-const MODEL_NAME = "MelBand RoFormer";
+const MODEL_NAME = "Forge 2";
 const EXPECTED_SECONDS_PER_TRACK = 75;
 
 type RowStatus = "pending" | "invalid" | "uploading" | BatchJobStatus | "skipped";

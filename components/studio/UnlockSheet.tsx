@@ -23,13 +23,15 @@ const EMAIL_KEY = "af_claim_email";
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const WATCH_MS = 15 * 60_000;
 
-type Choice = PackKey | "pass";
+export type Choice = PackKey | "pass";
 type Phase = "choose" | "opening" | "waiting" | "blocked" | "done";
 
 export function UnlockSheet({
   open,
   songsNeeded,
   title,
+  heading,
+  preselect,
   run,
   selection,
   onClose,
@@ -38,8 +40,10 @@ export function UnlockSheet({
   open: boolean;
   songsNeeded: number;
   title: string;
-  run: StartedRun;
-  selection: StudioSelection;
+  heading?: string;
+  preselect?: Choice;
+  run?: StartedRun;
+  selection?: StudioSelection;
   onClose: () => void;
   onPaid: () => void;
 }) {
@@ -52,7 +56,7 @@ export function UnlockSheet({
   const packs = useMemo(() => [...(me?.packs ?? [])].sort((a, b) => a.price_usd - b.price_usd), [me?.packs]);
   const defaultPack = packs.find((p) => p.credits >= songsNeeded) ?? packs[0];
   const [picked, setPicked] = useState<Choice | null>(null);
-  const choice: Choice | null = picked ?? defaultPack?.key ?? null;
+  const choice: Choice | null = picked ?? preselect ?? defaultPack?.key ?? null;
 
   const signedIn = !!me?.authenticated;
   const [email, setEmail] = useState(() => {
@@ -113,7 +117,12 @@ export function UnlockSheet({
   }, [open, onClose]);
 
   function google() {
-    saveResume({ run, selection, title, path: pathname });
+    if (run && selection) saveResume({ run, selection, title, path: pathname });
+    else {
+      try {
+        window.localStorage.setItem("af_return_to", JSON.stringify({ path: pathname, label: title || null }));
+      } catch {}
+    }
     window.location.href = googleSignInUrl(pathname, updates);
   }
 
@@ -165,7 +174,7 @@ export function UnlockSheet({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-end justify-center sm:items-center" role="dialog" aria-modal="true" aria-label={u.title}>
+    <div className="fixed inset-0 z-[70] flex items-end justify-center sm:items-center" role="dialog" aria-modal="true" aria-label={heading ?? u.title}>
       <button type="button" aria-label={u.close} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
       <div className="surface grain relative max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-2xl border border-graphite-700 bg-graphite-900 shadow-2xl sm:rounded-2xl">
         <div className="flex items-start justify-between gap-3 border-b border-graphite-800 px-5 py-4">
@@ -174,7 +183,7 @@ export function UnlockSheet({
               <Sparkles className="h-3.5 w-3.5" />
               {t.panel.engine}
             </p>
-            <p className="display mt-1 text-2xl text-text-primary">{u.title}</p>
+            <p className="display mt-1 text-2xl text-text-primary">{heading ?? u.title}</p>
             <p className="mt-0.5 truncate text-sm text-text-muted">{title}</p>
           </div>
           <Button size="icon-sm" variant="ghost" aria-label={u.close} onClick={onClose}>

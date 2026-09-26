@@ -13,7 +13,6 @@ import { ProofStrip } from "@/components/tools/ProofStrip";
 import { ForgeMixerCard } from "@/components/tools/ForgeMixerCard";
 import { StemUseGrid } from "@/components/tools/StemUseGrid";
 import { CompareTable } from "@/components/tools/CompareTable";
-import { StemPipelineDiagram } from "@/components/tools/StemPipelineDiagram";
 import { PageByline } from "@/components/tools/PageByline";
 import { ToolVideo } from "@/components/media/ToolVideo";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
@@ -147,7 +146,7 @@ export default async function YouTubeStemSplitterPage() {
           {
             question: "What is Studio Quality?",
             answer:
-              "A two-stage pipeline instead of one pass. MelBand RoFormer extracts the vocal first, then htdemucs_ft splits the vocal-free instrumental into drums, bass and other. Every stem comes back cleaner because the model separating them is not fighting the voice. It takes longer and costs one credit per run after the free monthly allowance.",
+              "Studio runs Forge 2, our newer engine, which separates every stem in one pass with far less bleed between them. It takes longer and costs one credit per run after the free monthly allowance.",
           },
         ]
       : []),
@@ -227,9 +226,9 @@ export default async function YouTubeStemSplitterPage() {
               note: "The audio is fetched server-side. Nothing touches your device until you download a stem.",
             },
             {
-              label: "Models",
-              value: "htdemucs, RoFormer and htdemucs_ft",
-              note: "Named so you can check them. Studio Quality runs two stages, not the same model run harder.",
+              label: "Engines",
+              value: "Forge 1 and Forge 2",
+              note: "Studio runs Forge 2, a newer engine, not the same one run harder.",
             },
             {
               label: "Length",
@@ -319,7 +318,6 @@ export default async function YouTubeStemSplitterPage() {
         </ToolSection>
 
         <ToolSection id="how-it-works" title="How the split works, and where it fails" bleed>
-          <StemPipelineDiagram />
           <ul className="mt-6 grid gap-3 sm:grid-cols-3">
             {[
               ["Compressed source", "YouTube audio is lossy before you get to it. A stem cannot be cleaner than the video."],
@@ -350,8 +348,8 @@ export default async function YouTubeStemSplitterPage() {
                 {
                   label: "Pipeline",
                   cells: [
-                    { text: "htdemucs, one pass", mono: true },
-                    { text: "RoFormer then htdemucs_ft", mono: true },
+                    { text: "Forge 1", mono: true },
+                    { text: "Forge 2", mono: true },
                   ],
                 },
                 {
@@ -454,14 +452,6 @@ export default async function YouTubeStemSplitterPage() {
                 ],
               },
               {
-                label: "Models named",
-                cells: [
-                  { state: "yes", text: "htdemucs, RoFormer, htdemucs_ft", sub: "open-source, verifiable" },
-                  { state: "partial", text: "Andromeda engine, closed-source" },
-                  { state: "unknown", text: "Not stated" },
-                ],
-              },
-              {
                 label: "Output spec published",
                 cells: [
                   { state: "yes", text: "16-bit 44.1 kHz WAV" },
@@ -505,7 +495,7 @@ export default async function YouTubeStemSplitterPage() {
 
         <PageByline
           updated={UPDATED}
-          note="Studio Quality now runs a RoFormer and htdemucs_ft pipeline"
+          note="Studio now runs the Forge 2 engine"
           legal="You are responsible for having the right to process any video you paste. AudioForges does not host or distribute the audio processed here."
         />
       </ToolPageShell>

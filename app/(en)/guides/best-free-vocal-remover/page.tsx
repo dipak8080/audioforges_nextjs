@@ -79,7 +79,7 @@ const faqJsonLd = {
       name: "Which vocal remover has the least vocal bleed?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "LALAL.AI and AudioForges Studio Quality were the only two with no audible bleed on our test. Both run a RoFormer-class model. Moises was close behind. AudioForges Standard and StemSplit had a little bleed in the silences, nothing under the full mix.",
+        text: "LALAL.AI and AudioForges Studio Quality were the only two with no audible bleed on our test. Moises was close behind. AudioForges Standard and StemSplit had a little bleed in the silences, nothing under the full mix.",
       },
     },
     {
@@ -267,8 +267,8 @@ export default function BestFreeVocalRemoverPage() {
             Standard is free, no account, full WAV download, and on this clip it
             bled less than every other free tier. Where the singer pauses you can
             still catch a faint trace of the vocal, and that is the only place it
-            shows. Studio Quality runs a RoFormer-class
-            model and removed that trace completely, with silence where the
+            shows. Studio runs the Forge 2 engine
+            and removed that trace completely, with silence where the
             singer stops. Every visitor gets one Studio run a month free, then it
             is one credit a song, from $4.99 for 15, and the credits do not expire.
           </p>

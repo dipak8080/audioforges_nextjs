@@ -44,14 +44,14 @@ export const metadata: Metadata = {
 const RESULTS = [
   {
     tool: "AudioForges Standard",
-    model: "htdemucs",
+    model: "Forge 1",
     time: "25 sec",
     machine: "GPU (RTX A5000)",
     free: "Free runs, no sign-up",
   },
   {
     tool: "AudioForges Studio Quality",
-    model: "MelBand RoFormer",
+    model: "Forge 2",
     time: "1 min 2 sec",
     machine: "GPU (RTX A5000)",
     free: "Free runs, then 1 credit",

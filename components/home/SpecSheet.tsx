@@ -2,9 +2,10 @@ import Link from "next/link";
 import { ArrowRight, Check } from "lucide-react";
 
 const MODELS = [
-  { name: "MelBand RoFormer", href: "/vocal-remover" },
-  { name: "htdemucs", href: "/stems" },
-  { name: "Transkun", href: "/audio-to-sheet-music" },
+  { name: "Forge 1", href: "/vocal-remover" },
+  { name: "Forge 2", href: "/stems" },
+  { name: "Forge Roll", href: "/audio-to-midi" },
+  { name: "Forge Score", href: "/audio-to-sheet-music" },
 ];
 
 const METERS = [
@@ -18,7 +19,7 @@ export function SpecSheet() {
   return (
     <ul className="grid gap-px overflow-hidden rounded-xl border border-graphite-800 bg-graphite-800 sm:grid-cols-3">
       <li className="flex flex-col bg-graphite-900 p-5">
-        <p className="text-xs text-text-subtle">Named models</p>
+        <p className="text-xs text-text-subtle">Our engines</p>
         <div className="mt-3 flex flex-wrap gap-1.5">
           {MODELS.map((m) => (
             <Link
@@ -32,7 +33,7 @@ export function SpecSheet() {
           ))}
         </div>
         <p className="mt-auto pt-3 text-sm leading-relaxed text-text-muted">
-          Every tool page names what it runs, so the claims can be checked.
+          Blind-tested against the big names, with the clips published so you can listen.
         </p>
       </li>
 

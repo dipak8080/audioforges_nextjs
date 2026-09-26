@@ -154,7 +154,7 @@ interface QualitySpec {
 const STANDARD_SPEC: QualitySpec = {
   value: "standard",
   label: "Standard",
-  model: "htdemucs",
+  model: "Forge 1",
   time: "20 sec to 1 min",
   detail: "Vocals and instrumental. Some bleed on dense mixes.",
   rateLimitKey: "separate",
@@ -164,7 +164,7 @@ const STANDARD_SPEC: QualitySpec = {
 const HQ_SPEC: QualitySpec = {
   value: "hq",
   label: "Studio Quality",
-  model: "MelBand RoFormer",
+  model: "Forge 2",
   time: "1 to 2 min",
   detail: "Cleaner separation, same 2 stems. Cymbals and consonants intact.",
   rateLimitKey: "separate-hq",

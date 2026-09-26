@@ -13,7 +13,6 @@ import { ProofStrip } from "@/components/tools/ProofStrip";
 import { ForgeMixerCard } from "@/components/tools/ForgeMixerCard";
 import { StemUseGrid } from "@/components/tools/StemUseGrid";
 import { PageByline } from "@/components/tools/PageByline";
-import { SeparationDiagram } from "@/components/tools/SeparationDiagram";
 import { CompareTable } from "@/components/tools/CompareTable";
 import { ToolVideo } from "@/components/media/ToolVideo";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
@@ -136,7 +135,7 @@ export default async function VocalRemoverPage() {
     {
       question: "Is there a free alternative to LALAL.AI?",
       answer:
-        "Yes. AudioForges separates full-length tracks free with no account. LALAL.AI's free Starter plan lets you preview a result but not download the full one, and its paid tiers are monthly subscriptions. For the cleanest split here, Studio Quality runs MelBand RoFormer at one credit per job, with no subscription and credits that never expire.",
+        "Yes. AudioForges separates full-length tracks free with no account. LALAL.AI's free Starter plan lets you preview a result but not download the full one, and its paid tiers are monthly subscriptions. For the cleanest split here, Studio runs the Forge 2 engine at one song per track, with no subscription and songs that never expire.",
     },
     {
       question: "Are my uploaded tracks kept?",
@@ -151,7 +150,7 @@ export default async function VocalRemoverPage() {
           {
             question: "What is Studio Quality?",
             answer:
-              "A second tier that runs MelBand RoFormer instead of htdemucs. It is a different architecture, not the same model run harder, and the difference is audible: less vocal bleed in the instrumental and fewer watery artifacts on cymbals and breaths. It takes 1 to 2 minutes instead of 20 seconds to 1 minute and costs one credit per run after the free monthly allowance.",
+              "A second tier that runs Forge 2, our newer engine. The difference is audible: less vocal bleed in the instrumental and fewer watery artifacts on cymbals and breaths. It takes 1 to 2 minutes instead of 20 seconds to 1 minute and costs one credit per run after the free monthly allowance.",
           },
           {
             question: "Can I remove vocals from many songs at once?",
@@ -230,9 +229,9 @@ export default async function VocalRemoverPage() {
         <ProofStrip
           proofs={[
             {
-              label: "Models",
-              value: "htdemucs and MelBand RoFormer",
-              note: "Named so you can check them. Real source separation, not a center-channel trick.",
+              label: "Engines",
+              value: "Forge 1 and Forge 2",
+              note: "Real source separation, not a center-channel trick.",
             },
             {
               label: "Output",
@@ -292,12 +291,11 @@ export default async function VocalRemoverPage() {
         </ToolSection>
 
         <ToolSection id="how-it-works" title="How it works, and where it fails" bleed>
-          <SeparationDiagram />
-          <Prose className="mt-6">
+          <Prose>
             <p>
               The output is fixed by the pipeline, not by your file. Every result comes back as 16-bit, 44.1 kHz,
               stereo WAV, about 1,411 kbps. A 48 kHz upload comes back at 44.1. A mono upload comes back as two
-              channels. This is true of every tool built on Demucs, including the ones that do not mention it.
+              channels. This is true of every AI separator, including the ones that do not mention it.
             </p>
           </Prose>
           <ul className="mt-6 grid gap-3 sm:grid-cols-3">
@@ -328,7 +326,7 @@ export default async function VocalRemoverPage() {
               columns={["Standard", "Studio Quality"]}
               highlight={1}
               rows={[
-                { label: "Model", cells: [{ text: "htdemucs", mono: true }, { text: "MelBand RoFormer", mono: true }] },
+                { label: "Engine", cells: [{ text: "Forge 1", mono: true }, { text: "Forge 2", mono: true }] },
                 {
                   label: "Vocal bleed in the instrumental",
                   cells: [
@@ -415,14 +413,6 @@ export default async function VocalRemoverPage() {
                 ],
               },
               {
-                label: "Models named",
-                cells: [
-                  { state: "yes", text: "htdemucs, MelBand RoFormer", sub: "open-source, verifiable" },
-                  { state: "partial", text: "Andromeda engine, closed-source" },
-                  { state: "unknown", text: "Not stated" },
-                ],
-              },
-              {
                 label: "Output spec published",
                 cells: [
                   { state: "yes", text: "16-bit 44.1 kHz WAV" },
@@ -466,7 +456,7 @@ export default async function VocalRemoverPage() {
 
         <PageByline
           updated={UPDATED}
-          note="Studio Quality now runs MelBand RoFormer"
+          note="Studio now runs the Forge 2 engine"
           legal="You are responsible for having the right to process any track you upload. AudioForges does not host or distribute the tracks processed here."
         />
       </ToolPageShell>

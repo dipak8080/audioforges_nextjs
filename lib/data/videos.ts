@@ -64,7 +64,7 @@ export const TOOL_VIDEOS: Record<string, ToolVideo> = {
     videoId: "ci0cLOFwwb8",
     title: "Free Vocal Remover — Remove Vocals from Any Song or YouTube Video",
     description:
-      "Remove vocals from any song, or keep just the vocal, free in the browser. Upload a file or paste a YouTube link. Runs htdemucs, so vocals are separated by AI rather than EQ'd out. No signup.",
+      "Remove vocals from any song, or keep just the vocal, free in the browser. Upload a file or paste a YouTube link. Real AI separation, not an EQ trick. No signup.",
     uploadDate: "2026-09-06",
     heading: "Watch: vocals out of a file or a YouTube link",
   },
@@ -72,7 +72,7 @@ export const TOOL_VIDEOS: Record<string, ToolVideo> = {
     videoId: "ci0cLOFwwb8",
     title: "Free Vocal Remover — Remove Vocals from Any Song or YouTube Video",
     description:
-      "Paste a YouTube link and get the instrumental and acapella in about a minute, or upload a file. AI separation via htdemucs. No signup, no install.",
+      "Paste a YouTube link and get the instrumental and acapella in about a minute, or upload a file. Real AI separation. No signup, no install.",
     uploadDate: "2026-09-06",
     heading: "Watch: vocals removed straight from a YouTube link",
   },
@@ -80,7 +80,7 @@ export const TOOL_VIDEOS: Record<string, ToolVideo> = {
     videoId: "JO9xCQhdZwo",
     title: "Free Stem Splitter — Split Any Song or YouTube Video into Stems",
     description:
-      "Split any song into vocals, drums, bass and other, free in the browser. Upload a file or paste a YouTube link. 2 or 4 stems via htdemucs. No signup.",
+      "Split any song into vocals, drums, bass and other, free in the browser. Upload a file or paste a YouTube link. 2 or 4 stems. No signup.",
     uploadDate: "2026-09-06",
     heading: "Watch: stems from a file or a YouTube link",
   },
@@ -88,7 +88,7 @@ export const TOOL_VIDEOS: Record<string, ToolVideo> = {
     videoId: "JO9xCQhdZwo",
     title: "Free Stem Splitter — Split Any Song or YouTube Video into Stems",
     description:
-      "Paste a YouTube link and get separate vocal, drum, bass and instrument stems in a minute, or upload a file. AI separation via htdemucs. No signup, no install.",
+      "Paste a YouTube link and get separate vocal, drum, bass and instrument stems in a minute, or upload a file. Real AI separation. No signup, no install.",
     uploadDate: "2026-09-06",
     heading: "Watch: stems straight from a YouTube link",
   },

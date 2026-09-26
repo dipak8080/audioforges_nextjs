@@ -247,8 +247,8 @@ export function YouTubeSeparateForm({
   const tiers = useSeparationTiers({
     hqAvailable,
     hqToolKey: "youtube/separate-hq",
-    standard: { name: STANDARD_SPEC.label, model: "htdemucs", time: STANDARD_SPEC.time },
-    studio: { name: HQ_SPEC.label, model: "MelBand RoFormer", time: HQ_SPEC.time },
+    standard: { name: STANDARD_SPEC.label, model: "Forge 1", time: STANDARD_SPEC.time },
+    studio: { name: HQ_SPEC.label, model: "Forge 2", time: HQ_SPEC.time },
     standardLimitLabel,
     hqLimitLabel,
     demoStandardSrc,

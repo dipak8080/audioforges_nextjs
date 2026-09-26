@@ -4,7 +4,7 @@ import { buttonStyles } from "@/components/ui/Button";
 import { TierCards } from "@/components/home/TierCards";
 
 const SPECS = [
-  ["Model", "MelBand RoFormer"],
+  ["Engine", "Forge 2"],
   ["Output", "WAV 16-bit 44.1 kHz, full length"],
   ["Vocal bleed", "Gone on almost all material"],
   ["Price", "1 credit per track, packs from $4.99, never expire"],

@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { StudioGate } from "@/components/studio/StudioGate";
+import { StudioPricing } from "@/components/studio/StudioPricing";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getFeatureFlags } from "@/lib/api/railway";
@@ -180,224 +182,229 @@ export default async function PricingPage() {
   ];
 
   return (
-    <main id="main" className="mx-auto max-w-6xl px-4 py-6 sm:py-8">
-      <Breadcrumb items={[{ name: "Pricing" }]} className="mb-5" />
+    <StudioGate
+      studio={<StudioPricing />}
+      fallback={
+        <main id="main" className="mx-auto max-w-6xl px-4 py-6 sm:py-8">
+          <Breadcrumb items={[{ name: "Pricing" }]} className="mb-5" />
 
-      <header>
-        <p className="font-mono text-xs uppercase tracking-[0.16em] text-amber-500">
-          No subscription · Never expires · Refunded if a run fails
-        </p>
-        <h1 className="display measure-wide mt-3 text-5xl leading-[1.02] text-text-primary sm:text-6xl">
-          Pay once, per heavy job
-        </h1>
-        <p className="measure mt-5 text-lg leading-relaxed text-text-muted">
-          {liveToolCount} tools run on ordinary CPU processing and are free
-          without limit. The few that need a GPU cost real money per run, so
-          those take credits
-          {anyThreeCredit
-            ? ", most one credit each, a couple a little more"
-            : ", one credit each"}
-          . Everyone gets free runs every month before a credit is ever spent.
-        </p>
-        <p className="measure mt-3 text-base leading-relaxed text-text-muted">
-          No subscription and no account. Credits never expire, so a quiet month
-          costs nothing.
-        </p>
-        <p className="measure mt-3 text-base leading-relaxed text-text-muted">
-          Batch costs the same. Drop up to 20 tracks on the vocal remover or the
-          stem splitter and pay 1 credit per track, so a 100-credit pack is 100
-          Studio Quality tracks at 20 cents each.
-        </p>
-      </header>
-
-      <div className="mt-8">
-        <PricingTable />
-      </div>
-
-      <p className="mt-4 text-sm leading-relaxed text-text-muted">
-        Already bought credits on another device?{" "}
-        <Link
-          href="/signin"
-          className="text-text-primary underline underline-offset-4 transition-colors hover:text-white"
-        >
-          Sign in to bring them here
-        </Link>
-        . No new payment needed.
-      </p>
-
-      <div className="shell-wide mt-16 lg:mt-20">
-        <div className="reveal border-t border-graphite-800 py-14 lg:py-20">
-          <ToolSection title="What one credit buys" bleed>
-            <div>
-              <CompareTable
-                columns={["Credits", "What you get"]}
-                highlight={-1}
-                gridClass="sm:grid-cols-[minmax(9rem,1fr)_5rem_2.2fr]"
-                rows={meteredJobs.map((job) => ({
-                  label: job.name,
-                  cells: [
-                    { text: `${job.cost}`, mono: true },
-                    { text: job.detail },
-                  ],
-                }))}
-                footnote="Priced by the work behind the job, not the tool it came from. A single model run is one credit; a job that runs several models for one result costs more."
-              />
-            </div>
-            <div className="mt-4">
-              <ProofStrip
-                proofs={[
-                  {
-                    label: "Source",
-                    value: "An audio file you upload",
-                    note: "Studio Quality runs on files from your own device.",
-                  },
-                  {
-                    label: "Files back",
-                    value: "Full quality, no watermark",
-                    note: "WAV for separation, MIDI or PDF for the rest. No playback limit.",
-                  },
-                  {
-                    label: "Turnaround",
-                    value: "Usually one to two minutes",
-                    note: "If a run fails, every credit comes back without you asking.",
-                  },
-                ]}
-              />
-            </div>
-          </ToolSection>
-        </div>
-        <div className="reveal border-t border-graphite-800 py-14 lg:py-20">
-          <ToolSection title="Hear what the credit buys" bleed>
-            <p className="measure mb-6 leading-relaxed text-text-muted">
-              The vocal stem from both tiers, on the same song. Click a lane to
-              switch while it plays; the playhead stays put. This is the only
-              claim on the page you can check with your ears instead of taking
-              on trust.
+          <header>
+            <p className="font-mono text-xs uppercase tracking-[0.16em] text-amber-500">
+              No subscription · Never expires · Refunded if a run fails
             </p>
-            <div>
-              <StemCompare
-                standardSrc={DEMO_STANDARD}
-                studioSrc={DEMO_STUDIO}
-                stemLabel="Vocals"
-                trackLabel="Full mix with lead vocal"
-                cues={[
-                  { at: 2, label: "vocal in" },
-                  { at: 21, label: "chorus" },
-                  { at: 37, label: "vocal peak" },
-                ]}
-              />
-            </div>
-          </ToolSection>
-        </div>
-        <div className="reveal border-t border-graphite-800 py-14 lg:py-20">
-          <ToolSection title="Credits, not a subscription" bleed>
-            <div>
-              <CompareTable
-                columns={["AudioForges credits", "LALAL.AI"]}
-                highlight={0}
-                rows={[
-                  {
-                    label: "How you pay",
-                    cells: [
-                      {
-                        state: "yes",
-                        text: "Per job. Buy a pack, spend it when you need it",
-                      },
-                      {
-                        state: "partial",
-                        text: "Monthly subscription, $9.99 to $19.99, plus one-time minute top-ups",
-                      },
-                    ],
-                  },
-                  {
-                    label: "Do they expire",
-                    cells: [
-                      { state: "yes", text: "Never" },
-                      {
-                        state: "unknown",
-                        text: "Not stated on their pricing page",
-                      },
-                    ],
-                  },
-                  {
-                    label: "Account needed",
-                    cells: [
-                      {
-                        state: "yes",
-                        text: "No. Credits attach to your browser; an email links a payment to it",
-                      },
-                      { state: "no", text: "Required for full results" },
-                    ],
-                  },
-                  {
-                    label: "Free tier",
-                    cells: [
-                      {
-                        state: "yes",
-                        text: "Full-length standard runs, unlimited, plus free Studio runs monthly",
-                      },
-                      {
-                        state: "partial",
-                        text: "Preview only. Full download is paid",
-                      },
-                    ],
-                  },
-                  {
-                    label: "If a run fails",
-                    cells: [
-                      { state: "yes", text: "Credits refunded automatically" },
-                      { state: "unknown", text: "Not stated" },
-                    ],
-                  },
-                ]}
-                footnote={`Checked against LALAL.AI's live pricing page on ${UPDATED}. Details may change.`}
-              />
-            </div>
-          </ToolSection>
-        </div>
-        <div className="reveal border-t border-graphite-800 py-14 lg:py-20">
-          <ToolSection title="Almost everything stays free" bleed>
-            <p className="measure mb-6 leading-relaxed text-text-muted">
-              Credits apply only to {meteredList}. Standard vocal removal, stem
-              splitting, standard audio-to-MIDI, every converter, the recorder,
-              the tuner, the metronome and the rest run on cheap processing and
-              stay free without limit, full-quality downloads, no watermark.
-              There are no plans to change that.{" "}
-              <Link
-                href="/tools"
-                className="text-text-primary underline underline-offset-4 hover:text-white"
-              >
-                See every tool
-              </Link>
-              .
+            <h1 className="display measure-wide mt-3 text-5xl leading-[1.02] text-text-primary sm:text-6xl">
+              Pay once, per heavy job
+            </h1>
+            <p className="measure mt-5 text-lg leading-relaxed text-text-muted">
+              {liveToolCount} tools run on ordinary CPU processing and are free
+              without limit. The few that need a GPU cost real money per run, so
+              those take credits
+              {anyThreeCredit
+                ? ", most one credit each, a couple a little more"
+                : ", one credit each"}
+              . Everyone gets free runs every month before a credit is ever spent.
             </p>
-          </ToolSection>
-        </div>
-        <div className="reveal border-t border-graphite-800 py-14 lg:py-20">
-          <FAQSection faqs={faqs} />
-        </div>
-        <div className="reveal border-t border-graphite-800 py-14 lg:py-20">
-          <ToolSection title="Something wrong with a purchase?" bleed>
-            <p className="measure leading-relaxed text-text-muted">
-              Credits not showing after paying, or a run that charged and never
-              delivered? Write to{" "}
-              <EmailLink
-                user="contact"
-                domain="audioforges.com"
-                className="text-text-primary underline underline-offset-4 hover:text-white"
-              />{" "}
-              with the email you paid with and it gets fixed by hand.
+            <p className="measure mt-3 text-base leading-relaxed text-text-muted">
+              No subscription and no account. Credits never expire, so a quiet month
+              costs nothing.
             </p>
-          </ToolSection>
-        </div>
-      </div>
+            <p className="measure mt-3 text-base leading-relaxed text-text-muted">
+              Batch costs the same. Drop up to 20 tracks on the vocal remover or the
+              stem splitter and pay 1 credit per track, so a 100-credit pack is 100
+              Studio Quality tracks at 20 cents each.
+            </p>
+          </header>
 
-      <div className="border-t border-graphite-800 pt-10">
-        <PageByline
-          updated={UPDATED}
-          note="Prices and packs are read live from the backend"
-        />
-      </div>
-    </main>
+          <div className="mt-8">
+            <PricingTable />
+          </div>
+
+          <p className="mt-4 text-sm leading-relaxed text-text-muted">
+            Already bought credits on another device?{" "}
+            <Link
+              href="/signin"
+              className="text-text-primary underline underline-offset-4 transition-colors hover:text-white"
+            >
+              Sign in to bring them here
+            </Link>
+            . No new payment needed.
+          </p>
+
+          <div className="shell-wide mt-16 lg:mt-20">
+            <div className="reveal border-t border-graphite-800 py-14 lg:py-20">
+              <ToolSection title="What one credit buys" bleed>
+                <div>
+                  <CompareTable
+                    columns={["Credits", "What you get"]}
+                    highlight={-1}
+                    gridClass="sm:grid-cols-[minmax(9rem,1fr)_5rem_2.2fr]"
+                    rows={meteredJobs.map((job) => ({
+                      label: job.name,
+                      cells: [
+                        { text: `${job.cost}`, mono: true },
+                        { text: job.detail },
+                      ],
+                    }))}
+                    footnote="Priced by the work behind the job, not the tool it came from. A single model run is one credit; a job that runs several models for one result costs more."
+                  />
+                </div>
+                <div className="mt-4">
+                  <ProofStrip
+                    proofs={[
+                      {
+                        label: "Source",
+                        value: "An audio file you upload",
+                        note: "Studio Quality runs on files from your own device.",
+                      },
+                      {
+                        label: "Files back",
+                        value: "Full quality, no watermark",
+                        note: "WAV for separation, MIDI or PDF for the rest. No playback limit.",
+                      },
+                      {
+                        label: "Turnaround",
+                        value: "Usually one to two minutes",
+                        note: "If a run fails, every credit comes back without you asking.",
+                      },
+                    ]}
+                  />
+                </div>
+              </ToolSection>
+            </div>
+            <div className="reveal border-t border-graphite-800 py-14 lg:py-20">
+              <ToolSection title="Hear what the credit buys" bleed>
+                <p className="measure mb-6 leading-relaxed text-text-muted">
+                  The vocal stem from both tiers, on the same song. Click a lane to
+                  switch while it plays; the playhead stays put. This is the only
+                  claim on the page you can check with your ears instead of taking
+                  on trust.
+                </p>
+                <div>
+                  <StemCompare
+                    standardSrc={DEMO_STANDARD}
+                    studioSrc={DEMO_STUDIO}
+                    stemLabel="Vocals"
+                    trackLabel="Full mix with lead vocal"
+                    cues={[
+                      { at: 2, label: "vocal in" },
+                      { at: 21, label: "chorus" },
+                      { at: 37, label: "vocal peak" },
+                    ]}
+                  />
+                </div>
+              </ToolSection>
+            </div>
+            <div className="reveal border-t border-graphite-800 py-14 lg:py-20">
+              <ToolSection title="Credits, not a subscription" bleed>
+                <div>
+                  <CompareTable
+                    columns={["AudioForges credits", "LALAL.AI"]}
+                    highlight={0}
+                    rows={[
+                      {
+                        label: "How you pay",
+                        cells: [
+                          {
+                            state: "yes",
+                            text: "Per job. Buy a pack, spend it when you need it",
+                          },
+                          {
+                            state: "partial",
+                            text: "Monthly subscription, $9.99 to $19.99, plus one-time minute top-ups",
+                          },
+                        ],
+                      },
+                      {
+                        label: "Do they expire",
+                        cells: [
+                          { state: "yes", text: "Never" },
+                          {
+                            state: "unknown",
+                            text: "Not stated on their pricing page",
+                          },
+                        ],
+                      },
+                      {
+                        label: "Account needed",
+                        cells: [
+                          {
+                            state: "yes",
+                            text: "No. Credits attach to your browser; an email links a payment to it",
+                          },
+                          { state: "no", text: "Required for full results" },
+                        ],
+                      },
+                      {
+                        label: "Free tier",
+                        cells: [
+                          {
+                            state: "yes",
+                            text: "Full-length standard runs, unlimited, plus free Studio runs monthly",
+                          },
+                          {
+                            state: "partial",
+                            text: "Preview only. Full download is paid",
+                          },
+                        ],
+                      },
+                      {
+                        label: "If a run fails",
+                        cells: [
+                          { state: "yes", text: "Credits refunded automatically" },
+                          { state: "unknown", text: "Not stated" },
+                        ],
+                      },
+                    ]}
+                    footnote={`Checked against LALAL.AI's live pricing page on ${UPDATED}. Details may change.`}
+                  />
+                </div>
+              </ToolSection>
+            </div>
+            <div className="reveal border-t border-graphite-800 py-14 lg:py-20">
+              <ToolSection title="Almost everything stays free" bleed>
+                <p className="measure mb-6 leading-relaxed text-text-muted">
+                  Credits apply only to {meteredList}. Standard vocal removal, stem
+                  splitting, standard audio-to-MIDI, every converter, the recorder,
+                  the tuner, the metronome and the rest run on cheap processing and
+                  stay free without limit, full-quality downloads, no watermark.
+                  There are no plans to change that.{" "}
+                  <Link
+                    href="/tools"
+                    className="text-text-primary underline underline-offset-4 hover:text-white"
+                  >
+                    See every tool
+                  </Link>
+                  .
+                </p>
+              </ToolSection>
+            </div>
+            <div className="reveal border-t border-graphite-800 py-14 lg:py-20">
+              <FAQSection faqs={faqs} />
+            </div>
+            <div className="reveal border-t border-graphite-800 py-14 lg:py-20">
+              <ToolSection title="Something wrong with a purchase?" bleed>
+                <p className="measure leading-relaxed text-text-muted">
+                  Credits not showing after paying, or a run that charged and never
+                  delivered? Write to{" "}
+                  <EmailLink
+                    user="contact"
+                    domain="audioforges.com"
+                    className="text-text-primary underline underline-offset-4 hover:text-white"
+                  />{" "}
+                  with the email you paid with and it gets fixed by hand.
+                </p>
+              </ToolSection>
+            </div>
+          </div>
+
+          <div className="border-t border-graphite-800 pt-10">
+            <PageByline
+              updated={UPDATED}
+              note="Prices and packs are read live from the backend"
+            />
+          </div>
+        </main>
+      }
+    />
   );
 }

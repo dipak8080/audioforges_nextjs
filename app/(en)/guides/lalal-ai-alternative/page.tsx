@@ -72,7 +72,7 @@ const faqJsonLd = {
       name: "Is the separation quality comparable?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "AudioForges Studio Quality runs a RoFormer-class model on a GPU. There is a published comparison page with the same track through each tier so you can listen before spending anything, and every visitor gets one free Studio run a month on their own song.",
+        text: "AudioForges Studio runs the Forge 2 engine on a GPU. There is a published comparison page with the same track through each tier so you can listen before spending anything, and every visitor gets one free Studio run a month on their own song.",
       },
     },
   ],
@@ -184,9 +184,9 @@ export default function LalalAlternativeGuidePage() {
 
           <h2 id="quality">Is the quality actually comparable?</h2>
           <p>
-            Standard runs Demucs, the same open model most free tools use.
-            Studio Quality runs a RoFormer-class model on a GPU, the same family
-            behind the current top entries on public separation benchmarks. The
+            Standard runs Forge 1, our free engine.
+            Studio runs Forge 2 on a GPU, built for the cleanest split we
+            could measure. The
             honest way to judge it is to listen: the{" "}
             <Link href="/vocal-remover-comparison">
               vocal remover comparison

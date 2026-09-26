@@ -121,7 +121,7 @@ export async function LocalizedVocalRemoverPage({ dict }: { dict: VocalRemoverDi
               rows={[
                 {
                   label: dict.tiers.labels.model,
-                  cells: [{ text: "htdemucs", mono: true }, { text: "MelBand RoFormer", mono: true }],
+                  cells: [{ text: "Forge 1", mono: true }, { text: "Forge 2", mono: true }],
                 },
                 {
                   label: dict.tiers.labels.bleed,

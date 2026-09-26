@@ -179,7 +179,7 @@ export default async function YouTubeVocalRemoverPage() {
           {
             question: "What is Studio Quality?",
             answer:
-              "A second tier that runs MelBand RoFormer instead of htdemucs. Different architecture, not the same model run harder: less vocal bleed in the instrumental and fewer watery artifacts on cymbals and breaths. It takes 1 to 2 minutes instead of 20 seconds to 1 minute and costs one credit per run after the free monthly allowance.",
+              "A second tier that runs Forge 2, our newer engine: less vocal bleed in the instrumental and fewer watery artifacts on cymbals and breaths. It takes 1 to 2 minutes instead of 20 seconds to 1 minute and costs one credit per run after the free monthly allowance.",
           },
         ]
       : []),
@@ -244,9 +244,9 @@ export default async function YouTubeVocalRemoverPage() {
               note: "The audio is fetched server-side. Nothing touches your device until you download a stem.",
             },
             {
-              label: "Models",
-              value: "htdemucs and MelBand RoFormer",
-              note: "Named so you can check them. Real source separation, not a center-channel trick.",
+              label: "Engines",
+              value: "Forge 1 and Forge 2",
+              note: "Real source separation, not a center-channel trick.",
             },
             {
               label: "Length",
@@ -365,7 +365,7 @@ export default async function YouTubeVocalRemoverPage() {
               columns={["Standard", "Studio Quality"]}
               highlight={1}
               rows={[
-                { label: "Model", cells: [{ text: "htdemucs", mono: true }, { text: "MelBand RoFormer", mono: true }] },
+                { label: "Engine", cells: [{ text: "Forge 1", mono: true }, { text: "Forge 2", mono: true }] },
                 {
                   label: "Vocal bleed in the instrumental",
                   cells: [
@@ -485,14 +485,6 @@ export default async function YouTubeVocalRemoverPage() {
                   { state: "yes", text: "Yes" },
                   { state: "no", text: "Account required for results" },
                   { state: "yes", text: "Yes" },
-                ],
-              },
-              {
-                label: "Models named",
-                cells: [
-                  { state: "yes", text: "htdemucs, MelBand RoFormer", sub: "open-source, verifiable" },
-                  { state: "partial", text: "Andromeda engine, closed-source" },
-                  { state: "unknown", text: "Not stated" },
                 ],
               },
               {

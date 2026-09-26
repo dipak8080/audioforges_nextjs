@@ -14,13 +14,13 @@ function lanesFor(stem: Stem): CompareLane[] {
     {
       id: "af-standard",
       title: "AF Standard",
-      note: "htdemucs · 25 sec",
+      note: "Forge 1 · 25 sec",
       src: `${BASE}/af-standard-${stem}.mp3`,
     },
     {
       id: "af-studio",
       title: "AF Studio",
-      note: "MelBand RoFormer · 1m 02s",
+      note: "Forge 2 · 1m 02s",
       src: `${BASE}/af-studio-${stem}.mp3`,
     },
     {

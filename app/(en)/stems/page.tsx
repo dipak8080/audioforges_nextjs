@@ -13,7 +13,6 @@ import { ProofStrip } from "@/components/tools/ProofStrip";
 import { ForgeMixerCard } from "@/components/tools/ForgeMixerCard";
 import { StemUseGrid } from "@/components/tools/StemUseGrid";
 import { CompareTable } from "@/components/tools/CompareTable";
-import { StemPipelineDiagram } from "@/components/tools/StemPipelineDiagram";
 import { PageByline } from "@/components/tools/PageByline";
 import { ToolVideo } from "@/components/media/ToolVideo";
 import { SITE_URL, SITE_NAME } from "@/lib/constants";
@@ -140,7 +139,7 @@ export default async function StemsPage() {
           {
             question: "What is Studio Quality?",
             answer:
-              "A two-stage pipeline instead of one pass. MelBand RoFormer extracts the vocal first, then htdemucs_ft splits the vocal-free instrumental into drums, bass and other. Every stem comes back cleaner because the model separating them is not fighting the voice. It takes 1 to 2 minutes instead of 20 seconds to 1 minute and costs one credit per run after the free monthly allowance.",
+              "Studio runs Forge 2, our newer engine, which separates every stem in one pass with far less bleed between them. It takes 1 to 2 minutes instead of 20 seconds to 1 minute and costs one credit per run after the free monthly allowance.",
           },
           {
             question: "Can I split a whole folder of songs at once?",
@@ -223,9 +222,9 @@ export default async function StemsPage() {
         <ProofStrip
           proofs={[
             {
-              label: "Models",
-              value: "htdemucs, RoFormer and htdemucs_ft",
-              note: "Named so you can check them. Studio Quality runs two stages, not the same model run harder.",
+              label: "Engines",
+              value: "Forge 1 and Forge 2",
+              note: "Studio runs Forge 2, a newer engine, not the same one run harder.",
             },
             {
               label: "Output",
@@ -289,12 +288,11 @@ export default async function StemsPage() {
         </ToolSection>
 
         <ToolSection id="how-it-works" title="How it works, and where it fails" bleed>
-          <StemPipelineDiagram />
-          <Prose className="mt-6">
+          <Prose>
             <p>
               The output is fixed by the pipeline, not by your file. Every stem comes back as 16-bit, 44.1 kHz,
               stereo WAV, about 1,411 kbps. A 48 kHz upload comes back at 44.1. A mono upload comes back as two
-              channels. This is true of every tool built on Demucs, including the ones that do not mention it.
+              channels. This is true of every AI separator, including the ones that do not mention it.
             </p>
           </Prose>
           <ul className="mt-6 grid gap-3 sm:grid-cols-3">
@@ -326,8 +324,8 @@ export default async function StemsPage() {
                 {
                   label: "Pipeline",
                   cells: [
-                    { text: "htdemucs, one pass", mono: true },
-                    { text: "RoFormer then htdemucs_ft", mono: true },
+                    { text: "Forge 1", mono: true },
+                    { text: "Forge 2", mono: true },
                   ],
                 },
                 {
@@ -457,14 +455,6 @@ export default async function StemsPage() {
                 ],
               },
               {
-                label: "Models named",
-                cells: [
-                  { state: "yes", text: "htdemucs, RoFormer, htdemucs_ft", sub: "open-source, verifiable" },
-                  { state: "partial", text: "Andromeda engine, closed-source" },
-                  { state: "unknown", text: "Not stated" },
-                ],
-              },
-              {
                 label: "Output spec published",
                 cells: [
                   { state: "yes", text: "16-bit 44.1 kHz WAV" },
@@ -508,7 +498,7 @@ export default async function StemsPage() {
 
         <PageByline
           updated={UPDATED}
-          note="Studio Quality now runs a RoFormer and htdemucs_ft pipeline"
+          note="Studio now runs the Forge 2 engine"
           legal="You are responsible for having the right to process any track you upload. AudioForges does not host or distribute the tracks processed here."
         />
       </ToolPageShell>

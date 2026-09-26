@@ -289,8 +289,8 @@ export function YouTubeStemForm({
   const tiers = useSeparationTiers({
     hqAvailable,
     hqToolKey: "youtube/stems-hq",
-    standard: { name: STANDARD_SPEC.label, model: "htdemucs, one pass", time: STANDARD_SPEC.time },
-    studio: { name: HQ_SPEC.label, model: "RoFormer then htdemucs_ft", time: HQ_SPEC.time },
+    standard: { name: STANDARD_SPEC.label, model: "Forge 1", time: STANDARD_SPEC.time },
+    studio: { name: HQ_SPEC.label, model: "Forge 2", time: HQ_SPEC.time },
     standardLimitLabel,
     hqLimitLabel,
     demoStandardSrc,

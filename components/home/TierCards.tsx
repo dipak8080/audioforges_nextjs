@@ -8,8 +8,8 @@ import { useCredits } from "@/components/credits/CreditProvider";
 type Tier = "standard" | "studio";
 
 const TIERS: { id: Tier; name: string; model: string; note: string; price: string }[] = [
-  { id: "standard", name: "Standard", model: "htdemucs", note: "Bleed audible on dense mixes and long reverb tails.", price: "Costs nothing" },
-  { id: "studio", name: "Studio Quality", model: "MelBand RoFormer", note: "Bleed gone. Cymbals and consonants intact.", price: "1 credit per track" },
+  { id: "standard", name: "Standard", model: "Forge 1", note: "Bleed audible on dense mixes and long reverb tails.", price: "Costs nothing" },
+  { id: "studio", name: "Studio Quality", model: "Forge 2", note: "Bleed gone. Cymbals and consonants intact.", price: "1 credit per track" },
 ];
 
 export function TierCards({ standardSrc, studioSrc }: { standardSrc: string; studioSrc: string }) {

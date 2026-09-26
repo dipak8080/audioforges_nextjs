@@ -113,7 +113,7 @@ interface QualitySpec {
 const STANDARD_SPEC: QualitySpec = {
   value: "standard",
   label: "Standard",
-  model: "htdemucs, one pass",
+  model: "Forge 1",
   time: "20 sec to 1 min",
   detail: "Vocals, drums, bass, other",
   rateLimitKey: "stems",
@@ -123,7 +123,7 @@ const STANDARD_SPEC: QualitySpec = {
 const HQ_SPEC: QualitySpec = {
   value: "hq",
   label: "Studio Quality",
-  model: "RoFormer then htdemucs_ft",
+  model: "Forge 2",
   time: "1 to 2 min",
   detail: "Cleaner separation, same 4 stems",
   rateLimitKey: "stems-hq",

@@ -26,7 +26,7 @@ const UPDATED = "2026-09-21";
 
 const PAGE_TITLE = "AudioForges: AI Vocal Remover and Stem Splitter for Producers and DJs";
 const PAGE_DESCRIPTION =
-  "Separate any track into clean stems with named models, htdemucs and MelBand RoFormer. Full length WAV, an in browser stem mixer and a Studio Quality tier.";
+  "Separate any track into clean stems. Full length WAV, an in browser stem mixer, and a Studio tier that beats subscription tools, from 25¢ a song.";
 
 const OG_IMAGE = ogImage(
   "Separate any track into clean stems",
@@ -98,11 +98,11 @@ export default async function HomePage() {
     {
       question: "What is the difference between Standard and Studio Quality?",
       answer:
-        "Standard runs htdemucs and costs nothing. Studio Quality runs MelBand RoFormer, a different architecture that leaves far less vocal bleed in the instrumental and fewer watery artifacts on cymbals and breaths. Studio Quality is one credit per track after the monthly free runs.",
+        "Standard runs the Forge 1 engine and costs nothing. Studio runs Forge 2, a newer engine that leaves far less vocal bleed in the instrumental and fewer watery artifacts on cymbals and breaths. Studio Quality is one credit per track after the monthly free runs.",
       answerNode: (
         <>
-          Standard runs htdemucs and costs nothing. Studio Quality runs MelBand RoFormer, a different
-          architecture that leaves far less vocal bleed in the instrumental and fewer watery artifacts
+          Standard runs the Forge 1 engine and costs nothing. Studio runs Forge 2, a newer
+          engine that leaves far less vocal bleed in the instrumental and fewer watery artifacts
           on cymbals and breaths. Studio Quality is one credit per track after the monthly free runs.{" "}
           <Link href="/pricing" prefetch={false} className="text-amber-400 underline underline-offset-2 hover:text-amber-300">
             See the packs
@@ -165,7 +165,7 @@ export default async function HomePage() {
 
                   <dl className="mt-8 grid grid-cols-2 gap-x-4 gap-y-5 border-t border-graphite-800 pt-6 sm:grid-cols-3">
                     {[
-                      ["Models", "htdemucs, MelBand RoFormer"],
+                      ["Engines", "Forge 1 and Forge 2"],
                       ["Output", "WAV 16-bit 44.1 kHz"],
                       ["Every month", processedTotal ? `${Math.round(processedTotal / 1000)}k tracks` : "55,000+ people"],
                     ].map(([k, v], i) => (
