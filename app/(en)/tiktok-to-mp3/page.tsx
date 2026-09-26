@@ -50,9 +50,9 @@ import { ogForTool } from "@/lib/og";
  * nobody types. "Converter" stays — it leads the head term and it is what
  * the tool is called.
  */
-const PAGE_TITLE = "TikTok to MP3 – Download TikTok Sounds Free, No App";
+const PAGE_TITLE = "TikTok to MP3 Converter: Free TikTok Audio Downloader";
 const PAGE_DESCRIPTION =
-  "Download any TikTok sound as an MP3 in seconds. Paste the link, get the audio. Free, no app, no account, no watermark, on phone or desktop.";
+  "Paste a TikTok link and download the sound as an MP3 in seconds. Free, no app, no account, no watermark. Works on phone and desktop.";
 
 /** From the rate-limit table rather than typed into a sentence. The FAQ used
  *  to say "30 conversions per hour" as a literal. */
