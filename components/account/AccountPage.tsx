@@ -8,6 +8,7 @@ import { ToggleRow } from "@/components/converter/ToolControls";
 import { useCredits } from "@/components/credits/CreditProvider";
 import { useI18n } from "@/components/i18n/I18nProvider";
 import { LibrarySection } from "./LibrarySection";
+import { BillingSection } from "./BillingSection";
 import { LOCALE_INFO } from "@/lib/i18n/locales";
 import { useStudioConfig } from "@/lib/studio/use-studio-config";
 import {
@@ -185,14 +186,20 @@ function EmailSection() {
   const { t } = useI18n();
   const a = t.account;
   const [prefs, setPrefs] = useState<EmailPrefs | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let alive = true;
-    void fetchEmailPrefs().then((p) => alive && setPrefs(p));
+    void fetchEmailPrefs().then((p) => {
+      if (!alive) return;
+      if (p) setPrefs(p);
+      else setFailed(true);
+    });
     return () => {
       alive = false;
     };
-  }, []);
+  }, [attempt]);
 
   async function flip(key: "updates" | "notices") {
     if (!prefs) return;
@@ -202,9 +209,27 @@ function EmailSection() {
     if (!ok) setPrefs(prefs);
   }
 
+  if (failed && !prefs) {
+    return (
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-red-400">{a.error}</p>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => {
+            setFailed(false);
+            setAttempt((n) => n + 1);
+          }}
+        >
+          {t.run.tryAgain}
+        </Button>
+      </div>
+    );
+  }
   if (!prefs) return <div className="h-24 rounded-xl bg-graphite-850 motion-safe:animate-pulse" />;
   return (
     <div className="space-y-2">
+      {prefs.email && <p className="font-mono text-[11px] text-text-muted">{prefs.email}</p>}
       {(["updates", "notices"] as const).map((key) => (
         <ToggleRow
           key={key}
@@ -317,6 +342,10 @@ export function AccountPage() {
         ) : (
           <p className="text-sm text-text-muted">{a.libraryOff}</p>
         )}
+      </Section>
+
+      <Section id="billing" title={a.billingTitle}>
+        <BillingSection />
       </Section>
 
       <Section id="email" title={a.emailTitle}>

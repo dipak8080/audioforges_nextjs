@@ -79,7 +79,7 @@ export function LanguageSwitcher({
         <ul
           role="menu"
           className={cn(
-            "surface absolute z-50 min-w-48 rounded-lg border border-graphite-700 bg-graphite-900/95 p-1 shadow-xl backdrop-blur",
+            "absolute z-50 min-w-48 rounded-lg border border-graphite-700 bg-graphite-900/95 p-1 shadow-xl backdrop-blur",
             align === "right" ? "right-0" : "left-0",
             direction === "down" ? "top-full mt-2" : "bottom-full mb-2"
           )}

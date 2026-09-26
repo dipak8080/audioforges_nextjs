@@ -143,7 +143,7 @@ function SongsChip() {
         {low && <span className="h-1.5 w-1.5 rounded-full bg-amber-500" aria-label={t.songs.lowBalance} />}
       </Button>
       {open && (
-        <div className="surface absolute right-0 top-full z-50 mt-2 w-64 rounded-xl border border-graphite-700 bg-graphite-900/95 p-4 shadow-xl backdrop-blur">
+        <div className="absolute right-0 top-full z-50 mt-2 w-64 rounded-xl border border-graphite-700 bg-graphite-900/95 p-4 shadow-xl backdrop-blur">
           <p className="display text-3xl text-text-primary">{plural(balance, t.songs.count)}</p>
           {low && <p className="mt-0.5 text-xs text-amber-400">{t.songs.lowBalance}</p>}
           {pass?.active && (
@@ -180,6 +180,7 @@ function AccountMenu() {
     { href: "/account#library", label: t.nav.library, show: config.library.enabled },
     { href: "/account#pass", label: t.nav.pass, show: !!pass?.available || !!pass?.active },
     { href: "/pricing", label: t.nav.buySongs, show: true },
+    { href: "/account#billing", label: t.account.billingTitle, show: true },
     { href: "/account#invite", label: t.nav.invite, show: config.referral.enabled },
     { href: "/account#email", label: t.nav.emailSettings, show: true },
   ].filter((l) => l.show);
@@ -199,7 +200,7 @@ function AccountMenu() {
         {pass?.active && <span className="rounded bg-amber-500/15 px-1.5 py-0.5 font-mono text-[10px] text-amber-400">PASS</span>}
       </button>
       {open && (
-        <div className="surface absolute right-0 top-full z-50 mt-2 w-56 rounded-xl border border-graphite-700 bg-graphite-900/95 p-1 shadow-xl backdrop-blur">
+        <div className="absolute right-0 top-full z-50 mt-2 w-56 rounded-xl border border-graphite-700 bg-graphite-900/95 p-1 shadow-xl backdrop-blur">
           <p className="truncate px-3 py-2 font-mono text-[11px] text-text-muted">{me?.email}</p>
           {links.map((l) => (
             <Link

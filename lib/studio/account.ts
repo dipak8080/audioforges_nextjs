@@ -170,3 +170,79 @@ export async function signOut(): Promise<boolean> {
   const d = await call<{ ok?: boolean }>("/auth/logout", { method: "POST" });
   return d?.ok === true;
 }
+export interface HistoryItem {
+  id: number;
+  delta: number;
+  kind: string;
+  createdAt: string;
+  note: string | null;
+  orderId: string | null;
+}
+
+export async function fetchHistory(cursor: string | null, limit = 50): Promise<{ items: HistoryItem[]; next: string | null } | null> {
+  const q = new URLSearchParams({ limit: String(limit) });
+  if (cursor) q.set("cursor", cursor);
+  const d = await call<{ items?: Record<string, unknown>[]; next_cursor?: string | null }>(`/credits/history?${q.toString()}`);
+  if (!d || !Array.isArray(d.items)) return null;
+  return {
+    items: d.items.map((i) => ({
+      id: Number(i.id),
+      delta: Number(i.delta),
+      kind: String(i.kind ?? ""),
+      createdAt: String(i.created_at ?? ""),
+      note: typeof i.note === "string" ? i.note : null,
+      orderId: typeof i.order_id === "string" ? i.order_id : null,
+    })),
+    next: typeof d.next_cursor === "string" ? d.next_cursor : null,
+  };
+}
+
+export interface Order {
+  orderId: string;
+  pack: string;
+  songs: number;
+  amountUsd: number;
+  currency: string;
+  status: string;
+  createdAt: string;
+  invoiceAvailable: boolean;
+}
+
+export async function fetchOrders(): Promise<Order[] | null> {
+  const d = await call<{ orders?: Record<string, unknown>[] }>("/credits/orders");
+  if (!d || !Array.isArray(d.orders)) return null;
+  return d.orders.map((o) => ({
+    orderId: String(o.order_id),
+    pack: String(o.pack ?? ""),
+    songs: Number(o.credits ?? 0),
+    amountUsd: Number(o.amount_usd ?? 0),
+    currency: String(o.currency ?? "USD"),
+    status: String(o.status ?? ""),
+    createdAt: String(o.created_at ?? ""),
+    invoiceAvailable: o.invoice_available === true,
+  }));
+}
+
+export async function downloadInvoice(orderId: string): Promise<"ok" | "rate_limited" | "failed"> {
+  try {
+    const res = await fetchWithTimeout(
+      `${RAILWAY_API_BASE}/credits/orders/${encodeURIComponent(orderId)}/invoice`,
+      { method: "GET", credentials: "include" },
+      45_000
+    );
+    if (res.status === 429) return "rate_limited";
+    if (!res.ok) return "failed";
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `AudioForges-invoice-${orderId}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    return "ok";
+  } catch {
+    return "failed";
+  }
+}
