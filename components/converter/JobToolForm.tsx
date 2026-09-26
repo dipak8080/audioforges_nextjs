@@ -12,7 +12,9 @@ import { CreditReceipt } from "@/components/credits/CreditReceipt";
 import { CreditGateModal } from "@/components/credits/CreditGateModal";
 import type { SubmitBilling } from "@/lib/types/converter";
 import type { CreditsMe, InsufficientCreditsPayload, MeteredToolKey } from "@/lib/types/credits";
-import { AdsterraBanner } from "@/components/ads/AdsterraBanner";
+import { AdsterraBanner, AdsterraTopBanner } from "@/components/ads/AdsterraBanner";
+import { useDownloadAd } from "@/components/ads/DownloadAdGate";
+import { usePopunder } from "@/components/ads/usePopunder";
 
 // Free utility tools only. Paid tools (audio-to-midi, audio-to-sheet) never show ads.
 const AD_ENDPOINTS = new Set([
@@ -423,6 +425,8 @@ export function JobToolForm({
 
   const isBusy = status === "uploading" || status === "processing";
   const showAds = AD_ENDPOINTS.has(endpoint);
+  const downloadAd = useDownloadAd(showAds);
+  usePopunder(status === "complete" && Boolean(jobId), showAds);
   const [elapsedSeconds, setElapsedSeconds] = useElapsedSeconds(isBusy);
   const [cooldownSeconds, setCooldownSeconds] = useCooldownSeconds();
   /**
@@ -845,6 +849,9 @@ export function JobToolForm({
               {showAds && isBusy && (
                 <AdsterraBanner className="border-t border-graphite-800 px-4 py-5 sm:px-7" />
               )}
+              {showAds && !isBusy && (
+                <AdsterraTopBanner className="border-t border-graphite-800 px-4 py-5 sm:px-7" />
+              )}
             </>
           }
           result={
@@ -854,6 +861,7 @@ export function JobToolForm({
                 {renderResult?.(jobId, file)}
                 <CreditReceipt billing={billing} />
                 {showAds && <AdsterraBanner key={`ad-${jobId}`} className="pt-2" />}
+                {downloadAd.modal}
               </>
             ) : undefined
           }
@@ -864,6 +872,7 @@ export function JobToolForm({
               <a
                 href={getJobDownloadUrl(endpoint, jobId)}
                 download={downloadName || true}
+                onClick={downloadAd.linkClick(jobId, getJobDownloadUrl(endpoint, jobId), downloadName)}
                 className={buttonStyles({ variant: "primary", size: "md" })}
               >
                 <Download />
@@ -954,6 +963,12 @@ export function JobToolForm({
         {/* SETTINGS — whatever this tool needs before it can run. */}
         {status !== "complete" && controls && <Section>{controls}</Section>}
 
+        {showAds && !isBusy && status !== "complete" && (
+          <Section>
+            <AdsterraTopBanner />
+          </Section>
+        )}
+
         {/* WORKING */}
         {isBusy && (
           <Section>
@@ -993,6 +1008,7 @@ export function JobToolForm({
             <a
               href={getJobDownloadUrl(endpoint, jobId)}
               download={downloadName || true}
+              onClick={downloadAd.linkClick(jobId, getJobDownloadUrl(endpoint, jobId), downloadName)}
               className={buttonStyles({ variant: "primary", size: "lg", className: "w-full" })}
             >
               <Download />
@@ -1012,6 +1028,7 @@ export function JobToolForm({
             </Button>
 
             {showAds && <AdsterraBanner key={`ad-${jobId}`} className="pt-2" />}
+            {downloadAd.modal}
           </Section>
         )}
 

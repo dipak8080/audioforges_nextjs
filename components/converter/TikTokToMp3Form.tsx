@@ -14,7 +14,9 @@ import {
   type FormError,
 } from "@/components/tools/JobFormKit";
 import { StudioStage, type StageTier } from "@/components/tools/StudioStage";
-import { AdsterraBanner } from "@/components/ads/AdsterraBanner";
+import { AdsterraBanner, AdsterraTopBanner } from "@/components/ads/AdsterraBanner";
+import { useDownloadAd } from "@/components/ads/DownloadAdGate";
+import { usePopunder } from "@/components/ads/usePopunder";
 import { AudioPlayer } from "@/components/ui/AudioPlayer";
 import { cn } from "@/lib/utils/cn";
 import { sanitizeUserInput } from "@/lib/utils/validation";
@@ -125,7 +127,9 @@ export function TikTokToMp3Form() {
   const [showInvalid, setShowInvalid] = useState(false);
 
   const isWorking = status === "working";
+  const downloadAd = useDownloadAd();
   const isComplete = status === "complete";
+  usePopunder(isComplete);
   const isFailed = status === "error";
 
   const [elapsedSeconds, setElapsedSeconds] = useElapsedSeconds(isWorking);
@@ -412,12 +416,14 @@ export function TikTokToMp3Form() {
         <a
           href={result.objectUrl}
           download={result.filename}
+          onClick={downloadAd.linkClick(result.objectUrl, result.objectUrl, result.filename)}
           className={buttonStyles({ variant: "primary", size: "lg", className: "w-full sm:w-auto sm:min-w-56" })}
         >
           <Download />
           Download MP3
         </a>
         <AdsterraBanner key={`ad-${result.objectUrl}`} className="pt-2" />
+        {downloadAd.modal}
       </div>
     ) : undefined;
 
@@ -459,6 +465,7 @@ export function TikTokToMp3Form() {
         <>
           <CooldownBar seconds={cooldownSeconds} ceiling={cooldownCeiling} />
           {isWorking && <AdsterraBanner className="border-t border-graphite-800 px-4 py-5 sm:px-7" />}
+          {!isWorking && <AdsterraTopBanner className="border-t border-graphite-800 px-4 py-5 sm:px-7" />}
         </>
       }
       result={resultNode}

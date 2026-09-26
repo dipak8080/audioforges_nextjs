@@ -32,8 +32,9 @@ import {
   ApiError,
 } from "@/lib/api/railway";
 import { FORMAT_OPTIONS, type OutputFormat, type ProcessingState } from "@/lib/types/converter";
-import { YouTubeVocalFunnel } from "@/components/converter/YouTubeVocalFunnel";
-import { AdsterraBanner } from "@/components/ads/AdsterraBanner";
+import { AdsterraBanner, AdsterraTopBanner } from "@/components/ads/AdsterraBanner";
+import { useDownloadAd } from "@/components/ads/DownloadAdGate";
+import { usePopunder } from "@/components/ads/usePopunder";
 import { markOpusUnsupported, pickSourceCodec, sourceToWav, type SourceCodec } from "@/lib/audio/browser-wav";
 
 /**
@@ -340,12 +341,12 @@ export function YouTubeConverterForm({
   const [refreshing, setRefreshing] = useState(false);
   /** Overrides the timed stage label while the browser fetches or builds the file. */
   const [localPhase, setLocalPhase] = useState<string | null>(null);
-  /** True while the funnel shows Forge Mixer, so the card widens for it. */
-  const [funnelWide, setFunnelWide] = useState(false);
+  const downloadAd = useDownloadAd(ads);
 
   const isProcessing = status === "processing";
   const isComplete = status === "complete" && result !== null;
   const isFailed = status === "error";
+  usePopunder(isComplete, ads);
 
   const [elapsedSeconds, setElapsedSeconds] = useElapsedSeconds(isProcessing);
   const [cooldownSeconds, setCooldownSeconds] = useCooldownSeconds();
@@ -496,7 +497,6 @@ export function YouTubeConverterForm({
     setPreviewDuration(null);
     setHasDownloaded(false);
     setRefreshing(false);
-    setFunnelWide(false);
     setCooldownSeconds(0);
     setElapsedSeconds(0);
     inputRef.current?.focus();
@@ -983,21 +983,15 @@ export function YouTubeConverterForm({
               className="w-full sm:w-auto sm:min-w-56"
               loading={refreshing}
               loadingLabel="Refreshing the link"
-              onClick={() => void handleDownload()}
+              onClick={() => downloadAd.gate(result.href, () => void handleDownload())}
             >
               <Download />
               {hasDownloaded ? "Download again" : `Download ${formatOption(result.format).label}`}
             </Button>
           </div>
 
-          <YouTubeVocalFunnel
-            key={result.href}
-            url={url.trim()}
-            title={preview?.title ?? null}
-            onWide={setFunnelWide}
-          />
-
           {ads && <AdsterraBanner key={`ad-${result.href}`} className="pt-2" />}
+          {downloadAd.modal}
         </div>
       ) : undefined;
 
@@ -1049,6 +1043,9 @@ export function YouTubeConverterForm({
             {ads && isProcessing && (
               <AdsterraBanner className="border-t border-graphite-800 px-4 py-5 sm:px-7" />
             )}
+            {ads && !isProcessing && (
+              <AdsterraTopBanner className="border-t border-graphite-800 px-4 py-5 sm:px-7" />
+            )}
           </>
         }
         result={resultNode}
@@ -1076,7 +1073,6 @@ export function YouTubeConverterForm({
       busy={isProcessing}
       failed={isFailed}
       complete={isComplete}
-      breakoutOnComplete={funnelWide}
       footer={footer}
     >
       {/* ---------- Link ----------
@@ -1286,13 +1282,6 @@ export function YouTubeConverterForm({
                 />
               </div>
             </div>
-
-            <YouTubeVocalFunnel
-              key={result.href}
-              url={url.trim()}
-              title={preview?.title ?? null}
-              onWide={setFunnelWide}
-            />
           </div>
         </Section>
       )}
