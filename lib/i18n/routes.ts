@@ -58,3 +58,9 @@ export function alternatesFor(key: RouteKey): Record<string, string> {
   const entries = LOCALES.flatMap((l) => (paths[l] ? [[l, `${SITE_URL}${paths[l]}`]] : []));
   return Object.fromEntries([...entries, ["x-default", `${SITE_URL}${paths.en}`]]);
 }
+const PRIVATE_PATHS = ["/account"];
+
+export function isPrivatePath(pathname: string): boolean {
+  const p = clean(pathname);
+  return PRIVATE_PATHS.some((x) => p === x || p.startsWith(`${x}/`));
+}

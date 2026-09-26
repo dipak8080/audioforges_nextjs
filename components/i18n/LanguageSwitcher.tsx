@@ -6,8 +6,9 @@ import { usePathname } from "next/navigation";
 import { Check, Globe } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils/cn";
-import { languagesForPath } from "@/lib/i18n/routes";
-import { LOCALE_INFO } from "@/lib/i18n/locales";
+import { isPrivatePath, languagesForPath, type LanguageOption } from "@/lib/i18n/routes";
+import { LOCALES, LOCALE_INFO } from "@/lib/i18n/locales";
+import { setPreferredLocale } from "@/lib/i18n/preference";
 import { useI18n } from "./I18nProvider";
 
 export function LanguageSwitcher({
@@ -23,7 +24,10 @@ export function LanguageSwitcher({
   const { locale, t } = useI18n();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  const options = languagesForPath(pathname);
+  const priv = isPrivatePath(pathname);
+  const options: LanguageOption[] = priv
+    ? LOCALES.map((l) => ({ locale: l, label: LOCALE_INFO[l].label, href: pathname }))
+    : languagesForPath(pathname);
 
   useEffect(() => {
     if (!open) return;
@@ -40,6 +44,22 @@ export function LanguageSwitcher({
   }, [open]);
 
   if (options.length < 2) return null;
+
+  const itemClass = (on: boolean) =>
+    cn(
+      "flex w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-left text-sm transition-colors",
+      on ? "text-text-primary" : "text-text-body hover:bg-graphite-800 hover:text-text-primary"
+    );
+
+  const inner = (o: LanguageOption) => (
+    <>
+      <span>
+        {o.label}
+        {o.locale !== "en" && <span className="ml-2 text-xs text-text-subtle">{LOCALE_INFO[o.locale].english}</span>}
+      </span>
+      {o.locale === locale && <Check className="h-3.5 w-3.5 text-amber-400" />}
+    </>
+  );
 
   return (
     <div ref={ref} className={cn("relative", className)}>
@@ -66,26 +86,35 @@ export function LanguageSwitcher({
         >
           {options.map((o) => (
             <li key={o.locale} role="none">
-              <Link
-                role="menuitem"
-                href={o.href}
-                hrefLang={o.locale}
-                lang={o.locale}
-                prefetch={false}
-                onClick={() => setOpen(false)}
-                className={cn(
-                  "flex items-center justify-between gap-3 rounded-md px-3 py-2 text-sm transition-colors",
-                  o.locale === locale ? "text-text-primary" : "text-text-body hover:bg-graphite-800 hover:text-text-primary"
-                )}
-              >
-                <span>
-                  {o.label}
-                  {o.locale !== "en" && (
-                    <span className="ml-2 text-xs text-text-subtle">{LOCALE_INFO[o.locale].english}</span>
-                  )}
-                </span>
-                {o.locale === locale && <Check className="h-3.5 w-3.5 text-amber-400" />}
-              </Link>
+              {priv ? (
+                <button
+                  type="button"
+                  role="menuitem"
+                  lang={o.locale}
+                  className={itemClass(o.locale === locale)}
+                  onClick={() => {
+                    setPreferredLocale(o.locale);
+                    setOpen(false);
+                  }}
+                >
+                  {inner(o)}
+                </button>
+              ) : (
+                <Link
+                  role="menuitem"
+                  href={o.href}
+                  hrefLang={o.locale}
+                  lang={o.locale}
+                  prefetch={false}
+                  onClick={() => {
+                    setPreferredLocale(o.locale);
+                    setOpen(false);
+                  }}
+                  className={itemClass(o.locale === locale)}
+                >
+                  {inner(o)}
+                </Link>
+              )}
             </li>
           ))}
         </ul>

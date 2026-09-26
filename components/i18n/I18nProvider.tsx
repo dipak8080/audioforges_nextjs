@@ -1,8 +1,12 @@
 "use client";
 
-import { createContext, useContext, useMemo } from "react";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { usePathname } from "next/navigation";
 import type { Locale } from "@/lib/i18n/locales";
 import type { StudioStrings } from "@/lib/i18n/studio/en";
+import { loadStudioStrings } from "@/lib/i18n/studio/load";
+import { usePreferredLocale } from "@/lib/i18n/preference";
+import { isPrivatePath } from "@/lib/i18n/routes";
 import { fill, formatCents, formatNumber, formatUsd, plural, type Plural } from "@/lib/i18n/format";
 
 interface I18nValue {
@@ -26,17 +30,39 @@ export function I18nProvider({
   strings: StudioStrings;
   children: React.ReactNode;
 }) {
+  const pathname = usePathname() ?? "/";
+  const preferred = usePreferredLocale();
+  const want: Locale = isPrivatePath(pathname) && preferred ? preferred : locale;
+  const [loaded, setLoaded] = useState<{ locale: Locale; strings: StudioStrings } | null>(null);
+
+  useEffect(() => {
+    if (want === locale) return;
+    let alive = true;
+    void loadStudioStrings(want).then((s) => {
+      if (alive) setLoaded({ locale: want, strings: s });
+    });
+    return () => {
+      alive = false;
+    };
+  }, [want, locale]);
+
+  const active = want !== locale && loaded?.locale === want ? loaded : { locale, strings };
+
+  useEffect(() => {
+    document.documentElement.lang = active.locale;
+  }, [active.locale]);
+
   const value = useMemo<I18nValue>(
     () => ({
-      locale,
-      t: strings,
+      locale: active.locale,
+      t: active.strings,
       fill,
-      plural: (n, forms) => plural(locale, n, forms),
-      number: (n) => formatNumber(locale, n),
-      usd: (v) => formatUsd(locale, v),
-      cents: (v) => formatCents(locale, v),
+      plural: (n, forms) => plural(active.locale, n, forms),
+      number: (n) => formatNumber(active.locale, n),
+      usd: (v) => formatUsd(active.locale, v),
+      cents: (v) => formatCents(active.locale, v),
     }),
-    [locale, strings]
+    [active.locale, active.strings]
   );
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
 }

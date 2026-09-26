@@ -7,6 +7,9 @@ import { CreditProvider } from "@/components/credits/CreditProvider";
 import { I18nProvider } from "@/components/i18n/I18nProvider";
 import { StudioPreviewBadge } from "@/components/studio/StudioPreviewBadge";
 import { ReferralCapture } from "@/components/studio/ReferralCapture";
+import { StudioGate } from "@/components/studio/StudioGate";
+import { StudioNav } from "@/components/studio/StudioNav";
+import { StudioFooter } from "@/components/studio/StudioFooter";
 import type { PaywallFlags } from "@/lib/types/credits";
 import type { Locale } from "@/lib/i18n/locales";
 import type { StudioStrings } from "@/lib/i18n/studio/en";
@@ -40,9 +43,9 @@ export function SiteChrome({
   return (
     <I18nProvider locale={locale} strings={strings}>
       <CreditProvider flags={flags}>
-        <Navbar paywallEnabled={flags.paywallEnabled} />
+        <StudioGate studio={<StudioNav />} fallback={<Navbar paywallEnabled={flags.paywallEnabled} />} />
         <div className="flex-1">{children}</div>
-        <Footer paywallEnabled={flags.paywallEnabled} />
+        <StudioGate studio={<StudioFooter />} fallback={<Footer paywallEnabled={flags.paywallEnabled} />} />
         <StudioPreviewBadge />
         <ReferralCapture />
       </CreditProvider>

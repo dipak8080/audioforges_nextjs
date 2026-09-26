@@ -1,3 +1,5 @@
+import { StudioGate } from "@/components/studio/StudioGate";
+import { StudioPanel } from "@/components/studio/StudioPanel";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { YouTubeStemForm } from "@/components/converter/YouTubeStemForm";
@@ -203,12 +205,17 @@ export default async function YouTubeStemSplitterPage() {
         title="Free YouTube Stem Splitter"
         lede="Paste a link and split the song into vocals, drums, bass and other. Four separate WAV files, no download step, no sign-up."
         tool={
-          <YouTubeStemForm
-            hqAvailable={separationHqEnabled}
-            standardLimit={standardAllowance}
-            hqLimitText={hqLimitLabel}
-            demoStandardSrc={STEM_DEMO_STANDARD}
-            demoStudioSrc={STEM_DEMO_STUDIO}
+          <StudioGate
+            studio={<StudioPanel preset="youtube-stems" />}
+            fallback={
+              <YouTubeStemForm
+                hqAvailable={separationHqEnabled}
+                standardLimit={standardAllowance}
+                hqLimitText={hqLimitLabel}
+                demoStandardSrc={STEM_DEMO_STANDARD}
+                demoStudioSrc={STEM_DEMO_STUDIO}
+              />
+            }
           />
         }
       >

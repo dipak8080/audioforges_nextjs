@@ -1,3 +1,5 @@
+import { StudioGate } from "@/components/studio/StudioGate";
+import { StudioPanel } from "@/components/studio/StudioPanel";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { YouTubeSeparateForm } from "@/components/converter/YouTubeSeparateForm";
@@ -220,12 +222,17 @@ export default async function YouTubeVocalRemoverPage() {
         title="Free YouTube Vocal Remover"
         lede="Paste a link and get the vocals and the instrumental back as two separate WAV files. No download step, no sign-up."
         tool={
-          <YouTubeSeparateForm
-            hqAvailable={separationHqEnabled}
-            standardLimit={standardAllowance}
-            hqLimitText={hqLimitLabel}
-            demoStandardSrc={DEMO_STANDARD}
-            demoStudioSrc={DEMO_STUDIO}
+          <StudioGate
+            studio={<StudioPanel preset="youtube-vocal-remover" />}
+            fallback={
+              <YouTubeSeparateForm
+                hqAvailable={separationHqEnabled}
+                standardLimit={standardAllowance}
+                hqLimitText={hqLimitLabel}
+                demoStandardSrc={DEMO_STANDARD}
+                demoStudioSrc={DEMO_STUDIO}
+              />
+            }
           />
         }
       >

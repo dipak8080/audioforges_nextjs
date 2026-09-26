@@ -67,7 +67,9 @@ export function StudioInput({
   const [url, setUrl] = useState("");
 
   const selection = sanitizeSelection(rawSelection, config);
-  const source: InputSource = rawSource === "link" && !config.youtubeStudio ? "file" : rawSource;
+  const linkAllowed = config.youtubeStudio || base.source === "link";
+  const source: InputSource = rawSource === "link" && !linkAllowed ? "file" : rawSource;
+  const studioBlocked = source === "link" && !config.youtubeStudio;
   const videoExts = config.video.formats.length ? config.video.formats : FALLBACK_VIDEO_EXTS;
   const accept = [...AUDIO_EXTS, ...videoExts].map((e) => `.${e}`).join(",");
   const seconds = source === "file" && picked.files.length === 1 ? picked.audio?.duration ?? null : null;
@@ -163,7 +165,7 @@ export function StudioInput({
 
       <div className="grid gap-px bg-graphite-800 md:grid-cols-[1.35fr_1fr]">
         <div className="flex flex-col gap-4 bg-graphite-900 p-5">
-          {config.youtubeStudio && (
+          {linkAllowed && (
             <Segmented
               label={p.tabUpload}
               value={source}
@@ -343,7 +345,7 @@ export function StudioInput({
           <Button
             variant={canAffordStudio || batch ? "accent" : "outline"}
             size="lg"
-            disabled={!hasInput || busy}
+            disabled={!hasInput || busy || studioBlocked}
             loading={busy}
             onClick={() => start("studio")}
           >

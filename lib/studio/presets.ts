@@ -18,7 +18,9 @@ export type StudioPresetKey =
   | "acapella"
   | "instrumental"
   | "drum-remover"
-  | "bass-remover";
+  | "bass-remover"
+  | "youtube-vocal-remover"
+  | "youtube-stems";
 
 export interface StudioPreset extends StudioSelection {
   source: InputSource;
@@ -33,6 +35,8 @@ export const STUDIO_PRESETS: Record<StudioPresetKey, StudioPreset> = {
   instrumental: { output: 2, dereverb: false, leadBack: false, source: "file" },
   "drum-remover": { output: 4, dereverb: false, leadBack: false, source: "file" },
   "bass-remover": { output: 4, dereverb: false, leadBack: false, source: "file" },
+  "youtube-vocal-remover": { output: 2, dereverb: false, leadBack: false, source: "link" },
+  "youtube-stems": { output: 4, dereverb: false, leadBack: false, source: "link" },
 };
 
 export function studioTool(output: StemOutput, source: InputSource): MeteredToolKey {

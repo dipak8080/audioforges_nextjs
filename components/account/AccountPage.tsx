@@ -27,9 +27,9 @@ import {
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ id, title, children }: { id?: string; title: string; children: React.ReactNode }) {
   return (
-    <section className="surface rounded-2xl border border-graphite-800 bg-graphite-900 p-5">
+    <section id={id} className="scroll-mt-20 surface rounded-2xl border border-graphite-800 bg-graphite-900 p-5">
       <h2 className="mb-3 font-mono text-[11px] uppercase tracking-[0.18em] text-text-muted">{title}</h2>
       {children}
     </section>
@@ -306,12 +306,12 @@ export function AccountPage() {
       </Section>
 
       {passState && (passState.available || passState.active) && (
-        <Section title={a.passTitle}>
+        <Section id="pass" title={a.passTitle}>
           <PassSection pass={passState} onChange={setPass} />
         </Section>
       )}
 
-      <Section title={a.libraryTitle}>
+      <Section id="library" title={a.libraryTitle}>
         {config.library.enabled ? (
           <LibrarySection retentionDays={config.library.retentionDays} />
         ) : (
@@ -319,12 +319,12 @@ export function AccountPage() {
         )}
       </Section>
 
-      <Section title={a.emailTitle}>
+      <Section id="email" title={a.emailTitle}>
         <EmailSection />
       </Section>
 
       {referral?.enabled && (
-        <Section title={a.referralTitle}>
+        <Section id="invite" title={a.referralTitle}>
           <ReferralSection info={referral} />
         </Section>
       )}
